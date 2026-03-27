@@ -1,0 +1,61 @@
+{
+  "name": "comet-bursters",
+  "version": "2.2.4",
+  "type": "module",
+  "description": "A Gamepad API wrapper and mapping tool.",
+  "main": "./bin/src/index.js",
+  "types": "./bin/src/index.d.ts",
+  "files": [
+    "bin",
+    "src"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "format": "prettier \"**/*.{js,jsx,json,tsx,ts}\" --write",
+    "lint": "eslint .",
+    "type-check": "tsc -p tsconfig.json",
+    "clean": "del-cli -f bin/*"
+  },
+  "author": {
+    "name": "Diego Doumecq",
+    "email": "licenciado.diego@gmail.com"
+  },
+  "tags": [
+    "gamepad",
+    "joystick"
+  ],
+  "keywords": [
+    "gamepad",
+    "joystick"
+  ],
+  "homepage": "https://github.com/diegodoumecq/comet-bursters",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/diegodoumecq/comet-bursters"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "joymap": "^2.2.4",
+    "three": "^0.183.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
+    "@types/node": "^22.0.0",
+    "@types/three": "^0.183.1",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "del-cli": "^6.0.0",
+    "eslint": "^9.39.3",
+    "eslint-config-prettier": "^10.0.0",
+    "eslint-plugin-import": "^2.30.0",
+    "eslint-plugin-prettier": "^5.2.0",
+    "globals": "^17.4.0",
+    "jsdom": "^29.0.1",
+    "prettier": "^3.8.1",
+    "typescript": "^5.6.0",
+    "vite": "^5.4.0",
+    "vite-plugin-dts": "^4.0.0",
+    "vitest": "^2.1.9"
+  }
+}
