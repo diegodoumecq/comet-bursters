@@ -13,6 +13,7 @@ class InputManagerImpl {
     e: false,
     space: false,
     enter: false,
+    shift: false,
   };
 
   private mousePos = { x: 0, y: 0 };
@@ -46,6 +47,8 @@ class InputManagerImpl {
         this.keyboardState.space = true;
       } else if (e.key === 'Enter') {
         this.keyboardState.enter = true;
+      } else if (e.key === 'Shift') {
+        this.keyboardState.shift = true;
       }
     });
 
@@ -57,6 +60,8 @@ class InputManagerImpl {
         this.keyboardState.space = false;
       } else if (e.key === 'Enter') {
         this.keyboardState.enter = false;
+      } else if (e.key === 'Shift') {
+        this.keyboardState.shift = false;
       }
     });
   }
@@ -141,6 +146,16 @@ class InputManagerImpl {
       value: pressed ? 1 : 0,
       pressed,
       justChanged: pressed && !this.prevKeyboardState.e,
+    };
+  }
+
+  private getKeyboardShield(): ButtonResult {
+    const pressed = this.keyboardState.shift;
+    return {
+      type: 'button',
+      value: pressed ? 1 : 0,
+      pressed,
+      justChanged: pressed && !this.prevKeyboardState.shift,
     };
   }
 
@@ -288,6 +303,7 @@ class InputManagerImpl {
     const keyboardMove = this.getKeyboardMove();
     const keyboardFireReallyHard = this.getKeyboardFireReallyHard();
     const keyboardChaosFire = this.getKeyboardChaosFire();
+    const keyboardShield = this.getKeyboardShield();
 
     const mouseAim = this.getMouseAim(playerX, playerY);
     const mouseFire = this.getMouseFire();
@@ -318,7 +334,7 @@ class InputManagerImpl {
       emptyButton,
     );
     const mergedChaosFire = this.mergeButtons(keyboardChaosFire, gamepadChaosFire, emptyButton);
-    const mergedShield = this.mergeButtons(emptyButton, gamepadShield, emptyButton);
+    const mergedShield = this.mergeButtons(keyboardShield, gamepadShield, emptyButton);
 
     return {
       move: mergedMove,
