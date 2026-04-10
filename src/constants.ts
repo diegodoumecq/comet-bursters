@@ -61,6 +61,7 @@ export interface Planet {
   y: number;
   vx: number;
   vy: number;
+  kind: PlanetKind;
   color: string;
   altitudeVariations: number[];
   rotation: number;
@@ -91,7 +92,11 @@ export interface Particle {
   alpha: number;
   rotation: number;
   rotationSpeed: number;
-  sprite: HTMLCanvasElement;
+  size: number;
+  color: string;
+  color2?: string;
+  glowColor: string;
+  shape: 'spark' | 'shard' | 'smoke' | 'panel' | 'wing' | 'core';
   lifetime: number;
   maxLifetime: number;
 }
@@ -104,7 +109,9 @@ export interface ThrusterParticle {
   alpha: number;
   rotation: number;
   rotationSpeed: number;
-  sprite: HTMLCanvasElement;
+  size: number;
+  color: string;
+  glowColor: string;
   lifetime: number;
   maxLifetime: number;
   scale: number;
@@ -308,7 +315,6 @@ export type AsteroidColor = string;
 
 export const THRUSTER_PARTICLE_LIFETIME = 700;
 export const THRUSTER_PARTICLE_SPAWN_INTERVAL = 10;
-export const THRUSTER_SPRITE_SIZE = 12;
 export const THRUSTER_COLORS = ['#ff6600', '#ff7722', '#ff8833', '#ff4400'] as const;
 
 export const GRID_COLOR = 'rgba(255, 255, 255, 0.03)';
@@ -331,17 +337,18 @@ export interface Star {
   parallaxLayer: number;
 }
 
+export const PLANET_KINDS = ['lush', 'desert', 'ice', 'lava', 'gas', 'toxic'] as const;
+export type PlanetKind = (typeof PLANET_KINDS)[number];
+
 export const PLANET_CONFIG = {
   radius: 150,
   gravityStrength: 0.5,
-  colorPalette: [
-    '#e74c3c',
-    '#3498db',
-    '#2ecc71',
-    '#9b59b6',
-    '#f39c12',
-    '#1abc9c',
-    '#e67e22',
-    '#34495e',
-  ],
+  palettes: {
+    lush: ['#2ecc71', '#27ae60', '#58d68d'],
+    desert: ['#f39c12', '#d68910', '#e67e22'],
+    ice: ['#8bd3ff', '#5dade2', '#d6f6ff'],
+    lava: ['#e74c3c', '#ff6b35', '#c0392b'],
+    gas: ['#9b59b6', '#8e44ad', '#c39bd3'],
+    toxic: ['#1abc9c', '#16a085', '#7bed9f'],
+  } satisfies Record<PlanetKind, readonly string[]>,
 };

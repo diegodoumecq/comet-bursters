@@ -1,5 +1,5 @@
-import { getRandomAsteroidColor, scaleMask } from '@/assets';
-import { ASTEROID_CONFIGS, PLANET_CONFIG, type Asteroid } from '@/constants';
+import { getAsteroidMask, getRandomAsteroidColor } from '@/assets';
+import { ASTEROID_CONFIGS, type Asteroid } from '@/constants';
 import {
   asteroids,
   gameState,
@@ -7,9 +7,7 @@ import {
   getGameCenterY,
   getGameHeight,
   getGameWidth,
-  planets,
 } from '@/state';
-import { createPlanet } from './planets';
 
 export function createAsteroid(
   x: number,
@@ -65,7 +63,7 @@ export function createAsteroid(
     hits: config.hits,
     splitCount: config.splitCount,
     mass: config.mass,
-    mask: scaleMask(gameState.baseAlphaMask!, (config.radius * 2) / 150),
+    mask: getAsteroidMask(size),
     getRadius: () => config.radius,
   };
 }
@@ -153,14 +151,6 @@ export function spawnWave(wave: number) {
       size = 'small';
     }
     asteroids.push(createAsteroid(0, 0, size));
-  }
-
-  if (planets.length === 0) {
-    const width = getGameWidth();
-    const height = getGameHeight();
-    const planetX = PLANET_CONFIG.radius + Math.random() * (width - PLANET_CONFIG.radius * 2);
-    const planetY = PLANET_CONFIG.radius + Math.random() * (height - PLANET_CONFIG.radius * 2);
-    planets.push(createPlanet(planetX, planetY));
   }
 }
 

@@ -6,13 +6,29 @@ import { createRotatedGradient } from '@/utils/canvas';
 import type { Scene } from '../scene';
 
 export class TitleScene implements Scene {
-  enter(): void {}
+  private sandboxRequested = false;
+  private handleKeyDown = (event: KeyboardEvent): void => {
+    const key = event.key.toLowerCase();
+    if (key === 's') {
+      this.sandboxRequested = true;
+    }
+  };
+
+  enter(): void {
+    this.sandboxRequested = false;
+    window.addEventListener('keydown', this.handleKeyDown);
+  }
 
   update(_deltaTime: number): void {
     InputManager.getInputState();
 
     const gamepadConnected = joymap.getUnusedPadIds().length > 0;
     const keyPressed = InputManager.wasAnyKeyJustPressed();
+
+    if (gameState.assetsLoaded && this.sandboxRequested) {
+      sceneManager.transitionTo('sandbox');
+      return;
+    }
 
     if (gameState.assetsLoaded && (gamepadConnected || keyPressed)) {
       sceneManager.transitionTo('game');
@@ -72,17 +88,21 @@ export class TitleScene implements Scene {
 
     ctx.font = '20px Audiowide, sans-serif';
     ctx.fillStyle = '#888';
-    ctx.fillText('Connect a gamepad or press Space/Enter to start!', centerX, centerY + 50);
+    ctx.fillText('Connect one gamepad or press Space/Enter to start', centerX, centerY + 50);
+    ctx.fillText('Press S to launch Sandbox', centerX, centerY + 80);
+    ctx.fillText('Press D to date your ship', centerX, centerY + 110);
 
     ctx.font = '16px Audiowide, sans-serif';
-    ctx.fillText('L Stick: Move', centerX, centerY + 120);
-    ctx.fillText('R Stick: Aim', centerX, centerY + 145);
-    ctx.fillText('R1: Shoot', centerX, centerY + 170);
-    ctx.fillText('R2: Black Hole', centerX, centerY + 195);
-    ctx.fillText('L1: Pusher', centerX, centerY + 220);
-    ctx.fillText('L2: Shotgun', centerX, centerY + 245);
-    ctx.fillText('A: Shield', centerX, centerY + 270);
+    ctx.fillText('L Stick / WASD: Move', centerX, centerY + 150);
+    ctx.fillText('R Stick / Mouse: Aim', centerX, centerY + 175);
+    ctx.fillText('R1 / Left Click: Shoot', centerX, centerY + 200);
+    ctx.fillText('R2 / Q: Black Hole', centerX, centerY + 225);
+    ctx.fillText('L1 / Right Click: Pusher', centerX, centerY + 250);
+    ctx.fillText('L2 / E: Shotgun', centerX, centerY + 275);
+    ctx.fillText('A / Shift: Shield', centerX, centerY + 300);
   }
 
-  exit(): void {}
+  exit(): void {
+    window.removeEventListener('keydown', this.handleKeyDown);
+  }
 }

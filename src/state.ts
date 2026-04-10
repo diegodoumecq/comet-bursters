@@ -10,7 +10,10 @@ import type {
   ThrusterParticle,
 } from './constants';
 
-export const players: Player[] = [];
+export let player: Player | null = null;
+export function setPlayer(nextPlayer: Player | null): void {
+  player = nextPlayer;
+}
 export const asteroids: Asteroid[] = [];
 export const planets: Planet[] = [];
 export const bullets: Bullet[] = [];
@@ -43,6 +46,7 @@ export function getGameCenterY(): number {
 }
 
 export type GamePhase = 'title' | 'playing' | 'gameover';
+export type PlayableSceneName = 'game' | 'sandbox';
 
 export type GameState = {
   gamepadImage: HTMLImageElement | null;
@@ -55,13 +59,12 @@ export type GameState = {
     medium: Record<string, HTMLCanvasElement>;
     small: Record<string, HTMLCanvasElement>;
   };
-  particleSprites: HTMLCanvasElement[];
-  thrusterSprites: HTMLCanvasElement[];
   currentWave: number;
   waveCleared: boolean;
   waveClearTime: number;
   gamePhase: GamePhase;
   gameOverTime: number;
+  restartScene: PlayableSceneName;
   gameSize: { width: number; height: number } | null;
   needsResize: boolean;
 };
@@ -77,19 +80,19 @@ export const gameState: GameState = {
     medium: {},
     small: {},
   },
-  particleSprites: [],
-  thrusterSprites: [],
   currentWave: 1,
   waveCleared: false,
   waveClearTime: 0,
   gamePhase: 'title',
   gameOverTime: 0,
+  restartScene: 'game',
   gameSize: null,
   needsResize: false,
 };
 
 export function resetState() {
   asteroids.length = 0;
+  planets.length = 0;
   bullets.length = 0;
   particles.length = 0;
   thrusterParticles.length = 0;

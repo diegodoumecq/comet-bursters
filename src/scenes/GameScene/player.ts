@@ -16,11 +16,11 @@ import {
   type Player,
 } from '@/constants';
 import { InputManager } from '@/input';
-import { bullets, gameState, getGameHeight, getGameWidth, players } from '@/state';
+import { bullets, gameState, getGameHeight, getGameWidth } from '@/state';
 import { createThrusterParticle } from './particle';
 
-export function createPlayer(padId: string, colorIndex: number): Player {
-  const color = PLAYER_COLORS[colorIndex % PLAYER_COLORS.length];
+export function createPlayer(padId: string): Player {
+  const color = PLAYER_COLORS[0];
   const width = getGameWidth();
   const height = getGameHeight();
   return {
@@ -240,50 +240,145 @@ function drawOnePlayer(player: Player, ctx: CanvasRenderingContext2D) {
   ctx.save();
   ctx.rotate(player.angle - Math.PI / 2);
 
-  ctx.fillStyle = player.color;
-  ctx.strokeStyle = '#555';
+  const hullGradient = ctx.createLinearGradient(-PLAYER_SIZE * 0.85, 0, PLAYER_SIZE, 0);
+  hullGradient.addColorStop(0, '#1a202c');
+  hullGradient.addColorStop(0.22, player.color);
+  hullGradient.addColorStop(0.68, '#f2f6ff');
+  hullGradient.addColorStop(1, '#ffffff');
+
+  ctx.fillStyle = hullGradient;
+  ctx.strokeStyle = '#121826';
   ctx.lineWidth = 2;
 
   ctx.beginPath();
   ctx.moveTo(PLAYER_SIZE, 0);
-  ctx.lineTo(PLAYER_SIZE * 0.3, -PLAYER_SIZE * 0.15);
-  ctx.lineTo(-PLAYER_SIZE * 0.3, -PLAYER_SIZE * 0.5);
-  ctx.lineTo(-PLAYER_SIZE * 0.6, -PLAYER_SIZE * 0.4);
-  ctx.lineTo(-PLAYER_SIZE * 0.8, -PLAYER_SIZE * 0.15);
-  ctx.lineTo(-PLAYER_SIZE * 0.5, -PLAYER_SIZE * 0.15);
-  ctx.lineTo(-PLAYER_SIZE * 0.6, PLAYER_SIZE * 0.15);
-  ctx.lineTo(-PLAYER_SIZE * 0.8, PLAYER_SIZE * 0.15);
-  ctx.lineTo(-PLAYER_SIZE * 0.6, PLAYER_SIZE * 0.4);
-  ctx.lineTo(-PLAYER_SIZE * 0.3, PLAYER_SIZE * 0.5);
-  ctx.lineTo(PLAYER_SIZE * 0.3, PLAYER_SIZE * 0.15);
+  ctx.lineTo(PLAYER_SIZE * 0.46, -PLAYER_SIZE * 0.14);
+  ctx.lineTo(PLAYER_SIZE * 0.18, -PLAYER_SIZE * 0.2);
+  ctx.lineTo(-PLAYER_SIZE * 0.08, -PLAYER_SIZE * 0.54);
+  ctx.lineTo(-PLAYER_SIZE * 0.36, -PLAYER_SIZE * 0.46);
+  ctx.lineTo(-PLAYER_SIZE * 0.84, -PLAYER_SIZE * 0.22);
+  ctx.lineTo(-PLAYER_SIZE * 0.58, -PLAYER_SIZE * 0.08);
+  ctx.lineTo(-PLAYER_SIZE * 0.72, 0);
+  ctx.lineTo(-PLAYER_SIZE * 0.58, PLAYER_SIZE * 0.08);
+  ctx.lineTo(-PLAYER_SIZE * 0.84, PLAYER_SIZE * 0.22);
+  ctx.lineTo(-PLAYER_SIZE * 0.36, PLAYER_SIZE * 0.46);
+  ctx.lineTo(-PLAYER_SIZE * 0.08, PLAYER_SIZE * 0.54);
+  ctx.lineTo(PLAYER_SIZE * 0.18, PLAYER_SIZE * 0.2);
+  ctx.lineTo(PLAYER_SIZE * 0.46, PLAYER_SIZE * 0.14);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+  ctx.beginPath();
+  ctx.moveTo(PLAYER_SIZE * 0.72, -PLAYER_SIZE * 0.02);
+  ctx.lineTo(PLAYER_SIZE * 0.08, -PLAYER_SIZE * 0.09);
+  ctx.lineTo(-PLAYER_SIZE * 0.22, -PLAYER_SIZE * 0.06);
+  ctx.lineTo(PLAYER_SIZE * 0.18, -PLAYER_SIZE * 0.01);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#202a3a';
+  ctx.beginPath();
+  ctx.moveTo(PLAYER_SIZE * 0.2, -PLAYER_SIZE * 0.08);
+  ctx.lineTo(-PLAYER_SIZE * 0.18, -PLAYER_SIZE * 0.22);
+  ctx.lineTo(-PLAYER_SIZE * 0.48, -PLAYER_SIZE * 0.09);
+  ctx.lineTo(-PLAYER_SIZE * 0.12, -PLAYER_SIZE * 0.03);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(PLAYER_SIZE * 0.2, PLAYER_SIZE * 0.08);
+  ctx.lineTo(-PLAYER_SIZE * 0.18, PLAYER_SIZE * 0.22);
+  ctx.lineTo(-PLAYER_SIZE * 0.48, PLAYER_SIZE * 0.09);
+  ctx.lineTo(-PLAYER_SIZE * 0.12, PLAYER_SIZE * 0.03);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-PLAYER_SIZE * 0.52, 0);
+  ctx.lineTo(PLAYER_SIZE * 0.78, 0);
+  ctx.stroke();
+
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.moveTo(-PLAYER_SIZE * 0.62, -PLAYER_SIZE * 0.16);
+  ctx.lineTo(-PLAYER_SIZE * 0.42, -PLAYER_SIZE * 0.12);
+  ctx.lineTo(-PLAYER_SIZE * 0.42, PLAYER_SIZE * 0.12);
+  ctx.lineTo(-PLAYER_SIZE * 0.62, PLAYER_SIZE * 0.16);
+  ctx.closePath();
+  ctx.fill();
+
+  const canopyGradient = ctx.createLinearGradient(0, -PLAYER_SIZE * 0.28, 0, PLAYER_SIZE * 0.28);
+  canopyGradient.addColorStop(0, '#dff7ff');
+  canopyGradient.addColorStop(0.45, '#7dd3fc');
+  canopyGradient.addColorStop(1, '#082f49');
+  ctx.fillStyle = canopyGradient;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(PLAYER_SIZE * 0.34, 0);
+  ctx.quadraticCurveTo(PLAYER_SIZE * 0.04, -PLAYER_SIZE * 0.26, -PLAYER_SIZE * 0.18, 0);
+  ctx.quadraticCurveTo(PLAYER_SIZE * 0.04, PLAYER_SIZE * 0.26, PLAYER_SIZE * 0.34, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#f8fafc';
+  ctx.beginPath();
+  ctx.arc(PLAYER_SIZE * 0.72, 0, PLAYER_SIZE * 0.06, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#fb7185';
+  ctx.beginPath();
+  ctx.arc(-PLAYER_SIZE * 0.56, -PLAYER_SIZE * 0.14, PLAYER_SIZE * 0.05, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(-PLAYER_SIZE * 0.56, PLAYER_SIZE * 0.14, PLAYER_SIZE * 0.05, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.restore();
 
   ctx.save();
   ctx.rotate(player.turretAngle - Math.PI / 2);
 
-  ctx.fillStyle = '#333';
-  ctx.strokeStyle = '#666';
+  const coreGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, PLAYER_SIZE * 0.28);
+  coreGradient.addColorStop(0, '#e2e8f0');
+  coreGradient.addColorStop(0.55, '#475569');
+  coreGradient.addColorStop(1, '#0f172a');
+  ctx.fillStyle = coreGradient;
+  ctx.strokeStyle = '#94a3b8';
   ctx.lineWidth = 2;
 
   ctx.beginPath();
-  ctx.arc(0, 0, PLAYER_SIZE * 0.25, 0, Math.PI * 2);
+  ctx.arc(0, 0, PLAYER_SIZE * 0.24, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
   ctx.beginPath();
-  ctx.moveTo(PLAYER_SIZE * 0.1, -PLAYER_SIZE * 0.08);
-  ctx.lineTo(PLAYER_SIZE * 0.6, -PLAYER_SIZE * 0.05);
+  ctx.moveTo(PLAYER_SIZE * 0.08, -PLAYER_SIZE * 0.11);
+  ctx.lineTo(PLAYER_SIZE * 0.26, -PLAYER_SIZE * 0.11);
+  ctx.lineTo(PLAYER_SIZE * 0.34, -PLAYER_SIZE * 0.07);
+  ctx.lineTo(PLAYER_SIZE * 0.68, -PLAYER_SIZE * 0.05);
   ctx.lineTo(PLAYER_SIZE * 0.65, 0);
-  ctx.lineTo(PLAYER_SIZE * 0.6, PLAYER_SIZE * 0.05);
-  ctx.lineTo(PLAYER_SIZE * 0.1, PLAYER_SIZE * 0.08);
+  ctx.lineTo(PLAYER_SIZE * 0.68, PLAYER_SIZE * 0.05);
+  ctx.lineTo(PLAYER_SIZE * 0.34, PLAYER_SIZE * 0.07);
+  ctx.lineTo(PLAYER_SIZE * 0.26, PLAYER_SIZE * 0.11);
+  ctx.lineTo(PLAYER_SIZE * 0.08, PLAYER_SIZE * 0.11);
   ctx.closePath();
-  ctx.fillStyle = '#555';
+  const barrelGradient = ctx.createLinearGradient(PLAYER_SIZE * 0.08, 0, PLAYER_SIZE * 0.7, 0);
+  barrelGradient.addColorStop(0, '#94a3b8');
+  barrelGradient.addColorStop(0.45, '#e2e8f0');
+  barrelGradient.addColorStop(1, '#475569');
+  ctx.fillStyle = barrelGradient;
   ctx.fill();
   ctx.stroke();
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.beginPath();
+  ctx.arc(PLAYER_SIZE * 0.18, 0, PLAYER_SIZE * 0.05, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.restore();
 
@@ -334,30 +429,5 @@ export function drawPlayer(player: Player, ctx: CanvasRenderingContext2D) {
   }
   if (nearRight && nearBottom) {
     drawOnePlayer({ ...player, x: player.x - width, y: player.y - height }, ctx);
-  }
-}
-
-export function bouncePlayers() {
-  for (let i = 0; i < players.length; i++) {
-    for (let j = i + 1; j < players.length; j++) {
-      const p1 = players[i];
-      const p2 = players[j];
-
-      const dx = p2.x - p1.x;
-      const dy = p2.y - p1.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const minDist = PLAYER_SIZE * 1.5;
-
-      if (dist < minDist && dist > 0) {
-        const overlap = (minDist - dist) / 2;
-        const nx = dx / dist;
-        const ny = dy / dist;
-
-        p1.x -= nx * overlap;
-        p1.y -= ny * overlap;
-        p2.x += nx * overlap;
-        p2.y += ny * overlap;
-      }
-    }
   }
 }

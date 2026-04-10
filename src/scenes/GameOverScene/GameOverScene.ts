@@ -6,7 +6,7 @@ import {
   getGameCenterY,
   getGameHeight,
   getGameWidth,
-  players,
+  player,
 } from '@/state';
 import type { Scene } from '../scene';
 
@@ -17,14 +17,17 @@ export class GameOverScene implements Scene {
 
   update(_deltaTime: number): void {
     const now = Date.now();
+    const currentPlayer = player;
 
-    if (players.length > 0) {
-      if (now - gameState.gameOverTime < RESTART_COOLDOWN) return;
+    if (currentPlayer) {
+      if (now - gameState.gameOverTime < RESTART_COOLDOWN) {
+        return;
+      }
 
-      const anyInputJustPressed = players.some((p) => InputManager.isAnyInputJustPressed(p.module));
+      const anyInputJustPressed = InputManager.isAnyInputJustPressed(currentPlayer.module);
 
       if (anyInputJustPressed) {
-        sceneManager.transitionTo('game');
+        sceneManager.transitionTo(gameState.restartScene);
       }
     }
   }
@@ -44,11 +47,12 @@ export class GameOverScene implements Scene {
     ctx.textBaseline = 'middle';
     ctx.fillText('GAME OVER', centerX, centerY - 80);
 
-    ctx.font = '24px monospace';
-    players.forEach((player, index) => {
-      ctx.fillStyle = player.color;
-      ctx.fillText(`Player ${index + 1}: ${player.score} points`, centerX, centerY + index * 40);
-    });
+    const currentPlayer = player;
+    if (currentPlayer) {
+      ctx.font = '24px monospace';
+      ctx.fillStyle = currentPlayer.color;
+      ctx.fillText(`Score: ${currentPlayer.score} points`, centerX, centerY);
+    }
 
     ctx.fillStyle = '#888';
     ctx.font = '18px monospace';

@@ -1,4 +1,4 @@
-import { ASTEROID_CONFIGS, PLANET_CONFIG, SHIELD_MAX_HITS, STARTING_LIVES } from '@/constants';
+import { ASTEROID_CONFIGS, SHIELD_MAX_HITS, STARTING_LIVES } from '@/constants';
 import { joymap } from '@/joymap';
 import { sceneManager } from '@/sceneManager';
 import {
@@ -10,37 +10,37 @@ import {
   getGameHeight,
   getGameWidth,
   particles,
-  planets,
-  players,
+  player,
   resetState,
   screenShake,
+  setPlayer,
   thrusterParticles,
 } from '@/state';
 import type { Scene } from '../scene';
 import { drawAsteroid, spawnWave, splitAsteroid, updateAsteroid } from './asteroid';
 import { drawBackground, updateBackground } from './background';
 import { drawBullet, isBulletExpired, updateBullet } from './bullet';
-import {
-  processBulletAsteroidCollisions,
-  processPlanetAsteroidCollisions,
-  processPlanetBulletCollisions,
-  processPlanetPlayerCollisions,
-  processPlayerAsteroidCollisions,
-} from './collision';
+import { processBulletAsteroidCollisions, processPlayerAsteroidCollisions } from './collision';
 import {
   createExplosion,
+  createExplosionBurst,
+  createShipDebris,
   drawParticle,
   drawThrusterParticle,
   updateParticle,
   updateThrusterParticle,
 } from './particle';
-import { drawPlanet, updatePlanets } from './planets';
 import { createPlayer, drawPlayer, updatePlayer } from './player';
 import { rumbleDeath } from './rumble';
 import { dispose, initShader, renderWithShaders, updateBlackHoles } from './shader';
 
 export class GameScene implements Scene {
   private canvas: HTMLCanvasElement | null = null;
+
+  private placePlayerSafely(currentPlayer: NonNullable<typeof player>): void {
+    currentPlayer.x = Math.random() * getGameWidth();
+    currentPlayer.y = Math.random() * getGameHeight();
+  }
 
   setCanvas(canvas: HTMLCanvasElement): void {
     this.canvas = canvas;
@@ -55,91 +55,35 @@ export class GameScene implements Scene {
 
   enter(): void {
     resetState();
+    gameState.restartScene = 'game';
 
     spawnWave(1);
 
-    if (players.length === 0) {
-      const unusedIds = joymap.getUnusedPadIds();
-      let colorIndex = 0;
-
-      if (unusedIds.length > 0) {
-        unusedIds.forEach((padId: string) => {
-          const player = createPlayer(padId, colorIndex);
-          joymap.addModule(player.module);
-          players.push(player);
-          colorIndex++;
-        });
-      } else {
-        const player = createPlayer('keyboard', 0);
-        joymap.addModule(player.module);
-        players.push(player);
-      }
+    if (!player) {
+      const padId = joymap.getUnusedPadIds()[0] ?? 'keyboard';
+      const createdPlayer = createPlayer(padId);
+      setPlayer(createdPlayer);
+      joymap.addModule(createdPlayer.module);
     }
 
-    for (const player of players) {
-      player.lives = STARTING_LIVES;
-      player.score = 0;
-      player.shieldHits = SHIELD_MAX_HITS;
-      player.shieldActive = false;
-      player.waitingToRespawn = false;
-      player.angle = 0;
-      player.turretAngle = 0;
-
-      let safePositionFound = false;
-      const maxAttempts = 50;
-      const minDistFromPlanet = PLANET_CONFIG.radius * 3;
-
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const x = Math.random() * getGameWidth();
-        const y = Math.random() * getGameHeight();
-
-        let tooClose = false;
-        for (const planet of planets) {
-          const width = getGameWidth();
-          const height = getGameHeight();
-          const planetPositions = [
-            { x: planet.x, y: planet.y },
-            { x: planet.x + width, y: planet.y },
-            { x: planet.x - width, y: planet.y },
-            { x: planet.x, y: planet.y + height },
-            { x: planet.x, y: planet.y - height },
-            { x: planet.x + width, y: planet.y + height },
-            { x: planet.x - width, y: planet.y + height },
-            { x: planet.x + width, y: planet.y - height },
-            { x: planet.x - width, y: planet.y - height },
-          ];
-
-          for (const pPos of planetPositions) {
-            const dx = pPos.x - x;
-            const dy = pPos.y - y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < minDistFromPlanet) {
-              tooClose = true;
-              break;
-            }
-          }
-          if (tooClose) break;
-        }
-
-        if (!tooClose) {
-          player.x = x;
-          player.y = y;
-          safePositionFound = true;
-          break;
-        }
-      }
-
-      if (!safePositionFound) {
-        player.x = Math.random() * getGameWidth();
-        player.y = Math.random() * getGameHeight();
-      }
-
-      player.vx = 0;
-      player.vy = 0;
-      player.invulnerable = true;
-      player.invulnerableUntil = Date.now() + 3000;
-      player.respawnTime = 0;
+    const currentPlayer = player;
+    if (!currentPlayer) {
+      return;
     }
+
+    currentPlayer.lives = STARTING_LIVES;
+    currentPlayer.score = 0;
+    currentPlayer.shieldHits = SHIELD_MAX_HITS;
+    currentPlayer.shieldActive = false;
+    currentPlayer.waitingToRespawn = false;
+    currentPlayer.angle = 0;
+    currentPlayer.turretAngle = 0;
+    this.placePlayerSafely(currentPlayer);
+    currentPlayer.vx = 0;
+    currentPlayer.vy = 0;
+    currentPlayer.invulnerable = true;
+    currentPlayer.invulnerableUntil = Date.now() + 3000;
+    currentPlayer.respawnTime = 0;
 
     spawnWave(1);
 
@@ -165,39 +109,6 @@ export class GameScene implements Scene {
       return;
     }
 
-    updatePlanets();
-
-    processPlanetPlayerCollisions((player) => {
-      if (player.waitingToRespawn) return;
-      player.lives--;
-      player.waitingToRespawn = true;
-      player.respawnTime = now + 2000;
-      player.vx = 0;
-      player.vy = 0;
-      player.isThrusting = false;
-      rumbleDeath(player.module);
-      createExplosion(player.x, player.y, 1, player.vx, player.vy);
-    });
-
-    const planetAsteroidHits = processPlanetAsteroidCollisions();
-    const destroyedAsteroids = new Set(planetAsteroidHits);
-    for (let i = asteroids.length - 1; i >= 0; i--) {
-      if (destroyedAsteroids.has(i)) {
-        const asteroid = asteroids[i];
-        const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
-        createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
-        asteroids.splice(i, 1);
-      }
-    }
-
-    const planetBulletHits = processPlanetBulletCollisions();
-    const planetHitBullets = new Set(planetBulletHits);
-    for (let i = bullets.length - 1; i >= 0; i--) {
-      if (planetHitBullets.has(i)) {
-        bullets.splice(i, 1);
-      }
-    }
-
     if (asteroids.length === 0 && !gameState.waveCleared) {
       gameState.waveCleared = true;
       gameState.waveClearTime = now;
@@ -207,7 +118,7 @@ export class GameScene implements Scene {
       gameState.currentWave++;
       spawnWave(gameState.currentWave);
       gameState.waveCleared = false;
-      for (const player of players) {
+      if (player) {
         player.shieldHits = SHIELD_MAX_HITS;
       }
     }
@@ -236,7 +147,7 @@ export class GameScene implements Scene {
       asteroid.hits -= bullet.damage;
 
       if (asteroid.hits <= 0) {
-        const shooter = players.find((p) => p.id === bullet.playerId);
+        const shooter = player?.id === bullet.playerId ? player : null;
         if (shooter) {
           shooter.score += ASTEROID_CONFIGS[asteroid.size].points * shooter.lives;
         }
@@ -257,7 +168,7 @@ export class GameScene implements Scene {
       }
     }
 
-    for (const player of players) {
+    if (player) {
       updatePlayer(player);
     }
 
@@ -270,81 +181,33 @@ export class GameScene implements Scene {
 
       player.lives--;
       player.waitingToRespawn = true;
+      const debrisVx = player.vx;
+      const debrisVy = player.vy;
       player.vx = 0;
       player.vy = 0;
       player.isThrusting = false;
       rumbleDeath(player.module);
-      createExplosion(player.x, player.y, 2, player.vx, player.vy);
+      createShipDebris(player.x, player.y, 2, debrisVx, debrisVy, player.color);
+      createExplosionBurst(player.x, player.y, 2, player.vx, player.vy);
 
       player.respawnTime = now + 2000;
     });
 
-    const allWaitingToRespawn =
-      players.length > 0 && players.every((p) => p.lives <= 0 && now >= p.respawnTime);
+    const allWaitingToRespawn = player !== null && player.lives <= 0 && now >= player.respawnTime;
 
     if (allWaitingToRespawn) {
       sceneManager.transitionTo('gameover');
       gameState.gameOverTime = now;
     } else {
-      for (const player of players) {
-        if (player.waitingToRespawn && now >= player.respawnTime) {
-          player.invulnerable = true;
-          player.invulnerableUntil = now + 2000;
-
-          let safePositionFound = false;
-          const maxAttempts = 50;
-          const minDistFromPlanet = PLANET_CONFIG.radius * 3;
-
-          for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            const x = Math.random() * getGameWidth();
-            const y = Math.random() * getGameHeight();
-
-            let tooClose = false;
-            for (const planet of planets) {
-              const width = getGameWidth();
-              const height = getGameHeight();
-              const planetPositions = [
-                { x: planet.x, y: planet.y },
-                { x: planet.x + width, y: planet.y },
-                { x: planet.x - width, y: planet.y },
-                { x: planet.x, y: planet.y + height },
-                { x: planet.x, y: planet.y - height },
-                { x: planet.x + width, y: planet.y + height },
-                { x: planet.x - width, y: planet.y + height },
-                { x: planet.x + width, y: planet.y - height },
-                { x: planet.x - width, y: planet.y - height },
-              ];
-
-              for (const pPos of planetPositions) {
-                const dx = pPos.x - x;
-                const dy = pPos.y - y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist < minDistFromPlanet) {
-                  tooClose = true;
-                  break;
-                }
-              }
-              if (tooClose) break;
-            }
-
-            if (!tooClose) {
-              player.x = x;
-              player.y = y;
-              safePositionFound = true;
-              break;
-            }
-          }
-
-          if (!safePositionFound) {
-            player.x = Math.random() * getGameWidth();
-            player.y = Math.random() * getGameHeight();
-          }
-
-          player.vx = 0;
-          player.vy = 0;
-          player.shieldHits = SHIELD_MAX_HITS;
-          player.waitingToRespawn = false;
-        }
+      const currentPlayer = player;
+      if (currentPlayer && currentPlayer.waitingToRespawn && now >= currentPlayer.respawnTime) {
+        currentPlayer.invulnerable = true;
+        currentPlayer.invulnerableUntil = now + 2000;
+        this.placePlayerSafely(currentPlayer);
+        currentPlayer.vx = 0;
+        currentPlayer.vy = 0;
+        currentPlayer.shieldHits = SHIELD_MAX_HITS;
+        currentPlayer.waitingToRespawn = false;
       }
     }
 
@@ -410,10 +273,6 @@ export class GameScene implements Scene {
       return;
     }
 
-    for (const planet of planets) {
-      drawPlanet(planet, ctx);
-    }
-
     for (const bullet of bullets) {
       drawBullet(bullet, ctx);
     }
@@ -426,10 +285,8 @@ export class GameScene implements Scene {
       drawThrusterParticle(thrusterParticles[i], ctx);
     }
 
-    for (const player of players) {
-      if (!player.waitingToRespawn) {
-        drawPlayer(player, ctx);
-      }
+    if (player && !player.waitingToRespawn) {
+      drawPlayer(player, ctx);
     }
 
     for (let i = particles.length - 1; i >= 0; i--) {
@@ -440,23 +297,24 @@ export class GameScene implements Scene {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
 
-    players.forEach((player, index) => {
-      const hudX = index % 2 === 0 ? 20 : getGameWidth() - 200;
+    const currentPlayer = player;
+    if (currentPlayer) {
+      const hudX = 20;
       const hudY = 20;
 
-      ctx.fillStyle = player.color;
-      ctx.fillText(`P${index + 1}`, hudX, hudY);
+      ctx.fillStyle = currentPlayer.color;
+      ctx.fillText('Player', hudX, hudY);
 
-      const remainingTime = Math.max(0, Math.ceil((player.respawnTime - now) / 1000));
-      if (player.lives <= 0) {
+      const remainingTime = Math.max(0, Math.ceil((currentPlayer.respawnTime - now) / 1000));
+      if (currentPlayer.lives <= 0) {
         ctx.fillStyle = '#888';
-        ctx.fillText(`Waiting... ${remainingTime}s`, hudX + 40, hudY);
+        ctx.fillText(`Waiting... ${remainingTime}s`, hudX + 70, hudY);
       } else {
         ctx.fillStyle = '#fff';
-        ctx.fillText(`x${player.lives} ${'♥'.repeat(player.lives)}`, hudX + 40, hudY);
+        ctx.fillText(`x${currentPlayer.lives} ${'♥'.repeat(currentPlayer.lives)}`, hudX + 70, hudY);
       }
-      ctx.fillText(`Score: ${player.score}`, hudX + 40, hudY + 25);
-    });
+      ctx.fillText(`Score: ${currentPlayer.score}`, hudX + 70, hudY + 25);
+    }
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#888';

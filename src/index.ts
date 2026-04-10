@@ -4,6 +4,7 @@ import { sceneManager } from './sceneManager';
 import { GameOverScene } from './scenes/GameOverScene/GameOverScene';
 import { GameScene } from './scenes/GameScene/GameScene';
 import { LoadingScene } from './scenes/LoadingScene/LoadingScene';
+import { SandboxScene } from './scenes/SandboxScene/SandboxScene';
 import { TitleScene } from './scenes/TitleScene/TitleScene';
 import { gameState } from './state';
 
@@ -50,13 +51,16 @@ resizeBtn.addEventListener('click', () => {
 const loadingScene = new LoadingScene();
 const titleScene = new TitleScene();
 const gameScene = new GameScene();
+const sandboxScene = new SandboxScene();
 const gameOverScene = new GameOverScene();
 
 gameScene.setCanvas(canvas);
+sandboxScene.setCanvas(canvas);
 
 sceneManager.register('loading', loadingScene);
 sceneManager.register('title', titleScene);
 sceneManager.register('game', gameScene);
+sceneManager.register('sandbox', sandboxScene);
 sceneManager.register('gameover', gameOverScene);
 
 joymap.setOnPoll(() => {

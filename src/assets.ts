@@ -1,8 +1,7 @@
 import {
+  ASTEROID_CONFIGS,
   ASTEROID_COLORS,
   PLAYER_COLORS,
-  THRUSTER_COLORS,
-  THRUSTER_SPRITE_SIZE,
   type AlphaMask,
   type PlayerColor,
 } from './constants';
@@ -59,6 +58,157 @@ export function createParticleSprite(
   return canvas;
 }
 
+function hashString(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function createSeededRandom(seed: number): () => number {
+  let state = seed || 1;
+  return () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+}
+
+function mixHexColor(hex: string, targetHex: string, t: number): string {
+  const normalize = (value: string): number[] => {
+    const clean = value.replace('#', '');
+    const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+    const int = Number.parseInt(full, 16);
+    return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
+  };
+
+  const a = normalize(hex);
+  const b = normalize(targetHex);
+  const mixed = a.map((channel, index) => Math.round(channel + (b[index] - channel) * t));
+  return `rgb(${mixed[0]}, ${mixed[1]}, ${mixed[2]})`;
+}
+
+function traceRockShape(
+  ctx: CanvasRenderingContext2D,
+  rand: () => number,
+  radius: number,
+  pointCount: number,
+): void {
+  ctx.beginPath();
+  for (let i = 0; i < pointCount; i++) {
+    const angle = (i / pointCount) * Math.PI * 2;
+    const jag = 0.72 + rand() * 0.38;
+    const r = radius * jag;
+    const x = Math.cos(angle) * r;
+    const y = Math.sin(angle) * r;
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+  }
+  ctx.closePath();
+}
+
+function createAsteroidSprite(
+  size: 'mega' | 'big' | 'medium' | 'small',
+  color: string,
+): HTMLCanvasElement {
+  const radius = ASTEROID_CONFIGS[size].radius;
+  const diameter = radius * 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = diameter;
+  canvas.height = diameter;
+  const cctx = canvas.getContext('2d')!;
+  const rand = createSeededRandom(hashString(`${size}:${color}`));
+  const pointCount =
+    size === 'mega' ? 14 : size === 'big' ? 12 : size === 'medium' ? 10 : 8;
+
+  cctx.save();
+  cctx.translate(radius, radius);
+  cctx.rotate(rand() * Math.PI * 2);
+
+  traceRockShape(cctx, rand, radius * 0.94, pointCount);
+  const shellGradient = cctx.createRadialGradient(
+    -radius * 0.28,
+    -radius * 0.34,
+    radius * 0.16,
+    0,
+    0,
+    radius,
+  );
+  shellGradient.addColorStop(0, mixHexColor(color, '#ffffff', 0.28));
+  shellGradient.addColorStop(0.45, color);
+  shellGradient.addColorStop(1, mixHexColor(color, '#101622', 0.45));
+  cctx.fillStyle = shellGradient;
+  cctx.fill();
+
+  cctx.strokeStyle = mixHexColor(color, '#101622', 0.62);
+  cctx.lineWidth = Math.max(2, radius * 0.06);
+  cctx.stroke();
+
+  cctx.save();
+  traceRockShape(cctx, rand, radius * 0.92, pointCount);
+  cctx.clip();
+
+  for (let i = 0; i < 4; i++) {
+    const ridgeY = (-0.45 + i * 0.28) * radius + (rand() - 0.5) * radius * 0.12;
+    cctx.strokeStyle =
+      i % 2 === 0 ? 'rgba(255,255,255,0.1)' : 'rgba(10,14,26,0.12)';
+    cctx.lineWidth = Math.max(2, radius * 0.05);
+    cctx.beginPath();
+    cctx.moveTo(-radius * 0.82, ridgeY);
+    cctx.quadraticCurveTo(0, ridgeY + (rand() - 0.5) * radius * 0.26, radius * 0.82, ridgeY);
+    cctx.stroke();
+  }
+
+  for (let i = 0; i < 3; i++) {
+    const craterX = (rand() - 0.5) * radius * 0.9;
+    const craterY = (rand() - 0.5) * radius * 0.9;
+    const craterR = radius * (0.12 + rand() * 0.08);
+
+    cctx.fillStyle = 'rgba(12, 16, 28, 0.18)';
+    cctx.beginPath();
+    cctx.arc(craterX + radius * 0.03, craterY + radius * 0.03, craterR, 0, Math.PI * 2);
+    cctx.fill();
+
+    cctx.fillStyle = 'rgba(255,255,255,0.08)';
+    cctx.beginPath();
+    cctx.arc(craterX - radius * 0.015, craterY - radius * 0.015, craterR * 0.78, 0, Math.PI * 2);
+    cctx.fill();
+  }
+
+  cctx.fillStyle = 'rgba(255,255,255,0.08)';
+  cctx.beginPath();
+  cctx.moveTo(-radius * 0.08, -radius * 0.58);
+  cctx.lineTo(radius * 0.44, -radius * 0.26);
+  cctx.lineTo(radius * 0.06, -radius * 0.14);
+  cctx.lineTo(-radius * 0.24, -radius * 0.34);
+  cctx.closePath();
+  cctx.fill();
+
+  cctx.restore();
+  cctx.restore();
+
+  return canvas;
+}
+
+function createCircularMask(diameter: number): AlphaMask {
+  const data = new Uint8Array(diameter * diameter);
+  const radius = diameter / 2;
+  for (let y = 0; y < diameter; y++) {
+    for (let x = 0; x < diameter; x++) {
+      const dx = x + 0.5 - radius;
+      const dy = y + 0.5 - radius;
+      if (dx * dx + dy * dy <= radius * radius) {
+        data[y * diameter + x] = 1;
+      }
+    }
+  }
+  return { width: diameter, height: diameter, data };
+}
+
 export function scaleMask(mask: AlphaMask, scale: number): AlphaMask {
   const newWidth = Math.floor(mask.width * scale);
   const newHeight = Math.floor(mask.height * scale);
@@ -85,8 +235,6 @@ export function initAssets() {
     medium: {},
     small: {},
   };
-  gameState.particleSprites = [];
-  gameState.thrusterSprites = [];
 
   const img = gameState.gamepadImage!;
 
@@ -96,20 +244,8 @@ export function initAssets() {
 
   for (const size of ['mega', 'big', 'medium', 'small'] as const) {
     for (const color of ASTEROID_COLORS[size]) {
-      gameState.asteroidSprites[size][color] = createTintedSprite(img, color);
+      gameState.asteroidSprites[size][color] = createAsteroidSprite(size, color);
     }
-  }
-
-  const allColors = Object.values(ASTEROID_COLORS).flat();
-  for (let i = 0; i < 10; i++) {
-    const size = 8 + Math.random() * 12;
-    gameState.particleSprites.push(
-      createParticleSprite(img, allColors[i % allColors.length], size),
-    );
-  }
-
-  for (const color of THRUSTER_COLORS) {
-    gameState.thrusterSprites.push(createParticleSprite(img, color, THRUSTER_SPRITE_SIZE));
   }
 }
 
@@ -137,10 +273,8 @@ export function getRandomAsteroidColor(size: 'mega' | 'big' | 'medium' | 'small'
   return colors[Math.floor(Math.random() * colors.length)];
 }
 
-export function getParticleSprite(index: number): HTMLCanvasElement {
-  return gameState.particleSprites[index % gameState.particleSprites.length];
+export function getAsteroidMask(size: 'mega' | 'big' | 'medium' | 'small'): AlphaMask {
+  const diameter = ASTEROID_CONFIGS[size].radius * 2;
+  return createCircularMask(diameter);
 }
 
-export function getRandomThrusterSprite(): HTMLCanvasElement {
-  return gameState.thrusterSprites[Math.floor(Math.random() * gameState.thrusterSprites.length)];
-}
