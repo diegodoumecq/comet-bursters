@@ -95,11 +95,34 @@ function traceRockShape(
   radius: number,
   pointCount: number,
 ): void {
+  const radii: number[] = [];
+  const minJag = 0.72;
+  const maxJag = 1.1;
+  let previousJag = 0.86 + (rand() - 0.5) * 0.08;
+
+  for (let i = 0; i < pointCount; i++) {
+    const targetJag = minJag + rand() * (maxJag - minJag);
+    const hasStrongShift = rand() < 0.14;
+    const smoothing = hasStrongShift ? 0.58 : 0.82;
+    let jag = previousJag * smoothing + targetJag * (1 - smoothing);
+
+    if (hasStrongShift) {
+      const direction = rand() < 0.5 ? -1 : 1;
+      jag += direction * (0.05 + rand() * 0.06);
+    }
+
+    jag = Math.max(minJag, Math.min(maxJag, jag));
+    radii.push(radius * jag);
+    previousJag = jag;
+  }
+
   ctx.beginPath();
   for (let i = 0; i < pointCount; i++) {
     const angle = (i / pointCount) * Math.PI * 2;
-    const jag = 0.72 + rand() * 0.38;
-    const r = radius * jag;
+    const prev = radii[(i - 1 + pointCount) % pointCount];
+    const current = radii[i];
+    const next = radii[(i + 1) % pointCount];
+    const r = prev * 0.18 + current * 0.64 + next * 0.18;
     const x = Math.cos(angle) * r;
     const y = Math.sin(angle) * r;
     if (i === 0) {
@@ -123,7 +146,7 @@ function createAsteroidSprite(
   const cctx = canvas.getContext('2d')!;
   const rand = createSeededRandom(hashString(`${size}:${color}`));
   const pointCount =
-    size === 'mega' ? 14 : size === 'big' ? 12 : size === 'medium' ? 10 : 8;
+    size === 'mega' ? 36 : size === 'big' ? 30 : size === 'medium' ? 20 : 8;
 
   cctx.save();
   cctx.translate(radius, radius);
@@ -152,34 +175,144 @@ function createAsteroidSprite(
   traceRockShape(cctx, rand, radius * 0.92, pointCount);
   cctx.clip();
 
-  for (let i = 0; i < 4; i++) {
-    const ridgeY = (-0.45 + i * 0.28) * radius + (rand() - 0.5) * radius * 0.12;
-    cctx.strokeStyle =
-      i % 2 === 0 ? 'rgba(255,255,255,0.1)' : 'rgba(10,14,26,0.12)';
-    cctx.lineWidth = Math.max(2, radius * 0.05);
+  const bandCount =
+    size === 'mega' ? 10 : size === 'big' ? 8 : size === 'medium' ? 6 : 5;
+
+  for (let i = 0; i < bandCount; i++) {
+    const y = (-0.64 + (i / Math.max(1, bandCount - 1)) * 1.28) * radius;
+    const bandGradient = cctx.createLinearGradient(-radius * 0.86, y, radius * 0.86, y);
+    bandGradient.addColorStop(0, 'rgba(255,255,255,0)');
+    bandGradient.addColorStop(0.18, i % 2 === 0 ? 'rgba(255,255,255,0.1)' : 'rgba(10,14,26,0.08)');
+    bandGradient.addColorStop(0.58, i % 2 === 0 ? 'rgba(10,14,26,0.1)' : 'rgba(255,255,255,0.05)');
+    bandGradient.addColorStop(1, 'rgba(255,255,255,0)');
+    cctx.strokeStyle = bandGradient;
+    cctx.lineWidth = Math.max(0.9, radius * 0.022);
     cctx.beginPath();
-    cctx.moveTo(-radius * 0.82, ridgeY);
-    cctx.quadraticCurveTo(0, ridgeY + (rand() - 0.5) * radius * 0.26, radius * 0.82, ridgeY);
+
+    for (let x = -radius * 0.84; x <= radius * 0.84; x += radius * 0.12) {
+      const normalizedX = (x + radius) / (radius * 2);
+      const wave =
+        Math.sin(normalizedX * Math.PI * 2 + i * 0.54 + rand() * Math.PI * 0.5) * radius * 0.042 +
+        Math.cos(normalizedX * Math.PI * 3 + i * 0.12) * radius * 0.01;
+      if (x === -radius * 0.84) {
+        cctx.moveTo(x, y + wave);
+      } else {
+        cctx.lineTo(x, y + wave);
+      }
+    }
     cctx.stroke();
   }
 
-  for (let i = 0; i < 3; i++) {
-    const craterX = (rand() - 0.5) * radius * 0.9;
-    const craterY = (rand() - 0.5) * radius * 0.9;
-    const craterR = radius * (0.12 + rand() * 0.08);
+  const craterPlacements: { x: number; y: number; radius: number }[] = [];
 
-    cctx.fillStyle = 'rgba(12, 16, 28, 0.18)';
+  for (let i = 0; i < 4; i++) {
+    const craterR =
+      radius *
+      (size === 'mega' ? 0.14 + rand() * 0.1 : 0.1 + rand() * 0.08);
+    let craterX = 0;
+    let craterY = 0;
+    let foundPlacement = false;
+
+    for (let attempt = 0; attempt < 18; attempt++) {
+      const candidateX = (rand() - 0.5) * radius * 0.88;
+      const candidateY = (rand() - 0.5) * radius * 0.88;
+
+      if (Math.hypot(candidateX, candidateY) + craterR > radius * 0.88) {
+        continue;
+      }
+
+      let overlaps = false;
+      for (const placement of craterPlacements) {
+        const dx = candidateX - placement.x;
+        const dy = candidateY - placement.y;
+        const minDistance = craterR + placement.radius + radius * 0.04;
+        if (dx * dx + dy * dy < minDistance * minDistance) {
+          overlaps = true;
+          break;
+        }
+      }
+
+      if (!overlaps) {
+        craterX = candidateX;
+        craterY = candidateY;
+        foundPlacement = true;
+        break;
+      }
+    }
+
+    if (!foundPlacement) {
+      continue;
+    }
+
+    craterPlacements.push({ x: craterX, y: craterY, radius: craterR });
+    const squash = 0.74 + rand() * 0.18;
+    const rotation = rand() * Math.PI;
+
+    cctx.save();
+    cctx.translate(craterX, craterY);
+    cctx.rotate(rotation);
+
+    const basinGradient = cctx.createRadialGradient(
+      -craterR * 0.12,
+      -craterR * 0.14,
+      craterR * 0.08,
+      0,
+      0,
+      craterR * 1.04,
+    );
+    basinGradient.addColorStop(0, 'rgba(255,255,255,0.05)');
+    basinGradient.addColorStop(0.22, 'rgba(255,255,255,0.025)');
+    basinGradient.addColorStop(0.72, 'rgba(12,16,28,0.16)');
+    basinGradient.addColorStop(1, 'rgba(0,0,0,0)');
+    cctx.fillStyle = basinGradient;
     cctx.beginPath();
-    cctx.arc(craterX + radius * 0.03, craterY + radius * 0.03, craterR, 0, Math.PI * 2);
+    cctx.ellipse(0, 0, craterR, craterR * squash, 0, 0, Math.PI * 2);
     cctx.fill();
 
-    cctx.fillStyle = 'rgba(255,255,255,0.08)';
+    cctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    cctx.lineWidth = Math.max(0.7, radius * 0.012);
     cctx.beginPath();
-    cctx.arc(craterX - radius * 0.015, craterY - radius * 0.015, craterR * 0.78, 0, Math.PI * 2);
+    cctx.ellipse(
+      -craterR * 0.04,
+      -craterR * 0.03,
+      craterR * 0.98,
+      craterR * (squash * 0.94),
+      0,
+      Math.PI * 1.1,
+      Math.PI * 1.68,
+    );
+    cctx.stroke();
+
+    cctx.strokeStyle = 'rgba(12,16,28,0.1)';
+    cctx.beginPath();
+    cctx.ellipse(
+      craterR * 0.04,
+      craterR * 0.03,
+      craterR * 0.96,
+      craterR * (squash * 0.9),
+      0,
+      Math.PI * 0.08,
+      Math.PI * 0.82,
+    );
+    cctx.stroke();
+
+    cctx.fillStyle = 'rgba(0,0,0,0.035)';
+    cctx.beginPath();
+    cctx.ellipse(
+      craterR * 0.1,
+      craterR * 0.08,
+      craterR * 0.5,
+      craterR * (squash * 0.32),
+      0.12,
+      0,
+      Math.PI * 2,
+    );
     cctx.fill();
+
+    cctx.restore();
   }
 
-  cctx.fillStyle = 'rgba(255,255,255,0.08)';
+  cctx.fillStyle = 'rgba(255,255,255,0.05)';
   cctx.beginPath();
   cctx.moveTo(-radius * 0.08, -radius * 0.58);
   cctx.lineTo(radius * 0.44, -radius * 0.26);

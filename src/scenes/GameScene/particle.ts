@@ -15,6 +15,22 @@ type ExplosionKind = 'asteroid' | 'ship';
 const EXPLOSION_BURST_LIFETIME = 600;
 const SHIP_DEBRIS_LIFETIME = 1800;
 
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function mixRgb(colorA: [number, number, number], colorB: [number, number, number], t: number): string {
+  const mix = (a: number, b: number) => Math.round(a + (b - a) * t);
+  return `rgb(${mix(colorA[0], colorB[0])}, ${mix(colorA[1], colorB[1])}, ${mix(colorA[2], colorB[2])})`;
+}
+
+function hexToRgbTuple(hex: string): [number, number, number] {
+  const clean = hex.replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+  const value = Number.parseInt(full, 16);
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+}
+
 export function createShipDebris(
   x: number,
   y: number,
@@ -24,12 +40,11 @@ export function createShipDebris(
   baseColor = '#debbad',
 ) {
   const debrisCount = Math.floor(PARTICLE_COUNT * 0.875);
-  const shipAngle = Math.atan2(inheritVy, inheritVx);
-  const hasShipVelocity = Math.abs(inheritVx) > 0.1 || Math.abs(inheritVy) > 0.1;
+  const shipSpeed = Math.hypot(inheritVx, inheritVy);
   for (let i = 0; i < debrisCount; i++) {
-    const spread = (Math.random() - 0.5) * Math.PI * 0.75;
-    const angle = hasShipVelocity ? shipAngle + spread : Math.random() * Math.PI * 2;
-    const speed = 3 + Math.random() * 3 * intensity;
+    const angle = Math.random() * Math.PI * 2;
+    const speedJitter = Math.pow(Math.random(), 0.45);
+    const speed = 0.45 + speedJitter * 3.8 * intensity + shipSpeed * (0.08 + Math.random() * 0.32);
     const shape = i % 3 === 0 ? (i % 2 === 0 ? 'wing' : 'panel') : 'shard';
     const size =
       shape === 'wing'
@@ -66,61 +81,95 @@ export function createExplosionBurst(
   inheritVx = 0,
   inheritVy = 0,
 ) {
-  const palette = Object.values(ASTEROID_COLORS).flat();
-  const explosionCount = Math.floor(PARTICLE_COUNT * 0.875);
+  const shockwaveLifetime = EXPLOSION_BURST_LIFETIME * 0.42;
+  particles.push({
+    x,
+    y,
+    vx: inheritVx * 0.2,
+    vy: inheritVy * 0.2,
+    alpha: 1,
+    rotation: Math.random() * Math.PI * 2,
+    rotationSpeed: 0,
+    size: 14 + intensity * 6,
+    color: 'rgba(255,255,255,0.98)',
+    color2: 'rgba(255,255,255,0.78)',
+    glowColor: 'rgba(255,255,255,0.2)',
+    shape: 'shockwave',
+    lifetime: shockwaveLifetime,
+    maxLifetime: shockwaveLifetime,
+  });
+
+  const explosionCount = Math.floor(PARTICLE_COUNT * 1.7);
   for (let i = 0; i < explosionCount; i++) {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 2 + Math.random() * 2 * intensity;
-    const shape = i % 4 === 0 ? 'smoke' : i % 2 === 0 ? 'shard' : 'spark';
+    const shape = i % 15 === 0 ? 'smoke' : i % 8 === 0 ? 'shard' : i % 9 === 0 ? 'spark' : 'core';
+    const speed =
+      shape === 'smoke'
+        ? 0.8 + Math.random() * 1.4 * intensity
+        : shape === 'core'
+          ? 2.4 + Math.random() * 2.3 * intensity
+        : 3 + Math.random() * 2.8 * intensity;
     const size =
       shape === 'smoke'
-        ? 18 + Math.random() * 18 * intensity
+        ? 12 + Math.random() * 12 * intensity
+        : shape === 'core'
+          ? 3.8 + Math.random() * 10.2 * intensity
         : shape === 'shard'
           ? 5 + Math.random() * 5 * intensity
           : 3 + Math.random() * 4 * intensity;
     const color =
-      i % 5 === 0
+      shape === 'smoke'
         ? i % 2 === 0
-          ? '#fbbf24'
-          : '#f97316'
-        : i % 4 === 0
-          ? '#dc2626'
-          : i % 3 === 0
-            ? '#94a3b8'
-            : palette[(i + Math.floor(intensity * 3)) % palette.length];
+          ? '#54403a'
+          : '#6a4631'
+        : shape === 'core'
+          ? i % 2 === 0
+            ? '#ffd36b'
+            : '#ff8a3d'
+          : i % 4 === 0
+            ? '#dc2626'
+            : i % 3 === 0
+              ? '#f97316'
+              : '#fbbf24';
     const color2 =
       shape === 'smoke'
-        ? undefined
-        : i % 5 === 0
-          ? i % 2 === 0
-            ? '#f97316'
-            : '#dc2626'
-          : i % 4 === 0
-            ? '#7f1d1d'
-            : undefined;
+        ? i % 2 === 0
+          ? '#271a19'
+          : '#38241d'
+        : shape === 'core'
+          ? '#dc2626'
+          : i % 3 === 0
+            ? '#dc2626'
+            : '#7f1d1d';
     const glowColor =
       shape === 'smoke'
-        ? 'rgba(255,255,255,0.08)'
-        : i % 5 === 0
-          ? 'rgba(251,191,36,0.5)'
-          : i % 4 === 0
-            ? 'rgba(220,38,38,0.4)'
-            : 'rgba(255,200,120,0.35)';
+        ? 'rgba(255,150,90,0.18)'
+        : shape === 'core'
+          ? 'rgba(255,190,90,0.24)'
+          : i % 3 === 0
+            ? 'rgba(249,115,22,0.58)'
+            : 'rgba(255,220,130,0.48)';
+    const lifetime =
+      shape === 'smoke'
+        ? EXPLOSION_BURST_LIFETIME * (1 + Math.random() * 0.55)
+        : shape === 'core'
+          ? EXPLOSION_BURST_LIFETIME * (0.62 + Math.random() * 0.32)
+          : EXPLOSION_BURST_LIFETIME * (0.8 + Math.random() * 0.3);
     particles.push({
       x,
       y,
       vx: Math.cos(angle) * speed + inheritVx,
-      vy: Math.sin(angle) * speed + inheritVy,
+      vy: Math.sin(angle) * speed + inheritVy - (shape === 'smoke' ? 0.35 : 0),
       alpha: 1,
       rotation: Math.random() * Math.PI * 2,
-      rotationSpeed: (Math.random() - 0.5) * 0.1,
+      rotationSpeed: (Math.random() - 0.5) * (shape === 'smoke' ? 0.04 : 0.1),
       size,
       color,
       color2,
       glowColor,
       shape,
-      lifetime: EXPLOSION_BURST_LIFETIME,
-      maxLifetime: EXPLOSION_BURST_LIFETIME,
+      lifetime,
+      maxLifetime: lifetime,
     });
   }
 
@@ -233,13 +282,34 @@ export function createExplosion(
 }
 
 export function updateParticle(particle: Particle, deltaTime: number) {
-  particle.x += particle.vx * 0.6;
-  particle.y += particle.vy * 0.6;
-  particle.vx *= 0.98;
-  particle.vy *= 0.98;
-  particle.rotation += particle.rotationSpeed;
-  particle.lifetime -= deltaTime;
-  particle.alpha = Math.max(0, particle.lifetime / particle.maxLifetime);
+  if (particle.shape === 'shockwave') {
+    particle.x += particle.vx * 0.2;
+    particle.y += particle.vy * 0.2;
+    particle.size *= 1.11;
+    particle.lifetime -= deltaTime;
+    const life = Math.max(0, particle.lifetime / particle.maxLifetime);
+    particle.alpha = Math.pow(life, 1.35) * 0.82;
+  } else {
+    particle.x += particle.vx * 0.6;
+    particle.y += particle.vy * 0.6;
+    if (particle.shape === 'smoke') {
+      particle.vx *= 0.94;
+      particle.vy = particle.vy * 0.95 - 0.015;
+      particle.size *= 1.006;
+    } else {
+      particle.vx *= 0.98;
+      particle.vy *= 0.98;
+    }
+    particle.rotation += particle.rotationSpeed;
+    particle.lifetime -= deltaTime;
+    const life = Math.max(0, particle.lifetime / particle.maxLifetime);
+    particle.alpha =
+      particle.shape === 'smoke'
+        ? Math.pow(life, 0.82) * 0.72
+        : particle.shape === 'core'
+          ? Math.min(0.72, 0.12 + life * 0.68)
+          : Math.pow(life, 0.6);
+  }
 
   const width = getGameWidth();
   const height = getGameHeight();
@@ -268,18 +338,50 @@ export function drawOneParticle(particle: Particle, ctx: CanvasRenderingContext2
     return gradient;
   };
 
-  if (particle.shape === 'smoke') {
-    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, particle.size);
+  if (particle.shape === 'shockwave') {
+    const ringWidth = Math.max(2.25, particle.size * 0.07);
+    const radius = particle.size * 0.78;
+    const ring = ctx.createRadialGradient(0, 0, Math.max(0, radius - ringWidth * 2.2), 0, 0, radius + ringWidth);
+    ring.addColorStop(0, 'rgba(0,0,0,0)');
+    ring.addColorStop(0.56, 'rgba(0,0,0,0)');
+    ring.addColorStop(0.82, particle.color);
+    ring.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = ring;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius + ringWidth, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = particle.color2 || particle.color;
+    ctx.lineWidth = ringWidth;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (particle.shape === 'smoke') {
+    const life = clamp01(particle.lifetime / particle.maxLifetime);
+    const lobeA = particle.size * (0.52 + (1 - life) * 0.18);
+    const lobeB = particle.size * (0.4 + (1 - life) * 0.16);
+    const lobeC = particle.size * (0.34 + (1 - life) * 0.12);
+    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, particle.size * 1.2);
     glow.addColorStop(0, particle.glowColor);
     glow.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = glow;
     ctx.beginPath();
-    ctx.arc(0, 0, particle.size, 0, Math.PI * 2);
+    ctx.arc(0, 0, particle.size * 1.2, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = particle.color;
+    ctx.fillStyle = particle.color2 || particle.color;
     ctx.beginPath();
-    ctx.arc(0, 0, particle.size * 0.55, 0, Math.PI * 2);
+    ctx.arc(-particle.size * 0.28, particle.size * 0.06, lobeA, 0, Math.PI * 2);
+    ctx.arc(particle.size * 0.2, -particle.size * 0.1, lobeB, 0, Math.PI * 2);
+    ctx.arc(particle.size * 0.06, particle.size * 0.24, lobeC, 0, Math.PI * 2);
+    ctx.fill();
+
+    const plume = ctx.createRadialGradient(0, 0, particle.size * 0.1, 0, 0, particle.size * 0.95);
+    plume.addColorStop(0, particle.color);
+    plume.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = plume;
+    ctx.beginPath();
+    ctx.arc(-particle.size * 0.08, 0, particle.size * 0.82, 0, Math.PI * 2);
     ctx.fill();
   } else if (particle.shape === 'shard') {
     ctx.shadowColor = particle.glowColor;
@@ -328,18 +430,17 @@ export function drawOneParticle(particle: Particle, ctx: CanvasRenderingContext2
     ctx.fill();
   } else if (particle.shape === 'core') {
     ctx.shadowColor = particle.glowColor;
-    ctx.shadowBlur = particle.size;
-    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, particle.size);
-    glow.addColorStop(0, 'rgba(255,255,255,0.95)');
-    glow.addColorStop(0.35, particle.color);
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = glow;
+    ctx.shadowBlur = particle.size * 0.28;
+    const gradient = ctx.createLinearGradient(-particle.size * 0.3, -particle.size * 0.2, particle.size * 0.3, particle.size * 0.3);
+    gradient.addColorStop(0, particle.color);
+    gradient.addColorStop(1, particle.color2 || particle.color);
+    ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.arc(0, 0, particle.size, 0, Math.PI * 2);
+    ctx.arc(0, 0, particle.size * 0.58, 0, Math.PI * 2);
     ctx.fill();
   } else {
     ctx.shadowColor = particle.glowColor;
-    ctx.shadowBlur = particle.size;
+    ctx.shadowBlur = particle.size * 1.15;
     const gradient = ctx.createLinearGradient(-particle.size * 0.5, 0, particle.size * 0.5, 0);
     gradient.addColorStop(0, particle.color2 || particle.color);
     gradient.addColorStop(1, particle.color);
@@ -408,6 +509,14 @@ export function createThrusterParticle(x: number, y: number, dirX: number, dirY:
   const particleSpeed = 4 + Math.random() * 6;
   const particleVx = dirX * cos - dirY * sin;
   const particleVy = dirX * sin + dirY * cos;
+  const lifetimeFactor = 0.5 + Math.pow(Math.random(), 0.55) * 0.5;
+  const lifetime = THRUSTER_PARTICLE_LIFETIME * lifetimeFactor;
+  const colorMix = (lifetimeFactor - 0.5) / 0.5;
+  const particleColor = mixRgb(
+    hexToRgbTuple(THRUSTER_COLORS[0]),
+    hexToRgbTuple(THRUSTER_COLORS[1]),
+    colorMix,
+  );
 
   thrusterParticles.push({
     x,
@@ -418,9 +527,9 @@ export function createThrusterParticle(x: number, y: number, dirX: number, dirY:
     rotation: Math.random() * Math.PI * 2,
     rotationSpeed: (Math.random() - 0.5) * 0.1,
     size: 8 + Math.random() * 8,
-    color: THRUSTER_COLORS[Math.floor(Math.random() * THRUSTER_COLORS.length)],
-    glowColor: 'rgba(255, 180, 80, 0.3)',
-    lifetime: THRUSTER_PARTICLE_LIFETIME * (0.5 + Math.random() * 0.5),
+    color: particleColor,
+    glowColor: 'rgba(255, 180, 60, 0.08)',
+    lifetime,
     maxLifetime: THRUSTER_PARTICLE_LIFETIME,
     scale: 1.2,
   });
@@ -452,24 +561,16 @@ export function drawThrusterParticle(particle: ThrusterParticle, ctx: CanvasRend
   ctx.arc(0, 0, particle.size, 0, Math.PI * 2);
   ctx.fill();
 
-  const flameGradient = ctx.createLinearGradient(-particle.size * 0.9, 0, particle.size * 0.9, 0);
-  flameGradient.addColorStop(0, 'rgba(255,255,255,0.95)');
-  flameGradient.addColorStop(0.25, '#ffe38a');
-  flameGradient.addColorStop(0.65, particle.color);
-  flameGradient.addColorStop(1, 'rgba(255, 90, 0, 0)');
-  ctx.fillStyle = flameGradient;
-  ctx.beginPath();
-  ctx.moveTo(-particle.size * 0.8, 0);
-  ctx.quadraticCurveTo(-particle.size * 0.15, -particle.size * 0.42, particle.size * 0.95, 0);
-  ctx.quadraticCurveTo(-particle.size * 0.15, particle.size * 0.42, -particle.size * 0.8, 0);
-  ctx.closePath();
-  ctx.fill();
+  const half = particle.size * 0.32;
+  const corner = particle.size * 0.12;
 
-  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.fillStyle = particle.color;
   ctx.beginPath();
-  ctx.moveTo(-particle.size * 0.45, 0);
-  ctx.quadraticCurveTo(0, -particle.size * 0.14, particle.size * 0.35, 0);
-  ctx.quadraticCurveTo(0, particle.size * 0.14, -particle.size * 0.45, 0);
+  ctx.moveTo(0, -half - corner);
+  ctx.quadraticCurveTo(corner, -half, half + corner, 0);
+  ctx.quadraticCurveTo(half, corner, 0, half + corner);
+  ctx.quadraticCurveTo(-corner, half, -half - corner, 0);
+  ctx.quadraticCurveTo(-half, -corner, 0, -half - corner);
   ctx.closePath();
   ctx.fill();
 

@@ -96,7 +96,7 @@ export interface Particle {
   color: string;
   color2?: string;
   glowColor: string;
-  shape: 'spark' | 'shard' | 'smoke' | 'panel' | 'wing' | 'core';
+  shape: 'spark' | 'shard' | 'smoke' | 'panel' | 'wing' | 'core' | 'shockwave';
   lifetime: number;
   maxLifetime: number;
 }
@@ -315,7 +315,7 @@ export type AsteroidColor = string;
 
 export const THRUSTER_PARTICLE_LIFETIME = 700;
 export const THRUSTER_PARTICLE_SPAWN_INTERVAL = 10;
-export const THRUSTER_COLORS = ['#ff6600', '#ff7722', '#ff8833', '#ff4400'] as const;
+export const THRUSTER_COLORS = ['#fff93d', '#ff3f05'] as const;
 
 export const GRID_COLOR = 'rgba(255, 255, 255, 0.03)';
 export const GRID_SPACING = 100;
