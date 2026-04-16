@@ -1,6 +1,8 @@
 import { SIZE } from './constants';
 import { joymap } from './joymap';
 import { sceneManager } from './sceneManager';
+import { ATMTermsScene } from './scenes/ATMTermsScene/ATMTermsScene';
+import { DemoScene } from './scenes/DemoScene/DemoScene';
 import { GameOverScene } from './scenes/GameOverScene/GameOverScene';
 import { GameScene } from './scenes/GameScene/GameScene';
 import { LoadingScene } from './scenes/LoadingScene/LoadingScene';
@@ -52,16 +54,21 @@ const loadingScene = new LoadingScene();
 const titleScene = new TitleScene();
 const gameScene = new GameScene();
 const sandboxScene = new SandboxScene();
+const demoScene = new DemoScene();
 const gameOverScene = new GameOverScene();
+const atmTermsScene = new ATMTermsScene();
 
 gameScene.setCanvas(canvas);
 sandboxScene.setCanvas(canvas);
+demoScene.setCanvas(canvas);
 
 sceneManager.register('loading', loadingScene);
 sceneManager.register('title', titleScene);
 sceneManager.register('game', gameScene);
 sceneManager.register('sandbox', sandboxScene);
+sceneManager.register('demo', demoScene);
 sceneManager.register('gameover', gameOverScene);
+sceneManager.register('atmterms', atmTermsScene);
 
 joymap.setOnPoll(() => {
   const deltaTime = 16;

@@ -1,4 +1,6 @@
 import { PLANET_CONFIG, PLANET_KINDS, type Planet } from '@/constants';
+import { drawCrystalPlanet } from './crystalPlanet';
+import { drawLavaPlanet } from './lavaPlanet';
 import { drawStyledPlanet } from './planetVisuals';
 
 export function createPlanet(x: number, y: number): Planet {
@@ -26,5 +28,15 @@ export function createPlanet(x: number, y: number): Planet {
 }
 
 export function drawPlanet(planet: Planet, ctx: CanvasRenderingContext2D): void {
+  if (planet.kind === 'crystal') {
+    drawCrystalPlanet(planet, ctx);
+    return;
+  }
+
+  if (planet.kind === 'lava') {
+    drawLavaPlanet(planet, ctx);
+    return;
+  }
+
   drawStyledPlanet(planet, ctx);
 }

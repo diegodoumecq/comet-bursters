@@ -337,7 +337,7 @@ export interface Star {
   parallaxLayer: number;
 }
 
-export const PLANET_KINDS = ['lush', 'desert', 'ice', 'lava', 'gas', 'toxic'] as const;
+export const PLANET_KINDS = ['lush', 'desert', 'ice', 'lava', 'gas', 'toxic', 'crystal'] as const;
 export type PlanetKind = (typeof PLANET_KINDS)[number];
 
 export const PLANET_CONFIG = {
@@ -350,5 +350,6 @@ export const PLANET_CONFIG = {
     lava: ['#e74c3c', '#ff6b35', '#c0392b'],
     gas: ['#9b59b6', '#8e44ad', '#c39bd3'],
     toxic: ['#1abc9c', '#16a085', '#7bed9f'],
+    crystal: ['#8ef6ff', '#7bc7ff', '#d6f7ff'],
   } satisfies Record<PlanetKind, readonly string[]>,
 };

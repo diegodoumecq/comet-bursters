@@ -1,6 +1,6 @@
 import type { Scene } from './scenes/scene';
 
-export type SceneName = 'loading' | 'title' | 'game' | 'sandbox' | 'gameover';
+export type SceneName = 'loading' | 'title' | 'game' | 'sandbox' | 'demo' | 'gameover' | 'atmterms';
 
 export class SceneManager {
   private scenes: Map<SceneName, Scene> = new Map();
