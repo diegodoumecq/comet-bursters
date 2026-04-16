@@ -222,11 +222,20 @@ function splitAsteroid(asteroid: Asteroid): Asteroid[] {
 }
 
 function updateBullet(bullet: Bullet): void {
+  bullet.prevX = bullet.x;
+  bullet.prevY = bullet.y;
   bullet.x += bullet.vx;
   bullet.y += bullet.vy;
 }
 
-function drawBullet(bullet: Bullet, ctx: CanvasRenderingContext2D): void {
+function drawBullet(
+  bullet: Bullet,
+  ctx: CanvasRenderingContext2D,
+  cameraX = 0,
+  cameraY = 0,
+  previousCameraX = 0,
+  previousCameraY = 0,
+): void {
   ctx.save();
   ctx.translate(bullet.x, bullet.y);
 
@@ -253,11 +262,17 @@ function drawBullet(bullet: Bullet, ctx: CanvasRenderingContext2D): void {
       break;
     }
     case 'pusher': {
-      const speed = Math.sqrt(bullet.vx * bullet.vx + bullet.vy * bullet.vy);
+      const currentScreenX = bullet.x - cameraX;
+      const currentScreenY = bullet.y - cameraY;
+      const previousScreenX = bullet.prevX - previousCameraX;
+      const previousScreenY = bullet.prevY - previousCameraY;
+      const screenDx = currentScreenX - previousScreenX;
+      const screenDy = currentScreenY - previousScreenY;
+      const speed = Math.sqrt(screenDx * screenDx + screenDy * screenDy);
       const normalized = Math.max(0, Math.min(1, (speed - 2) / 13));
       const length = 10 + normalized * 40;
       if (speed > 0.1) {
-        ctx.rotate(Math.atan2(bullet.vy, bullet.vx) + Math.PI);
+        ctx.rotate(Math.atan2(screenDy, screenDx) + Math.PI);
       }
       ctx.fillStyle = '#fff';
       ctx.fillRect(-length / 2, -2.5, length, 5);
@@ -529,6 +544,8 @@ function createBullet(player: Player, type: 'small' | 'blackHole' | 'pusher' | '
     bullets.push({
       x: player.x + Math.cos(bulletAngle) * PLAYER_SIZE,
       y: player.y + Math.sin(bulletAngle) * PLAYER_SIZE,
+      prevX: player.x + Math.cos(bulletAngle) * PLAYER_SIZE,
+      prevY: player.y + Math.sin(bulletAngle) * PLAYER_SIZE,
       vx: player.vx + Math.cos(angle) * speed,
       vy: player.vy + Math.sin(angle) * speed,
       angle,
@@ -784,6 +801,7 @@ function drawMinimap(
 export class SandboxScene implements Scene {
   private canvas: HTMLCanvasElement | null = null;
   private camera: Camera = { x: 0, y: 0 };
+  private previousCamera: Camera = { x: 0, y: 0 };
 
   setCanvas(canvas: HTMLCanvasElement): void {
     this.canvas = canvas;
@@ -804,6 +822,9 @@ export class SandboxScene implements Scene {
     if (!currentPlayer) {
       return;
     }
+
+    this.previousCamera.x = this.camera.x;
+    this.previousCamera.y = this.camera.y;
 
     this.camera.x = clamp(
       currentPlayer.x - viewportWidth / 2,
@@ -946,6 +967,8 @@ export class SandboxScene implements Scene {
     currentPlayer.respawnTime = 0;
     this.placePlayerSafely(currentPlayer);
     this.updateCamera();
+    this.previousCamera.x = this.camera.x;
+    this.previousCamera.y = this.camera.y;
     this.spawnWave(1);
 
     if (this.canvas) {
@@ -1242,7 +1265,14 @@ export class SandboxScene implements Scene {
       if (
         isVisible(bullet.x, bullet.y, BULLET_RADIUS, this.camera, viewportWidth, viewportHeight)
       ) {
-        drawBullet(bullet, ctx);
+        drawBullet(
+          bullet,
+          ctx,
+          this.camera.x,
+          this.camera.y,
+          this.previousCamera.x,
+          this.previousCamera.y,
+        );
       }
     }
 

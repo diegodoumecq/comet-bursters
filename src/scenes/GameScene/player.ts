@@ -192,6 +192,8 @@ function createBullet(player: Player, type: 'small' | 'blackHole' | 'pusher' | '
     bullets.push({
       x: player.x + Math.cos(bulletAngle) * PLAYER_SIZE,
       y: player.y + Math.sin(bulletAngle) * PLAYER_SIZE,
+      prevX: player.x + Math.cos(bulletAngle) * PLAYER_SIZE,
+      prevY: player.y + Math.sin(bulletAngle) * PLAYER_SIZE,
       vx: player.vx + Math.cos(angle) * speed,
       vy: player.vy + Math.sin(angle) * speed,
       angle,

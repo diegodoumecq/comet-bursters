@@ -72,6 +72,8 @@ export interface Planet {
 export interface Bullet {
   x: number;
   y: number;
+  prevX: number;
+  prevY: number;
   vx: number;
   vy: number;
   angle: number;

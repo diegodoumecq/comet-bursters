@@ -3,6 +3,8 @@ import { bullets, getGameHeight, getGameWidth } from '@/state';
 import { areShadersSupported } from './shader';
 
 export function updateBullet(bullet: Bullet) {
+  bullet.prevX = bullet.x;
+  bullet.prevY = bullet.y;
   bullet.x += bullet.vx;
   bullet.y += bullet.vy;
 
@@ -47,7 +49,9 @@ function drawOneBullet(bullet: Bullet, ctx: CanvasRenderingContext2D) {
       break;
     }
     case 'pusher': {
-      const speed = Math.sqrt(bullet.vx * bullet.vx + bullet.vy * bullet.vy);
+      const screenDx = bullet.x - bullet.prevX;
+      const screenDy = bullet.y - bullet.prevY;
+      const speed = Math.sqrt(screenDx * screenDx + screenDy * screenDy);
       const minSpeed = 2;
       const maxSpeed = 15;
       const minLength = 10;
@@ -55,7 +59,7 @@ function drawOneBullet(bullet: Bullet, ctx: CanvasRenderingContext2D) {
       const normalizedSpeed = Math.max(0, Math.min(1, (speed - minSpeed) / (maxSpeed - minSpeed)));
       const length = minLength + normalizedSpeed * (maxLength - minLength);
       if (speed > 0.1) {
-        const angle = Math.atan2(bullet.vy, bullet.vx) + Math.PI;
+        const angle = Math.atan2(screenDy, screenDx) + Math.PI;
         ctx.rotate(angle);
       }
       ctx.fillStyle = '#fff';
