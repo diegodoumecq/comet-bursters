@@ -1,4 +1,5 @@
-import shipInteriorLevelUrl from './shipInterior.level.json?url';
+import shipInteriorLevelUrl from '../../assets/levels/shipInterior.level.json?url';
+import interiorMainUrl from './tiles/interior-main.png';
 
 import { computeAlphaMask } from '@/assets';
 import type { AlphaMask } from '@/constants';
@@ -258,7 +259,14 @@ function validateEntity(value: unknown, label: string): ShipInteriorEntityDefini
 }
 
 function resolveLevelAssetUrl(path: string): string {
+  if (path === './tiles/interior-main.png') {
+    return interiorMainUrl;
+  }
   return new URL(path, shipInteriorLevelUrl).href;
+}
+
+export function resolveShipInteriorAssetUrl(path: string): string {
+  return resolveLevelAssetUrl(path);
 }
 
 function tupleToSelector(tuple: TileCoordinateTuple): TileSelector {
