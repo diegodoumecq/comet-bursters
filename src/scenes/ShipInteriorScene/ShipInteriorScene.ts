@@ -38,6 +38,7 @@ import {
   loadShipInteriorLevel,
   type LoadedShipInteriorLayer,
   type LoadedShipInteriorTile,
+  type Point,
   type Rect,
   type ShipInteriorLevel,
 } from './level';
@@ -120,6 +121,91 @@ function getCollidableTileLayers(): LoadedShipInteriorLayer[] {
   return activeLevel.layers.filter((layer) => layer.hasCollision);
 }
 
+function isPointInsideSolidBoundary(x: number, y: number): boolean {
+  return getBoundaryWalls().some((wall) => pointInRect(x, y, wall));
+}
+
+function isPointInsideOpaqueTilePixel(
+  layer: LoadedShipInteriorLayer,
+  tile: LoadedShipInteriorTile,
+  x: number,
+  y: number,
+): boolean {
+  const tileRect = getTileWorldRect(layer, tile);
+  if (!pointInRect(x, y, tileRect)) {
+    return false;
+  }
+
+  const localX = Math.floor(x - tileRect.x);
+  const localY = Math.floor(y - tileRect.y);
+  if (
+    localX < 0 ||
+    localY < 0 ||
+    localX >= layer.tilemap.tileWidth ||
+    localY >= layer.tilemap.tileHeight
+  ) {
+    return false;
+  }
+
+  const frame = layer.sheet.getFrame(tile.frame);
+  const sourceX = frame.x + localX;
+  const sourceY = frame.y + localY;
+  const index = sourceY * layer.alphaMask.width + sourceX;
+  return layer.alphaMask.data[index] === 1;
+}
+
+function getCircleCollisionSamplePoints(x: number, y: number, radius: number): Point[] {
+  if (radius <= 1) {
+    return [{ x, y }];
+  }
+
+  const points: Point[] = [{ x, y }];
+  const sampleCount = 12;
+  for (let index = 0; index < sampleCount; index++) {
+    const angle = (index / sampleCount) * Math.PI * 2;
+    points.push({
+      x: x + Math.cos(angle) * radius,
+      y: y + Math.sin(angle) * radius,
+    });
+    points.push({
+      x: x + Math.cos(angle) * radius * 0.55,
+      y: y + Math.sin(angle) * radius * 0.55,
+    });
+  }
+  return points;
+}
+
+function intersectsCollidableTiles(x: number, y: number, radius: number): boolean {
+  const samplePoints = getCircleCollisionSamplePoints(x, y, radius);
+
+  for (const sample of samplePoints) {
+    if (isPointInsideSolidBoundary(sample.x, sample.y)) {
+      return true;
+    }
+  }
+
+  for (const layer of getCollidableTileLayers()) {
+    for (const tile of layer.tiles) {
+      const tileRect = getTileWorldRect(layer, tile);
+      const nearestX = clamp(x, tileRect.x, tileRect.x + tileRect.width);
+      const nearestY = clamp(y, tileRect.y, tileRect.y + tileRect.height);
+      const dx = x - nearestX;
+      const dy = y - nearestY;
+      if (dx * dx + dy * dy >= radius * radius) {
+        continue;
+      }
+
+      for (const sample of samplePoints) {
+        if (isPointInsideOpaqueTilePixel(layer, tile, sample.x, sample.y)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
 function getAllWalls(): Rect[] {
   const collisionTiles = getCollidableTileLayers().flatMap((layer) =>
     layer.tiles.map((tile) => getTileWorldRect(layer, tile)),
@@ -157,78 +243,24 @@ function pointInRect(x: number, y: number, rect: Rect): boolean {
 }
 
 function intersectsWall(x: number, y: number, radius: number): boolean {
-  for (const wall of getAllWalls()) {
-    const nearestX = clamp(x, wall.x, wall.x + wall.width);
-    const nearestY = clamp(y, wall.y, wall.y + wall.height);
-    const dx = x - nearestX;
-    const dy = y - nearestY;
-    if (dx * dx + dy * dy < radius * radius) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function expandedRect(rect: Rect, amount: number): Rect {
-  return {
-    x: rect.x - amount,
-    y: rect.y - amount,
-    width: rect.width + amount * 2,
-    height: rect.height + amount * 2,
-  };
-}
-
-function segmentIntersectsRect(
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  rect: Rect,
-): boolean {
-  if (pointInRect(x1, y1, rect) || pointInRect(x2, y2, rect)) {
-    return true;
-  }
-
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  let tMin = 0;
-  let tMax = 1;
-
-  const clip = (p: number, q: number): boolean => {
-    if (Math.abs(p) < 0.000001) {
-      return q >= 0;
-    }
-
-    const r = q / p;
-    if (p < 0) {
-      if (r > tMax) {
-        return false;
-      }
-      if (r > tMin) {
-        tMin = r;
-      }
-    } else {
-      if (r < tMin) {
-        return false;
-      }
-      if (r < tMax) {
-        tMax = r;
-      }
-    }
-    return true;
-  };
-
-  return (
-    clip(-dx, x1 - rect.x) &&
-    clip(dx, rect.x + rect.width - x1) &&
-    clip(-dy, y1 - rect.y) &&
-    clip(dy, rect.y + rect.height - y1) &&
-    tMin <= tMax
-  );
+  return intersectsCollidableTiles(x, y, radius);
 }
 
 function hasLineOfSight(fromX: number, fromY: number, toX: number, toY: number): boolean {
-  return !getAllWalls().some((wall) => segmentIntersectsRect(fromX, fromY, toX, toY, wall));
+  const distanceToTarget = distance(fromX, fromY, toX, toY);
+  const stepSize = 4;
+  const stepCount = Math.max(1, Math.ceil(distanceToTarget / stepSize));
+
+  for (let step = 0; step <= stepCount; step++) {
+    const t = step / stepCount;
+    const sampleX = fromX + (toX - fromX) * t;
+    const sampleY = fromY + (toY - fromY) * t;
+    if (intersectsCollidableTiles(sampleX, sampleY, 0)) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function pathBlockedByWall(
@@ -238,9 +270,20 @@ function pathBlockedByWall(
   toY: number,
   radius: number,
 ): boolean {
-  return getAllWalls().some((wall) =>
-    segmentIntersectsRect(fromX, fromY, toX, toY, expandedRect(wall, radius)),
-  );
+  const travelDistance = distance(fromX, fromY, toX, toY);
+  const stepSize = Math.max(3, radius * 0.5);
+  const stepCount = Math.max(1, Math.ceil(travelDistance / stepSize));
+
+  for (let step = 0; step <= stepCount; step++) {
+    const t = step / stepCount;
+    const sampleX = fromX + (toX - fromX) * t;
+    const sampleY = fromY + (toY - fromY) * t;
+    if (intersectsCollidableTiles(sampleX, sampleY, radius)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function raycastToWallDistance(
@@ -250,46 +293,34 @@ function raycastToWallDistance(
   dirY: number,
   maxDistance: number,
 ): number {
-  let nearestDistance = maxDistance;
+  const coarseStep = 4;
+  for (let distanceTraveled = 0; distanceTraveled <= maxDistance; distanceTraveled += coarseStep) {
+    const sampleX = originX + dirX * distanceTraveled;
+    const sampleY = originY + dirY * distanceTraveled;
 
-  for (const wall of getAllWalls()) {
-    let tMin = 0;
-    let tMax = nearestDistance;
-
-    const clipAxis = (origin: number, dir: number, min: number, max: number): boolean => {
-      if (Math.abs(dir) < 0.000001) {
-        return origin >= min && origin <= max;
-      }
-
-      let t1 = (min - origin) / dir;
-      let t2 = (max - origin) / dir;
-      if (t1 > t2) {
-        const temp = t1;
-        t1 = t2;
-        t2 = temp;
-      }
-
-      if (t1 > tMin) {
-        tMin = t1;
-      }
-      if (t2 < tMax) {
-        tMax = t2;
-      }
-
-      return tMin <= tMax;
-    };
-
-    if (
-      clipAxis(originX, dirX, wall.x, wall.x + wall.width) &&
-      clipAxis(originY, dirY, wall.y, wall.y + wall.height) &&
-      tMin >= 0 &&
-      tMin < nearestDistance
-    ) {
-      nearestDistance = tMin;
+    if (!intersectsCollidableTiles(sampleX, sampleY, 0)) {
+      continue;
     }
+
+    const lowerBound = Math.max(0, distanceTraveled - coarseStep);
+    let low = lowerBound;
+    let high = distanceTraveled;
+
+    for (let iteration = 0; iteration < 6; iteration++) {
+      const mid = (low + high) * 0.5;
+      const midX = originX + dirX * mid;
+      const midY = originY + dirY * mid;
+      if (intersectsCollidableTiles(midX, midY, 0)) {
+        high = mid;
+      } else {
+        low = mid;
+      }
+    }
+
+    return high;
   }
 
-  return nearestDistance;
+  return maxDistance;
 }
 
 function createSceneBullet(
@@ -758,11 +789,38 @@ export class ShipInteriorScene implements Scene {
   private resolvePlayerWallCollision(currentPlayer: Player): void {
     const radius = currentPlayer.shieldActive ? SHIELD_RADIUS : currentPlayer.getRadius();
     let collided = false;
-    for (const wall of getAllWalls()) {
+    for (const wall of getBoundaryWalls()) {
       if (this.pushCircleOutOfWall(currentPlayer, radius, wall, PLAYER_WALL_BOUNCE)) {
         collided = true;
       }
     }
+
+    if (intersectsCollidableTiles(currentPlayer.x, currentPlayer.y, radius)) {
+      const previousX = currentPlayer.x - currentPlayer.vx;
+      const previousY = currentPlayer.y - currentPlayer.vy;
+      const stepCount = 12;
+      let resolved = false;
+
+      for (let step = 1; step <= stepCount; step++) {
+        const t = step / stepCount;
+        const candidateX = currentPlayer.x + (previousX - currentPlayer.x) * t;
+        const candidateY = currentPlayer.y + (previousY - currentPlayer.y) * t;
+        if (!intersectsCollidableTiles(candidateX, candidateY, radius)) {
+          currentPlayer.x = candidateX;
+          currentPlayer.y = candidateY;
+          resolved = true;
+          collided = true;
+          break;
+        }
+      }
+
+      if (!resolved) {
+        currentPlayer.x = previousX;
+        currentPlayer.y = previousY;
+        collided = true;
+      }
+    }
+
     if (collided) {
       currentPlayer.vx *= PLAYER_WALL_DAMPING;
       currentPlayer.vy *= PLAYER_WALL_DAMPING;

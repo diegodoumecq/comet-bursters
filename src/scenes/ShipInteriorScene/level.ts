@@ -283,14 +283,20 @@ function buildLoadedTileset(
   };
 }
 
-export async function loadShipInteriorLevel(): Promise<ShipInteriorLevel> {
+export function getShipInteriorLevelUrl(): string {
+  return shipInteriorLevelUrl;
+}
+
+export async function fetchRawShipInteriorLevel(): Promise<RawShipInteriorLevel> {
   const response = await fetch(shipInteriorLevelUrl);
   if (!response.ok) {
     throw new Error(`Failed to load ship interior level JSON: ${response.status}`);
   }
 
-  const raw = (await response.json()) as RawShipInteriorLevel;
+  return (await response.json()) as RawShipInteriorLevel;
+}
 
+export async function parseShipInteriorLevel(raw: RawShipInteriorLevel): Promise<ShipInteriorLevel> {
   if (
     !raw ||
     typeof raw !== 'object' ||
@@ -395,4 +401,8 @@ export async function loadShipInteriorLevel(): Promise<ShipInteriorLevel> {
     playerSpawn: playerEntity ? { x: playerEntity.x, y: playerEntity.y } : null,
     patrollers,
   };
+}
+
+export async function loadShipInteriorLevel(): Promise<ShipInteriorLevel> {
+  return parseShipInteriorLevel(await fetchRawShipInteriorLevel());
 }
