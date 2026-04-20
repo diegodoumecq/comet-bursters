@@ -33,6 +33,7 @@ type EditorState = {
   selectedEntityPathId: string | null;
   selectedEntityType: PlaceableEntityType;
   selectedLayerId: string | null;
+  selectedPathId: string | null;
   selectedTileId: string | null;
   status: string;
   tool: EditorTool;
@@ -59,6 +60,7 @@ type EditorActions = {
   setSelectedEntityPathId: (pathId: string | null) => void;
   setSelectedEntityType: (entityType: PlaceableEntityType) => void;
   setSelectedLayerId: (layerId: string | null) => void;
+  setSelectedPathId: (pathId: string | null) => void;
   setSelectedTileId: (tileId: string | null) => void;
   setStatus: (status: string) => void;
   setTool: (tool: EditorTool) => void;
@@ -88,6 +90,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   selectedEntityPathId: null,
   selectedEntityType: 'enemy-patroller',
   selectedLayerId: initialLevel.layers[0]?.id ?? null,
+  selectedPathId: null,
   selectedTileId: null,
   status: 'Ready',
   tool: 'select',
@@ -126,6 +129,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       renamingPathValue: state.renamingPathId === pathId ? '' : state.renamingPathValue,
       selectedEntityPathId:
         state.selectedEntityPathId === pathId ? null : state.selectedEntityPathId,
+      selectedPathId: state.selectedPathId === pathId ? null : state.selectedPathId,
       status: `Deleted path ${pathId}`,
     }));
   },
@@ -228,6 +232,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       renamingPathId: null,
       renamingPathValue: '',
       selectedEntityPathId: selectedEntityPathId === pathId ? nextId : selectedEntityPathId,
+      selectedPathId: state.selectedPathId === pathId ? nextId : state.selectedPathId,
       status: `Renamed path to ${nextId}`,
     }));
   },
@@ -245,6 +250,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setSelectedEntityPathId: (selectedEntityPathId) => set({ selectedEntityPathId }),
   setSelectedEntityType: (selectedEntityType) => set({ selectedEntityType }),
   setSelectedLayerId: (selectedLayerId) => set({ selectedLayerId }),
+  setSelectedPathId: (selectedPathId) => set({ selectedPathId }),
   setSelectedTileId: (selectedTileId) => set({ selectedTileId }),
   setStatus: (status) => set({ status }),
   setTool: (tool) => set({ tool }),
@@ -276,6 +282,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       !state.level.paths.some((path) => path.id === state.selectedEntityPathId)
     ) {
       nextState.selectedEntityPathId = null;
+    }
+
+    if (state.selectedPathId && !state.level.paths.some((path) => path.id === state.selectedPathId)) {
+      nextState.selectedPathId = null;
     }
 
     if (

@@ -13,6 +13,7 @@ export function EditorCanvas({
   const images = useEditorStore((state) => state.images);
   const level = useEditorStore((state) => state.level);
   const selectedEntityId = useEditorStore((state) => state.selectedEntityId);
+  const selectedPathId = useEditorStore((state) => state.selectedPathId);
   const tool = useEditorStore((state) => state.tool);
 
   useEffect(() => {
@@ -94,7 +95,43 @@ export function EditorCanvas({
       ctx.textAlign = 'center';
       ctx.fillText(isPlayer ? 'P' : 'E', entity.x, entity.y + 3);
     }
-  }, [images, level, selectedEntityId]);
+
+    if (tool === 'paths' && selectedPathId) {
+      const selectedPath = level.paths.find((path) => path.id === selectedPathId);
+      if (selectedPath && selectedPath.patrol.length > 0) {
+        ctx.save();
+        ctx.strokeStyle = '#22d3ee';
+        ctx.fillStyle = '#22d3ee';
+        ctx.lineWidth = 3;
+
+        if (selectedPath.patrol.length > 1) {
+          ctx.beginPath();
+          ctx.moveTo(selectedPath.patrol[0].x, selectedPath.patrol[0].y);
+          for (const point of selectedPath.patrol.slice(1)) {
+            ctx.lineTo(point.x, point.y);
+          }
+          ctx.stroke();
+        }
+
+        selectedPath.patrol.forEach((point, index) => {
+          ctx.beginPath();
+          ctx.arc(point.x, point.y, index === 0 ? 10 : 8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = '#082f49';
+          ctx.stroke();
+
+          ctx.fillStyle = '#ecfeff';
+          ctx.font = '10px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(String(index + 1), point.x, point.y + 3);
+          ctx.fillStyle = '#22d3ee';
+        });
+
+        ctx.restore();
+      }
+    }
+  }, [images, level, selectedEntityId, selectedPathId, tool]);
 
   const handlePointer = (
     event: React.MouseEvent<HTMLCanvasElement>,

@@ -3,7 +3,11 @@ import { useState } from 'react';
 import { useEditorStore } from '../../state/editorStore';
 import { CollapsibleSection } from '../components/CollapsibleSection';
 
-export function PathsSection() {
+export function PathsSection({
+  onScrollIntoView,
+}: {
+  onScrollIntoView: (x: number, y: number) => void;
+}) {
   const deletePath = useEditorStore((state) => state.deletePath);
   const level = useEditorStore((state) => state.level);
   const openPathMenuId = useEditorStore((state) => state.openPathMenuId);
@@ -13,6 +17,8 @@ export function PathsSection() {
   const setOpenPathMenuId = useEditorStore((state) => state.setOpenPathMenuId);
   const setRenamingPathId = useEditorStore((state) => state.setRenamingPathId);
   const setRenamingPathValue = useEditorStore((state) => state.setRenamingPathValue);
+  const selectedPathId = useEditorStore((state) => state.selectedPathId);
+  const setSelectedPathId = useEditorStore((state) => state.setSelectedPathId);
   const [isOpen, setIsOpen] = useState(true);
 
   return (
@@ -30,7 +36,19 @@ export function PathsSection() {
         {level.paths.map((path) => (
           <div
             key={path.id}
-            className="relative rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm text-slate-300"
+            onClick={() => {
+              const centerX =
+                path.patrol.reduce((sum, point) => sum + point.x, 0) / path.patrol.length;
+              const centerY =
+                path.patrol.reduce((sum, point) => sum + point.y, 0) / path.patrol.length;
+              setSelectedPathId(path.id);
+              onScrollIntoView(centerX, centerY);
+            }}
+            className={`relative cursor-pointer rounded-xl border px-3 py-2 text-sm transition ${
+              selectedPathId === path.id
+                ? 'border-cyan-300 bg-cyan-500/10 text-slate-100'
+                : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+            }`}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
@@ -57,9 +75,10 @@ export function PathsSection() {
               <div className="relative shrink-0">
                 <button
                   type="button"
-                  onClick={() =>
-                    setOpenPathMenuId(openPathMenuId === path.id ? null : path.id)
-                  }
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setOpenPathMenuId(openPathMenuId === path.id ? null : path.id);
+                  }}
                   className="rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1 text-xs text-slate-200 hover:border-slate-500"
                 >
                   ...

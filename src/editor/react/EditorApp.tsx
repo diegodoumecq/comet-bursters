@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+
 import { EditorCanvas } from '../canvas/EditorCanvas';
 import { EditorStoreEffects } from '../state/EditorStoreEffects';
 import { useEditorStore } from '../state/editorStore';
@@ -29,10 +31,25 @@ export function EditorApp() {
   const setStatus = useEditorStore((state) => state.setStatus);
   const status = useEditorStore((state) => state.status);
   const tool = useEditorStore((state) => state.tool);
+  const canvasViewportRef = useRef<HTMLDivElement | null>(null);
 
   const height = useEditorStore((state) => state.level.height);
   const levelName = useEditorStore((state) => state.level.name);
   const width = useEditorStore((state) => state.level.width);
+
+  const scrollIntoView = (worldX: number, worldY: number) => {
+    const viewport = canvasViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    const viewportPadding = 24;
+
+    viewport.scrollTo({
+      left: Math.max(0, worldX - viewport.clientWidth / 2 + viewportPadding),
+      top: Math.max(0, worldY - viewport.clientHeight / 2 + viewportPadding),
+      behavior: 'smooth',
+    });
+  };
 
   const handleSelectInteraction = (worldX: number, worldY: number) => {
     const entity = findNearestEntity(level, worldX, worldY);
@@ -144,7 +161,7 @@ export function EditorApp() {
           {tool === 'select' && selectedEntityId ? <SelectedEntitySection /> : null}
           {tool === 'tiles' ? <TilesSection /> : null}
           {tool === 'entities' ? <EntitiesSection /> : null}
-          {tool === 'paths' ? <PathsSection /> : null}
+          {tool === 'paths' ? <PathsSection onScrollIntoView={scrollIntoView} /> : null}
         </div>
 
         <div className="border-t border-slate-800 px-6 py-4">
@@ -165,7 +182,7 @@ export function EditorApp() {
                   : 'Path mode is separated in the sidebar. Canvas path editing is the next step.'}
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto bg-slate-950 p-6">
+        <div ref={canvasViewportRef} className="min-h-0 flex-1 overflow-auto bg-slate-950 p-6">
           <EditorCanvas
             onPrimaryInteraction={handlePrimaryCanvasInteraction}
             onSecondaryInteraction={handleSecondaryCanvasInteraction}
