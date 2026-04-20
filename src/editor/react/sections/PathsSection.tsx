@@ -19,6 +19,7 @@ export function PathsSection({
   const setRenamingPathValue = useEditorStore((state) => state.setRenamingPathValue);
   const selectedPathId = useEditorStore((state) => state.selectedPathId);
   const setSelectedPathId = useEditorStore((state) => state.setSelectedPathId);
+  const setLevel = useEditorStore((state) => state.setLevel);
   const [isOpen, setIsOpen] = useState(true);
 
   return (
@@ -37,12 +38,14 @@ export function PathsSection({
           <div
             key={path.id}
             onClick={() => {
-              const centerX =
-                path.patrol.reduce((sum, point) => sum + point.x, 0) / path.patrol.length;
-              const centerY =
-                path.patrol.reduce((sum, point) => sum + point.y, 0) / path.patrol.length;
               setSelectedPathId(path.id);
-              onScrollIntoView(centerX, centerY);
+              if (path.patrol.length > 0) {
+                const centerX =
+                  path.patrol.reduce((sum, point) => sum + point.x, 0) / path.patrol.length;
+                const centerY =
+                  path.patrol.reduce((sum, point) => sum + point.y, 0) / path.patrol.length;
+                onScrollIntoView(centerX, centerY);
+              }
             }}
             className={`relative cursor-pointer rounded-xl border px-3 py-2 text-sm transition ${
               selectedPathId === path.id
@@ -108,6 +111,28 @@ export function PathsSection({
               </div>
             </div>
             <div className="text-xs text-slate-500">{path.patrol.length} patrol points</div>
+            {selectedPathId === path.id ? (
+              <label
+                className="mt-3 flex items-center gap-2 text-xs text-slate-300"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <input
+                  type="checkbox"
+                  checked={path.closed ?? false}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setLevel((currentLevel) => ({
+                      ...currentLevel,
+                      paths: currentLevel.paths.map((candidate) =>
+                        candidate.id === path.id ? { ...candidate, closed: checked } : candidate,
+                      ),
+                    }));
+                  }}
+                  className="h-4 w-4 rounded border-slate-700 bg-slate-950/80 text-cyan-400"
+                />
+                Closed path
+              </label>
+            ) : null}
           </div>
         ))}
       </div>

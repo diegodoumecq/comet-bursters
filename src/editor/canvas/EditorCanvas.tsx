@@ -3,10 +3,14 @@ import { useEffect, useRef } from 'react';
 import { useEditorStore } from '../state/editorStore';
 
 export function EditorCanvas({
-  onPrimaryInteraction,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
   onSecondaryInteraction,
 }: {
-  onPrimaryInteraction: (worldX: number, worldY: number) => void;
+  onPointerDown: (worldX: number, worldY: number) => void;
+  onPointerMove: (worldX: number, worldY: number) => void;
+  onPointerUp: (worldX: number, worldY: number) => void;
   onSecondaryInteraction: (worldX: number, worldY: number) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -110,6 +114,9 @@ export function EditorCanvas({
           for (const point of selectedPath.patrol.slice(1)) {
             ctx.lineTo(point.x, point.y);
           }
+          if (selectedPath.closed) {
+            ctx.lineTo(selectedPath.patrol[0].x, selectedPath.patrol[0].y);
+          }
           ctx.stroke();
         }
 
@@ -133,15 +140,31 @@ export function EditorCanvas({
     }
   }, [images, level, selectedEntityId, selectedPathId, tool]);
 
-  const handlePointer = (
-    event: React.MouseEvent<HTMLCanvasElement>,
-    handler: (worldX: number, worldY: number) => void,
+  const getWorldCoordinates = (
+    event: React.MouseEvent<HTMLCanvasElement> | React.PointerEvent<HTMLCanvasElement>,
   ) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const scaleX = event.currentTarget.width / rect.width;
     const scaleY = event.currentTarget.height / rect.height;
-    const worldX = Math.round((event.clientX - rect.left) * scaleX);
-    const worldY = Math.round((event.clientY - rect.top) * scaleY);
+    return {
+      worldX: Math.round((event.clientX - rect.left) * scaleX),
+      worldY: Math.round((event.clientY - rect.top) * scaleY),
+    };
+  };
+
+  const handleMousePointer = (
+    event: React.MouseEvent<HTMLCanvasElement>,
+    handler: (worldX: number, worldY: number) => void,
+  ) => {
+    const { worldX, worldY } = getWorldCoordinates(event);
+    handler(worldX, worldY);
+  };
+
+  const handlePointerEvent = (
+    event: React.PointerEvent<HTMLCanvasElement>,
+    handler: (worldX: number, worldY: number) => void,
+  ) => {
+    const { worldX, worldY } = getWorldCoordinates(event);
     handler(worldX, worldY);
   };
 
@@ -149,10 +172,31 @@ export function EditorCanvas({
     <div className="inline-block overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl shadow-slate-950/50">
       <canvas
         ref={canvasRef}
-        onClick={(event) => handlePointer(event, onPrimaryInteraction)}
+        onPointerDown={(event) => {
+          if (event.button !== 0) {
+            return;
+          }
+          event.currentTarget.setPointerCapture(event.pointerId);
+          handlePointerEvent(event, onPointerDown);
+        }}
+        onPointerMove={(event) => {
+          if ((event.buttons & 1) !== 1) {
+            return;
+          }
+          handlePointerEvent(event, onPointerMove);
+        }}
+        onPointerUp={(event) => {
+          if (event.button !== 0) {
+            return;
+          }
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+          }
+          handlePointerEvent(event, onPointerUp);
+        }}
         onContextMenu={(event) => {
           event.preventDefault();
-          handlePointer(event, onSecondaryInteraction);
+          handleMousePointer(event, onSecondaryInteraction);
         }}
         className="block max-w-none cursor-crosshair bg-slate-950"
         style={{ imageRendering: 'pixelated' }}

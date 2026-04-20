@@ -64,9 +64,10 @@ type Camera = { x: number; y: number };
 type Enemy = {
   x: number;
   y: number;
-  patrolA: { x: number; y: number };
-  patrolB: { x: number; y: number };
-  targetA: boolean;
+  patrol: Point[];
+  closedPath: boolean;
+  patrolDirection: 1 | -1;
+  targetIndex: number;
   facing: number;
   desiredFacing: number;
   visionRange: number;
@@ -719,21 +720,42 @@ export class ShipInteriorScene implements Scene {
     this.enemies = activeLevel.patrollers
       .filter((patroller) => patroller.patrol.length > 0)
       .map((patroller) => {
-        const patrolA = patroller.patrol[0];
-        const patrolB = patroller.patrol[1] ?? patroller.patrol[0];
+        const initialTarget = patroller.patrol[1] ?? patroller.patrol[0];
         return {
           x: patroller.x,
           y: patroller.y,
-          patrolA,
-          patrolB,
-          targetA: false,
-          facing: Math.atan2(patrolB.y - patroller.y, patrolB.x - patroller.x),
-          desiredFacing: Math.atan2(patrolB.y - patroller.y, patrolB.x - patroller.x),
+          patrol: patroller.patrol,
+          closedPath: patroller.closedPath,
+          patrolDirection: 1 as const,
+          targetIndex: patroller.patrol.length > 1 ? 1 : 0,
+          facing: Math.atan2(initialTarget.y - patroller.y, initialTarget.x - patroller.x),
+          desiredFacing: Math.atan2(initialTarget.y - patroller.y, initialTarget.x - patroller.x),
           visionRange: ENEMY_FOV_RANGE,
           visionHalfAngle: ENEMY_FOV_HALF_ANGLE,
           alive: true,
         };
       });
+  }
+
+  private advanceEnemyPatrolTarget(enemy: Enemy): void {
+    if (enemy.patrol.length <= 1) {
+      enemy.targetIndex = 0;
+      return;
+    }
+
+    if (enemy.closedPath) {
+      enemy.targetIndex = (enemy.targetIndex + 1) % enemy.patrol.length;
+      return;
+    }
+
+    const nextIndex = enemy.targetIndex + enemy.patrolDirection;
+    if (nextIndex >= enemy.patrol.length || nextIndex < 0) {
+      enemy.patrolDirection = (enemy.patrolDirection * -1) as 1 | -1;
+      enemy.targetIndex += enemy.patrolDirection;
+      return;
+    }
+
+    enemy.targetIndex = nextIndex;
   }
 
   private pushCircleOutOfWall(
@@ -834,13 +856,13 @@ export class ShipInteriorScene implements Scene {
         continue;
       }
 
-      const target = enemy.targetA ? enemy.patrolA : enemy.patrolB;
+      const target = enemy.patrol[enemy.targetIndex] ?? enemy.patrol[0];
       const dx = target.x - enemy.x;
       const dy = target.y - enemy.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
       if (dist < 6) {
-        enemy.targetA = !enemy.targetA;
+        this.advanceEnemyPatrolTarget(enemy);
       } else {
         enemy.desiredFacing = Math.atan2(dy, dx);
         enemy.facing = rotateTowardsAngle(enemy.facing, enemy.desiredFacing, ENEMY_TURN_SPEED);
@@ -859,8 +881,8 @@ export class ShipInteriorScene implements Scene {
           enemy.x = nextX;
           enemy.y = nextY;
         } else {
-          enemy.targetA = !enemy.targetA;
-          const nextTarget = enemy.targetA ? enemy.patrolA : enemy.patrolB;
+          this.advanceEnemyPatrolTarget(enemy);
+          const nextTarget = enemy.patrol[enemy.targetIndex] ?? enemy.patrol[0];
           enemy.desiredFacing = Math.atan2(nextTarget.y - enemy.y, nextTarget.x - enemy.x);
         }
       }

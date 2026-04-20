@@ -4,12 +4,16 @@ import { EditorCanvas } from '../canvas/EditorCanvas';
 import { EditorStoreEffects } from '../state/EditorStoreEffects';
 import { useEditorStore } from '../state/editorStore';
 import {
+  appendPointToPath,
   eraseTile,
+  findPathPointAtPosition,
   findNearestEntity,
   getTilesetForLayer,
   makeEntityId,
   placeTile,
   removeEntity,
+  removePathPoint,
+  updatePathPoint,
   upsertEntity,
 } from '../shared/levelEditing';
 import { EntitiesSection } from './sections/EntitiesSection';
@@ -25,11 +29,13 @@ export function EditorApp() {
   const selectedEntityPathId = useEditorStore((state) => state.selectedEntityPathId);
   const selectedEntityType = useEditorStore((state) => state.selectedEntityType);
   const selectedLayerId = useEditorStore((state) => state.selectedLayerId);
+  const selectedPathId = useEditorStore((state) => state.selectedPathId);
   const selectedTileId = useEditorStore((state) => state.selectedTileId);
   const setLevel = useEditorStore((state) => state.setLevel);
   const setSelectedEntityId = useEditorStore((state) => state.setSelectedEntityId);
   const tool = useEditorStore((state) => state.tool);
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
+  const draggedPathPointRef = useRef<{ pathId: string; pointIndex: number } | null>(null);
 
   const height = useEditorStore((state) => state.level.height);
   const levelName = useEditorStore((state) => state.level.name);
@@ -103,6 +109,57 @@ export function EditorApp() {
     setLevel((currentLevel) => eraseTile(currentLevel, selectedLayerId, x, y));
   };
 
+  const handlePathPointerDown = (worldX: number, worldY: number) => {
+    if (!selectedPathId) {
+      return;
+    }
+
+    const hitPoint = findPathPointAtPosition(level, selectedPathId, worldX, worldY);
+    if (hitPoint) {
+      draggedPathPointRef.current = { pathId: selectedPathId, pointIndex: hitPoint.index };
+      return;
+    }
+
+    setLevel((currentLevel) =>
+      appendPointToPath(currentLevel, selectedPathId, Math.round(worldX), Math.round(worldY)),
+    );
+  };
+
+  const handlePathPointerMove = (worldX: number, worldY: number) => {
+    const draggedPoint = draggedPathPointRef.current;
+    if (!draggedPoint) {
+      return;
+    }
+
+    setLevel((currentLevel) =>
+      updatePathPoint(
+        currentLevel,
+        draggedPoint.pathId,
+        draggedPoint.pointIndex,
+        Math.round(worldX),
+        Math.round(worldY),
+      ),
+    );
+  };
+
+  const handlePathPointerUp = (worldX: number, worldY: number) => {
+    const draggedPoint = draggedPathPointRef.current;
+    if (!draggedPoint) {
+      return;
+    }
+
+    setLevel((currentLevel) =>
+      updatePathPoint(
+        currentLevel,
+        draggedPoint.pathId,
+        draggedPoint.pointIndex,
+        Math.round(worldX),
+        Math.round(worldY),
+      ),
+    );
+    draggedPathPointRef.current = null;
+  };
+
   const handlePrimaryCanvasInteraction = (worldX: number, worldY: number) => {
     if (tool === 'select') {
       handleSelectInteraction(worldX, worldY);
@@ -115,6 +172,21 @@ export function EditorApp() {
     if (tool === 'tiles') {
       handleTilePaint(worldX, worldY);
       return;
+    }
+    if (tool === 'paths') {
+      handlePathPointerDown(worldX, worldY);
+    }
+  };
+
+  const handleCanvasPointerMove = (worldX: number, worldY: number) => {
+    if (tool === 'paths') {
+      handlePathPointerMove(worldX, worldY);
+    }
+  };
+
+  const handleCanvasPointerUp = (worldX: number, worldY: number) => {
+    if (tool === 'paths') {
+      handlePathPointerUp(worldX, worldY);
     }
   };
 
@@ -129,6 +201,16 @@ export function EditorApp() {
     }
     if (tool === 'tiles') {
       handleTileErase(worldX, worldY);
+      return;
+    }
+    if (tool === 'paths' && selectedPathId) {
+      const hitPoint = findPathPointAtPosition(level, selectedPathId, worldX, worldY);
+      if (!hitPoint) {
+        return;
+      }
+
+      draggedPathPointRef.current = null;
+      setLevel((currentLevel) => removePathPoint(currentLevel, selectedPathId, hitPoint.index));
     }
   };
 
@@ -166,7 +248,9 @@ export function EditorApp() {
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div ref={canvasViewportRef} className="min-h-0 flex-1 overflow-auto bg-slate-950 p-6">
           <EditorCanvas
-            onPrimaryInteraction={handlePrimaryCanvasInteraction}
+            onPointerDown={handlePrimaryCanvasInteraction}
+            onPointerMove={handleCanvasPointerMove}
+            onPointerUp={handleCanvasPointerUp}
             onSecondaryInteraction={handleSecondaryCanvasInteraction}
           />
         </div>

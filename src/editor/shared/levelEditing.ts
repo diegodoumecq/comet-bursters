@@ -112,6 +112,91 @@ export function findNearestEntity(
   return nearest;
 }
 
+export function findPathPointAtPosition(
+  level: RawShipInteriorLevel,
+  pathId: string,
+  x: number,
+  y: number,
+  maxDistance = 16,
+): { index: number; x: number; y: number } | null {
+  const path = level.paths.find((candidate) => candidate.id === pathId);
+  if (!path) {
+    return null;
+  }
+
+  let nearestPoint: { index: number; x: number; y: number } | null = null;
+  let nearestDistance = maxDistance;
+
+  path.patrol.forEach((point, index) => {
+    const distance = Math.hypot(point.x - x, point.y - y);
+    if (distance <= nearestDistance) {
+      nearestPoint = { index, x: point.x, y: point.y };
+      nearestDistance = distance;
+    }
+  });
+
+  return nearestPoint;
+}
+
+export function appendPointToPath(
+  level: RawShipInteriorLevel,
+  pathId: string,
+  x: number,
+  y: number,
+): RawShipInteriorLevel {
+  return {
+    ...level,
+    paths: level.paths.map((path) =>
+      path.id !== pathId
+        ? path
+        : {
+            ...path,
+            patrol: [...path.patrol, { x, y }],
+          },
+    ),
+  };
+}
+
+export function updatePathPoint(
+  level: RawShipInteriorLevel,
+  pathId: string,
+  pointIndex: number,
+  x: number,
+  y: number,
+): RawShipInteriorLevel {
+  return {
+    ...level,
+    paths: level.paths.map((path) =>
+      path.id !== pathId
+        ? path
+        : {
+            ...path,
+            patrol: path.patrol.map((point, index) =>
+              index !== pointIndex ? point : { ...point, x, y },
+            ),
+          },
+    ),
+  };
+}
+
+export function removePathPoint(
+  level: RawShipInteriorLevel,
+  pathId: string,
+  pointIndex: number,
+): RawShipInteriorLevel {
+  return {
+    ...level,
+    paths: level.paths.map((path) =>
+      path.id !== pathId
+        ? path
+        : {
+            ...path,
+            patrol: path.patrol.filter((_, index) => index !== pointIndex),
+          },
+    ),
+  };
+}
+
 export function getTilesetForLayer(
   level: RawShipInteriorLevel,
   layerId: string | null,

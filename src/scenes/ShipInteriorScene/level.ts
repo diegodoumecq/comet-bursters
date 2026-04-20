@@ -38,6 +38,7 @@ export type ShipInteriorPathPoint = Point & {
 
 export type ShipInteriorPathDefinition = {
   id: string;
+  closed?: boolean;
   patrol: ShipInteriorPathPoint[];
 };
 
@@ -87,6 +88,7 @@ export type LoadedShipInteriorLayer = {
 
 export type LoadedShipInteriorPath = {
   id: string;
+  closed: boolean;
   patrol: ShipInteriorPathPoint[];
 };
 
@@ -97,6 +99,7 @@ export type LoadedShipInteriorPatroller = {
   x: number;
   y: number;
   pathId?: string;
+  closedPath: boolean;
   patrol: ShipInteriorPathPoint[];
 };
 
@@ -220,6 +223,9 @@ function validatePath(value: unknown, label: string): ShipInteriorPathDefinition
   const path = value as ShipInteriorPathDefinition;
   if (!path.id || typeof path.id !== 'string') {
     throw new Error(`${label}.id must be a string.`);
+  }
+  if (path.closed !== undefined && typeof path.closed !== 'boolean') {
+    throw new Error(`${label}.closed must be a boolean when provided.`);
   }
   if (!Array.isArray(path.patrol) || path.patrol.length === 0) {
     throw new Error(`${label}.patrol must be a non-empty array.`);
@@ -394,6 +400,7 @@ export async function parseShipInteriorLevel(raw: RawShipInteriorLevel): Promise
       x: entity.x,
       y: entity.y,
       pathId: entity.pathId,
+      closedPath: entity.pathId ? (pathMap.get(entity.pathId)?.closed ?? false) : false,
       patrol: entity.pathId ? (pathMap.get(entity.pathId)?.patrol ?? []) : [],
     }));
 
@@ -404,7 +411,7 @@ export async function parseShipInteriorLevel(raw: RawShipInteriorLevel): Promise
     height: raw.height,
     tilesets: loadedTilesets,
     layers: loadedLayers,
-    paths,
+    paths: paths.map((path) => ({ ...path, closed: path.closed ?? false })),
     entities,
     playerSpawn: playerEntity ? { x: playerEntity.x, y: playerEntity.y } : null,
     patrollers,
