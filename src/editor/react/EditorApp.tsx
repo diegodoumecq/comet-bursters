@@ -118,10 +118,10 @@ export function EditorApp() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-100">
+    <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100">
       <EditorStoreEffects />
 
-      <aside className="flex w-[23rem] shrink-0 flex-col border-r border-slate-800 bg-slate-950/95">
+      <aside className="flex h-full w-[23rem] shrink-0 flex-col border-r border-slate-800 bg-slate-950/95">
         <div className="border-b border-slate-800 px-6 py-5">
           <a
             href="/"
@@ -153,7 +153,7 @@ export function EditorApp() {
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="border-b border-slate-800 bg-slate-950/70 px-6 py-4">
           <div className="text-sm text-slate-300">
             {tool === 'tiles'
