@@ -46,7 +46,7 @@ export function getGameCenterY(): number {
 }
 
 export type GamePhase = 'title' | 'playing' | 'gameover';
-export type PlayableSceneName = 'game' | 'sandbox';
+export type PlayableSceneName = 'game' | 'sandbox' | 'shipinterior';
 
 export type GameState = {
   gamepadImage: HTMLImageElement | null;

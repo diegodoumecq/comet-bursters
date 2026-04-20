@@ -21,6 +21,11 @@ const TITLE_MENU_OPTIONS: readonly MenuOption[] = [
     scene: 'sandbox',
   },
   {
+    label: 'Ship Interior',
+    description: 'Navigate corridors, avoid patrol vision, and silence alarms.',
+    scene: 'shipinterior',
+  },
+  {
     label: 'Demo Scene',
     description: 'Launch the standalone demo presentation.',
     scene: 'demo',

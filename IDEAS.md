@@ -1,0 +1,13 @@
+- Game's themes and atmosphere are based around paranoia the ttrpg
+- Game begins with the player having access to a set of weapons and uses them to clear one or more levels
+- Not long thereafter, the player enters the paranoia-controlled scene and gets all of their weapons confiscated and replaced with compliant "weapons" that are literally verbs shooting out of the ship that cause the verb to trigger with the whatever they collide with: speak, push, pull, take, examine, read, open, close
+- The talk verb initiates a conversation view with the background being the current overhead view.
+- Anything interactive should be talkable even if its an inanimate object or hostile enemy
+- Talking to hostile enemies could be used to make time for poison to trigger
+- Having access to your confiscated weapons is possible but you'll be destroyed and returned to the spawn point if caught
+- Should work kinda likea rogue-lite being able to stash things to progress
+- When caught, your ship is destroyed and a new one is provided
+- When entering this scene you are given a meaningless and ridiculous job
+  - taking photos of happy residents where there are none, for example.
+  - painting all walls a certain color but there are many other people doing the exact same thing with another color)
+- These weapons are specific to the scene but later on can escape containment and you'll be able to talk to or even take asteroids and planets
