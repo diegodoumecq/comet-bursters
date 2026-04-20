@@ -15,7 +15,7 @@ import { LevelSection } from './sections/LevelSection';
 import { PathsSection } from './sections/PathsSection';
 import { SelectedEntitySection } from './sections/SelectedEntitySection';
 import { TilesSection } from './sections/TilesSection';
-import { ToolSwitcher } from './sections/ToolSwitcher';
+import { ToolSwitcher } from './components/ToolSwitcher';
 
 export function EditorApp() {
   const level = useEditorStore((state) => state.level);
