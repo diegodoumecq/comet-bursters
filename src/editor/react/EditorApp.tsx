@@ -28,8 +28,6 @@ export function EditorApp() {
   const selectedTileId = useEditorStore((state) => state.selectedTileId);
   const setLevel = useEditorStore((state) => state.setLevel);
   const setSelectedEntityId = useEditorStore((state) => state.setSelectedEntityId);
-  const setStatus = useEditorStore((state) => state.setStatus);
-  const status = useEditorStore((state) => state.status);
   const tool = useEditorStore((state) => state.tool);
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
 
@@ -54,7 +52,6 @@ export function EditorApp() {
   const handleSelectInteraction = (worldX: number, worldY: number) => {
     const entity = findNearestEntity(level, worldX, worldY);
     setSelectedEntityId(entity?.id ?? null);
-    setStatus(entity ? `Selected ${entity.id}` : 'Selection cleared');
   };
 
   const handleEntityPlacement = (worldX: number, worldY: number) => {
@@ -117,6 +114,7 @@ export function EditorApp() {
     }
     if (tool === 'tiles') {
       handleTilePaint(worldX, worldY);
+      return;
     }
   };
 
@@ -138,7 +136,7 @@ export function EditorApp() {
     <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100">
       <EditorStoreEffects />
 
-      <aside className="flex h-full w-[23rem] shrink-0 flex-col border-r border-slate-800 bg-slate-950/95">
+      <aside className="flex h-full w-92 shrink-0 flex-col border-r border-slate-800 bg-slate-950/95">
         <div className="border-b border-slate-800 px-6 py-5">
           <a
             href="/"
@@ -163,25 +161,9 @@ export function EditorApp() {
           {tool === 'entities' ? <EntitiesSection /> : null}
           {tool === 'paths' ? <PathsSection onScrollIntoView={scrollIntoView} /> : null}
         </div>
-
-        <div className="border-t border-slate-800 px-6 py-4">
-          <div className="text-xs uppercase tracking-[0.22em] text-slate-500">Status</div>
-          <div className="mt-2 text-sm text-slate-200">{status}</div>
-        </div>
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="border-b border-slate-800 bg-slate-950/70 px-6 py-4">
-          <div className="text-sm text-slate-300">
-            {tool === 'tiles'
-              ? 'Left click to paint the selected tile. Right click to erase from the active layer.'
-              : tool === 'entities'
-                ? 'Left click to place the selected entity. Right click removes the nearest entity marker.'
-                : tool === 'select'
-                  ? 'Click an entity to inspect and edit it. Clicking empty space clears the selection.'
-                  : 'Path mode is separated in the sidebar. Canvas path editing is the next step.'}
-          </div>
-        </div>
         <div ref={canvasViewportRef} className="min-h-0 flex-1 overflow-auto bg-slate-950 p-6">
           <EditorCanvas
             onPrimaryInteraction={handlePrimaryCanvasInteraction}

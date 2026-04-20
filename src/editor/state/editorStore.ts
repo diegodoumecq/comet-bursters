@@ -5,19 +5,14 @@ import type {
   RawShipInteriorLevel,
   ShipInteriorEntityDefinition,
 } from '../../scenes/ShipInteriorScene/level';
+import type { AssetUrlMap, EditorTool, ImageMap, PlaceableEntityType } from '../shared/editorTypes';
 import { bundledLevels } from '../shared/levelCatalog';
-import type {
-  AssetUrlMap,
-  EditorTool,
-  ImageMap,
-  PlaceableEntityType,
-} from '../shared/editorTypes';
 import {
+  cloneLevel,
   getTilesetForLayer,
   removeEntity,
   serializeShipInteriorLevel,
   upsertEntity,
-  cloneLevel,
 } from '../shared/levelEditing';
 
 type EditorState = {
@@ -35,7 +30,6 @@ type EditorState = {
   selectedLayerId: string | null;
   selectedPathId: string | null;
   selectedTileId: string | null;
-  status: string;
   tool: EditorTool;
 };
 
@@ -62,13 +56,9 @@ type EditorActions = {
   setSelectedLayerId: (layerId: string | null) => void;
   setSelectedPathId: (pathId: string | null) => void;
   setSelectedTileId: (tileId: string | null) => void;
-  setStatus: (status: string) => void;
   setTool: (tool: EditorTool) => void;
   syncDerivedState: () => void;
-  updateSelectedEntity: (
-    updates: Partial<ShipInteriorEntityDefinition>,
-    nextStatus?: string,
-  ) => void;
+  updateSelectedEntity: (updates: Partial<ShipInteriorEntityDefinition>) => void;
   updateSelectedEntityType: (nextType: PlaceableEntityType) => void;
 };
 
@@ -150,7 +140,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   exportToClipboard: async () => {
     const json = serializeShipInteriorLevel(get().level);
     await navigator.clipboard.writeText(json);
-    set({ status: 'Copied level JSON to clipboard' });
   },
 
   importLevelFromText: (text, fileName) => {
@@ -159,25 +148,23 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       set({
         level: parsed,
         selectedLevelAssetPath: null,
-        status: `Loaded ${fileName}`,
       });
       get().syncDerivedState();
     } catch (error) {
-      set({ status: error instanceof Error ? error.message : 'Failed to import JSON' });
+      alert('Failed to import JSON ' + fileName);
     }
   },
 
   loadBundledLevel: (assetPath) => {
     const entry = bundledLevels.find((candidate) => candidate.assetPath === assetPath);
     if (!entry) {
-      set({ status: `Unknown level asset: ${assetPath}` });
+      alert(`Unknown level asset: ${assetPath}`);
       return;
     }
 
     set({
       level: cloneLevel(entry.level),
       selectedLevelAssetPath: assetPath,
-      status: `Loaded ${entry.fileName}`,
     });
     get().syncDerivedState();
   },
@@ -206,7 +193,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { level, renamingPathValue, selectedEntityPathId } = get();
     const nextId = renamingPathValue.trim();
     if (!nextId) {
-      set({ status: 'Path name cannot be empty' });
+      alert('Path name cannot be empty');
       return;
     }
     if (nextId === pathId) {
@@ -214,7 +201,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return;
     }
     if (level.paths.some((path) => path.id === nextId)) {
-      set({ status: `Path "${nextId}" already exists` });
+      alert(`Path "${nextId}" already exists`);
       return;
     }
 
@@ -252,7 +239,6 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setSelectedLayerId: (selectedLayerId) => set({ selectedLayerId }),
   setSelectedPathId: (selectedPathId) => set({ selectedPathId }),
   setSelectedTileId: (selectedTileId) => set({ selectedTileId }),
-  setStatus: (status) => set({ status }),
   setTool: (tool) => set({ tool }),
 
   syncDerivedState: () => {
@@ -284,7 +270,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       nextState.selectedEntityPathId = null;
     }
 
-    if (state.selectedPathId && !state.level.paths.some((path) => path.id === state.selectedPathId)) {
+    if (
+      state.selectedPathId &&
+      !state.level.paths.some((path) => path.id === state.selectedPathId)
+    ) {
       nextState.selectedPathId = null;
     }
 
@@ -300,10 +289,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
-  updateSelectedEntity: (updates, nextStatus) => {
+  updateSelectedEntity: (updates) => {
     const { level, selectedEntityId } = get();
-    const selectedEntity =
-      level.entities.find((entity) => entity.id === selectedEntityId) ?? null;
+    const selectedEntity = level.entities.find((entity) => entity.id === selectedEntityId) ?? null;
     if (!selectedEntity) {
       return;
     }
@@ -313,14 +301,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         ...selectedEntity,
         ...updates,
       }),
-      status: nextStatus ?? state.status,
     }));
   },
 
   updateSelectedEntityType: (nextType) => {
     const { level, selectedEntityId } = get();
-    const selectedEntity =
-      level.entities.find((entity) => entity.id === selectedEntityId) ?? null;
+    const selectedEntity = level.entities.find((entity) => entity.id === selectedEntityId) ?? null;
     if (!selectedEntity) {
       return;
     }
