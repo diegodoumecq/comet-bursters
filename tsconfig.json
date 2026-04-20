@@ -5,6 +5,7 @@
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
+    "jsx": "react-jsx",
     "moduleResolution": "Node",
     "importHelpers": true,
     "sourceMap": true,
