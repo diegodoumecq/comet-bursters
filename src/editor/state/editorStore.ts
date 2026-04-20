@@ -18,9 +18,11 @@ import {
 type EditorState = {
   assetPathInput: string;
   assetUrls: AssetUrlMap;
+  futureLevels: RawShipInteriorLevel[];
   images: ImageMap;
   level: RawShipInteriorLevel;
   openPathMenuId: string | null;
+  pastLevels: RawShipInteriorLevel[];
   renamingPathId: string | null;
   renamingPathValue: string;
   selectedLevelAssetPath: string | null;
@@ -41,6 +43,7 @@ type EditorActions = {
   importLevelFromText: (text: string, fileName: string) => void;
   loadBundledLevel: (assetPath: string) => void;
   pickTilesetPng: (file: File) => void;
+  redo: () => void;
   savePathRename: (pathId: string) => void;
   setAssetPathInput: (value: string) => void;
   setImages: (images: ImageMap) => void;
@@ -58,6 +61,7 @@ type EditorActions = {
   setSelectedTileId: (tileId: string | null) => void;
   setTool: (tool: EditorTool) => void;
   syncDerivedState: () => void;
+  undo: () => void;
   updateSelectedEntity: (updates: Partial<ShipInteriorEntityDefinition>) => void;
   updateSelectedEntityType: (nextType: PlaceableEntityType) => void;
 };
@@ -65,13 +69,16 @@ type EditorActions = {
 type EditorStore = EditorState & EditorActions;
 
 const initialLevel = defaultLevel as unknown as RawShipInteriorLevel;
+const HISTORY_LIMIT = 100;
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
   assetPathInput: '',
   assetUrls: {},
+  futureLevels: [],
   images: {},
   level: cloneLevel(initialLevel),
   openPathMenuId: null,
+  pastLevels: [],
   renamingPathId: null,
   renamingPathValue: '',
   selectedLevelAssetPath:
@@ -146,7 +153,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     try {
       const parsed = JSON.parse(text) as RawShipInteriorLevel;
       set({
+        futureLevels: [],
         level: parsed,
+        pastLevels: [],
         selectedLevelAssetPath: null,
       });
       get().syncDerivedState();
@@ -163,7 +172,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
 
     set({
+      futureLevels: [],
       level: cloneLevel(entry.level),
+      pastLevels: [],
       selectedLevelAssetPath: assetPath,
     });
     get().syncDerivedState();
@@ -187,6 +198,21 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         status: `Loaded preview asset ${file.name}`,
       };
     });
+  },
+
+  redo: () => {
+    const { futureLevels, level } = get();
+    const nextLevel = futureLevels[0];
+    if (!nextLevel) {
+      return;
+    }
+
+    set((state) => ({
+      futureLevels: state.futureLevels.slice(1),
+      level: cloneLevel(nextLevel),
+      pastLevels: [cloneLevel(level), ...state.pastLevels].slice(0, HISTORY_LIMIT),
+    }));
+    get().syncDerivedState();
   },
 
   savePathRename: (pathId) => {
@@ -227,9 +253,21 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setAssetPathInput: (assetPathInput) => set({ assetPathInput }),
   setImages: (images) => set({ images }),
   setLevel: (updater) =>
-    set((state) => ({
-      level: typeof updater === 'function' ? updater(state.level) : updater,
-    })),
+    set((state) => {
+      const nextLevel = typeof updater === 'function' ? updater(state.level) : updater;
+      const currentSnapshot = JSON.stringify(state.level);
+      const nextSnapshot = JSON.stringify(nextLevel);
+      if (currentSnapshot === nextSnapshot) {
+        return {};
+      }
+
+      const pastLevels = [cloneLevel(state.level), ...state.pastLevels].slice(0, HISTORY_LIMIT);
+      return {
+        futureLevels: [],
+        level: nextLevel,
+        pastLevels,
+      };
+    }),
   setOpenPathMenuId: (openPathMenuId) => set({ openPathMenuId }),
   setRenamingPathId: (renamingPathId) => set({ renamingPathId }),
   setRenamingPathValue: (renamingPathValue) => set({ renamingPathValue }),
@@ -287,6 +325,21 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (Object.keys(nextState).length > 0) {
       set(nextState);
     }
+  },
+
+  undo: () => {
+    const { pastLevels, level } = get();
+    const previousLevel = pastLevels[0];
+    if (!previousLevel) {
+      return;
+    }
+
+    set((state) => ({
+      futureLevels: [cloneLevel(level), ...state.futureLevels].slice(0, HISTORY_LIMIT),
+      level: cloneLevel(previousLevel),
+      pastLevels: state.pastLevels.slice(1),
+    }));
+    get().syncDerivedState();
   },
 
   updateSelectedEntity: (updates) => {

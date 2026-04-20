@@ -1,7 +1,20 @@
 import { useState } from 'react';
 
 import { useEditorStore } from '../../state/editorStore';
+import type { RawShipInteriorLevel } from '../../../scenes/ShipInteriorScene/level';
 import { CollapsibleSection } from '../components/CollapsibleSection';
+
+function makePathId(level: RawShipInteriorLevel): string {
+  let nextIndex = level.paths.length + 1;
+  let nextId = `path-${nextIndex}`;
+
+  while (level.paths.some((path) => path.id === nextId)) {
+    nextIndex += 1;
+    nextId = `path-${nextIndex}`;
+  }
+
+  return nextId;
+}
 
 export function PathsSection({
   onScrollIntoView,
@@ -34,6 +47,40 @@ export function PathsSection({
         <div className="mt-2">Use the `...` button on a path row to rename it.</div>
       </div>
       <div className="grid gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            const nextPathId = makePathId(level);
+            setLevel((currentLevel) => ({
+              ...currentLevel,
+              paths: [{ id: nextPathId, closed: false, patrol: [] }, ...currentLevel.paths],
+            }));
+            setSelectedPathId(nextPathId);
+            setOpenPathMenuId(null);
+            setRenamingPathId(nextPathId);
+            setRenamingPathValue(nextPathId);
+          }}
+          className="flex items-center gap-3 rounded-xl border border-dashed border-cyan-400/40 bg-cyan-500/5 px-4 py-3 text-left text-sm text-cyan-100 transition hover:border-cyan-300/70 hover:bg-cyan-500/10"
+        >
+          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-cyan-400/40 bg-slate-950/80">
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 20 20"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M10 4v12" />
+              <path d="M4 10h12" />
+            </svg>
+          </span>
+          <span>
+            <span className="block font-medium">Create path</span>
+          </span>
+        </button>
         {level.paths.map((path) => (
           <div
             key={path.id}
