@@ -6,6 +6,7 @@ const tileAssetModules = import.meta.glob('../../assets/tiles/*.png', {
 export type ShipInteriorTileAssetEntry = {
   fileName: string;
   imageSrc: string;
+  levelImageSrc: string;
   url: string;
 };
 
@@ -16,12 +17,17 @@ export const shipInteriorTileAssets: ShipInteriorTileAssetEntry[] = Object.entri
     const fileName = assetPath.split('/').pop() ?? assetPath;
     return {
       fileName,
-      imageSrc: `../tiles/${fileName}`,
+      imageSrc: `./${fileName}`,
+      levelImageSrc: `../tiles/${fileName}`,
       url,
     };
   })
   .sort((left, right) => left.fileName.localeCompare(right.fileName));
 
 export function resolveShipInteriorTileAssetUrl(path: string): string | null {
-  return shipInteriorTileAssets.find((asset) => asset.imageSrc === path)?.url ?? null;
+  return (
+    shipInteriorTileAssets.find(
+      (asset) => asset.imageSrc === path || asset.levelImageSrc === path,
+    )?.url ?? null
+  );
 }

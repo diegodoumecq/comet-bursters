@@ -5,6 +5,7 @@ import type { AlphaMask } from '@/constants';
 import { loadSpriteSheet } from '@/spritesheet';
 import type { SpriteSheet, SpriteSheetGridConfig, TilemapLayer } from '@/spritesheet';
 import { resolveShipInteriorTileAssetUrl } from './tileAssets';
+import { getBundledTilesetDefinitions } from './tilesetCatalog';
 
 export type Point = { x: number; y: number };
 export type Rect = { x: number; y: number; width: number; height: number };
@@ -342,9 +343,12 @@ export async function parseShipInteriorLevel(raw: RawShipInteriorLevel): Promise
     throw new Error('Ship interior level JSON is missing valid metadata.');
   }
 
-  const tilesetDefinitions = Array.isArray(raw.tilesets)
-    ? raw.tilesets.map((tileset, index) => validateTileset(tileset, `tilesets[${index}]`))
-    : [];
+  const rawTilesets = Array.isArray((raw as Partial<RawShipInteriorLevel>).tilesets)
+    ? raw.tilesets
+    : getBundledTilesetDefinitions();
+  const tilesetDefinitions = rawTilesets.map((tileset, index) =>
+    validateTileset(tileset, `tilesets[${index}]`),
+  );
   const layerDefinitions = Array.isArray(raw.layers)
     ? raw.layers.map((layer, index) => validateLayer(layer, `layers[${index}]`))
     : [];

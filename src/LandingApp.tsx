@@ -15,7 +15,7 @@ export function LandingApp() {
           </p>
         </header>
 
-        <main className="grid flex-1 gap-6 md:grid-cols-2">
+        <main className="grid flex-1 gap-6 lg:grid-cols-3">
           <a
             href="/game.html"
             className="group rounded-3xl border border-slate-800 bg-slate-900/70 p-8 transition hover:border-cyan-400/50 hover:bg-slate-900"
@@ -44,6 +44,21 @@ export function LandingApp() {
               manage level JSON.
             </p>
             <div className="mt-10 text-sm font-medium text-cyan-200">Go to editor</div>
+          </a>
+
+          <a
+            href="/spritesheet-editor.html"
+            className="group rounded-3xl border border-slate-800 bg-slate-900/70 p-8 transition hover:border-cyan-400/50 hover:bg-slate-900"
+          >
+            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-300">
+              Assets
+            </div>
+            <h2 className="mt-4 text-3xl font-semibold text-white">Open Spritesheet Editor</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-400">
+              Edit tileset JSON definitions for each spritesheet PNG, including grid bounds and
+              named tile coordinates.
+            </p>
+            <div className="mt-10 text-sm font-medium text-cyan-200">Go to spritesheets</div>
           </a>
         </main>
       </div>

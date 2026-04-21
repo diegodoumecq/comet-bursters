@@ -7,7 +7,7 @@ import type {
   ShipInteriorEntityDefinition,
 } from '../../scenes/ShipInteriorScene/level';
 import type { AssetUrlMap, EditorTool, ImageMap, PlaceableEntityType } from '../shared/editorTypes';
-import { bundledLevels } from '../shared/levelCatalog';
+import { bundledLevels, hydrateLevelTilesets } from '../shared/levelCatalog';
 import {
   cloneLevel,
   getTilesetForLayer,
@@ -76,7 +76,7 @@ type EditorActions = {
 
 type EditorStore = EditorState & EditorActions;
 
-const initialLevel = defaultLevel as unknown as RawShipInteriorLevel;
+const initialLevel = hydrateLevelTilesets(defaultLevel as unknown as RawShipInteriorLevel);
 const HISTORY_LIMIT = 100;
 const EDITOR_STORAGE_KEY = 'comet-bursters.editor';
 const initialSelectedLevelAssetPath =
@@ -186,7 +186,7 @@ export const useEditorStore = create<EditorStore>()(
 
       importLevelFromText: (text, fileName) => {
         try {
-          const parsed = JSON.parse(text) as RawShipInteriorLevel;
+          const parsed = hydrateLevelTilesets(JSON.parse(text) as RawShipInteriorLevel);
           set(buildLevelResetState(parsed, null));
           get().syncDerivedState();
         } catch (error) {

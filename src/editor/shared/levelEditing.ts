@@ -12,7 +12,9 @@ export function cloneLevel(level: RawShipInteriorLevel): RawShipInteriorLevel {
 }
 
 export function serializeShipInteriorLevel(level: RawShipInteriorLevel): string {
-  return JSON.stringify(level, null, 2);
+  const serializedLevel = { ...level } as Partial<RawShipInteriorLevel>;
+  delete serializedLevel.tilesets;
+  return JSON.stringify(serializedLevel, null, 2);
 }
 
 export function placeTile(

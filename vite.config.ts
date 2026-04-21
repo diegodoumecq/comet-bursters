@@ -59,7 +59,9 @@ function createEditorSavePlugin(): Plugin {
             await fs.writeFile(backupFilePath, existingContent, 'utf8');
           }
 
-          await fs.writeFile(targetFilePath, `${JSON.stringify(payload.level, null, 2)}\n`, 'utf8');
+          const levelToSave = { ...(payload.level as Record<string, unknown>) };
+          delete levelToSave.tilesets;
+          await fs.writeFile(targetFilePath, `${JSON.stringify(levelToSave, null, 2)}\n`, 'utf8');
 
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
@@ -76,6 +78,64 @@ function createEditorSavePlugin(): Plugin {
           res.end(
             JSON.stringify({
               error: error instanceof Error ? error.message : 'Failed to save level',
+            }),
+          );
+        }
+      });
+      server.middlewares.use('/__editor/save-tileset', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+
+        try {
+          const chunks: Uint8Array[] = [];
+          for await (const chunk of req) {
+            chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+          }
+
+          const rawBody = Buffer.concat(chunks).toString('utf8');
+          const payload = JSON.parse(rawBody) as {
+            fileName?: string;
+            tileset?: unknown;
+          };
+
+          if (!payload.fileName || typeof payload.fileName !== 'string') {
+            throw new Error('Missing fileName');
+          }
+          if (
+            !payload.fileName.endsWith('.tileset.json') ||
+            path.basename(payload.fileName) !== payload.fileName
+          ) {
+            throw new Error('Invalid tileset file name');
+          }
+          if (!payload.tileset || typeof payload.tileset !== 'object') {
+            throw new Error('Missing tileset payload');
+          }
+
+          const tilesDir = path.resolve(server.config.root, 'src/assets/tiles');
+          const targetFilePath = path.resolve(tilesDir, payload.fileName);
+          if (!targetFilePath.startsWith(tilesDir + path.sep)) {
+            throw new Error('Resolved path is outside tiles directory');
+          }
+
+          await fs.writeFile(
+            targetFilePath,
+            `${JSON.stringify(payload.tileset, null, 2)}\n`,
+            'utf8',
+          );
+
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ fileName: payload.fileName, ok: true }));
+        } catch (error) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              error: error instanceof Error ? error.message : 'Failed to save tileset',
             }),
           );
         }
@@ -100,6 +160,7 @@ export default defineConfig({
       input: {
         main: path.resolve(__dirname, 'index.html'),
         editor: path.resolve(__dirname, 'editor.html'),
+        spritesheetEditor: path.resolve(__dirname, 'spritesheet-editor.html'),
         game: path.resolve(__dirname, 'game.html'),
       },
     },

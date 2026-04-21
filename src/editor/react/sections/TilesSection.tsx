@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 
-import { shipInteriorTileAssets } from '../../../scenes/ShipInteriorScene/tileAssets';
 import { getTilesetForLayer } from '../../shared/levelEditing';
 import { useEditorStore } from '../../state/editorStore';
 import { CollapsibleSection } from '../components/CollapsibleSection';
@@ -20,27 +19,6 @@ function makeLayerId(level: ReturnType<typeof useEditorStore.getState>['level'])
   while (level.layers.some((layer) => layer.id === nextId)) {
     nextIndex += 1;
     nextId = `layer-${nextIndex}`;
-  }
-
-  return nextId;
-}
-
-function makeTilesetId(
-  level: ReturnType<typeof useEditorStore.getState>['level'],
-  fileName: string,
-): string {
-  const baseId =
-    fileName
-      .replace(/\.[^.]+$/, '')
-      .replace(/[^a-zA-Z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-      .toLowerCase() || 'tileset';
-  let nextId = baseId;
-  let nextIndex = 2;
-
-  while (level.tilesets.some((tileset) => tileset.id === nextId)) {
-    nextId = `${baseId}-${nextIndex}`;
-    nextIndex += 1;
   }
 
   return nextId;
@@ -153,45 +131,15 @@ export function TilesSection() {
     clearLayerDragState();
   };
 
-  const updateLayerTilesheet = (layerId: string, imageSrc: string) => {
-    const asset = shipInteriorTileAssets.find((candidate) => candidate.imageSrc === imageSrc);
-    if (!asset) {
-      return;
-    }
-
+  const updateLayerTileset = (layerId: string, tilesetId: string) => {
     setLevel((currentLevel) => {
-      const layer = currentLevel.layers.find((candidate) => candidate.id === layerId);
-      if (!layer) {
+      const nextTileset = currentLevel.tilesets.find((tileset) => tileset.id === tilesetId);
+      if (!nextTileset) {
         return currentLevel;
       }
 
-      const existingTileset = currentLevel.tilesets.find((tileset) => tileset.imageSrc === imageSrc);
-      if (existingTileset) {
-        if (selectedLayerId === layerId) {
-          const [firstTileId] = Object.keys(existingTileset.tiles);
-          setSelectedTileId(firstTileId ?? null);
-        }
-
-        return {
-          ...currentLevel,
-          layers: currentLevel.layers.map((candidate) =>
-            candidate.id === layerId
-              ? { ...candidate, tilesetId: existingTileset.id }
-              : candidate,
-          ),
-        };
-      }
-
-      const sourceTileset =
-        currentLevel.tilesets.find((tileset) => tileset.id === layer.tilesetId) ??
-        currentLevel.tilesets[0];
-      if (!sourceTileset) {
-        return currentLevel;
-      }
-
-      const tilesetId = makeTilesetId(currentLevel, asset.fileName);
       if (selectedLayerId === layerId) {
-        const [firstTileId] = Object.keys(sourceTileset.tiles);
+        const [firstTileId] = Object.keys(nextTileset.tiles);
         setSelectedTileId(firstTileId ?? null);
       }
 
@@ -200,14 +148,6 @@ export function TilesSection() {
         layers: currentLevel.layers.map((candidate) =>
           candidate.id === layerId ? { ...candidate, tilesetId } : candidate,
         ),
-        tilesets: [
-          ...currentLevel.tilesets,
-          {
-            ...sourceTileset,
-            id: tilesetId,
-            imageSrc,
-          },
-        ],
       };
     });
   };
@@ -289,7 +229,6 @@ export function TilesSection() {
             </span>
           </button>
           {renderedLayers.map((layer) => {
-            const layerTileset = level.tilesets.find((tileset) => tileset.id === layer.tilesetId);
             const isVisible = layerVisibility[layer.id] !== false;
             const isDragging = draggedLayerId === layer.id;
             return (
@@ -364,18 +303,18 @@ export function TilesSection() {
                     data-layer-control="true"
                     className="mt-2 block text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500"
                   >
-                    Tilesheet
+                    Tileset
                     <select
-                      value={layerTileset?.imageSrc ?? ''}
-                      onChange={(event) => updateLayerTilesheet(layer.id, event.target.value)}
+                      value={layer.tilesetId}
+                      onChange={(event) => updateLayerTileset(layer.id, event.target.value)}
                       className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-xs normal-case tracking-normal text-slate-100 outline-none transition focus:border-cyan-400"
                     >
                       <option value="" disabled>
-                        Select PNG
+                        Select tileset
                       </option>
-                      {shipInteriorTileAssets.map((asset) => (
-                        <option key={asset.imageSrc} value={asset.imageSrc}>
-                          {asset.fileName}
+                      {level.tilesets.map((tileset) => (
+                        <option key={tileset.id} value={tileset.id}>
+                          {tileset.id}
                         </option>
                       ))}
                     </select>
