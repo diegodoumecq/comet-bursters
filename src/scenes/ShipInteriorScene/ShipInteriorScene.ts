@@ -33,6 +33,7 @@ import {
   updateThrusterParticle,
 } from '../GameScene/particle';
 import { createPlayer, drawPlayer } from '../GameScene/player';
+import type { Scene } from '../scene';
 import { ShipInteriorSpriteRenderer } from './interiorSprites';
 import {
   loadShipInteriorLevel,
@@ -42,11 +43,10 @@ import {
   type Rect,
   type ShipInteriorLevel,
 } from './level';
-import type { Scene } from '../scene';
 
 const BULLET_RADIUS = 8;
 const BOUNDARY_WALL_THICKNESS = 45;
-const PLAYER_WALL_BOUNCE = 0.9;
+const PLAYER_WALL_BOUNCE = 0.4;
 const PLAYER_WALL_DAMPING = 0.8;
 const PLAYER_AIR_FRICTION = 0.99;
 const PLAYER_VELOCITY_MULTIPLIER = 4;
@@ -184,6 +184,31 @@ function intersectsCollidableTiles(x: number, y: number, radius: number): boolea
       return true;
     }
   }
+
+  for (const layer of getCollidableTileLayers()) {
+    for (const tile of layer.tiles) {
+      const tileRect = getTileWorldRect(layer, tile);
+      const nearestX = clamp(x, tileRect.x, tileRect.x + tileRect.width);
+      const nearestY = clamp(y, tileRect.y, tileRect.y + tileRect.height);
+      const dx = x - nearestX;
+      const dy = y - nearestY;
+      if (dx * dx + dy * dy >= radius * radius) {
+        continue;
+      }
+
+      for (const sample of samplePoints) {
+        if (isPointInsideOpaqueTilePixel(layer, tile, sample.x, sample.y)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+function intersectsCollidableTilePixels(x: number, y: number, radius: number): boolean {
+  const samplePoints = getCircleCollisionSamplePoints(x, y, radius);
 
   for (const layer of getCollidableTileLayers()) {
     for (const tile of layer.tiles) {
@@ -817,28 +842,35 @@ export class ShipInteriorScene implements Scene {
       }
     }
 
-    if (intersectsCollidableTiles(currentPlayer.x, currentPlayer.y, radius)) {
+    if (intersectsCollidableTilePixels(currentPlayer.x, currentPlayer.y, radius)) {
       const previousX = currentPlayer.x - currentPlayer.vx;
       const previousY = currentPlayer.y - currentPlayer.vy;
-      const stepCount = 12;
-      let resolved = false;
+      const targetX = currentPlayer.x;
+      const targetY = currentPlayer.y;
+      let resolvedByAxis = false;
 
-      for (let step = 1; step <= stepCount; step++) {
-        const t = step / stepCount;
-        const candidateX = currentPlayer.x + (previousX - currentPlayer.x) * t;
-        const candidateY = currentPlayer.y + (previousY - currentPlayer.y) * t;
-        if (!intersectsCollidableTiles(candidateX, candidateY, radius)) {
-          currentPlayer.x = candidateX;
-          currentPlayer.y = candidateY;
-          resolved = true;
-          collided = true;
-          break;
-        }
+      currentPlayer.x = targetX;
+      currentPlayer.y = previousY;
+      if (intersectsCollidableTilePixels(currentPlayer.x, currentPlayer.y, radius)) {
+        currentPlayer.x = previousX;
+        currentPlayer.vx *= -PLAYER_WALL_BOUNCE;
+        resolvedByAxis = true;
+        collided = true;
       }
 
-      if (!resolved) {
+      currentPlayer.y = targetY;
+      if (intersectsCollidableTilePixels(currentPlayer.x, currentPlayer.y, radius)) {
+        currentPlayer.y = previousY;
+        currentPlayer.vy *= -PLAYER_WALL_BOUNCE;
+        resolvedByAxis = true;
+        collided = true;
+      }
+
+      if (!resolvedByAxis && intersectsCollidableTilePixels(currentPlayer.x, currentPlayer.y, radius)) {
         currentPlayer.x = previousX;
         currentPlayer.y = previousY;
+        currentPlayer.vx *= -PLAYER_WALL_BOUNCE;
+        currentPlayer.vy *= -PLAYER_WALL_BOUNCE;
         collided = true;
       }
     }
