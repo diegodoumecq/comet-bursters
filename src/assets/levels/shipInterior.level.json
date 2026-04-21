@@ -6,7 +6,327 @@
   "tilesets": [
     {
       "id": "interior-main",
-      "imageSrc": "./tiles/interior-main.png",
+      "imageSrc": "../tiles/boat-interior.png",
+      "grid": {
+        "frameWidth": 32,
+        "frameHeight": 32,
+        "offsetX": 0,
+        "offsetY": 0,
+        "gapX": 0,
+        "gapY": 0,
+        "columns": 8,
+        "rows": 8
+      },
+      "tiles": {
+        "floor_a": [
+          0,
+          0
+        ],
+        "floor_b": [
+          1,
+          0
+        ],
+        "floor_c": [
+          2,
+          0
+        ],
+        "floor_grate": [
+          3,
+          0
+        ],
+        "wall_h": [
+          0,
+          1
+        ],
+        "wall_v": [
+          1,
+          1
+        ],
+        "door_closed": [
+          2,
+          1
+        ],
+        "door_open": [
+          3,
+          1
+        ],
+        "crate_large": [
+          4,
+          1
+        ],
+        "crate_small": [
+          5,
+          1
+        ],
+        "console": [
+          6,
+          1
+        ],
+        "terminal": [
+          7,
+          1
+        ],
+        "wall_corner_tl": [
+          0,
+          2
+        ],
+        "wall_corner_tr": [
+          1,
+          2
+        ],
+        "wall_corner_bl": [
+          0,
+          3
+        ],
+        "wall_corner_br": [
+          1,
+          3
+        ],
+        "window_h": [
+          2,
+          2
+        ],
+        "window_v": [
+          3,
+          2
+        ],
+        "hazard_a": [
+          4,
+          2
+        ],
+        "hazard_b": [
+          5,
+          2
+        ],
+        "vent_h": [
+          6,
+          2
+        ],
+        "vent_v": [
+          7,
+          2
+        ],
+        "pipe_h": [
+          2,
+          3
+        ],
+        "pipe_v": [
+          3,
+          3
+        ],
+        "support_column": [
+          4,
+          3
+        ],
+        "locker": [
+          5,
+          3
+        ],
+        "medbay": [
+          6,
+          3
+        ],
+        "bunk": [
+          7,
+          3
+        ],
+        "panel_blue": [
+          0,
+          4
+        ],
+        "panel_orange": [
+          1,
+          4
+        ],
+        "junction_t": [
+          2,
+          4
+        ],
+        "junction_cross": [
+          3,
+          4
+        ],
+        "table": [
+          4,
+          4
+        ],
+        "chair": [
+          5,
+          4
+        ],
+        "debris": [
+          6,
+          4
+        ],
+        "airlock": [
+          7,
+          4
+        ]
+      }
+    },
+    {
+      "id": "interior-main-2",
+      "imageSrc": "../tiles/interior-main.png",
+      "grid": {
+        "frameWidth": 32,
+        "frameHeight": 32,
+        "offsetX": 0,
+        "offsetY": 0,
+        "gapX": 0,
+        "gapY": 0,
+        "columns": 8,
+        "rows": 8
+      },
+      "tiles": {
+        "floor_a": [
+          0,
+          0
+        ],
+        "floor_b": [
+          1,
+          0
+        ],
+        "floor_c": [
+          2,
+          0
+        ],
+        "floor_grate": [
+          3,
+          0
+        ],
+        "wall_h": [
+          0,
+          1
+        ],
+        "wall_v": [
+          1,
+          1
+        ],
+        "door_closed": [
+          2,
+          1
+        ],
+        "door_open": [
+          3,
+          1
+        ],
+        "crate_large": [
+          4,
+          1
+        ],
+        "crate_small": [
+          5,
+          1
+        ],
+        "console": [
+          6,
+          1
+        ],
+        "terminal": [
+          7,
+          1
+        ],
+        "wall_corner_tl": [
+          0,
+          2
+        ],
+        "wall_corner_tr": [
+          1,
+          2
+        ],
+        "wall_corner_bl": [
+          0,
+          3
+        ],
+        "wall_corner_br": [
+          1,
+          3
+        ],
+        "window_h": [
+          2,
+          2
+        ],
+        "window_v": [
+          3,
+          2
+        ],
+        "hazard_a": [
+          4,
+          2
+        ],
+        "hazard_b": [
+          5,
+          2
+        ],
+        "vent_h": [
+          6,
+          2
+        ],
+        "vent_v": [
+          7,
+          2
+        ],
+        "pipe_h": [
+          2,
+          3
+        ],
+        "pipe_v": [
+          3,
+          3
+        ],
+        "support_column": [
+          4,
+          3
+        ],
+        "locker": [
+          5,
+          3
+        ],
+        "medbay": [
+          6,
+          3
+        ],
+        "bunk": [
+          7,
+          3
+        ],
+        "panel_blue": [
+          0,
+          4
+        ],
+        "panel_orange": [
+          1,
+          4
+        ],
+        "junction_t": [
+          2,
+          4
+        ],
+        "junction_cross": [
+          3,
+          4
+        ],
+        "table": [
+          4,
+          4
+        ],
+        "chair": [
+          5,
+          4
+        ],
+        "debris": [
+          6,
+          4
+        ],
+        "airlock": [
+          7,
+          4
+        ]
+      }
+    },
+    {
+      "id": "spaceship-sheet",
+      "imageSrc": "../tiles/spaceship-sheet.png",
       "grid": {
         "frameWidth": 32,
         "frameHeight": 32,
@@ -167,11 +487,300 @@
   ],
   "layers": [
     {
+      "id": "layer-3",
+      "hasCollision": false,
+      "overhead": false,
+      "opacity": 1,
+      "tilesetId": "spaceship-sheet",
+      "tiles": [
+        {
+          "tile": "terminal",
+          "x": 22,
+          "y": 14
+        },
+        {
+          "tile": "terminal",
+          "x": 32,
+          "y": 11
+        },
+        {
+          "tile": "terminal",
+          "x": 30,
+          "y": 10
+        },
+        {
+          "tile": "terminal",
+          "x": 31,
+          "y": 10
+        },
+        {
+          "tile": "terminal",
+          "x": 29,
+          "y": 10
+        },
+        {
+          "tile": "terminal",
+          "x": 19,
+          "y": 6
+        },
+        {
+          "tile": "terminal",
+          "x": 21,
+          "y": 5
+        },
+        {
+          "tile": "terminal",
+          "x": 22,
+          "y": 5
+        },
+        {
+          "tile": "terminal",
+          "x": 18,
+          "y": 9
+        },
+        {
+          "tile": "terminal",
+          "x": 14,
+          "y": 7
+        },
+        {
+          "tile": "terminal",
+          "x": 13,
+          "y": 7
+        },
+        {
+          "tile": "terminal",
+          "x": 9,
+          "y": 18
+        },
+        {
+          "tile": "terminal",
+          "x": 10,
+          "y": 18
+        },
+        {
+          "tile": "terminal",
+          "x": 10,
+          "y": 20
+        },
+        {
+          "tile": "terminal",
+          "x": 9,
+          "y": 21
+        },
+        {
+          "tile": "terminal",
+          "x": 7,
+          "y": 18
+        },
+        {
+          "tile": "terminal",
+          "x": 10,
+          "y": 15
+        },
+        {
+          "tile": "terminal",
+          "x": 13,
+          "y": 12
+        },
+        {
+          "tile": "terminal",
+          "x": 9,
+          "y": 15
+        },
+        {
+          "tile": "terminal",
+          "x": 11,
+          "y": 15
+        },
+        {
+          "tile": "terminal",
+          "x": 13,
+          "y": 15
+        },
+        {
+          "tile": "terminal",
+          "x": 12,
+          "y": 18
+        },
+        {
+          "tile": "terminal",
+          "x": 21,
+          "y": 16
+        },
+        {
+          "tile": "terminal",
+          "x": 21,
+          "y": 15
+        },
+        {
+          "tile": "terminal",
+          "x": 22,
+          "y": 15
+        },
+        {
+          "tile": "terminal",
+          "x": 23,
+          "y": 15
+        },
+        {
+          "tile": "terminal",
+          "x": 25,
+          "y": 15
+        },
+        {
+          "tile": "terminal",
+          "x": 27,
+          "y": 15
+        },
+        {
+          "tile": "terminal",
+          "x": 28,
+          "y": 15
+        },
+        {
+          "tile": "terminal",
+          "x": 29,
+          "y": 15
+        },
+        {
+          "tile": "terminal",
+          "x": 30,
+          "y": 15
+        },
+        {
+          "tile": "terminal",
+          "x": 29,
+          "y": 17
+        },
+        {
+          "tile": "terminal",
+          "x": 20,
+          "y": 13
+        },
+        {
+          "tile": "terminal",
+          "x": 23,
+          "y": 17
+        },
+        {
+          "tile": "terminal",
+          "x": 32,
+          "y": 17
+        },
+        {
+          "tile": "terminal",
+          "x": 9,
+          "y": 11
+        },
+        {
+          "tile": "wall_v",
+          "x": 8,
+          "y": 14
+        },
+        {
+          "tile": "wall_v",
+          "x": 8,
+          "y": 15
+        },
+        {
+          "tile": "wall_corner_br",
+          "x": 8,
+          "y": 16
+        },
+        {
+          "tile": "wall_corner_br",
+          "x": 8,
+          "y": 17
+        },
+        {
+          "tile": "window_h",
+          "x": 3,
+          "y": 14
+        },
+        {
+          "tile": "vent_v",
+          "x": 14,
+          "y": 15
+        },
+        {
+          "tile": "junction_t",
+          "x": 4,
+          "y": 18
+        },
+        {
+          "tile": "junction_t",
+          "x": 4,
+          "y": 19
+        },
+        {
+          "tile": "junction_t",
+          "x": 4,
+          "y": 20
+        },
+        {
+          "tile": "junction_t",
+          "x": 4,
+          "y": 21
+        },
+        {
+          "tile": "junction_t",
+          "x": 4,
+          "y": 22
+        },
+        {
+          "tile": "junction_t",
+          "x": 4,
+          "y": 23
+        },
+        {
+          "tile": "junction_t",
+          "x": 4,
+          "y": 24
+        },
+        {
+          "tile": "junction_t",
+          "x": 4,
+          "y": 25
+        },
+        {
+          "tile": "junction_t",
+          "x": 4,
+          "y": 26
+        },
+        {
+          "tile": "junction_t",
+          "x": 4,
+          "y": 27
+        },
+        {
+          "tile": "airlock",
+          "x": 21,
+          "y": 20
+        },
+        {
+          "tile": "airlock",
+          "x": 21,
+          "y": 21
+        },
+        {
+          "tile": "airlock",
+          "x": 21,
+          "y": 22
+        },
+        {
+          "tile": "airlock",
+          "x": 21,
+          "y": 23
+        }
+      ]
+    },
+    {
       "id": "layer-2",
       "hasCollision": true,
       "overhead": false,
       "opacity": 1,
-      "tilesetId": "interior-main",
+      "tilesetId": "interior-main-2",
       "tiles": [
         {
           "tile": "wall_h",
@@ -560,7 +1169,7 @@
       "hasCollision": false,
       "overhead": true,
       "opacity": 0.21,
-      "tilesetId": "interior-main",
+      "tilesetId": "interior-main-2",
       "tiles": [
         {
           "tile": "floor_a",
@@ -2462,6 +3071,13 @@
       "type": "enemy-patroller",
       "x": 1976,
       "y": 816
+    },
+    {
+      "id": "enemy-56",
+      "type": "enemy-patroller",
+      "x": 178,
+      "y": 297,
+      "pathId": "guard-01"
     }
   ]
 }

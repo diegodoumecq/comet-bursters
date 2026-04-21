@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 
+import { shipInteriorTileAssets } from '../../../scenes/ShipInteriorScene/tileAssets';
 import { getTilesetForLayer } from '../../shared/levelEditing';
 import { useEditorStore } from '../../state/editorStore';
 import { CollapsibleSection } from '../components/CollapsibleSection';
@@ -24,23 +25,40 @@ function makeLayerId(level: ReturnType<typeof useEditorStore.getState>['level'])
   return nextId;
 }
 
+function makeTilesetId(
+  level: ReturnType<typeof useEditorStore.getState>['level'],
+  fileName: string,
+): string {
+  const baseId =
+    fileName
+      .replace(/\.[^.]+$/, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase() || 'tileset';
+  let nextId = baseId;
+  let nextIndex = 2;
+
+  while (level.tilesets.some((tileset) => tileset.id === nextId)) {
+    nextId = `${baseId}-${nextIndex}`;
+    nextIndex += 1;
+  }
+
+  return nextId;
+}
+
 export function TilesSection() {
   const activeImage = useEditorStore((state) => {
     const selectedTileset = getTilesetForLayer(state.level, state.selectedLayerId);
     return selectedTileset ? state.images[selectedTileset.id] : null;
   });
-  const applyAssetPath = useEditorStore((state) => state.applyAssetPath);
-  const assetPathInput = useEditorStore((state) => state.assetPathInput);
   const inactiveLayerOpacity = useEditorStore((state) => state.inactiveLayerOpacity);
   const layerVisibility = useEditorStore((state) => state.layerVisibility);
   const level = useEditorStore((state) => state.level);
-  const pickTilesetPng = useEditorStore((state) => state.pickTilesetPng);
   const selectedLayerId = useEditorStore((state) => state.selectedLayerId);
   const selectedTileId = useEditorStore((state) => state.selectedTileId);
   const selectedTileset = useEditorStore((state) =>
     getTilesetForLayer(state.level, state.selectedLayerId),
   );
-  const setAssetPathInput = useEditorStore((state) => state.setAssetPathInput);
   const setInactiveLayerOpacity = useEditorStore((state) => state.setInactiveLayerOpacity);
   const setLayerVisibility = useEditorStore((state) => state.setLayerVisibility);
   const setLevel = useEditorStore((state) => state.setLevel);
@@ -54,7 +72,6 @@ export function TilesSection() {
   const [dragLayerOrder, setDragLayerOrder] = useState<string[] | null>(null);
   const dragLayerOrderRef = useRef<string[] | null>(null);
   const [isLayerOpen, setIsLayerOpen] = useState(true);
-  const [isAssetOpen, setIsAssetOpen] = useState(true);
   const [isPaletteOpen, setIsPaletteOpen] = useState(true);
   const renderedLayers = dragLayerOrder
     ? dragLayerOrder
@@ -136,6 +153,65 @@ export function TilesSection() {
     clearLayerDragState();
   };
 
+  const updateLayerTilesheet = (layerId: string, imageSrc: string) => {
+    const asset = shipInteriorTileAssets.find((candidate) => candidate.imageSrc === imageSrc);
+    if (!asset) {
+      return;
+    }
+
+    setLevel((currentLevel) => {
+      const layer = currentLevel.layers.find((candidate) => candidate.id === layerId);
+      if (!layer) {
+        return currentLevel;
+      }
+
+      const existingTileset = currentLevel.tilesets.find((tileset) => tileset.imageSrc === imageSrc);
+      if (existingTileset) {
+        if (selectedLayerId === layerId) {
+          const [firstTileId] = Object.keys(existingTileset.tiles);
+          setSelectedTileId(firstTileId ?? null);
+        }
+
+        return {
+          ...currentLevel,
+          layers: currentLevel.layers.map((candidate) =>
+            candidate.id === layerId
+              ? { ...candidate, tilesetId: existingTileset.id }
+              : candidate,
+          ),
+        };
+      }
+
+      const sourceTileset =
+        currentLevel.tilesets.find((tileset) => tileset.id === layer.tilesetId) ??
+        currentLevel.tilesets[0];
+      if (!sourceTileset) {
+        return currentLevel;
+      }
+
+      const tilesetId = makeTilesetId(currentLevel, asset.fileName);
+      if (selectedLayerId === layerId) {
+        const [firstTileId] = Object.keys(sourceTileset.tiles);
+        setSelectedTileId(firstTileId ?? null);
+      }
+
+      return {
+        ...currentLevel,
+        layers: currentLevel.layers.map((candidate) =>
+          candidate.id === layerId ? { ...candidate, tilesetId } : candidate,
+        ),
+        tilesets: [
+          ...currentLevel.tilesets,
+          {
+            ...sourceTileset,
+            id: tilesetId,
+            imageSrc,
+          },
+        ],
+      };
+    });
+  };
+
   return (
     <>
       <CollapsibleSection
@@ -213,6 +289,7 @@ export function TilesSection() {
             </span>
           </button>
           {renderedLayers.map((layer) => {
+            const layerTileset = level.tilesets.find((tileset) => tileset.id === layer.tilesetId);
             const isVisible = layerVisibility[layer.id] !== false;
             const isDragging = draggedLayerId === layer.id;
             return (
@@ -220,6 +297,11 @@ export function TilesSection() {
                 key={layer.id}
                 draggable={renamingLayerId !== layer.id && openLayerMenuId !== layer.id}
                 onDragStart={(event) => {
+                  if ((event.target as HTMLElement).closest('[data-layer-control="true"]')) {
+                    event.preventDefault();
+                    return;
+                  }
+
                   const initialOrder = level.layers.map((currentLayer) => currentLayer.id);
                   event.dataTransfer.effectAllowed = 'move';
                   event.dataTransfer.setData('text/plain', layer.id);
@@ -278,6 +360,26 @@ export function TilesSection() {
                       </div>
                     </button>
                   )}
+                  <label
+                    data-layer-control="true"
+                    className="mt-2 block text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500"
+                  >
+                    Tilesheet
+                    <select
+                      value={layerTileset?.imageSrc ?? ''}
+                      onChange={(event) => updateLayerTilesheet(layer.id, event.target.value)}
+                      className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-xs normal-case tracking-normal text-slate-100 outline-none transition focus:border-cyan-400"
+                    >
+                      <option value="" disabled>
+                        Select PNG
+                      </option>
+                      {shipInteriorTileAssets.map((asset) => (
+                        <option key={asset.imageSrc} value={asset.imageSrc}>
+                          {asset.fileName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
                 <button
                   type="button"
@@ -443,50 +545,6 @@ export function TilesSection() {
               </div>
             );
           })}
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Tileset Asset"
-        isOpen={isAssetOpen}
-        onToggle={() => setIsAssetOpen((current) => !current)}
-      >
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-          <div className="text-sm text-slate-300">{selectedTileset?.id ?? 'No tileset'}</div>
-          <label className="mt-4 block text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
-            Export Path
-          </label>
-          <input
-            value={assetPathInput}
-            onChange={(event) => setAssetPathInput(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-cyan-400"
-            placeholder="./tiles/interior-main.png"
-          />
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={applyAssetPath}
-              className="rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-200 hover:border-slate-500"
-            >
-              Apply Path
-            </button>
-            <label className="rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 text-center text-sm text-slate-200 hover:border-slate-500">
-              Pick PNG
-              <input
-                className="hidden"
-                type="file"
-                accept="image/png"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (!file) {
-                    return;
-                  }
-                  pickTilesetPng(file);
-                  event.target.value = '';
-                }}
-              />
-            </label>
-          </div>
         </div>
       </CollapsibleSection>
 

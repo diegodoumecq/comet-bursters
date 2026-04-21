@@ -83,8 +83,11 @@ export function EditorCanvas({
         }
 
         ctx.save();
+        const layerOpacity = layer.opacity ?? 1;
+        const editableLayerOpacity =
+          layer.id === selectedLayerId ? Math.max(layerOpacity, 0.25) : layerOpacity;
         ctx.globalAlpha =
-          (layer.opacity ?? 1) * (layer.id === selectedLayerId ? 1 : inactiveLayerOpacity);
+          editableLayerOpacity * (layer.id === selectedLayerId ? 1 : inactiveLayerOpacity);
         for (const tile of layer.tiles) {
           const frame = tileset.tiles[tile.tile];
           if (!frame) {

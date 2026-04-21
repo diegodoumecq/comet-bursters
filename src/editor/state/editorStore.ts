@@ -336,7 +336,26 @@ export const useEditorStore = create<EditorStore>()(
       setSelectedEntityId: (selectedEntityId) => set({ selectedEntityId }),
       setSelectedEntityPathId: (selectedEntityPathId) => set({ selectedEntityPathId }),
       setSelectedEntityType: (selectedEntityType) => set({ selectedEntityType }),
-      setSelectedLayerId: (selectedLayerId) => set({ selectedLayerId }),
+      setSelectedLayerId: (selectedLayerId) =>
+        set((state) => {
+          const selectedTileset = getTilesetForLayer(state.level, selectedLayerId);
+          if (!selectedTileset) {
+            return {
+              selectedLayerId,
+              selectedTileId: null,
+            };
+          }
+
+          if (state.selectedTileId && state.selectedTileId in selectedTileset.tiles) {
+            return { selectedLayerId };
+          }
+
+          const [firstTileId] = Object.keys(selectedTileset.tiles);
+          return {
+            selectedLayerId,
+            selectedTileId: firstTileId ?? null,
+          };
+        }),
       setSelectedPathId: (selectedPathId) => set({ selectedPathId }),
       setSelectedTileId: (selectedTileId) => set({ selectedTileId }),
       setTool: (tool) => set({ tool }),

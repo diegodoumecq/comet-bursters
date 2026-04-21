@@ -26,6 +26,16 @@ import { ConfirmationDialog } from './components/ConfirmationDialog';
 import { DropdownMenu } from './components/DropdownMenu';
 import { ToolSwitcher } from './components/ToolSwitcher';
 
+const BACKUP_PREFERENCE_STORAGE_KEY = 'comet-bursters.editor.create-backups';
+
+function readBackupPreference(): boolean {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+
+  return window.localStorage.getItem(BACKUP_PREFERENCE_STORAGE_KEY) !== 'false';
+}
+
 export function EditorApp() {
   const canRedo = useEditorStore((state) => state.futureLevels.length > 0);
   const canUndo = useEditorStore((state) => state.pastLevels.length > 0);
@@ -51,6 +61,7 @@ export function EditorApp() {
   const draggedPathPointRef = useRef<{ pathId: string; pointIndex: number } | null>(null);
   const draggedPathPointStartLevelRef = useRef<typeof level | null>(null);
   const [canvasZoom, setCanvasZoom] = useState(1);
+  const [createBackupsOnSave, setCreateBackupsOnSave] = useState(readBackupPreference);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
@@ -72,6 +83,11 @@ export function EditorApp() {
     setCanvasZoom(Math.min(3, Math.max(0.25, nextZoom)));
   };
 
+  const updateCreateBackupsOnSave = (enabled: boolean) => {
+    setCreateBackupsOnSave(enabled);
+    window.localStorage.setItem(BACKUP_PREFERENCE_STORAGE_KEY, String(enabled));
+  };
+
   const handleSave = async () => {
     if (!selectedLevelAssetPath) {
       alert('Only bundled levels from assets/levels can be saved to disk.');
@@ -91,6 +107,7 @@ export function EditorApp() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          createBackup: createBackupsOnSave,
           fileName,
           level,
         }),
@@ -438,6 +455,22 @@ export function EditorApp() {
                   className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
                 >
                   Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateCreateBackupsOnSave(!createBackupsOnSave)}
+                  className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+                >
+                  <span>Create backups</span>
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                      createBackupsOnSave
+                        ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200'
+                        : 'border-slate-700 bg-slate-900 text-slate-400'
+                    }`}
+                  >
+                    {createBackupsOnSave ? 'On' : 'Off'}
+                  </span>
                 </button>
                 <button
                   type="button"

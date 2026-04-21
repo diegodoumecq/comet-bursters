@@ -1,10 +1,10 @@
 import shipInteriorLevelUrl from '../../assets/levels/shipInterior.level.json?url';
-import interiorMainUrl from './tiles/interior-main.png';
 
 import { computeAlphaMask } from '@/assets';
 import type { AlphaMask } from '@/constants';
 import { loadSpriteSheet } from '@/spritesheet';
 import type { SpriteSheet, SpriteSheetGridConfig, TilemapLayer } from '@/spritesheet';
+import { resolveShipInteriorTileAssetUrl } from './tileAssets';
 
 export type Point = { x: number; y: number };
 export type Rect = { x: number; y: number; width: number; height: number };
@@ -283,8 +283,9 @@ function validateEntity(value: unknown, label: string): ShipInteriorEntityDefini
 }
 
 function resolveLevelAssetUrl(path: string): string {
-  if (path === './tiles/interior-main.png') {
-    return interiorMainUrl;
+  const tileAssetUrl = resolveShipInteriorTileAssetUrl(path);
+  if (tileAssetUrl) {
+    return tileAssetUrl;
   }
   return new URL(path, shipInteriorLevelUrl).href;
 }

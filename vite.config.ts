@@ -24,6 +24,7 @@ function createEditorSavePlugin(): Plugin {
 
           const rawBody = Buffer.concat(chunks).toString('utf8');
           const payload = JSON.parse(rawBody) as {
+            createBackup?: boolean;
             fileName?: string;
             level?: unknown;
           };
@@ -39,22 +40,25 @@ function createEditorSavePlugin(): Plugin {
           }
 
           const levelsDir = path.resolve(server.config.root, 'src/assets/levels');
-          const backupsDir = path.resolve(levelsDir, 'backups');
           const targetFilePath = path.resolve(levelsDir, payload.fileName);
 
           if (!targetFilePath.startsWith(levelsDir + path.sep)) {
             throw new Error('Resolved path is outside levels directory');
           }
 
-          const existingContent = await fs.readFile(targetFilePath, 'utf8');
-          await fs.mkdir(backupsDir, { recursive: true });
+          let backupFileName: string | null = null;
+          if (payload.createBackup !== false) {
+            const backupsDir = path.resolve(levelsDir, 'backups');
+            const existingContent = await fs.readFile(targetFilePath, 'utf8');
+            await fs.mkdir(backupsDir, { recursive: true });
 
-          const parsedTarget = path.parse(payload.fileName);
-          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const backupFileName = `${parsedTarget.name}.${timestamp}${parsedTarget.ext}`;
-          const backupFilePath = path.resolve(backupsDir, backupFileName);
+            const parsedTarget = path.parse(payload.fileName);
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            backupFileName = `${parsedTarget.name}.${timestamp}${parsedTarget.ext}`;
+            const backupFilePath = path.resolve(backupsDir, backupFileName);
+            await fs.writeFile(backupFilePath, existingContent, 'utf8');
+          }
 
-          await fs.writeFile(backupFilePath, existingContent, 'utf8');
           await fs.writeFile(targetFilePath, `${JSON.stringify(payload.level, null, 2)}\n`, 'utf8');
 
           res.statusCode = 200;
