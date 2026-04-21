@@ -5,6 +5,7 @@ import { EditorStoreEffects } from '../state/EditorStoreEffects';
 import { useEditorStore } from '../state/editorStore';
 import {
   appendPointToPath,
+  cloneLevel,
   eraseTile,
   findPathPointAtPosition,
   findNearestEntity,
@@ -36,7 +37,9 @@ export function EditorApp() {
   const selectedLayerId = useEditorStore((state) => state.selectedLayerId);
   const selectedPathId = useEditorStore((state) => state.selectedPathId);
   const selectedTileId = useEditorStore((state) => state.selectedTileId);
+  const commitLevelChange = useEditorStore((state) => state.commitLevelChange);
   const setLevel = useEditorStore((state) => state.setLevel);
+  const setLevelWithoutHistory = useEditorStore((state) => state.setLevelWithoutHistory);
   const setSelectedEntityId = useEditorStore((state) => state.setSelectedEntityId);
   const tool = useEditorStore((state) => state.tool);
   const redo = useEditorStore((state) => state.redo);
@@ -44,7 +47,9 @@ export function EditorApp() {
   const undo = useEditorStore((state) => state.undo);
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
   const draggedEntityIdRef = useRef<string | null>(null);
+  const draggedEntityStartLevelRef = useRef<typeof level | null>(null);
   const draggedPathPointRef = useRef<{ pathId: string; pointIndex: number } | null>(null);
+  const draggedPathPointStartLevelRef = useRef<typeof level | null>(null);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
@@ -163,6 +168,7 @@ export function EditorApp() {
     const hitPoint = findPathPointAtPosition(level, selectedPathId, worldX, worldY);
     if (hitPoint) {
       draggedPathPointRef.current = { pathId: selectedPathId, pointIndex: hitPoint.index };
+      draggedPathPointStartLevelRef.current = cloneLevel(level);
       return;
     }
 
@@ -177,7 +183,7 @@ export function EditorApp() {
       return;
     }
 
-    setLevel((currentLevel) =>
+    setLevelWithoutHistory((currentLevel) =>
       updatePathPoint(
         currentLevel,
         draggedPoint.pathId,
@@ -194,7 +200,7 @@ export function EditorApp() {
       return;
     }
 
-    setLevel((currentLevel) =>
+    setLevelWithoutHistory((currentLevel) =>
       updatePathPoint(
         currentLevel,
         draggedPoint.pathId,
@@ -203,7 +209,11 @@ export function EditorApp() {
         Math.round(worldY),
       ),
     );
+    if (draggedPathPointStartLevelRef.current) {
+      commitLevelChange(draggedPathPointStartLevelRef.current);
+    }
     draggedPathPointRef.current = null;
+    draggedPathPointStartLevelRef.current = null;
   };
 
   const handleEntityPointerDown = (worldX: number, worldY: number, shouldSelect: boolean) => {
@@ -216,6 +226,7 @@ export function EditorApp() {
     }
 
     draggedEntityIdRef.current = entity.id;
+    draggedEntityStartLevelRef.current = cloneLevel(level);
     if (shouldSelect) {
       setSelectedEntityId(entity.id);
     }
@@ -228,7 +239,7 @@ export function EditorApp() {
       return;
     }
 
-    setLevel((currentLevel) => {
+    setLevelWithoutHistory((currentLevel) => {
       const entity = currentLevel.entities.find((candidate) => candidate.id === draggedEntityId);
       if (!entity) {
         return currentLevel;
@@ -244,7 +255,11 @@ export function EditorApp() {
 
   const handleEntityPointerUp = (worldX: number, worldY: number) => {
     handleEntityPointerMove(worldX, worldY);
+    if (draggedEntityStartLevelRef.current) {
+      commitLevelChange(draggedEntityStartLevelRef.current);
+    }
     draggedEntityIdRef.current = null;
+    draggedEntityStartLevelRef.current = null;
   };
 
   const handlePrimaryCanvasInteraction = (
@@ -305,6 +320,7 @@ export function EditorApp() {
   const handleSecondaryCanvasInteraction = (worldX: number, worldY: number) => {
     if (tool === 'entities') {
       draggedEntityIdRef.current = null;
+      draggedEntityStartLevelRef.current = null;
       handleEntityRemoval(worldX, worldY);
       return;
     }
@@ -319,6 +335,7 @@ export function EditorApp() {
       }
 
       draggedPathPointRef.current = null;
+      draggedPathPointStartLevelRef.current = null;
       setLevel((currentLevel) => removePathPoint(currentLevel, selectedPathId, hitPoint.index));
     }
   };

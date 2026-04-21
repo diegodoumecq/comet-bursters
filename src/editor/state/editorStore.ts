@@ -54,6 +54,10 @@ type EditorActions = {
   setLevel: (
     updater: RawShipInteriorLevel | ((currentLevel: RawShipInteriorLevel) => RawShipInteriorLevel),
   ) => void;
+  setLevelWithoutHistory: (
+    updater: RawShipInteriorLevel | ((currentLevel: RawShipInteriorLevel) => RawShipInteriorLevel),
+  ) => void;
+  commitLevelChange: (previousLevel: RawShipInteriorLevel) => void;
   setOpenPathMenuId: (pathId: string | null) => void;
   setRenamingPathId: (pathId: string | null) => void;
   setRenamingPathValue: (value: string) => void;
@@ -298,6 +302,32 @@ export const useEditorStore = create<EditorStore>()(
             futureLevels: [],
             level: nextLevel,
             pastLevels,
+          };
+        }),
+      setLevelWithoutHistory: (updater) =>
+        set((state) => {
+          const nextLevel = typeof updater === 'function' ? updater(state.level) : updater;
+          const currentSnapshot = JSON.stringify(state.level);
+          const nextSnapshot = JSON.stringify(nextLevel);
+          if (currentSnapshot === nextSnapshot) {
+            return {};
+          }
+
+          return {
+            level: nextLevel,
+          };
+        }),
+      commitLevelChange: (previousLevel) =>
+        set((state) => {
+          const previousSnapshot = JSON.stringify(previousLevel);
+          const currentSnapshot = JSON.stringify(state.level);
+          if (previousSnapshot === currentSnapshot) {
+            return {};
+          }
+
+          return {
+            futureLevels: [],
+            pastLevels: [cloneLevel(previousLevel), ...state.pastLevels].slice(0, HISTORY_LIMIT),
           };
         }),
       setOpenPathMenuId: (openPathMenuId) => set({ openPathMenuId }),
