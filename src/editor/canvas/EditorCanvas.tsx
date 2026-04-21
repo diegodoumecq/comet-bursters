@@ -61,43 +61,51 @@ export function EditorCanvas({
       ctx.stroke();
     }
 
-    for (const layer of level.layers) {
-      if (layerVisibility[layer.id] === false) {
-        continue;
-      }
-
-      const tileset = level.tilesets.find((candidate) => candidate.id === layer.tilesetId);
-      if (!tileset) {
-        continue;
-      }
-
-      const image = images[tileset.id];
-      if (!image) {
-        continue;
-      }
-
-      ctx.save();
-      ctx.globalAlpha = layer.id === selectedLayerId ? 1 : inactiveLayerOpacity;
-      for (const tile of layer.tiles) {
-        const frame = tileset.tiles[tile.tile];
-        if (!frame) {
+    const drawLayerTiles = (overhead: boolean) => {
+      for (const layer of level.layers) {
+        if ((layer.overhead ?? false) !== overhead) {
+          continue;
+        }
+        if (layerVisibility[layer.id] === false) {
           continue;
         }
 
-        ctx.drawImage(
-          image,
-          frame[0] * tileset.grid.frameWidth,
-          frame[1] * tileset.grid.frameHeight,
-          tileset.grid.frameWidth,
-          tileset.grid.frameHeight,
-          tile.x * tileset.grid.frameWidth,
-          tile.y * tileset.grid.frameHeight,
-          tileset.grid.frameWidth,
-          tileset.grid.frameHeight,
-        );
+        const tileset = level.tilesets.find((candidate) => candidate.id === layer.tilesetId);
+        if (!tileset) {
+          continue;
+        }
+
+        const image = images[tileset.id];
+        if (!image) {
+          continue;
+        }
+
+        ctx.save();
+        ctx.globalAlpha =
+          (layer.opacity ?? 1) * (layer.id === selectedLayerId ? 1 : inactiveLayerOpacity);
+        for (const tile of layer.tiles) {
+          const frame = tileset.tiles[tile.tile];
+          if (!frame) {
+            continue;
+          }
+
+          ctx.drawImage(
+            image,
+            frame[0] * tileset.grid.frameWidth,
+            frame[1] * tileset.grid.frameHeight,
+            tileset.grid.frameWidth,
+            tileset.grid.frameHeight,
+            tile.x * tileset.grid.frameWidth,
+            tile.y * tileset.grid.frameHeight,
+            tileset.grid.frameWidth,
+            tileset.grid.frameHeight,
+          );
+        }
+        ctx.restore();
       }
-      ctx.restore();
-    }
+    };
+
+    drawLayerTiles(false);
 
     for (const entity of level.entities) {
       const isPlayer = entity.type === 'player';
@@ -115,6 +123,8 @@ export function EditorCanvas({
       ctx.textAlign = 'center';
       ctx.fillText(isPlayer ? 'P' : 'E', entity.x, entity.y + 3);
     }
+
+    drawLayerTiles(true);
 
     if (tool === 'paths' && selectedPathId) {
       const selectedPath = level.paths.find((path) => path.id === selectedPathId);

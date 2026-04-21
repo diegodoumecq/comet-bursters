@@ -28,6 +28,8 @@ export type ShipInteriorLayerTileDefinition = {
 export type ShipInteriorLayerDefinition = {
   id: string;
   hasCollision: boolean;
+  overhead?: boolean;
+  opacity?: number;
   tilesetId: string;
   tiles: ShipInteriorLayerTileDefinition[];
 };
@@ -79,6 +81,8 @@ export type LoadedShipInteriorTile = {
 export type LoadedShipInteriorLayer = {
   id: string;
   hasCollision: boolean;
+  overhead: boolean;
+  opacity: number;
   tilesetId: string;
   sheet: SpriteSheet;
   alphaMask: AlphaMask;
@@ -122,6 +126,10 @@ function isFiniteNumber(value: unknown): value is number {
 
 function isInteger(value: unknown): value is number {
   return Number.isInteger(value);
+}
+
+function clampOpacity(value: number): number {
+  return Math.min(1, Math.max(0, value));
 }
 
 function validatePoint(value: unknown, label: string): Point {
@@ -190,6 +198,12 @@ function validateLayer(value: unknown, label: string): ShipInteriorLayerDefiniti
   if (typeof layer.hasCollision !== 'boolean') {
     throw new Error(`${label}.hasCollision must be a boolean.`);
   }
+  if (layer.overhead !== undefined && typeof layer.overhead !== 'boolean') {
+    throw new Error(`${label}.overhead must be a boolean when provided.`);
+  }
+  if (layer.opacity !== undefined && !isFiniteNumber(layer.opacity)) {
+    throw new Error(`${label}.opacity must be a number when provided.`);
+  }
   if (!layer.tilesetId || typeof layer.tilesetId !== 'string') {
     throw new Error(`${label}.tilesetId must be a string.`);
   }
@@ -212,7 +226,11 @@ function validateLayer(value: unknown, label: string): ShipInteriorLayerDefiniti
     }
   }
 
-  return layer;
+  return {
+    ...layer,
+    overhead: layer.overhead ?? false,
+    opacity: layer.opacity === undefined ? 1 : clampOpacity(layer.opacity),
+  };
 }
 
 function validatePath(value: unknown, label: string): ShipInteriorPathDefinition {
@@ -375,6 +393,8 @@ export async function parseShipInteriorLevel(raw: RawShipInteriorLevel): Promise
     return {
       id: layer.id,
       hasCollision: layer.hasCollision,
+      overhead: layer.overhead ?? false,
+      opacity: layer.opacity ?? 1,
       tilesetId: layer.tilesetId,
       sheet: tileset.sheet,
       alphaMask: tileset.alphaMask,

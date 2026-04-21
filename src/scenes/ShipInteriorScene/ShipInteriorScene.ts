@@ -1163,6 +1163,8 @@ export class ShipInteriorScene implements Scene {
       drawOneParticle(particles[i], ctx);
     }
 
+    this.spriteRenderer.drawLayers(ctx, activeLevel.layers, { overhead: true });
+
     ctx.restore();
 
     if (this.alarmActive) {

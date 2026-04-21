@@ -54,9 +54,6 @@ export function TileSwatch({
       </div>
       <div className="min-w-0">
         <div className="truncate text-xs font-medium text-slate-100">{label}</div>
-        <div className="text-[11px] text-slate-400">
-          [{tile[0]}, {tile[1]}]
-        </div>
       </div>
     </button>
   );

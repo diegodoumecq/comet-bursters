@@ -1,9 +1,28 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { getTilesetForLayer } from '../../shared/levelEditing';
 import { useEditorStore } from '../../state/editorStore';
 import { CollapsibleSection } from '../components/CollapsibleSection';
+import { DropdownMenu } from '../components/DropdownMenu';
 import { TileSwatch } from '../TileSwatch';
+
+type LayerDefinition = ReturnType<typeof useEditorStore.getState>['level']['layers'][number];
+
+function isLayerDefinition(layer: LayerDefinition | undefined): layer is LayerDefinition {
+  return Boolean(layer);
+}
+
+function makeLayerId(level: ReturnType<typeof useEditorStore.getState>['level']): string {
+  let nextIndex = level.layers.length + 1;
+  let nextId = `layer-${nextIndex}`;
+
+  while (level.layers.some((layer) => layer.id === nextId)) {
+    nextIndex += 1;
+    nextId = `layer-${nextIndex}`;
+  }
+
+  return nextId;
+}
 
 export function TilesSection() {
   const activeImage = useEditorStore((state) => {
@@ -24,12 +43,98 @@ export function TilesSection() {
   const setAssetPathInput = useEditorStore((state) => state.setAssetPathInput);
   const setInactiveLayerOpacity = useEditorStore((state) => state.setInactiveLayerOpacity);
   const setLayerVisibility = useEditorStore((state) => state.setLayerVisibility);
+  const setLevel = useEditorStore((state) => state.setLevel);
   const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
   const setSelectedTileId = useEditorStore((state) => state.setSelectedTileId);
   const selectedTiles = selectedTileset ? Object.entries(selectedTileset.tiles) : [];
+  const [openLayerMenuId, setOpenLayerMenuId] = useState<string | null>(null);
+  const [renamingLayerId, setRenamingLayerId] = useState<string | null>(null);
+  const [renamingLayerValue, setRenamingLayerValue] = useState('');
+  const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null);
+  const [dragLayerOrder, setDragLayerOrder] = useState<string[] | null>(null);
+  const dragLayerOrderRef = useRef<string[] | null>(null);
   const [isLayerOpen, setIsLayerOpen] = useState(true);
   const [isAssetOpen, setIsAssetOpen] = useState(true);
   const [isPaletteOpen, setIsPaletteOpen] = useState(true);
+  const renderedLayers = dragLayerOrder
+    ? dragLayerOrder
+        .map((layerId) => level.layers.find((layer) => layer.id === layerId))
+        .filter(isLayerDefinition)
+    : level.layers;
+
+  const saveLayerRename = (layerId: string) => {
+    const nextId = renamingLayerValue.trim();
+    if (!nextId) {
+      alert('Layer name cannot be empty');
+      return;
+    }
+    if (nextId === layerId) {
+      setRenamingLayerId(null);
+      setRenamingLayerValue('');
+      return;
+    }
+    if (level.layers.some((layer) => layer.id === nextId)) {
+      alert(`Layer "${nextId}" already exists`);
+      return;
+    }
+
+    setLevel((currentLevel) => ({
+      ...currentLevel,
+      layers: currentLevel.layers.map((layer) =>
+        layer.id === layerId ? { ...layer, id: nextId } : layer,
+      ),
+    }));
+    if (selectedLayerId === layerId) {
+      setSelectedLayerId(nextId);
+    }
+    setLayerVisibility(nextId, layerVisibility[layerId] !== false);
+    setRenamingLayerId(null);
+    setRenamingLayerValue('');
+  };
+
+  const clearLayerDragState = () => {
+    setDraggedLayerId(null);
+    setDragLayerOrder(null);
+    dragLayerOrderRef.current = null;
+  };
+
+  const moveDraggedLayerBefore = (targetLayerId: string) => {
+    if (!draggedLayerId || draggedLayerId === targetLayerId) {
+      return;
+    }
+
+    setDragLayerOrder((currentOrder) => {
+      const order = currentOrder ?? level.layers.map((layer) => layer.id);
+      const sourceIndex = order.indexOf(draggedLayerId);
+      const targetIndex = order.indexOf(targetLayerId);
+
+      if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) {
+        return order;
+      }
+
+      const nextOrder = [...order];
+      const [movedLayerId] = nextOrder.splice(sourceIndex, 1);
+      nextOrder.splice(targetIndex, 0, movedLayerId);
+      dragLayerOrderRef.current = nextOrder;
+      return nextOrder;
+    });
+  };
+
+  const commitLayerOrder = () => {
+    const committedOrder = dragLayerOrderRef.current ?? dragLayerOrder;
+    if (!committedOrder) {
+      clearLayerDragState();
+      return;
+    }
+
+    setLevel((currentLevel) => ({
+      ...currentLevel,
+      layers: committedOrder
+        .map((layerId) => currentLevel.layers.find((layer) => layer.id === layerId))
+        .filter(isLayerDefinition),
+    }));
+    clearLayerDragState();
+  };
 
   return (
     <>
@@ -55,33 +160,125 @@ export function TilesSection() {
               {Math.round(inactiveLayerOpacity * 100)}%
             </span>
           </div>
-          <div className="mt-2 text-xs text-slate-500">
-            Applies to visible tile layers except the selected layer.
-          </div>
         </div>
         <div className="grid gap-2">
-          {level.layers.map((layer) => {
+          <button
+            type="button"
+            onClick={() => {
+              const nextLayerId = makeLayerId(level);
+              const tilesetId = selectedTileset?.id ?? level.tilesets[0]?.id;
+              if (!tilesetId) {
+                alert('Cannot create a layer without a tileset.');
+                return;
+              }
+
+              setLevel((currentLevel) => ({
+                ...currentLevel,
+                layers: [
+                  {
+                    id: nextLayerId,
+                    hasCollision: false,
+                    overhead: false,
+                    opacity: 1,
+                    tilesetId,
+                    tiles: [],
+                  },
+                  ...currentLevel.layers,
+                ],
+              }));
+              setSelectedLayerId(nextLayerId);
+              setOpenLayerMenuId(null);
+              setRenamingLayerId(nextLayerId);
+              setRenamingLayerValue(nextLayerId);
+            }}
+            className="flex items-center gap-3 rounded-xl border border-dashed border-cyan-400/40 bg-cyan-500/5 px-4 py-3 text-left text-sm text-cyan-100 transition hover:border-cyan-300/70 hover:bg-cyan-500/10"
+          >
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-cyan-400/40 bg-slate-950/80">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 20 20"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M10 4v12" />
+                <path d="M4 10h12" />
+              </svg>
+            </span>
+            <span>
+              <span className="block font-medium">Create layer</span>
+            </span>
+          </button>
+          {renderedLayers.map((layer) => {
             const isVisible = layerVisibility[layer.id] !== false;
+            const isDragging = draggedLayerId === layer.id;
             return (
               <div
                 key={layer.id}
-                className={`flex items-center gap-2 rounded-xl border p-2 text-sm ${
-                selectedLayerId === layer.id
-                  ? 'border-cyan-300 bg-cyan-500/15 text-cyan-100'
-                  : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-600'
-              }`}
+                draggable={renamingLayerId !== layer.id && openLayerMenuId !== layer.id}
+                onDragStart={(event) => {
+                  const initialOrder = level.layers.map((currentLayer) => currentLayer.id);
+                  event.dataTransfer.effectAllowed = 'move';
+                  event.dataTransfer.setData('text/plain', layer.id);
+                  setDraggedLayerId(layer.id);
+                  setDragLayerOrder(initialOrder);
+                  dragLayerOrderRef.current = initialOrder;
+                }}
+                onDragOver={(event) => {
+                  if (!draggedLayerId || draggedLayerId === layer.id) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                  moveDraggedLayerBefore(layer.id);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  commitLayerOrder();
+                }}
+                onDragEnd={commitLayerOrder}
+                className={`flex cursor-grab items-center gap-2 rounded-xl border p-2 text-sm transition active:cursor-grabbing ${
+                  selectedLayerId === layer.id
+                    ? 'border-cyan-300 bg-cyan-500/15 text-cyan-100'
+                    : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-600'
+                } ${isDragging ? 'scale-[0.98] opacity-50' : ''}`}
               >
-                <button
-                  type="button"
-                  onClick={() => setSelectedLayerId(layer.id)}
-                  className="min-w-0 flex-1 text-left"
-                >
-                  <div className="font-medium">{layer.id}</div>
-                  <div className="text-xs text-slate-500">
-                    {layer.hasCollision ? 'Collidable' : 'Visual only'} • {layer.tiles.length}{' '}
-                    tiles
-                  </div>
-                </button>
+                <div className="min-w-0 flex-1">
+                  {renamingLayerId === layer.id ? (
+                    <input
+                      autoFocus
+                      value={renamingLayerValue}
+                      onChange={(event) => setRenamingLayerValue(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          saveLayerRename(layer.id);
+                        }
+                        if (event.key === 'Escape') {
+                          setRenamingLayerId(null);
+                          setRenamingLayerValue('');
+                        }
+                      }}
+                      className="w-full rounded-lg border border-amber-300 bg-slate-950/90 px-2 py-1 text-sm text-slate-100 outline-none"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedLayerId(layer.id)}
+                      className="block w-full text-left"
+                    >
+                      <div className="font-medium">{layer.id}</div>
+                      <div className="text-xs text-slate-500">
+                        {layer.hasCollision ? 'Collidable' : 'Decor'} •{' '}
+                        {layer.overhead ? 'Overhead •' : ''} {layer.tiles.length}u •{' '}
+                        {Math.round((layer.opacity ?? 1) * 100)}%
+                      </div>
+                    </button>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => setLayerVisibility(layer.id, !isVisible)}
@@ -124,6 +321,125 @@ export function TilesSection() {
                     </svg>
                   )}
                 </button>
+                <DropdownMenu
+                  isOpen={openLayerMenuId === layer.id}
+                  onClose={() => setOpenLayerMenuId(null)}
+                  onToggle={() =>
+                    setOpenLayerMenuId(openLayerMenuId === layer.id ? null : layer.id)
+                  }
+                  menuClassName="min-w-52 rounded-lg"
+                  trigger={
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 bg-slate-950/70 text-slate-200 transition hover:border-slate-500">
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 20 20"
+                        className="h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 5h14" />
+                        <path d="M3 10h14" />
+                        <path d="M3 15h14" />
+                      </svg>
+                    </span>
+                  }
+                >
+                  <div className="border-b border-slate-800 px-3 py-2">
+                    <label className="block text-xs font-medium text-slate-300">
+                      Opacity {Math.round((layer.opacity ?? 1) * 100)}%
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={Math.round((layer.opacity ?? 1) * 100)}
+                      onChange={(event) => {
+                        const opacity = Number(event.target.value) / 100;
+                        setLevel((currentLevel) => ({
+                          ...currentLevel,
+                          layers: currentLevel.layers.map((candidate) =>
+                            candidate.id === layer.id ? { ...candidate, opacity } : candidate,
+                          ),
+                        }));
+                      }}
+                      className="mt-2 w-full"
+                      aria-label={`${layer.id} opacity`}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRenamingLayerId(layer.id);
+                      setRenamingLayerValue(layer.id);
+                      setOpenLayerMenuId(null);
+                    }}
+                    className="block w-full rounded-md px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-800"
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLevel((currentLevel) => ({
+                        ...currentLevel,
+                        layers: currentLevel.layers.map((candidate) =>
+                          candidate.id === layer.id
+                            ? { ...candidate, hasCollision: !candidate.hasCollision }
+                            : candidate,
+                        ),
+                      }));
+                      setOpenLayerMenuId(null);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-800"
+                  >
+                    {layer.hasCollision ? 'Disable collision' : 'Enable collision'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLevel((currentLevel) => ({
+                        ...currentLevel,
+                        layers: currentLevel.layers.map((candidate) =>
+                          candidate.id === layer.id
+                            ? { ...candidate, overhead: !(candidate.overhead ?? false) }
+                            : candidate,
+                        ),
+                      }));
+                      setOpenLayerMenuId(null);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-800"
+                  >
+                    {layer.overhead ? 'Render under entities' : 'Render overhead'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const remainingLayers = level.layers.filter(
+                        (candidate) => candidate.id !== layer.id,
+                      );
+                      setLevel((currentLevel) => ({
+                        ...currentLevel,
+                        layers: currentLevel.layers.filter(
+                          (candidate) => candidate.id !== layer.id,
+                        ),
+                      }));
+                      if (selectedLayerId === layer.id) {
+                        setSelectedLayerId(remainingLayers[0]?.id ?? null);
+                      }
+                      setOpenLayerMenuId(null);
+                      if (renamingLayerId === layer.id) {
+                        setRenamingLayerId(null);
+                        setRenamingLayerValue('');
+                      }
+                    }}
+                    className="block w-full rounded-md px-3 py-2 text-left text-xs text-rose-200 hover:bg-rose-500/15"
+                  >
+                    Delete
+                  </button>
+                </DropdownMenu>
               </div>
             );
           })}
