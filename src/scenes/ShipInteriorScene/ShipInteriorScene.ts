@@ -58,6 +58,7 @@ const ENEMY_FOV_HALF_ANGLE = Math.PI / 5;
 const ENEMY_VISION_SWEEP = 0.3;
 const ENEMY_VISION_RAY_COUNT = 48;
 const ALARM_HOLD_MS = 3000;
+const COLLISION_BUCKET_SIZE = 32;
 
 type Camera = { x: number; y: number };
 
@@ -75,6 +76,12 @@ type Enemy = {
   alive: boolean;
 };
 
+type CollisionTileRef = {
+  layer: LoadedShipInteriorLayer;
+  rect: Rect;
+  tile: LoadedShipInteriorTile;
+};
+
 const EMPTY_LEVEL: ShipInteriorLevel = {
   formatVersion: 1,
   name: 'empty',
@@ -89,6 +96,40 @@ const EMPTY_LEVEL: ShipInteriorLevel = {
 };
 
 let activeLevel: ShipInteriorLevel = EMPTY_LEVEL;
+let collisionTileBuckets = new Map<string, CollisionTileRef[]>();
+
+function getCollisionBucketKey(bucketX: number, bucketY: number): string {
+  return `${bucketX},${bucketY}`;
+}
+
+function rebuildCollisionTileBuckets(): void {
+  const nextBuckets = new Map<string, CollisionTileRef[]>();
+
+  for (const layer of getCollidableTileLayers()) {
+    for (const tile of layer.tiles) {
+      const rect = getTileWorldRect(layer, tile);
+      const ref = { layer, rect, tile };
+      const minBucketX = Math.floor(rect.x / COLLISION_BUCKET_SIZE);
+      const maxBucketX = Math.floor((rect.x + rect.width - 1) / COLLISION_BUCKET_SIZE);
+      const minBucketY = Math.floor(rect.y / COLLISION_BUCKET_SIZE);
+      const maxBucketY = Math.floor((rect.y + rect.height - 1) / COLLISION_BUCKET_SIZE);
+
+      for (let bucketY = minBucketY; bucketY <= maxBucketY; bucketY++) {
+        for (let bucketX = minBucketX; bucketX <= maxBucketX; bucketX++) {
+          const key = getCollisionBucketKey(bucketX, bucketY);
+          const bucket = nextBuckets.get(key);
+          if (bucket) {
+            bucket.push(ref);
+          } else {
+            nextBuckets.set(key, [ref]);
+          }
+        }
+      }
+    }
+  }
+
+  collisionTileBuckets = nextBuckets;
+}
 
 function getBoundaryWalls(): Rect[] {
   return [
@@ -120,6 +161,29 @@ function getTileWorldRect(layer: LoadedShipInteriorLayer, tile: LoadedShipInteri
 
 function getCollidableTileLayers(): LoadedShipInteriorLayer[] {
   return activeLevel.layers.filter((layer) => layer.hasCollision);
+}
+
+function getNearbyCollidableTiles(x: number, y: number, radius: number): CollisionTileRef[] {
+  const refs = new Set<CollisionTileRef>();
+  const minBucketX = Math.floor((x - radius) / COLLISION_BUCKET_SIZE);
+  const maxBucketX = Math.floor((x + radius) / COLLISION_BUCKET_SIZE);
+  const minBucketY = Math.floor((y - radius) / COLLISION_BUCKET_SIZE);
+  const maxBucketY = Math.floor((y + radius) / COLLISION_BUCKET_SIZE);
+
+  for (let bucketY = minBucketY; bucketY <= maxBucketY; bucketY++) {
+    for (let bucketX = minBucketX; bucketX <= maxBucketX; bucketX++) {
+      const bucket = collisionTileBuckets.get(getCollisionBucketKey(bucketX, bucketY));
+      if (!bucket) {
+        continue;
+      }
+
+      for (const ref of bucket) {
+        refs.add(ref);
+      }
+    }
+  }
+
+  return [...refs];
 }
 
 function isPointInsideSolidBoundary(x: number, y: number): boolean {
@@ -185,21 +249,18 @@ function intersectsCollidableTiles(x: number, y: number, radius: number): boolea
     }
   }
 
-  for (const layer of getCollidableTileLayers()) {
-    for (const tile of layer.tiles) {
-      const tileRect = getTileWorldRect(layer, tile);
-      const nearestX = clamp(x, tileRect.x, tileRect.x + tileRect.width);
-      const nearestY = clamp(y, tileRect.y, tileRect.y + tileRect.height);
-      const dx = x - nearestX;
-      const dy = y - nearestY;
-      if (dx * dx + dy * dy >= radius * radius) {
-        continue;
-      }
+  for (const { layer, rect, tile } of getNearbyCollidableTiles(x, y, radius)) {
+    const nearestX = clamp(x, rect.x, rect.x + rect.width);
+    const nearestY = clamp(y, rect.y, rect.y + rect.height);
+    const dx = x - nearestX;
+    const dy = y - nearestY;
+    if (dx * dx + dy * dy > radius * radius) {
+      continue;
+    }
 
-      for (const sample of samplePoints) {
-        if (isPointInsideOpaqueTilePixel(layer, tile, sample.x, sample.y)) {
-          return true;
-        }
+    for (const sample of samplePoints) {
+      if (isPointInsideOpaqueTilePixel(layer, tile, sample.x, sample.y)) {
+        return true;
       }
     }
   }
@@ -210,21 +271,18 @@ function intersectsCollidableTiles(x: number, y: number, radius: number): boolea
 function intersectsCollidableTilePixels(x: number, y: number, radius: number): boolean {
   const samplePoints = getCircleCollisionSamplePoints(x, y, radius);
 
-  for (const layer of getCollidableTileLayers()) {
-    for (const tile of layer.tiles) {
-      const tileRect = getTileWorldRect(layer, tile);
-      const nearestX = clamp(x, tileRect.x, tileRect.x + tileRect.width);
-      const nearestY = clamp(y, tileRect.y, tileRect.y + tileRect.height);
-      const dx = x - nearestX;
-      const dy = y - nearestY;
-      if (dx * dx + dy * dy >= radius * radius) {
-        continue;
-      }
+  for (const { layer, rect, tile } of getNearbyCollidableTiles(x, y, radius)) {
+    const nearestX = clamp(x, rect.x, rect.x + rect.width);
+    const nearestY = clamp(y, rect.y, rect.y + rect.height);
+    const dx = x - nearestX;
+    const dy = y - nearestY;
+    if (dx * dx + dy * dy > radius * radius) {
+      continue;
+    }
 
-      for (const sample of samplePoints) {
-        if (isPointInsideOpaqueTilePixel(layer, tile, sample.x, sample.y)) {
-          return true;
-        }
+    for (const sample of samplePoints) {
+      if (isPointInsideOpaqueTilePixel(layer, tile, sample.x, sample.y)) {
+        return true;
       }
     }
   }
@@ -1023,6 +1081,7 @@ export class ShipInteriorScene implements Scene {
 
     try {
       activeLevel = await loadShipInteriorLevel();
+      rebuildCollisionTileBuckets();
       this.spawnEnemies();
 
       const currentPlayer = player;
@@ -1034,6 +1093,7 @@ export class ShipInteriorScene implements Scene {
       this.levelStatus = 'ready';
     } catch (error) {
       activeLevel = EMPTY_LEVEL;
+      rebuildCollisionTileBuckets();
       this.enemies = [];
       this.levelStatus = 'error';
       this.levelLoadError = error instanceof Error ? error.message : 'Unknown level load error.';
@@ -1050,6 +1110,7 @@ export class ShipInteriorScene implements Scene {
     this.levelLoadError = null;
     this.enemies = [];
     activeLevel = EMPTY_LEVEL;
+    rebuildCollisionTileBuckets();
 
     if (!player) {
       const padId = joymap.getUnusedPadIds()[0] ?? 'keyboard';
@@ -1159,9 +1220,14 @@ export class ShipInteriorScene implements Scene {
 
     ctx.save();
     ctx.translate(-this.camera.x, -this.camera.y);
+    const isCircleVisible = (x: number, y: number, radius: number) =>
+      x + radius >= this.camera.x &&
+      x - radius <= this.camera.x + width &&
+      y + radius >= this.camera.y &&
+      y - radius <= this.camera.y + height;
 
     for (const enemy of this.enemies) {
-      if (enemy.alive) {
+      if (enemy.alive && isCircleVisible(enemy.x, enemy.y, enemy.visionRange)) {
         drawPlayerVisionCone(ctx, enemy, this.alarmActive, now);
       }
     }
@@ -1178,7 +1244,7 @@ export class ShipInteriorScene implements Scene {
     }
 
     for (const enemy of this.enemies) {
-      if (enemy.alive) {
+      if (enemy.alive && isCircleVisible(enemy.x, enemy.y, ENEMY_RADIUS)) {
         drawEnemy(ctx, enemy, this.alarmActive);
       }
     }
