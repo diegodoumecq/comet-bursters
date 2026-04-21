@@ -126,43 +126,75 @@ export function EditorCanvas({
 
     drawLayerTiles(true);
 
-    if (tool === 'paths' && selectedPathId) {
-      const selectedPath = level.paths.find((path) => path.id === selectedPathId);
-      if (selectedPath && selectedPath.patrol.length > 0) {
-        ctx.save();
-        ctx.strokeStyle = '#22d3ee';
-        ctx.fillStyle = '#22d3ee';
-        ctx.lineWidth = 3;
+    const selectedEntity = level.entities.find((entity) => entity.id === selectedEntityId) ?? null;
+    const inspectedEntityPath =
+      selectedEntity?.type === 'enemy-patroller' && selectedEntity.pathId
+        ? (level.paths.find((path) => path.id === selectedEntity.pathId) ?? null)
+        : null;
+    const selectedPath =
+      tool === 'paths' && selectedPathId
+        ? (level.paths.find((path) => path.id === selectedPathId) ?? null)
+        : null;
 
-        if (selectedPath.patrol.length > 1) {
-          ctx.beginPath();
-          ctx.moveTo(selectedPath.patrol[0].x, selectedPath.patrol[0].y);
-          for (const point of selectedPath.patrol.slice(1)) {
-            ctx.lineTo(point.x, point.y);
-          }
-          if (selectedPath.closed) {
-            ctx.lineTo(selectedPath.patrol[0].x, selectedPath.patrol[0].y);
-          }
-          ctx.stroke();
-        }
-
-        selectedPath.patrol.forEach((point, index) => {
-          ctx.beginPath();
-          ctx.arc(point.x, point.y, index === 0 ? 10 : 8, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.lineWidth = 2;
-          ctx.strokeStyle = '#082f49';
-          ctx.stroke();
-
-          ctx.fillStyle = '#ecfeff';
-          ctx.font = '10px monospace';
-          ctx.textAlign = 'center';
-          ctx.fillText(String(index + 1), point.x, point.y + 3);
-          ctx.fillStyle = '#22d3ee';
-        });
-
-        ctx.restore();
+    const drawPath = (
+      path: (typeof level.paths)[number],
+      colors: { fill: string; label: string; stroke: string; pointStroke: string },
+    ) => {
+      if (path.patrol.length === 0) {
+        return;
       }
+
+      ctx.save();
+      ctx.strokeStyle = colors.stroke;
+      ctx.fillStyle = colors.fill;
+      ctx.lineWidth = 3;
+
+      if (path.patrol.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(path.patrol[0].x, path.patrol[0].y);
+        for (const point of path.patrol.slice(1)) {
+          ctx.lineTo(point.x, point.y);
+        }
+        if (path.closed) {
+          ctx.lineTo(path.patrol[0].x, path.patrol[0].y);
+        }
+        ctx.stroke();
+      }
+
+      path.patrol.forEach((point, index) => {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, index === 0 ? 10 : 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = colors.pointStroke;
+        ctx.stroke();
+
+        ctx.fillStyle = colors.label;
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(String(index + 1), point.x, point.y + 3);
+        ctx.fillStyle = colors.fill;
+      });
+
+      ctx.restore();
+    };
+
+    if (inspectedEntityPath && inspectedEntityPath !== selectedPath) {
+      drawPath(inspectedEntityPath, {
+        fill: '#facc15',
+        label: '#1f2937',
+        pointStroke: '#713f12',
+        stroke: '#facc15',
+      });
+    }
+
+    if (selectedPath) {
+      drawPath(selectedPath, {
+        fill: '#22d3ee',
+        label: '#ecfeff',
+        pointStroke: '#082f49',
+        stroke: '#22d3ee',
+      });
     }
   }, [
     images,
