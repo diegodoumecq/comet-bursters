@@ -1,0 +1,265 @@
+{
+  "formatVersion": 1,
+  "name": "ship-interior-01",
+  "width": 4500,
+  "height": 4500,
+  "tilesets": [
+    {
+      "id": "interior-main",
+      "imageSrc": "./tiles/interior-main.png",
+      "grid": {
+        "frameWidth": 32,
+        "frameHeight": 32,
+        "offsetX": 0,
+        "offsetY": 0,
+        "gapX": 0,
+        "gapY": 0,
+        "columns": 8,
+        "rows": 8
+      },
+      "tiles": {
+        "floor_a": [0, 0],
+        "floor_b": [1, 0],
+        "floor_c": [2, 0],
+        "floor_grate": [3, 0],
+        "wall_h": [0, 1],
+        "wall_v": [1, 1],
+        "door_closed": [2, 1],
+        "door_open": [3, 1],
+        "crate_large": [4, 1],
+        "crate_small": [5, 1],
+        "console": [6, 1],
+        "terminal": [7, 1],
+        "wall_corner_tl": [0, 2],
+        "wall_corner_tr": [1, 2],
+        "wall_corner_bl": [0, 3],
+        "wall_corner_br": [1, 3],
+        "window_h": [2, 2],
+        "window_v": [3, 2],
+        "hazard_a": [4, 2],
+        "hazard_b": [5, 2],
+        "vent_h": [6, 2],
+        "vent_v": [7, 2],
+        "pipe_h": [2, 3],
+        "pipe_v": [3, 3],
+        "support_column": [4, 3],
+        "locker": [5, 3],
+        "medbay": [6, 3],
+        "bunk": [7, 3],
+        "panel_blue": [0, 4],
+        "panel_orange": [1, 4],
+        "junction_t": [2, 4],
+        "junction_cross": [3, 4],
+        "table": [4, 4],
+        "chair": [5, 4],
+        "debris": [6, 4],
+        "airlock": [7, 4]
+      }
+    }
+  ],
+  "layers": [
+    {
+      "id": "floor",
+      "hasCollision": false,
+      "tilesetId": "interior-main",
+      "tiles": [
+        { "tile": "floor_a", "x": 4, "y": 4 },
+        { "tile": "floor_b", "x": 5, "y": 4 },
+        { "tile": "floor_a", "x": 6, "y": 4 },
+        { "tile": "floor_b", "x": 7, "y": 4 },
+        { "tile": "floor_a", "x": 8, "y": 4 },
+        { "tile": "floor_b", "x": 9, "y": 4 },
+        { "tile": "floor_a", "x": 10, "y": 4 },
+        { "tile": "floor_b", "x": 11, "y": 4 },
+        { "tile": "floor_b", "x": 4, "y": 5 },
+        { "tile": "floor_a", "x": 5, "y": 5 },
+        { "tile": "panel_blue", "x": 6, "y": 5 },
+        { "tile": "floor_a", "x": 7, "y": 5 },
+        { "tile": "floor_b", "x": 8, "y": 5 },
+        { "tile": "panel_orange", "x": 9, "y": 5 },
+        { "tile": "floor_b", "x": 10, "y": 5 },
+        { "tile": "floor_a", "x": 11, "y": 5 },
+        { "tile": "floor_a", "x": 4, "y": 6 },
+        { "tile": "floor_b", "x": 5, "y": 6 },
+        { "tile": "floor_a", "x": 6, "y": 6 },
+        { "tile": "floor_b", "x": 7, "y": 6 },
+        { "tile": "floor_a", "x": 8, "y": 6 },
+        { "tile": "floor_b", "x": 9, "y": 6 },
+        { "tile": "floor_a", "x": 10, "y": 6 },
+        { "tile": "floor_b", "x": 11, "y": 6 },
+        { "tile": "floor_b", "x": 4, "y": 7 },
+        { "tile": "floor_a", "x": 5, "y": 7 },
+        { "tile": "floor_b", "x": 6, "y": 7 },
+        { "tile": "floor_a", "x": 7, "y": 7 },
+        { "tile": "floor_b", "x": 8, "y": 7 },
+        { "tile": "floor_a", "x": 9, "y": 7 },
+        { "tile": "floor_b", "x": 10, "y": 7 },
+        { "tile": "floor_a", "x": 11, "y": 7 },
+        { "tile": "floor_a", "x": 4, "y": 8 },
+        { "tile": "floor_b", "x": 5, "y": 8 },
+        { "tile": "floor_a", "x": 6, "y": 8 },
+        { "tile": "floor_b", "x": 7, "y": 8 },
+        { "tile": "floor_a", "x": 8, "y": 8 },
+        { "tile": "floor_b", "x": 9, "y": 8 },
+        { "tile": "floor_a", "x": 10, "y": 8 },
+        { "tile": "floor_b", "x": 11, "y": 8 },
+        { "tile": "floor_b", "x": 4, "y": 9 },
+        { "tile": "floor_a", "x": 5, "y": 9 },
+        { "tile": "floor_grate", "x": 6, "y": 9 },
+        { "tile": "floor_a", "x": 7, "y": 9 },
+        { "tile": "floor_c", "x": 8, "y": 9 },
+        { "tile": "floor_a", "x": 9, "y": 9 },
+        { "tile": "floor_b", "x": 10, "y": 9 },
+        { "tile": "floor_a", "x": 11, "y": 9 }
+      ]
+    },
+    {
+      "id": "walls",
+      "hasCollision": true,
+      "tilesetId": "interior-main",
+      "tiles": [
+        { "tile": "wall_corner_tl", "x": 3, "y": 3 },
+        { "tile": "wall_h", "x": 4, "y": 3 },
+        { "tile": "wall_h", "x": 5, "y": 3 },
+        { "tile": "wall_h", "x": 6, "y": 3 },
+        { "tile": "door_closed", "x": 7, "y": 3 },
+        { "tile": "wall_h", "x": 8, "y": 3 },
+        { "tile": "wall_h", "x": 9, "y": 3 },
+        { "tile": "wall_h", "x": 10, "y": 3 },
+        { "tile": "wall_h", "x": 11, "y": 3 },
+        { "tile": "wall_corner_tr", "x": 12, "y": 3 },
+        { "tile": "wall_corner_bl", "x": 3, "y": 10 },
+        { "tile": "wall_h", "x": 4, "y": 10 },
+        { "tile": "wall_h", "x": 5, "y": 10 },
+        { "tile": "wall_h", "x": 6, "y": 10 },
+        { "tile": "wall_h", "x": 7, "y": 10 },
+        { "tile": "wall_h", "x": 8, "y": 10 },
+        { "tile": "wall_h", "x": 9, "y": 10 },
+        { "tile": "wall_h", "x": 10, "y": 10 },
+        { "tile": "wall_h", "x": 11, "y": 10 },
+        { "tile": "wall_corner_br", "x": 12, "y": 10 },
+        { "tile": "wall_v", "x": 3, "y": 4 },
+        { "tile": "wall_v", "x": 3, "y": 5 },
+        { "tile": "wall_v", "x": 3, "y": 6 },
+        { "tile": "wall_v", "x": 3, "y": 7 },
+        { "tile": "wall_v", "x": 3, "y": 8 },
+        { "tile": "wall_v", "x": 3, "y": 9 },
+        { "tile": "wall_v", "x": 12, "y": 4 },
+        { "tile": "wall_v", "x": 12, "y": 5 },
+        { "tile": "wall_v", "x": 12, "y": 6 },
+        { "tile": "wall_v", "x": 12, "y": 7 },
+        { "tile": "wall_v", "x": 12, "y": 8 },
+        { "tile": "wall_v", "x": 12, "y": 9 }
+      ]
+    },
+    {
+      "id": "props",
+      "hasCollision": false,
+      "tilesetId": "interior-main",
+      "tiles": [
+        { "tile": "console", "x": 5, "y": 5 },
+        { "tile": "terminal", "x": 10, "y": 5 },
+        { "tile": "crate_large", "x": 9, "y": 8 },
+        { "tile": "crate_small", "x": 10, "y": 8 },
+        { "tile": "window_v", "x": 3, "y": 6 },
+        { "tile": "window_v", "x": 12, "y": 7 }
+      ]
+    },
+    {
+      "id": "decals",
+      "hasCollision": false,
+      "tilesetId": "interior-main",
+      "tiles": [
+        { "tile": "hazard_a", "x": 6, "y": 4 },
+        { "tile": "hazard_b", "x": 7, "y": 4 },
+        { "tile": "hazard_a", "x": 8, "y": 4 },
+        { "tile": "hazard_b", "x": 9, "y": 4 },
+        { "tile": "hazard_a", "x": 6, "y": 9 },
+        { "tile": "hazard_b", "x": 7, "y": 9 },
+        { "tile": "vent_h", "x": 8, "y": 9 },
+        { "tile": "vent_v", "x": 11, "y": 6 }
+      ]
+    },
+    {
+      "id": "fixtures",
+      "hasCollision": false,
+      "tilesetId": "interior-main",
+      "tiles": [
+        { "tile": "pipe_h", "x": 6, "y": 3 },
+        { "tile": "pipe_h", "x": 7, "y": 3 },
+        { "tile": "pipe_h", "x": 8, "y": 3 },
+        { "tile": "pipe_v", "x": 12, "y": 5 },
+        { "tile": "support_column", "x": 4, "y": 6 },
+        { "tile": "support_column", "x": 11, "y": 7 },
+        { "tile": "locker", "x": 4, "y": 8 },
+        { "tile": "medbay", "x": 8, "y": 8 },
+        { "tile": "bunk", "x": 10, "y": 6 },
+        { "tile": "table", "x": 7, "y": 7 },
+        { "tile": "chair", "x": 7, "y": 8 },
+        { "tile": "debris", "x": 5, "y": 9 },
+        { "tile": "airlock", "x": 11, "y": 3 },
+        { "tile": "junction_t", "x": 9, "y": 3 },
+        { "tile": "junction_cross", "x": 10, "y": 3 }
+      ]
+    }
+  ],
+  "paths": [
+    {
+      "id": "guard-01",
+      "closed": false,
+      "patrol": [
+        { "x": 475, "y": 825 },
+        { "x": 1100, "y": 825, "wait": 1000 }
+      ]
+    },
+    {
+      "id": "guard-02",
+      "closed": false,
+      "patrol": [
+        { "x": 1725, "y": 1175 },
+        { "x": 1725, "y": 1675, "wait": 1000 }
+      ]
+    },
+    {
+      "id": "guard-03",
+      "closed": false,
+      "patrol": [
+        { "x": 2525, "y": 725 },
+        { "x": 3275, "y": 725, "wait": 1000 }
+      ]
+    },
+    {
+      "id": "guard-04",
+      "closed": false,
+      "patrol": [
+        { "x": 2900, "y": 2025 },
+        { "x": 3600, "y": 2025, "wait": 1000 }
+      ]
+    },
+    {
+      "id": "guard-05",
+      "closed": false,
+      "patrol": [
+        { "x": 1425, "y": 3075 },
+        { "x": 2175, "y": 3075, "wait": 1000 }
+      ]
+    },
+    {
+      "id": "guard-06",
+      "closed": false,
+      "patrol": [
+        { "x": 2800, "y": 3900 },
+        { "x": 3500, "y": 3900, "wait": 1000 }
+      ]
+    }
+  ],
+  "entities": [
+    { "id": "player", "type": "player", "x": 210, "y": 210 },
+    { "id": "enemy1", "type": "enemy-patroller", "x": 475, "y": 825, "pathId": "guard-01" },
+    { "id": "enemy2", "type": "enemy-patroller", "x": 1725, "y": 1175, "pathId": "guard-02" },
+    { "id": "enemy3", "type": "enemy-patroller", "x": 2525, "y": 725, "pathId": "guard-03" },
+    { "id": "enemy4", "type": "enemy-patroller", "x": 2900, "y": 2025, "pathId": "guard-04" },
+    { "id": "enemy5", "type": "enemy-patroller", "x": 1425, "y": 3075, "pathId": "guard-05" },
+    { "id": "enemy6", "type": "enemy-patroller", "x": 2800, "y": 3900, "pathId": "guard-06" }
+  ]
+}

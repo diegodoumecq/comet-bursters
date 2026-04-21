@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useEditorStore } from '../../state/editorStore';
 import type { RawShipInteriorLevel } from '../../../scenes/ShipInteriorScene/level';
 import { CollapsibleSection } from '../components/CollapsibleSection';
+import { DropdownMenu } from '../components/DropdownMenu';
 
 function makePathId(level: RawShipInteriorLevel): string {
   let nextIndex = level.paths.length + 1;
@@ -81,25 +82,18 @@ export function PathsSection({
             <span className="block font-medium">Create path</span>
           </span>
         </button>
-        {level.paths.map((path) => (
-          <div
-            key={path.id}
-            onClick={() => {
-              setSelectedPathId(path.id);
-              if (path.patrol.length > 0) {
-                const centerX =
-                  path.patrol.reduce((sum, point) => sum + point.x, 0) / path.patrol.length;
-                const centerY =
-                  path.patrol.reduce((sum, point) => sum + point.y, 0) / path.patrol.length;
-                onScrollIntoView(centerX, centerY);
-              }
-            }}
-            className={`relative cursor-pointer rounded-xl border px-3 py-2 text-sm transition ${
-              selectedPathId === path.id
-                ? 'border-cyan-300 bg-cyan-500/10 text-slate-100'
-                : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
-            }`}
-          >
+        {level.paths.map((path) => {
+          const isUsed = level.entities.some((entity) => entity.pathId === path.id);
+
+          return (
+            <div
+              key={path.id}
+              className={`relative rounded-xl border px-3 py-2 text-sm transition ${
+                selectedPathId === path.id
+                  ? 'border-cyan-300 bg-cyan-500/10 text-slate-100'
+                  : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+              }`}
+            >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 {renamingPathId === path.id ? (
@@ -119,42 +113,84 @@ export function PathsSection({
                     className="w-full rounded-lg border border-amber-300 bg-slate-950/90 px-2 py-1 text-sm text-slate-100 outline-none"
                   />
                 ) : (
-                  <div className="truncate font-medium text-slate-100">{path.id}</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedPathId(path.id);
+                      if (path.patrol.length > 0) {
+                        const centerX =
+                          path.patrol.reduce((sum, point) => sum + point.x, 0) /
+                          path.patrol.length;
+                        const centerY =
+                          path.patrol.reduce((sum, point) => sum + point.y, 0) /
+                          path.patrol.length;
+                        onScrollIntoView(centerX, centerY);
+                      }
+                    }}
+                    className="flex min-w-0 items-center gap-2 text-left"
+                  >
+                    <span className="truncate font-medium text-slate-100">{path.id}</span>
+                    {!isUsed ? (
+                      <span
+                        className="group relative inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-amber-400/40 bg-amber-500/10 text-amber-200"
+                        aria-label="Unused path"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 20 20"
+                          className="h-3.5 w-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M10 3 18 17H2L10 3Z" />
+                          <path d="M10 8v4" />
+                          <path d="M10 15h.01" />
+                        </svg>
+                        <span
+                          role="tooltip"
+                          className="pointer-events-none absolute left-1/2 top-7 z-20 hidden w-48 -translate-x-1/2 rounded-lg border border-amber-400/30 bg-slate-950 px-3 py-2 text-left text-xs font-normal text-amber-100 shadow-xl group-hover:block group-focus-within:block"
+                        >
+                          This path is not assigned to any entity.
+                        </span>
+                      </span>
+                    ) : null}
+                  </button>
                 )}
               </div>
-              <div className="relative shrink-0">
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setOpenPathMenuId(openPathMenuId === path.id ? null : path.id);
-                  }}
-                  className="rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1 text-xs text-slate-200 hover:border-slate-500"
+              <div className="shrink-0">
+                <DropdownMenu
+                  isOpen={openPathMenuId === path.id}
+                  onClose={() => setOpenPathMenuId(null)}
+                  onToggle={() => setOpenPathMenuId(openPathMenuId === path.id ? null : path.id)}
+                  menuClassName="z-10 min-w-28 rounded-lg"
+                  trigger={
+                    <span className="rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1 text-xs text-slate-200 hover:border-slate-500">
+                      ...
+                    </span>
+                  }
                 >
-                  ...
-                </button>
-                {openPathMenuId === path.id ? (
-                  <div className="absolute right-0 top-9 z-10 min-w-28 rounded-lg border border-slate-700 bg-slate-950 p-1 shadow-xl">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRenamingPathId(path.id);
-                        setRenamingPathValue(path.id);
-                        setOpenPathMenuId(null);
-                      }}
-                      className="block w-full rounded-md px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-800"
-                    >
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deletePath(path.id)}
-                      className="block w-full rounded-md px-3 py-2 text-left text-xs text-rose-200 hover:bg-rose-500/15"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRenamingPathId(path.id);
+                      setRenamingPathValue(path.id);
+                      setOpenPathMenuId(null);
+                    }}
+                    className="block w-full rounded-md px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-800"
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deletePath(path.id)}
+                    className="block w-full rounded-md px-3 py-2 text-left text-xs text-rose-200 hover:bg-rose-500/15"
+                  >
+                    Delete
+                  </button>
+                </DropdownMenu>
               </div>
             </div>
             <div className="text-xs text-slate-500">{path.patrol.length} patrol points</div>
@@ -180,8 +216,9 @@ export function PathsSection({
                 Closed path
               </label>
             ) : null}
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
     </CollapsibleSection>
   );

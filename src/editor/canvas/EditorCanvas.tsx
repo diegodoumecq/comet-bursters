@@ -2,20 +2,29 @@ import { useEffect, useRef } from 'react';
 
 import { useEditorStore } from '../state/editorStore';
 
+export type EditorCanvasPointerInfo = {
+  button: number;
+  buttons: number;
+  shiftKey: boolean;
+};
+
 export function EditorCanvas({
   onPointerDown,
   onPointerMove,
   onPointerUp,
   onSecondaryInteraction,
 }: {
-  onPointerDown: (worldX: number, worldY: number) => void;
-  onPointerMove: (worldX: number, worldY: number) => void;
-  onPointerUp: (worldX: number, worldY: number) => void;
-  onSecondaryInteraction: (worldX: number, worldY: number) => void;
+  onPointerDown: (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => void;
+  onPointerMove: (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => void;
+  onPointerUp: (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => void;
+  onSecondaryInteraction: (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const images = useEditorStore((state) => state.images);
+  const inactiveLayerOpacity = useEditorStore((state) => state.inactiveLayerOpacity);
+  const layerVisibility = useEditorStore((state) => state.layerVisibility);
   const level = useEditorStore((state) => state.level);
+  const selectedLayerId = useEditorStore((state) => state.selectedLayerId);
   const selectedEntityId = useEditorStore((state) => state.selectedEntityId);
   const selectedPathId = useEditorStore((state) => state.selectedPathId);
   const tool = useEditorStore((state) => state.tool);
@@ -53,6 +62,10 @@ export function EditorCanvas({
     }
 
     for (const layer of level.layers) {
+      if (layerVisibility[layer.id] === false) {
+        continue;
+      }
+
       const tileset = level.tilesets.find((candidate) => candidate.id === layer.tilesetId);
       if (!tileset) {
         continue;
@@ -63,6 +76,8 @@ export function EditorCanvas({
         continue;
       }
 
+      ctx.save();
+      ctx.globalAlpha = layer.id === selectedLayerId ? 1 : inactiveLayerOpacity;
       for (const tile of layer.tiles) {
         const frame = tileset.tiles[tile.tile];
         if (!frame) {
@@ -81,6 +96,7 @@ export function EditorCanvas({
           tileset.grid.frameHeight,
         );
       }
+      ctx.restore();
     }
 
     for (const entity of level.entities) {
@@ -138,7 +154,16 @@ export function EditorCanvas({
         ctx.restore();
       }
     }
-  }, [images, level, selectedEntityId, selectedPathId, tool]);
+  }, [
+    images,
+    inactiveLayerOpacity,
+    layerVisibility,
+    level,
+    selectedEntityId,
+    selectedLayerId,
+    selectedPathId,
+    tool,
+  ]);
 
   const getWorldCoordinates = (
     event: React.MouseEvent<HTMLCanvasElement> | React.PointerEvent<HTMLCanvasElement>,
@@ -152,20 +177,16 @@ export function EditorCanvas({
     };
   };
 
-  const handleMousePointer = (
-    event: React.MouseEvent<HTMLCanvasElement>,
-    handler: (worldX: number, worldY: number) => void,
-  ) => {
-    const { worldX, worldY } = getWorldCoordinates(event);
-    handler(worldX, worldY);
-  };
-
   const handlePointerEvent = (
     event: React.PointerEvent<HTMLCanvasElement>,
-    handler: (worldX: number, worldY: number) => void,
+    handler: (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => void,
   ) => {
     const { worldX, worldY } = getWorldCoordinates(event);
-    handler(worldX, worldY);
+    handler(worldX, worldY, {
+      button: event.button,
+      buttons: event.buttons,
+      shiftKey: event.shiftKey,
+    });
   };
 
   return (
@@ -173,21 +194,30 @@ export function EditorCanvas({
       <canvas
         ref={canvasRef}
         onPointerDown={(event) => {
-          if (event.button !== 0) {
+          if (event.button !== 0 && event.button !== 2) {
             return;
           }
+          if (event.button === 2) {
+            event.preventDefault();
+          }
           event.currentTarget.setPointerCapture(event.pointerId);
-          handlePointerEvent(event, onPointerDown);
+          handlePointerEvent(event, event.button === 2 ? onSecondaryInteraction : onPointerDown);
         }}
         onPointerMove={(event) => {
-          if ((event.buttons & 1) !== 1) {
+          if ((event.buttons & 3) === 0) {
             return;
+          }
+          if ((event.buttons & 2) === 2) {
+            event.preventDefault();
           }
           handlePointerEvent(event, onPointerMove);
         }}
         onPointerUp={(event) => {
-          if (event.button !== 0) {
+          if (event.button !== 0 && event.button !== 2) {
             return;
+          }
+          if (event.button === 2) {
+            event.preventDefault();
           }
           if (event.currentTarget.hasPointerCapture(event.pointerId)) {
             event.currentTarget.releasePointerCapture(event.pointerId);
@@ -196,7 +226,6 @@ export function EditorCanvas({
         }}
         onContextMenu={(event) => {
           event.preventDefault();
-          handleMousePointer(event, onSecondaryInteraction);
         }}
         className="block max-w-none cursor-crosshair bg-slate-950"
         style={{ imageRendering: 'pixelated' }}

@@ -1,6 +1,6 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 
-import { EditorCanvas } from '../canvas/EditorCanvas';
+import { EditorCanvas, type EditorCanvasPointerInfo } from '../canvas/EditorCanvas';
 import { EditorStoreEffects } from '../state/EditorStoreEffects';
 import { useEditorStore } from '../state/editorStore';
 import {
@@ -21,12 +21,15 @@ import { LevelSection } from './sections/LevelSection';
 import { PathsSection } from './sections/PathsSection';
 import { SelectedEntitySection } from './sections/SelectedEntitySection';
 import { TilesSection } from './sections/TilesSection';
+import { ConfirmationDialog } from './components/ConfirmationDialog';
+import { DropdownMenu } from './components/DropdownMenu';
 import { ToolSwitcher } from './components/ToolSwitcher';
 
 export function EditorApp() {
   const canRedo = useEditorStore((state) => state.futureLevels.length > 0);
   const canUndo = useEditorStore((state) => state.pastLevels.length > 0);
   const level = useEditorStore((state) => state.level);
+  const selectedLevelAssetPath = useEditorStore((state) => state.selectedLevelAssetPath);
   const selectedEntityId = useEditorStore((state) => state.selectedEntityId);
   const selectedEntityPathId = useEditorStore((state) => state.selectedEntityPathId);
   const selectedEntityType = useEditorStore((state) => state.selectedEntityType);
@@ -37,14 +40,13 @@ export function EditorApp() {
   const setSelectedEntityId = useEditorStore((state) => state.setSelectedEntityId);
   const tool = useEditorStore((state) => state.tool);
   const redo = useEditorStore((state) => state.redo);
+  const resetEditor = useEditorStore((state) => state.resetEditor);
   const undo = useEditorStore((state) => state.undo);
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
   const draggedEntityIdRef = useRef<string | null>(null);
   const draggedPathPointRef = useRef<{ pathId: string; pointIndex: number } | null>(null);
-
-  const height = useEditorStore((state) => state.level.height);
-  const levelName = useEditorStore((state) => state.level.name);
-  const width = useEditorStore((state) => state.level.width);
+  const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   const scrollIntoView = (worldX: number, worldY: number) => {
     const viewport = canvasViewportRef.current;
@@ -58,6 +60,39 @@ export function EditorApp() {
       top: Math.max(0, worldY - viewport.clientHeight / 2 + viewportPadding),
       behavior: 'smooth',
     });
+  };
+
+  const handleSave = async () => {
+    if (!selectedLevelAssetPath) {
+      alert('Only bundled levels from assets/levels can be saved to disk.');
+      return;
+    }
+
+    const fileName = selectedLevelAssetPath.split('/').pop();
+    if (!fileName) {
+      alert('Could not resolve the target level file name.');
+      return;
+    }
+
+    try {
+      const response = await fetch('/__editor/save-level', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fileName,
+          level,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorPayload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(errorPayload?.error ?? 'Failed to save level');
+      }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to save level');
+    }
   };
 
   const handleEntityPlacement = (worldX: number, worldY: number) => {
@@ -107,6 +142,17 @@ export function EditorApp() {
     const x = Math.floor(worldX / selectedTileset.grid.frameWidth);
     const y = Math.floor(worldY / selectedTileset.grid.frameHeight);
     setLevel((currentLevel) => eraseTile(currentLevel, selectedLayerId, x, y));
+  };
+
+  const handleTileDrag = (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => {
+    if ((info.buttons & 2) === 2) {
+      handleTileErase(worldX, worldY);
+      return;
+    }
+
+    if (info.shiftKey && (info.buttons & 1) === 1) {
+      handleTilePaint(worldX, worldY);
+    }
   };
 
   const handlePathPointerDown = (worldX: number, worldY: number) => {
@@ -201,7 +247,11 @@ export function EditorApp() {
     draggedEntityIdRef.current = null;
   };
 
-  const handlePrimaryCanvasInteraction = (worldX: number, worldY: number) => {
+  const handlePrimaryCanvasInteraction = (
+    worldX: number,
+    worldY: number,
+    info: EditorCanvasPointerInfo,
+  ) => {
     if (tool === 'select') {
       handleEntityPointerDown(worldX, worldY, true);
       return;
@@ -214,7 +264,9 @@ export function EditorApp() {
       return;
     }
     if (tool === 'tiles') {
-      handleTilePaint(worldX, worldY);
+      if ((info.buttons & 1) === 1) {
+        handleTilePaint(worldX, worldY);
+      }
       return;
     }
     if (tool === 'paths') {
@@ -222,9 +274,17 @@ export function EditorApp() {
     }
   };
 
-  const handleCanvasPointerMove = (worldX: number, worldY: number) => {
+  const handleCanvasPointerMove = (
+    worldX: number,
+    worldY: number,
+    info: EditorCanvasPointerInfo,
+  ) => {
     if (tool === 'select' || tool === 'entities') {
       handleEntityPointerMove(worldX, worldY);
+      return;
+    }
+    if (tool === 'tiles') {
+      handleTileDrag(worldX, worldY, info);
       return;
     }
     if (tool === 'paths') {
@@ -269,67 +329,112 @@ export function EditorApp() {
 
       <aside className="flex h-full w-92 shrink-0 flex-col border-r border-slate-800 bg-slate-950/95">
         <div className="border-b border-slate-800 px-6 py-5">
-          <div className="mb-4 flex items-center gap-2">
+          <div className="mb-4 flex items-center justify-between gap-2">
             <a
               href="/"
               className="inline-flex rounded-full border border-slate-700 bg-slate-900/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300 hover:border-slate-500 hover:text-white"
             >
               Back Home
             </a>
-            <button
-              type="button"
-              onClick={undo}
-              disabled={!canUndo}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 text-slate-300 transition hover:border-slate-500 hover:text-white not-disabled:cursor-pointer disabled:opacity-40"
-              aria-label="Undo"
-            >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={undo}
+                disabled={!canUndo}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 text-slate-300 transition hover:border-slate-500 hover:text-white not-disabled:cursor-pointer disabled:opacity-40"
+                aria-label="Undo"
               >
-                <path d="M8 6 4 10l4 4" />
-                <path d="M5 10h6a5 5 0 1 1 0 10" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={redo}
-              disabled={!canRedo}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 text-slate-300 transition hover:border-slate-500 hover:text-white not-disabled:cursor-pointer disabled:opacity-40"
-              aria-label="Redo"
-            >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M8 6 4 10l4 4" />
+                  <path d="M5 10h6a5 5 0 1 1 0 10" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={redo}
+                disabled={!canRedo}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 text-slate-300 transition hover:border-slate-500 hover:text-white not-disabled:cursor-pointer disabled:opacity-40"
+                aria-label="Redo"
               >
-                <path d="m12 6 4 4-4 4" />
-                <path d="M15 10H9a5 5 0 1 0 0 10" />
-              </svg>
-            </button>
-          </div>
-          <div className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300">
-            {levelName}
-            <div className="mt-1 text-xs text-slate-500">
-              {width} x {height}
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="m12 6 4 4-4 4" />
+                  <path d="M15 10H9a5 5 0 1 0 0 10" />
+                </svg>
+              </button>
+              <DropdownMenu
+                align="left"
+                isOpen={isHeaderMenuOpen}
+                onClose={() => setIsHeaderMenuOpen(false)}
+                onToggle={() => setIsHeaderMenuOpen((current) => !current)}
+                menuClassName="rounded-xl"
+                trigger={
+                  <span
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 text-slate-300 transition hover:border-slate-500 hover:text-white"
+                    aria-label="More options"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 20 20"
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 5h14" />
+                      <path d="M3 10h14" />
+                      <path d="M3 15h14" />
+                    </svg>
+                  </span>
+                }
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsHeaderMenuOpen(false);
+                    void handleSave();
+                  }}
+                  className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsHeaderMenuOpen(false);
+                    setIsResetModalOpen(true);
+                  }}
+                  className="block w-full rounded-lg px-3 py-2 text-left text-sm text-rose-200 transition hover:bg-rose-500/15"
+                >
+                  Reset
+                </button>
+              </DropdownMenu>
             </div>
           </div>
+          <LevelSection />
         </div>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
           <ToolSwitcher />
-          <LevelSection />
 
           {tool === 'select' && selectedEntityId ? <SelectedEntitySection /> : null}
           {tool === 'tiles' ? <TilesSection /> : null}
@@ -348,6 +453,19 @@ export function EditorApp() {
           />
         </div>
       </main>
+
+      <ConfirmationDialog
+        isOpen={isResetModalOpen}
+        title="Reset editor state?"
+        message="This will clear the current editor session, including the persisted local changes and undo history."
+        confirmLabel="Reset"
+        onCancel={() => setIsResetModalOpen(false)}
+        onConfirm={() => {
+          resetEditor();
+          setIsResetModalOpen(false);
+          setIsHeaderMenuOpen(false);
+        }}
+      />
     </div>
   );
 }
