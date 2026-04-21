@@ -50,6 +50,7 @@ export function EditorApp() {
   const draggedEntityStartLevelRef = useRef<typeof level | null>(null);
   const draggedPathPointRef = useRef<{ pathId: string; pointIndex: number } | null>(null);
   const draggedPathPointStartLevelRef = useRef<typeof level | null>(null);
+  const [canvasZoom, setCanvasZoom] = useState(1);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
@@ -61,10 +62,14 @@ export function EditorApp() {
     const viewportPadding = 24;
 
     viewport.scrollTo({
-      left: Math.max(0, worldX - viewport.clientWidth / 2 + viewportPadding),
-      top: Math.max(0, worldY - viewport.clientHeight / 2 + viewportPadding),
+      left: Math.max(0, worldX * canvasZoom - viewport.clientWidth / 2 + viewportPadding),
+      top: Math.max(0, worldY * canvasZoom - viewport.clientHeight / 2 + viewportPadding),
       behavior: 'smooth',
     });
+  };
+
+  const updateCanvasZoom = (nextZoom: number) => {
+    setCanvasZoom(Math.min(3, Math.max(0.25, nextZoom)));
   };
 
   const handleSave = async () => {
@@ -447,7 +452,7 @@ export function EditorApp() {
               </DropdownMenu>
             </div>
           </div>
-          <LevelSection />
+          <LevelSection zoom={canvasZoom} onCanvasZoomChange={updateCanvasZoom} />
         </div>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
@@ -467,6 +472,7 @@ export function EditorApp() {
             onPointerMove={handleCanvasPointerMove}
             onPointerUp={handleCanvasPointerUp}
             onSecondaryInteraction={handleSecondaryCanvasInteraction}
+            zoom={canvasZoom}
           />
         </div>
       </main>

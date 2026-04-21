@@ -57,6 +57,7 @@ const ENEMY_FOV_RANGE = 280;
 const ENEMY_FOV_HALF_ANGLE = Math.PI / 5;
 const ENEMY_VISION_SWEEP = 0.3;
 const ENEMY_VISION_RAY_COUNT = 48;
+const ENEMY_WAYPOINT_RADIUS = 8;
 const ALARM_HOLD_MS = 3000;
 const COLLISION_BUCKET_SIZE = 32;
 
@@ -320,6 +321,23 @@ function rotateTowardsAngle(current: number, target: number, maxStep: number): n
     return target;
   }
   return current + Math.sign(delta) * maxStep;
+}
+
+function getNearestPatrolPointIndex(x: number, y: number, patrol: Point[]): number {
+  let nearestIndex = 0;
+  let nearestDistanceSq = Number.POSITIVE_INFINITY;
+
+  patrol.forEach((point, index) => {
+    const dx = point.x - x;
+    const dy = point.y - y;
+    const distanceSq = dx * dx + dy * dy;
+    if (distanceSq < nearestDistanceSq) {
+      nearestIndex = index;
+      nearestDistanceSq = distanceSq;
+    }
+  });
+
+  return nearestIndex;
 }
 
 function pointInRect(x: number, y: number, rect: Rect): boolean {
@@ -803,14 +821,22 @@ export class ShipInteriorScene implements Scene {
     this.enemies = activeLevel.patrollers
       .filter((patroller) => patroller.patrol.length > 0)
       .map((patroller) => {
-        const initialTarget = patroller.patrol[1] ?? patroller.patrol[0];
+        const nearestPatrolIndex = getNearestPatrolPointIndex(
+          patroller.x,
+          patroller.y,
+          patroller.patrol,
+        );
+        const initialTarget = patroller.patrol[nearestPatrolIndex] ?? patroller.patrol[0];
         return {
           x: patroller.x,
           y: patroller.y,
           patrol: patroller.patrol,
           closedPath: patroller.closedPath,
-          patrolDirection: 1 as const,
-          targetIndex: patroller.patrol.length > 1 ? 1 : 0,
+          patrolDirection:
+            !patroller.closedPath && nearestPatrolIndex === patroller.patrol.length - 1
+              ? (-1 as const)
+              : (1 as const),
+          targetIndex: nearestPatrolIndex,
           facing: Math.atan2(initialTarget.y - patroller.y, initialTarget.x - patroller.x),
           desiredFacing: Math.atan2(initialTarget.y - patroller.y, initialTarget.x - patroller.x),
           visionRange: ENEMY_FOV_RANGE,
@@ -951,7 +977,7 @@ export class ShipInteriorScene implements Scene {
       const dy = target.y - enemy.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
-      if (dist < 6) {
+      if (dist < ENEMY_WAYPOINT_RADIUS) {
         this.advanceEnemyPatrolTarget(enemy);
       } else {
         enemy.desiredFacing = Math.atan2(dy, dx);
@@ -971,9 +997,7 @@ export class ShipInteriorScene implements Scene {
           enemy.x = nextX;
           enemy.y = nextY;
         } else {
-          this.advanceEnemyPatrolTarget(enemy);
-          const nextTarget = enemy.patrol[enemy.targetIndex] ?? enemy.patrol[0];
-          enemy.desiredFacing = Math.atan2(nextTarget.y - enemy.y, nextTarget.x - enemy.x);
+          enemy.desiredFacing = Math.atan2(target.y - enemy.y, target.x - enemy.x);
         }
       }
 

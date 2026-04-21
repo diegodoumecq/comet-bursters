@@ -1927,12 +1927,12 @@
           "y": 407
         },
         {
-          "x": 54,
-          "y": 604
+          "x": 104,
+          "y": 569
         },
         {
-          "x": 84,
-          "y": 795
+          "x": 117,
+          "y": 756
         },
         {
           "x": 285,
@@ -2161,8 +2161,8 @@
     {
       "id": "enemy-8",
       "type": "enemy-patroller",
-      "x": 523,
-      "y": 214
+      "x": 351,
+      "y": 149
     },
     {
       "id": "enemy-9",
@@ -2264,6 +2264,204 @@
       "x": 279,
       "y": 3373,
       "pathId": "path-7"
+    },
+    {
+      "id": "enemy-23",
+      "type": "enemy-patroller",
+      "x": 612,
+      "y": 728
+    },
+    {
+      "id": "enemy-24",
+      "type": "enemy-patroller",
+      "x": 748,
+      "y": 784
+    },
+    {
+      "id": "enemy-25",
+      "type": "enemy-patroller",
+      "x": 846,
+      "y": 662
+    },
+    {
+      "id": "enemy-26",
+      "type": "enemy-patroller",
+      "x": 1330,
+      "y": 636
+    },
+    {
+      "id": "enemy-27",
+      "type": "enemy-patroller",
+      "x": 1554,
+      "y": 736
+    },
+    {
+      "id": "enemy-28",
+      "type": "enemy-patroller",
+      "x": 1682,
+      "y": 886
+    },
+    {
+      "id": "enemy-29",
+      "type": "enemy-patroller",
+      "x": 2142,
+      "y": 1034
+    },
+    {
+      "id": "enemy-30",
+      "type": "enemy-patroller",
+      "x": 2380,
+      "y": 570
+    },
+    {
+      "id": "enemy-31",
+      "type": "enemy-patroller",
+      "x": 2536,
+      "y": 282
+    },
+    {
+      "id": "enemy-32",
+      "type": "enemy-patroller",
+      "x": 2702,
+      "y": 810
+    },
+    {
+      "id": "enemy-33",
+      "type": "enemy-patroller",
+      "x": 2286,
+      "y": 1214
+    },
+    {
+      "id": "enemy-34",
+      "type": "enemy-patroller",
+      "x": 1626,
+      "y": 1288
+    },
+    {
+      "id": "enemy-35",
+      "type": "enemy-patroller",
+      "x": 1102,
+      "y": 1160
+    },
+    {
+      "id": "enemy-36",
+      "type": "enemy-patroller",
+      "x": 692,
+      "y": 1352
+    },
+    {
+      "id": "enemy-37",
+      "type": "enemy-patroller",
+      "x": 950,
+      "y": 1592
+    },
+    {
+      "id": "enemy-38",
+      "type": "enemy-patroller",
+      "x": 1446,
+      "y": 1644
+    },
+    {
+      "id": "enemy-39",
+      "type": "enemy-patroller",
+      "x": 2168,
+      "y": 1582
+    },
+    {
+      "id": "enemy-40",
+      "type": "enemy-patroller",
+      "x": 2626,
+      "y": 920
+    },
+    {
+      "id": "enemy-41",
+      "type": "enemy-patroller",
+      "x": 2306,
+      "y": 320
+    },
+    {
+      "id": "enemy-42",
+      "type": "enemy-patroller",
+      "x": 1690,
+      "y": 100
+    },
+    {
+      "id": "enemy-43",
+      "type": "enemy-patroller",
+      "x": 850,
+      "y": 250
+    },
+    {
+      "id": "enemy-44",
+      "type": "enemy-patroller",
+      "x": 522,
+      "y": 382
+    },
+    {
+      "id": "enemy-45",
+      "type": "enemy-patroller",
+      "x": 322,
+      "y": 1014
+    },
+    {
+      "id": "enemy-46",
+      "type": "enemy-patroller",
+      "x": 462,
+      "y": 1292
+    },
+    {
+      "id": "enemy-47",
+      "type": "enemy-patroller",
+      "x": 960,
+      "y": 1504
+    },
+    {
+      "id": "enemy-48",
+      "type": "enemy-patroller",
+      "x": 1746,
+      "y": 1264
+    },
+    {
+      "id": "enemy-49",
+      "type": "enemy-patroller",
+      "x": 1914,
+      "y": 710
+    },
+    {
+      "id": "enemy-50",
+      "type": "enemy-patroller",
+      "x": 1258,
+      "y": 308
+    },
+    {
+      "id": "enemy-51",
+      "type": "enemy-patroller",
+      "x": 778,
+      "y": 354
+    },
+    {
+      "id": "enemy-52",
+      "type": "enemy-patroller",
+      "x": 540,
+      "y": 1378
+    },
+    {
+      "id": "enemy-53",
+      "type": "enemy-patroller",
+      "x": 982,
+      "y": 1476
+    },
+    {
+      "id": "enemy-54",
+      "type": "enemy-patroller",
+      "x": 1734,
+      "y": 1382
+    },
+    {
+      "id": "enemy-55",
+      "type": "enemy-patroller",
+      "x": 1976,
+      "y": 816
     }
   ]
 }

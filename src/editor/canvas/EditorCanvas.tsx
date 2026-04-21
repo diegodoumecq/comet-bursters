@@ -13,11 +13,13 @@ export function EditorCanvas({
   onPointerMove,
   onPointerUp,
   onSecondaryInteraction,
+  zoom,
 }: {
   onPointerDown: (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => void;
   onPointerMove: (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => void;
   onPointerUp: (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => void;
   onSecondaryInteraction: (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => void;
+  zoom: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const images = useEditorStore((state) => state.images);
@@ -270,7 +272,11 @@ export function EditorCanvas({
           event.preventDefault();
         }}
         className="block max-w-none cursor-crosshair bg-slate-950"
-        style={{ imageRendering: 'pixelated' }}
+        style={{
+          height: `${level.height * zoom}px`,
+          imageRendering: 'pixelated',
+          width: `${level.width * zoom}px`,
+        }}
         data-tool={tool}
       />
     </div>
