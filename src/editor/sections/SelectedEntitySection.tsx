@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
-import { useEditorStore } from '../../state/editorStore';
+import { useEditorStore } from '../state/editorStore';
 
 export function SelectedEntitySection() {
   const deleteSelectedEntity = useEditorStore((state) => state.deleteSelectedEntity);

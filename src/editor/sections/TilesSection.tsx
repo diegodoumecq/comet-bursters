@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 
-import { getTilesetTilePositionMap } from '../../../scenes/ShipInteriorScene/level';
-import { bundledTilesets } from '../../../scenes/ShipInteriorScene/tilesetCatalog';
-import { getTilesetForLayer } from '../../shared/levelEditing';
-import { useEditorStore } from '../../state/editorStore';
+import { getTilesetTilePositionMap } from '../../scenes/ShipInteriorScene/level';
+import { bundledTilesets } from '../../scenes/ShipInteriorScene/tilesetCatalog';
+import { getTilesetForLayer } from '../shared/levelEditing';
+import { useEditorStore } from '../state/editorStore';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { DropdownMenu } from '@/ui/components/DropdownMenu';
 import { TileSwatch } from '../TileSwatch';

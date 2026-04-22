@@ -15,6 +15,7 @@ import {
   removeEntity,
   upsertEntity,
 } from '../shared/levelEditing';
+import { getTilesetMaterials, type MaterialPlacementMap } from '../shared/materials';
 
 type EditorState = {
   assetPathInput: string;
@@ -24,11 +25,13 @@ type EditorState = {
   layerVisibility: Record<string, boolean>;
   inactiveLayerOpacity: number;
   level: RawShipInteriorLevel;
+  materialPlacements: MaterialPlacementMap;
   openPathMenuId: string | null;
   pastLevels: RawShipInteriorLevel[];
   renamingPathId: string | null;
   renamingPathValue: string;
   selectedLevelAssetPath: string | null;
+  selectedMaterialId: string | null;
   selectedEntityId: string | null;
   selectedEntityPathId: string | null;
   selectedEntityType: PlaceableEntityType;
@@ -52,6 +55,7 @@ type EditorActions = {
   setImages: (images: ImageMap) => void;
   setInactiveLayerOpacity: (opacity: number) => void;
   setLayerVisibility: (layerId: string, isVisible: boolean) => void;
+  setMaterialPlacements: (materialPlacements: MaterialPlacementMap) => void;
   setLevel: (
     updater: RawShipInteriorLevel | ((currentLevel: RawShipInteriorLevel) => RawShipInteriorLevel),
   ) => void;
@@ -66,6 +70,7 @@ type EditorActions = {
   setSelectedEntityPathId: (pathId: string | null) => void;
   setSelectedEntityType: (entityType: PlaceableEntityType) => void;
   setSelectedLayerId: (layerId: string | null) => void;
+  setSelectedMaterialId: (materialId: string | null) => void;
   setSelectedPathId: (pathId: string | null) => void;
   setSelectedTileId: (tileId: string | null) => void;
   setTool: (tool: EditorTool) => void;
@@ -93,6 +98,7 @@ function buildLevelResetState(
     layerVisibility: {},
     inactiveLayerOpacity: 0.35,
     level,
+    materialPlacements: {},
     openPathMenuId: null,
     pastLevels: [],
     renamingPathId: null,
@@ -101,6 +107,7 @@ function buildLevelResetState(
     selectedEntityPathId: null,
     selectedLayerId: level.layers[0]?.id ?? null,
     selectedLevelAssetPath,
+    selectedMaterialId: null,
     selectedPathId: null,
     selectedTileId: null,
     tool: 'select',
@@ -116,6 +123,7 @@ function buildInitialEditorState(): EditorState {
     layerVisibility: {},
     inactiveLayerOpacity: 0.35,
     level: cloneLevel(initialLevel),
+    materialPlacements: {},
     openPathMenuId: null,
     pastLevels: [],
     renamingPathId: null,
@@ -125,6 +133,7 @@ function buildInitialEditorState(): EditorState {
     selectedEntityPathId: null,
     selectedEntityType: 'enemy-patroller',
     selectedLayerId: initialLevel.layers[0]?.id ?? null,
+    selectedMaterialId: null,
     selectedPathId: null,
     selectedTileId: null,
     tool: 'select',
@@ -289,6 +298,7 @@ export const useEditorStore = create<EditorStore>()(
             [layerId]: isVisible,
           },
         })),
+      setMaterialPlacements: (materialPlacements) => set({ materialPlacements }),
       setLevel: (updater) =>
         set((state) => {
           const nextLevel = typeof updater === 'function' ? updater(state.level) : updater;
@@ -340,9 +350,12 @@ export const useEditorStore = create<EditorStore>()(
       setSelectedLayerId: (selectedLayerId) =>
         set((state) => {
           const selectedTileset = getTilesetForLayer(state.level, selectedLayerId);
+          const materialIds = getTilesetMaterials(selectedTileset);
+          const [firstMaterialId] = materialIds;
           if (!selectedTileset) {
             return {
               selectedLayerId,
+              selectedMaterialId: null,
               selectedTileId: null,
             };
           }
@@ -350,15 +363,23 @@ export const useEditorStore = create<EditorStore>()(
           const tilePositions = getTilesetTilePositionMap(selectedTileset);
 
           if (state.selectedTileId && state.selectedTileId in tilePositions) {
-            return { selectedLayerId };
+            return {
+              selectedLayerId,
+              selectedMaterialId:
+                state.selectedMaterialId && materialIds.includes(state.selectedMaterialId)
+                  ? state.selectedMaterialId
+                  : (firstMaterialId ?? null),
+            };
           }
 
           const [firstTileId] = Object.keys(tilePositions);
           return {
             selectedLayerId,
+            selectedMaterialId: firstMaterialId ?? null,
             selectedTileId: firstTileId ?? null,
           };
         }),
+      setSelectedMaterialId: (selectedMaterialId) => set({ selectedMaterialId }),
       setSelectedPathId: (selectedPathId) => set({ selectedPathId }),
       setSelectedTileId: (selectedTileId) => set({ selectedTileId }),
       setTool: (tool) => set({ tool }),
@@ -382,10 +403,16 @@ export const useEditorStore = create<EditorStore>()(
         const selectedTileset = getTilesetForLayer(effectiveLevel, effectiveLayerId);
 
         if (!selectedTileset) {
+          nextState.selectedMaterialId = null;
           nextState.selectedTileId = null;
           nextState.assetPathInput = '';
         } else {
           nextState.assetPathInput = selectedTileset.imageSrc;
+          const materialIds = getTilesetMaterials(selectedTileset);
+          if (!state.selectedMaterialId || !materialIds.includes(state.selectedMaterialId)) {
+            const [firstMaterialId] = materialIds;
+            nextState.selectedMaterialId = firstMaterialId ?? null;
+          }
           const tilePositions = getTilesetTilePositionMap(selectedTileset);
           if (!state.selectedTileId || !(state.selectedTileId in tilePositions)) {
             const [firstTileId] = Object.keys(tilePositions);
@@ -497,12 +524,14 @@ export const useEditorStore = create<EditorStore>()(
         layerVisibility: state.layerVisibility,
         inactiveLayerOpacity: state.inactiveLayerOpacity,
         level: state.level,
+        materialPlacements: state.materialPlacements,
         pastLevels: state.pastLevels,
         selectedEntityId: state.selectedEntityId,
         selectedEntityPathId: state.selectedEntityPathId,
         selectedEntityType: state.selectedEntityType,
         selectedLayerId: state.selectedLayerId,
         selectedLevelAssetPath: state.selectedLevelAssetPath,
+        selectedMaterialId: state.selectedMaterialId,
         selectedPathId: state.selectedPathId,
         selectedTileId: state.selectedTileId,
         tool: state.tool,

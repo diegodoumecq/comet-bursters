@@ -286,5 +286,6 @@
         4
       ]
     }
-  ]
+  ],
+  "defaultMatchingGroup": "flat"
 }

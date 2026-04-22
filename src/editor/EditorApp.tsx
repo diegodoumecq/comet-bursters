@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 
-import { EditorCanvas, type EditorCanvasPointerInfo } from '../canvas/EditorCanvas';
-import { getLevelGrid } from '../../scenes/ShipInteriorScene/level';
-import { EditorStoreEffects } from '../state/EditorStoreEffects';
-import { useEditorStore } from '../state/editorStore';
+import { EditorCanvas, type EditorCanvasPointerInfo } from './EditorCanvas';
+import { getLevelGrid } from '../scenes/ShipInteriorScene/level';
+import { EditorStoreEffects } from './state/EditorStoreEffects';
+import { useEditorStore } from './state/editorStore';
 import {
   appendPointToPath,
   cloneLevel,
@@ -17,9 +17,15 @@ import {
   removePathPoint,
   updatePathPoint,
   upsertEntity,
-} from '../shared/levelEditing';
+} from './shared/levelEditing';
+import {
+  applyMaterialPlacement,
+  clearMaterialPlacement,
+  refreshMaterialPlacementTilesAround,
+} from './shared/materials';
 import { EntitiesSection } from './sections/EntitiesSection';
 import { LevelSection } from './sections/LevelSection';
+import { MaterialsSection } from './sections/MaterialsSection';
 import { PathsSection } from './sections/PathsSection';
 import { SelectedEntitySection } from './sections/SelectedEntitySection';
 import { TilesSection } from './sections/TilesSection';
@@ -46,11 +52,14 @@ export function EditorApp() {
   const selectedEntityPathId = useEditorStore((state) => state.selectedEntityPathId);
   const selectedEntityType = useEditorStore((state) => state.selectedEntityType);
   const selectedLayerId = useEditorStore((state) => state.selectedLayerId);
+  const materialPlacements = useEditorStore((state) => state.materialPlacements);
+  const selectedMaterialId = useEditorStore((state) => state.selectedMaterialId);
   const selectedPathId = useEditorStore((state) => state.selectedPathId);
   const selectedTileId = useEditorStore((state) => state.selectedTileId);
   const commitLevelChange = useEditorStore((state) => state.commitLevelChange);
   const setLevel = useEditorStore((state) => state.setLevel);
   const setLevelWithoutHistory = useEditorStore((state) => state.setLevelWithoutHistory);
+  const setMaterialPlacements = useEditorStore((state) => state.setMaterialPlacements);
   const setSelectedEntityId = useEditorStore((state) => state.setSelectedEntityId);
   const tool = useEditorStore((state) => state.tool);
   const redo = useEditorStore((state) => state.redo);
@@ -159,7 +168,21 @@ export function EditorApp() {
     const levelGrid = getLevelGrid(level);
     const x = Math.floor(worldX / levelGrid.cellWidth);
     const y = Math.floor(worldY / levelGrid.cellHeight);
-    setLevel((currentLevel) => placeTile(currentLevel, selectedLayerId, selectedTileId, x, y));
+    const nextMaterialPlacements = clearMaterialPlacement(
+      materialPlacements,
+      selectedLayerId,
+      x,
+      y,
+    );
+    const refreshedLevel = refreshMaterialPlacementTilesAround(
+      level,
+      nextMaterialPlacements,
+      selectedLayerId,
+      x,
+      y,
+    );
+    setMaterialPlacements(nextMaterialPlacements);
+    setLevel(placeTile(refreshedLevel, selectedLayerId, selectedTileId, x, y));
   };
 
   const handleTileErase = (worldX: number, worldY: number) => {
@@ -171,7 +194,41 @@ export function EditorApp() {
     const levelGrid = getLevelGrid(level);
     const x = Math.floor(worldX / levelGrid.cellWidth);
     const y = Math.floor(worldY / levelGrid.cellHeight);
-    setLevel((currentLevel) => eraseTile(currentLevel, selectedLayerId, x, y));
+    const nextMaterialPlacements = clearMaterialPlacement(
+      materialPlacements,
+      selectedLayerId,
+      x,
+      y,
+    );
+    const refreshedLevel = refreshMaterialPlacementTilesAround(
+      level,
+      nextMaterialPlacements,
+      selectedLayerId,
+      x,
+      y,
+    );
+    setMaterialPlacements(nextMaterialPlacements);
+    setLevel(eraseTile(refreshedLevel, selectedLayerId, x, y));
+  };
+
+  const handleMaterialPaint = (worldX: number, worldY: number) => {
+    const levelGrid = getLevelGrid(level);
+    const x = Math.floor(worldX / levelGrid.cellWidth);
+    const y = Math.floor(worldY / levelGrid.cellHeight);
+    if (!selectedLayerId || !selectedMaterialId) {
+      return;
+    }
+
+    const result = applyMaterialPlacement(
+      level,
+      materialPlacements,
+      selectedLayerId,
+      selectedMaterialId,
+      x,
+      y,
+    );
+    setMaterialPlacements(result.materialPlacements);
+    setLevel(result.level);
   };
 
   const handleTileDrag = (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => {
@@ -182,6 +239,17 @@ export function EditorApp() {
 
     if (info.shiftKey && (info.buttons & 1) === 1) {
       handleTilePaint(worldX, worldY);
+    }
+  };
+
+  const handleMaterialDrag = (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => {
+    if ((info.buttons & 2) === 2) {
+      handleTileErase(worldX, worldY);
+      return;
+    }
+
+    if ((info.buttons & 1) === 1) {
+      handleMaterialPaint(worldX, worldY);
     }
   };
 
@@ -309,6 +377,12 @@ export function EditorApp() {
       }
       return;
     }
+    if (tool === 'materials') {
+      if ((info.buttons & 1) === 1) {
+        handleMaterialPaint(worldX, worldY);
+      }
+      return;
+    }
     if (tool === 'paths') {
       handlePathPointerDown(worldX, worldY);
     }
@@ -325,6 +399,10 @@ export function EditorApp() {
     }
     if (tool === 'tiles') {
       handleTileDrag(worldX, worldY, info);
+      return;
+    }
+    if (tool === 'materials') {
+      handleMaterialDrag(worldX, worldY, info);
       return;
     }
     if (tool === 'paths') {
@@ -350,6 +428,10 @@ export function EditorApp() {
       return;
     }
     if (tool === 'tiles') {
+      handleTileErase(worldX, worldY);
+      return;
+    }
+    if (tool === 'materials') {
       handleTileErase(worldX, worldY);
       return;
     }
@@ -496,6 +578,7 @@ export function EditorApp() {
 
           {tool === 'select' && selectedEntityId ? <SelectedEntitySection /> : null}
           {tool === 'tiles' ? <TilesSection /> : null}
+          {tool === 'materials' ? <MaterialsSection /> : null}
           {tool === 'entities' ? <EntitiesSection /> : null}
           {tool === 'paths' ? <PathsSection onScrollIntoView={scrollIntoView} /> : null}
         </div>

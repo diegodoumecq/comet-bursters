@@ -1,5 +1,6 @@
 import type { RawShipInteriorLevel } from '../../scenes/ShipInteriorScene/level';
-import { getBundledTilesetDefinitions } from '../../scenes/ShipInteriorScene/tilesetCatalog';
+import { bundledTilesets } from '../../scenes/ShipInteriorScene/tilesetCatalog';
+import type { EditorTilesetDefinition } from './materials';
 
 const bundledLevelModules = import.meta.glob('../../assets/levels/*.json', {
   eager: true,
@@ -16,9 +17,30 @@ function getTilesetImageFileName(imageSrc: string): string {
   return imageSrc.split('/').pop() ?? imageSrc;
 }
 
+function getEditorBundledTilesetDefinitions(): EditorTilesetDefinition[] {
+  return bundledTilesets.map((entry) => {
+    const tileset = entry.tileset as EditorTilesetDefinition;
+    return {
+      id: tileset.id,
+      imageSrc: tileset.imageSrc,
+      grid: { ...tileset.grid },
+      ...(tileset.defaultMatchingGroup
+        ? { defaultMatchingGroup: tileset.defaultMatchingGroup }
+        : {}),
+      ...(tileset.materials ? { materials: [...tileset.materials] } : {}),
+      tiles: tileset.tiles.map((tile) => ({
+        ...(tile.adjacency ? { adjacency: { ...tile.adjacency } } : {}),
+        id: tile.id,
+        ...(tile.material ? { material: tile.material } : {}),
+        position: [...tile.position],
+      })),
+    };
+  });
+}
+
 export function hydrateLevelTilesets(level: RawShipInteriorLevel): RawShipInteriorLevel {
   const maybeTilesets = (level as Partial<RawShipInteriorLevel>).tilesets;
-  const bundledTilesets = getBundledTilesetDefinitions();
+  const bundledTilesets = getEditorBundledTilesetDefinitions();
   const bundledIdByImageFileName = new Map(
     bundledTilesets.map((tileset) => [getTilesetImageFileName(tileset.imageSrc), tileset.id]),
   );

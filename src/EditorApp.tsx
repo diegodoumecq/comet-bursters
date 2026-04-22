@@ -1,1 +1,1 @@
-export { EditorApp } from './editor/react/EditorApp';
+export { EditorApp } from './editor/EditorApp';

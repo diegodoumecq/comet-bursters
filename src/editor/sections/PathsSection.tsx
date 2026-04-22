@@ -2,8 +2,8 @@ import { useState } from 'react';
 
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { DropdownMenu } from '@/ui/components/DropdownMenu';
-import { useEditorStore } from '../../state/editorStore';
-import type { RawShipInteriorLevel } from '../../../scenes/ShipInteriorScene/level';
+import { useEditorStore } from '../state/editorStore';
+import type { RawShipInteriorLevel } from '../../scenes/ShipInteriorScene/level';
 
 function makePathId(level: RawShipInteriorLevel): string {
   let nextIndex = level.paths.length + 1;

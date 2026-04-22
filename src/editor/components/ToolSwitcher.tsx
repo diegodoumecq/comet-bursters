@@ -1,12 +1,12 @@
-import { useEditorStore } from '../../state/editorStore';
+import { useEditorStore } from '../state/editorStore';
 
 export function ToolSwitcher() {
   const onChange = useEditorStore((state) => state.setTool);
   const tool = useEditorStore((state) => state.tool);
 
   return (
-    <div className="grid grid-cols-4 gap-3">
-      {(['select', 'tiles', 'entities', 'paths'] as const).map((option) => (
+    <div className="grid grid-cols-5 gap-2">
+      {(['select', 'tiles', 'materials', 'entities', 'paths'] as const).map((option) => (
         <button
           key={option}
           type="button"

@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 
-import { getLevelGrid, getTilesetTilePositionMap } from '../../scenes/ShipInteriorScene/level';
-import { useEditorStore } from '../state/editorStore';
+import { getLevelGrid, getTilesetTilePositionMap } from '../scenes/ShipInteriorScene/level';
+import { getMaterialColor } from './shared/materials';
+import { useEditorStore } from './state/editorStore';
 
 export type EditorCanvasPointerInfo = {
   button: number;
@@ -27,6 +28,7 @@ export function EditorCanvas({
   const inactiveLayerOpacity = useEditorStore((state) => state.inactiveLayerOpacity);
   const layerVisibility = useEditorStore((state) => state.layerVisibility);
   const level = useEditorStore((state) => state.level);
+  const materialPlacements = useEditorStore((state) => state.materialPlacements);
   const selectedLayerId = useEditorStore((state) => state.selectedLayerId);
   const selectedEntityId = useEditorStore((state) => state.selectedEntityId);
   const selectedPathId = useEditorStore((state) => state.selectedPathId);
@@ -203,6 +205,47 @@ export function EditorCanvas({
       ctx.restore();
     };
 
+    const drawMaterialOverlay = () => {
+      ctx.save();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (const layer of level.layers) {
+        if (layerVisibility[layer.id] === false) {
+          continue;
+        }
+
+        const layerMaterialPlacements = materialPlacements[layer.id];
+        if (!layerMaterialPlacements) {
+          continue;
+        }
+
+        for (const [key, material] of Object.entries(layerMaterialPlacements)) {
+          const [x, y] = key.split(',').map((value) => Number.parseInt(value, 10));
+          if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            continue;
+          }
+
+          const tileX = x * levelGrid.cellWidth;
+          const tileY = y * levelGrid.cellHeight;
+          ctx.globalAlpha = layer.id === selectedLayerId ? 0.88 : 0.62;
+          ctx.fillStyle = getMaterialColor(material);
+          ctx.fillRect(tileX, tileY, levelGrid.cellWidth, levelGrid.cellHeight);
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(
+            tileX + 0.5,
+            tileY + 0.5,
+            levelGrid.cellWidth - 1,
+            levelGrid.cellHeight - 1,
+          );
+        }
+      }
+
+      ctx.restore();
+    };
+
     if (inspectedEntityPath && inspectedEntityPath !== selectedPath) {
       drawPath(inspectedEntityPath, {
         fill: '#facc15',
@@ -220,11 +263,16 @@ export function EditorCanvas({
         stroke: '#22d3ee',
       });
     }
+
+    if (tool === 'materials') {
+      drawMaterialOverlay();
+    }
   }, [
     images,
     inactiveLayerOpacity,
     layerVisibility,
     level,
+    materialPlacements,
     selectedEntityId,
     selectedLayerId,
     selectedPathId,

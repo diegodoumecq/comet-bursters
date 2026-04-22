@@ -1,8 +1,8 @@
 import { useState } from 'react';
 
-import { getLevelGrid } from '../../../scenes/ShipInteriorScene/level';
-import { bundledLevels } from '../../shared/levelCatalog';
-import { useEditorStore } from '../../state/editorStore';
+import { getLevelGrid } from '../../scenes/ShipInteriorScene/level';
+import { bundledLevels } from '../shared/levelCatalog';
+import { useEditorStore } from '../state/editorStore';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 
 function readPositiveInteger(value: string, fallback: number): number {
