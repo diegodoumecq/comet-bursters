@@ -301,7 +301,8 @@ export function TilesSection() {
                       <div className="font-medium">{layer.id}</div>
                       <div className="text-xs text-slate-500">
                         {layer.hasCollision ? 'Collidable' : 'Decor'} •{' '}
-                        {layer.overhead ? 'Overhead •' : ''} {layer.tiles.length}u •{' '}
+                        {layer.overhead ? 'Overhead •' : ''}
+                        {layer.scaleToGrid ? 'Scaled •' : ''} {layer.tiles.length}u •{' '}
                         {Math.round((layer.opacity ?? 1) * 100)}%
                       </div>
                     </button>
@@ -329,6 +330,31 @@ export function TilesSection() {
                         <option value={layer.tilesetId}>{layer.tilesetId}</option>
                       ) : null}
                     </select>
+                  </label>
+                  <label
+                    data-layer-control="true"
+                    className="mt-2 flex items-center gap-2 text-xs text-slate-300"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={layer.scaleToGrid ?? false}
+                      onChange={(event) => {
+                        const scaleToGrid = event.currentTarget.checked;
+                        setLevel((currentLevel) => ({
+                          ...currentLevel,
+                          layers: currentLevel.layers.map((candidate) =>
+                            candidate.id === layer.id
+                              ? {
+                                  ...candidate,
+                                  scaleToGrid: scaleToGrid ? true : undefined,
+                                }
+                              : candidate,
+                          ),
+                        }));
+                      }}
+                      className="h-4 w-4 rounded border-slate-600 bg-slate-950 text-cyan-400"
+                    />
+                    <span>Scale tiles to grid</span>
                   </label>
                 </div>
                 <button

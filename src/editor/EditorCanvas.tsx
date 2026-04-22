@@ -123,8 +123,8 @@ export function EditorCanvas({
             tileset.grid.frameHeight,
             tileX,
             tileY,
-            tileset.grid.frameWidth,
-            tileset.grid.frameHeight,
+            layer.scaleToGrid ? levelGrid.cellWidth : tileset.grid.frameWidth,
+            layer.scaleToGrid ? levelGrid.cellHeight : tileset.grid.frameHeight,
           );
         }
         ctx.restore();

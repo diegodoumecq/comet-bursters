@@ -921,7 +921,8 @@
           "x": 66,
           "y": 35
         }
-      ]
+      ],
+      "scaleToGrid": true
     }
   ],
   "paths": [
@@ -1491,7 +1492,7 @@
     }
   ],
   "grid": {
-    "cellWidth": 16,
-    "cellHeight": 16
+    "cellWidth": 32,
+    "cellHeight": 32
   }
 }

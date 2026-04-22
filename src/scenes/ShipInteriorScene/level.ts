@@ -40,6 +40,7 @@ export type ShipInteriorLayerDefinition = {
   hasCollision: boolean;
   overhead?: boolean;
   opacity?: number;
+  scaleToGrid?: boolean;
   tilesetId: string;
   tiles: ShipInteriorLayerTileDefinition[];
 };
@@ -94,6 +95,7 @@ export type LoadedShipInteriorLayer = {
   hasCollision: boolean;
   overhead: boolean;
   opacity: number;
+  scaleToGrid: boolean;
   tilesetId: string;
   sheet: SpriteSheet;
   alphaMask: AlphaMask;
@@ -264,6 +266,9 @@ function validateLayer(value: unknown, label: string): ShipInteriorLayerDefiniti
   if (layer.opacity !== undefined && !isFiniteNumber(layer.opacity)) {
     throw new Error(`${label}.opacity must be a number when provided.`);
   }
+  if (layer.scaleToGrid !== undefined && typeof layer.scaleToGrid !== 'boolean') {
+    throw new Error(`${label}.scaleToGrid must be a boolean when provided.`);
+  }
   if (!layer.tilesetId || typeof layer.tilesetId !== 'string') {
     throw new Error(`${label}.tilesetId must be a string.`);
   }
@@ -290,6 +295,7 @@ function validateLayer(value: unknown, label: string): ShipInteriorLayerDefiniti
     ...layer,
     overhead: layer.overhead ?? false,
     opacity: layer.opacity === undefined ? 1 : clampOpacity(layer.opacity),
+    scaleToGrid: layer.scaleToGrid ?? false,
   };
 }
 
@@ -464,6 +470,7 @@ export async function parseShipInteriorLevel(raw: RawShipInteriorLevel): Promise
       hasCollision: layer.hasCollision,
       overhead: layer.overhead ?? false,
       opacity: layer.opacity ?? 1,
+      scaleToGrid: layer.scaleToGrid ?? false,
       tilesetId: layer.tilesetId,
       sheet: tileset.sheet,
       alphaMask: tileset.alphaMask,
@@ -472,8 +479,8 @@ export async function parseShipInteriorLevel(raw: RawShipInteriorLevel): Promise
         tileHeight: grid.cellHeight,
         tiles: tiles.map((tile) => ({
           frame: tile.frame,
-          width: tileset.grid.frameWidth,
-          height: tileset.grid.frameHeight,
+          width: layer.scaleToGrid ? grid.cellWidth : tileset.grid.frameWidth,
+          height: layer.scaleToGrid ? grid.cellHeight : tileset.grid.frameHeight,
           tileX: tile.tileX,
           tileY: tile.tileY,
         })),

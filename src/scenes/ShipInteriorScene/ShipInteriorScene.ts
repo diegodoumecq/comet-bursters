@@ -160,8 +160,8 @@ function getTileWorldRect(layer: LoadedShipInteriorLayer, tile: LoadedShipInteri
   return {
     x: tile.tileX * layer.tilemap.tileWidth,
     y: tile.tileY * layer.tilemap.tileHeight,
-    width: frame.width,
-    height: frame.height,
+    width: layer.scaleToGrid ? layer.tilemap.tileWidth : frame.width,
+    height: layer.scaleToGrid ? layer.tilemap.tileHeight : frame.height,
   };
 }
 
@@ -207,9 +207,9 @@ function isPointInsideOpaqueTilePixel(
     return false;
   }
 
-  const localX = Math.floor(x - tileRect.x);
-  const localY = Math.floor(y - tileRect.y);
   const frame = layer.sheet.getFrame(tile.frame);
+  const localX = Math.floor(((x - tileRect.x) / tileRect.width) * frame.width);
+  const localY = Math.floor(((y - tileRect.y) / tileRect.height) * frame.height);
   if (
     localX < 0 ||
     localY < 0 ||
