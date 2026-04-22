@@ -19,8 +19,12 @@ export const bundledTilesets: BundledTilesetEntry[] = Object.entries(bundledTile
 
 export function getBundledTilesetDefinitions(): ShipInteriorTilesetDefinition[] {
   return bundledTilesets.map((entry) => ({
-    ...entry.tileset,
+    id: entry.tileset.id,
+    imageSrc: entry.tileset.imageSrc,
     grid: { ...entry.tileset.grid },
-    tiles: { ...entry.tileset.tiles },
+    tiles: entry.tileset.tiles.map((tile) => ({
+      id: tile.id,
+      position: [...tile.position],
+    })),
   }));
 }

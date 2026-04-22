@@ -1,8 +1,14 @@
 import { useState } from 'react';
 
+import { getLevelGrid } from '../../../scenes/ShipInteriorScene/level';
 import { bundledLevels } from '../../shared/levelCatalog';
 import { useEditorStore } from '../../state/editorStore';
-import { CollapsibleSection } from '../components/CollapsibleSection';
+import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
+
+function readPositiveInteger(value: string, fallback: number): number {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 export function LevelSection({
   onCanvasZoomChange,
@@ -14,9 +20,16 @@ export function LevelSection({
   const importLevelFromText = useEditorStore((state) => state.importLevelFromText);
   const loadBundledLevel = useEditorStore((state) => state.loadBundledLevel);
   const selectedLevelAssetPath = useEditorStore((state) => state.selectedLevelAssetPath);
+  const setLevel = useEditorStore((state) => state.setLevel);
+  const gridCellHeight = useEditorStore((state) => state.level.grid?.cellHeight);
+  const gridCellWidth = useEditorStore((state) => state.level.grid?.cellWidth);
   const height = useEditorStore((state) => state.level.height);
   const width = useEditorStore((state) => state.level.width);
   const [isOpen, setIsOpen] = useState(true);
+  const levelGrid = {
+    cellHeight: gridCellHeight && gridCellHeight > 0 ? gridCellHeight : 16,
+    cellWidth: gridCellWidth && gridCellWidth > 0 ? gridCellWidth : 16,
+  };
 
   return (
     <CollapsibleSection
@@ -76,7 +89,78 @@ export function LevelSection({
         </label>
       </div>
       <div className="mt-1 text-xs text-slate-500">
-        {width} x {height}
+        {width} x {height} • {levelGrid.cellWidth} x {levelGrid.cellHeight} grid
+      </div>
+      <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+        <div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+          Canvas
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="text-xs uppercase tracking-[0.14em] text-slate-500">
+            Width
+            <input
+              type="number"
+              min="1"
+              value={width}
+              onChange={(event) => {
+                const nextWidth = readPositiveInteger(event.target.value, width);
+                setLevel((currentLevel) => ({ ...currentLevel, width: nextWidth }));
+              }}
+              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-sm normal-case tracking-normal text-slate-100 outline-none transition focus:border-cyan-400"
+            />
+          </label>
+          <label className="text-xs uppercase tracking-[0.14em] text-slate-500">
+            Height
+            <input
+              type="number"
+              min="1"
+              value={height}
+              onChange={(event) => {
+                const nextHeight = readPositiveInteger(event.target.value, height);
+                setLevel((currentLevel) => ({ ...currentLevel, height: nextHeight }));
+              }}
+              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-sm normal-case tracking-normal text-slate-100 outline-none transition focus:border-cyan-400"
+            />
+          </label>
+          <label className="text-xs uppercase tracking-[0.14em] text-slate-500">
+            Grid Width
+            <input
+              type="number"
+              min="1"
+              value={levelGrid.cellWidth}
+              onChange={(event) => {
+                const cellWidth = readPositiveInteger(event.target.value, levelGrid.cellWidth);
+                setLevel((currentLevel) => ({
+                  ...currentLevel,
+                  grid: {
+                    ...getLevelGrid(currentLevel),
+                    cellWidth,
+                  },
+                }));
+              }}
+              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-sm normal-case tracking-normal text-slate-100 outline-none transition focus:border-cyan-400"
+            />
+          </label>
+          <label className="text-xs uppercase tracking-[0.14em] text-slate-500">
+            Grid Height
+            <input
+              type="number"
+              min="1"
+              value={levelGrid.cellHeight}
+              onChange={(event) => {
+                const cellHeight = readPositiveInteger(event.target.value, levelGrid.cellHeight);
+                setLevel((currentLevel) => ({
+                  ...currentLevel,
+                  grid: {
+                    ...getLevelGrid(currentLevel),
+                    cellHeight,
+                  },
+                }));
+              }}
+              className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-sm normal-case tracking-normal text-slate-100 outline-none transition focus:border-cyan-400"
+            />
+          </label>
+        </div>
       </div>
       <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
         <div className="mb-3 flex items-center justify-between gap-3">

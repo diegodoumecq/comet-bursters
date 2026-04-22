@@ -88,6 +88,10 @@ const EMPTY_LEVEL: ShipInteriorLevel = {
   name: 'empty',
   width: 1,
   height: 1,
+  grid: {
+    cellWidth: 16,
+    cellHeight: 16,
+  },
   tilesets: [],
   layers: [],
   paths: [],
@@ -152,11 +156,12 @@ function getBoundaryWalls(): Rect[] {
 }
 
 function getTileWorldRect(layer: LoadedShipInteriorLayer, tile: LoadedShipInteriorTile): Rect {
+  const frame = layer.sheet.getFrame(tile.frame);
   return {
     x: tile.tileX * layer.tilemap.tileWidth,
     y: tile.tileY * layer.tilemap.tileHeight,
-    width: layer.tilemap.tileWidth,
-    height: layer.tilemap.tileHeight,
+    width: frame.width,
+    height: frame.height,
   };
 }
 
@@ -204,16 +209,16 @@ function isPointInsideOpaqueTilePixel(
 
   const localX = Math.floor(x - tileRect.x);
   const localY = Math.floor(y - tileRect.y);
+  const frame = layer.sheet.getFrame(tile.frame);
   if (
     localX < 0 ||
     localY < 0 ||
-    localX >= layer.tilemap.tileWidth ||
-    localY >= layer.tilemap.tileHeight
+    localX >= frame.width ||
+    localY >= frame.height
   ) {
     return false;
   }
 
-  const frame = layer.sheet.getFrame(tile.frame);
   const sourceX = frame.x + localX;
   const sourceY = frame.y + localY;
   const index = sourceY * layer.alphaMask.width + sourceX;

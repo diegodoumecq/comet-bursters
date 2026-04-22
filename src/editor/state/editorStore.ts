@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import defaultLevel from '../../assets/levels/shipInterior.level.json';
+import { getTilesetTilePositionMap } from '../../scenes/ShipInteriorScene/level';
 import type {
   RawShipInteriorLevel,
   ShipInteriorEntityDefinition,
@@ -346,11 +347,13 @@ export const useEditorStore = create<EditorStore>()(
             };
           }
 
-          if (state.selectedTileId && state.selectedTileId in selectedTileset.tiles) {
+          const tilePositions = getTilesetTilePositionMap(selectedTileset);
+
+          if (state.selectedTileId && state.selectedTileId in tilePositions) {
             return { selectedLayerId };
           }
 
-          const [firstTileId] = Object.keys(selectedTileset.tiles);
+          const [firstTileId] = Object.keys(tilePositions);
           return {
             selectedLayerId,
             selectedTileId: firstTileId ?? null,
@@ -363,42 +366,50 @@ export const useEditorStore = create<EditorStore>()(
       syncDerivedState: () => {
         const state = get();
         const nextState: Partial<EditorState> = {};
+        const hydratedLevel = hydrateLevelTilesets(state.level);
 
-        if (!state.selectedLayerId && state.level.layers.length > 0) {
-          nextState.selectedLayerId = state.level.layers[0].id;
+        if (JSON.stringify(hydratedLevel.tilesets) !== JSON.stringify(state.level.tilesets)) {
+          nextState.level = hydratedLevel;
+        }
+
+        const effectiveLevel = nextState.level ?? state.level;
+
+        if (!state.selectedLayerId && effectiveLevel.layers.length > 0) {
+          nextState.selectedLayerId = effectiveLevel.layers[0].id;
         }
 
         const effectiveLayerId = nextState.selectedLayerId ?? state.selectedLayerId;
-        const selectedTileset = getTilesetForLayer(state.level, effectiveLayerId);
+        const selectedTileset = getTilesetForLayer(effectiveLevel, effectiveLayerId);
 
         if (!selectedTileset) {
           nextState.selectedTileId = null;
           nextState.assetPathInput = '';
         } else {
           nextState.assetPathInput = selectedTileset.imageSrc;
-          if (!state.selectedTileId || !(state.selectedTileId in selectedTileset.tiles)) {
-            const [firstTileId] = Object.keys(selectedTileset.tiles);
+          const tilePositions = getTilesetTilePositionMap(selectedTileset);
+          if (!state.selectedTileId || !(state.selectedTileId in tilePositions)) {
+            const [firstTileId] = Object.keys(tilePositions);
             nextState.selectedTileId = firstTileId ?? null;
           }
         }
 
         if (
           state.selectedEntityPathId &&
-          !state.level.paths.some((path) => path.id === state.selectedEntityPathId)
+          !effectiveLevel.paths.some((path) => path.id === state.selectedEntityPathId)
         ) {
           nextState.selectedEntityPathId = null;
         }
 
         if (
           state.selectedPathId &&
-          !state.level.paths.some((path) => path.id === state.selectedPathId)
+          !effectiveLevel.paths.some((path) => path.id === state.selectedPathId)
         ) {
           nextState.selectedPathId = null;
         }
 
         if (
           state.selectedEntityId &&
-          !state.level.entities.some((entity) => entity.id === state.selectedEntityId)
+          !effectiveLevel.entities.some((entity) => entity.id === state.selectedEntityId)
         ) {
           nextState.selectedEntityId = null;
         }

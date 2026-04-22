@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react';
 
+import { getTilesetTilePositionMap } from '../../../scenes/ShipInteriorScene/level';
+import { bundledTilesets } from '../../../scenes/ShipInteriorScene/tilesetCatalog';
 import { getTilesetForLayer } from '../../shared/levelEditing';
 import { useEditorStore } from '../../state/editorStore';
-import { CollapsibleSection } from '../components/CollapsibleSection';
-import { DropdownMenu } from '../components/DropdownMenu';
+import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
+import { DropdownMenu } from '@/ui/components/DropdownMenu';
 import { TileSwatch } from '../TileSwatch';
 
 type LayerDefinition = ReturnType<typeof useEditorStore.getState>['level']['layers'][number];
@@ -42,7 +44,9 @@ export function TilesSection() {
   const setLevel = useEditorStore((state) => state.setLevel);
   const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
   const setSelectedTileId = useEditorStore((state) => state.setSelectedTileId);
-  const selectedTiles = selectedTileset ? Object.entries(selectedTileset.tiles) : [];
+  const selectedTiles = selectedTileset
+    ? Object.entries(getTilesetTilePositionMap(selectedTileset))
+    : [];
   const [openLayerMenuId, setOpenLayerMenuId] = useState<string | null>(null);
   const [renamingLayerId, setRenamingLayerId] = useState<string | null>(null);
   const [renamingLayerValue, setRenamingLayerValue] = useState('');
@@ -51,6 +55,9 @@ export function TilesSection() {
   const dragLayerOrderRef = useRef<string[] | null>(null);
   const [isLayerOpen, setIsLayerOpen] = useState(true);
   const [isPaletteOpen, setIsPaletteOpen] = useState(true);
+  const tilesetFileOptions = bundledTilesets
+    .filter((entry) => level.tilesets.some((tileset) => tileset.id === entry.tileset.id))
+    .sort((left, right) => left.fileName.localeCompare(right.fileName));
   const renderedLayers = dragLayerOrder
     ? dragLayerOrder
         .map((layerId) => level.layers.find((layer) => layer.id === layerId))
@@ -139,7 +146,7 @@ export function TilesSection() {
       }
 
       if (selectedLayerId === layerId) {
-        const [firstTileId] = Object.keys(nextTileset.tiles);
+        const [firstTileId] = Object.keys(getTilesetTilePositionMap(nextTileset));
         setSelectedTileId(firstTileId ?? null);
       }
 
@@ -312,11 +319,15 @@ export function TilesSection() {
                       <option value="" disabled>
                         Select tileset
                       </option>
-                      {level.tilesets.map((tileset) => (
-                        <option key={tileset.id} value={tileset.id}>
-                          {tileset.id}
+                      {tilesetFileOptions.map((entry) => (
+                        <option key={entry.fileName} value={entry.tileset.id}>
+                          {entry.fileName}
                         </option>
                       ))}
+                      {layer.tilesetId &&
+                      !tilesetFileOptions.some((entry) => entry.tileset.id === layer.tilesetId) ? (
+                        <option value={layer.tilesetId}>{layer.tilesetId}</option>
+                      ) : null}
                     </select>
                   </label>
                 </div>

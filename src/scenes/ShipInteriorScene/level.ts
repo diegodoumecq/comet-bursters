@@ -12,12 +12,21 @@ export type Rect = { x: number; y: number; width: number; height: number };
 export type TileGridPoint = { x: number; y: number };
 export type TileCoordinateTuple = [number, number];
 export type TileSelector = { column: number; row: number };
+export type ShipInteriorLevelGridDefinition = {
+  cellWidth: number;
+  cellHeight: number;
+};
+
+export type ShipInteriorTilesetTileDefinition = {
+  id: string;
+  position: TileCoordinateTuple;
+};
 
 export type ShipInteriorTilesetDefinition = {
   id: string;
   imageSrc: string;
   grid: SpriteSheetGridConfig;
-  tiles: Record<string, TileCoordinateTuple>;
+  tiles: ShipInteriorTilesetTileDefinition[];
 };
 
 export type ShipInteriorLayerTileDefinition = {
@@ -58,6 +67,7 @@ export type RawShipInteriorLevel = {
   name: string;
   width: number;
   height: number;
+  grid?: ShipInteriorLevelGridDefinition;
   tilesets: ShipInteriorTilesetDefinition[];
   layers: ShipInteriorLayerDefinition[];
   paths: ShipInteriorPathDefinition[];
@@ -113,6 +123,7 @@ export type ShipInteriorLevel = {
   name: string;
   width: number;
   height: number;
+  grid: ShipInteriorLevelGridDefinition;
   tilesets: LoadedShipInteriorTileset[];
   layers: LoadedShipInteriorLayer[];
   paths: LoadedShipInteriorPath[];
@@ -131,6 +142,19 @@ function isInteger(value: unknown): value is number {
 
 function clampOpacity(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+export function getLevelGrid(level: { grid?: ShipInteriorLevelGridDefinition }): ShipInteriorLevelGridDefinition {
+  return {
+    cellWidth:
+      level.grid && isFiniteNumber(level.grid.cellWidth) && level.grid.cellWidth > 0
+        ? level.grid.cellWidth
+        : 16,
+    cellHeight:
+      level.grid && isFiniteNumber(level.grid.cellHeight) && level.grid.cellHeight > 0
+        ? level.grid.cellHeight
+        : 16,
+  };
 }
 
 function validatePoint(value: unknown, label: string): Point {
@@ -161,6 +185,40 @@ function validateTileTuple(value: unknown, label: string): TileCoordinateTuple {
   return value as TileCoordinateTuple;
 }
 
+function normalizeTilesetTiles(
+  tiles: unknown,
+  label: string,
+): ShipInteriorTilesetTileDefinition[] {
+  if (Array.isArray(tiles)) {
+    return tiles.map((tile, index) => {
+      if (!tile || typeof tile !== 'object') {
+        throw new Error(`${label}.tiles[${index}] must be an object.`);
+      }
+
+      const tileDefinition = tile as ShipInteriorTilesetTileDefinition;
+      if (!tileDefinition.id || typeof tileDefinition.id !== 'string') {
+        throw new Error(`${label}.tiles[${index}].id must be a string.`);
+      }
+
+      validateTileTuple(tileDefinition.position, `${label}.tiles[${index}].position`);
+
+      return {
+        id: tileDefinition.id,
+        position: tileDefinition.position,
+      };
+    });
+  }
+
+  if (tiles && typeof tiles === 'object') {
+    return Object.entries(tiles as Record<string, unknown>).map(([tileId, tuple]) => ({
+      id: tileId,
+      position: validateTileTuple(tuple, `${label}.tiles.${tileId}`),
+    }));
+  }
+
+  throw new Error(`${label}.tiles must be an array.`);
+}
+
 function validateTileset(value: unknown, label: string): ShipInteriorTilesetDefinition {
   if (!value || typeof value !== 'object') {
     throw new Error(`${label} must be an object.`);
@@ -176,15 +234,16 @@ function validateTileset(value: unknown, label: string): ShipInteriorTilesetDefi
   if (!tileset.grid || typeof tileset.grid !== 'object') {
     throw new Error(`${label}.grid must be an object.`);
   }
-  if (!tileset.tiles || typeof tileset.tiles !== 'object') {
-    throw new Error(`${label}.tiles must be an object.`);
+  if (!tileset.tiles) {
+    throw new Error(`${label}.tiles must be provided.`);
   }
 
-  for (const [tileId, tuple] of Object.entries(tileset.tiles)) {
-    validateTileTuple(tuple, `${label}.tiles.${tileId}`);
-  }
-
-  return tileset;
+  return {
+    id: tileset.id,
+    imageSrc: tileset.imageSrc,
+    grid: tileset.grid,
+    tiles: normalizeTilesetTiles(tileset.tiles, label),
+  };
 }
 
 function validateLayer(value: unknown, label: string): ShipInteriorLayerDefinition {
@@ -299,13 +358,19 @@ function tupleToSelector(tuple: TileCoordinateTuple): TileSelector {
   return { column: tuple[0], row: tuple[1] };
 }
 
+export function getTilesetTilePositionMap(
+  tileset: ShipInteriorTilesetDefinition,
+): Record<string, TileCoordinateTuple> {
+  return Object.fromEntries(tileset.tiles.map((tile) => [tile.id, tile.position]));
+}
+
 function buildLoadedTileset(
   definition: ShipInteriorTilesetDefinition,
   sheet: SpriteSheet,
 ): LoadedShipInteriorTileset {
   const tiles: Record<string, TileSelector> = {};
-  for (const [tileId, tuple] of Object.entries(definition.tiles)) {
-    tiles[tileId] = tupleToSelector(tuple);
+  for (const tile of definition.tiles) {
+    tiles[tile.id] = tupleToSelector(tile.position);
   }
 
   return {
@@ -346,6 +411,7 @@ export async function parseShipInteriorLevel(raw: RawShipInteriorLevel): Promise
   const rawTilesets = Array.isArray((raw as Partial<RawShipInteriorLevel>).tilesets)
     ? raw.tilesets
     : getBundledTilesetDefinitions();
+  const grid = getLevelGrid(raw);
   const tilesetDefinitions = rawTilesets.map((tileset, index) =>
     validateTileset(tileset, `tilesets[${index}]`),
   );
@@ -379,20 +445,18 @@ export async function parseShipInteriorLevel(raw: RawShipInteriorLevel): Promise
       throw new Error(`Layer "${layer.id}" references unknown tileset "${layer.tilesetId}".`);
     }
 
-    const tiles: LoadedShipInteriorTile[] = layer.tiles.map((tile, index) => {
+    const tiles: LoadedShipInteriorTile[] = layer.tiles.flatMap((tile) => {
       const selector = tileset.tiles[tile.tile];
-      if (!selector) {
-        throw new Error(
-          `Layer "${layer.id}" references unknown tile "${tile.tile}" at index ${index}.`,
-        );
-      }
-
-      return {
-        tileId: tile.tile,
-        frame: selector,
-        tileX: tile.x,
-        tileY: tile.y,
-      };
+      return selector
+        ? [
+            {
+              tileId: tile.tile,
+              frame: selector,
+              tileX: tile.x,
+              tileY: tile.y,
+            },
+          ]
+        : [];
     });
 
     return {
@@ -404,10 +468,12 @@ export async function parseShipInteriorLevel(raw: RawShipInteriorLevel): Promise
       sheet: tileset.sheet,
       alphaMask: tileset.alphaMask,
       tilemap: {
-        tileWidth: tileset.grid.frameWidth,
-        tileHeight: tileset.grid.frameHeight,
+        tileWidth: grid.cellWidth,
+        tileHeight: grid.cellHeight,
         tiles: tiles.map((tile) => ({
           frame: tile.frame,
+          width: tileset.grid.frameWidth,
+          height: tileset.grid.frameHeight,
           tileX: tile.tileX,
           tileY: tile.tileY,
         })),
@@ -434,6 +500,7 @@ export async function parseShipInteriorLevel(raw: RawShipInteriorLevel): Promise
     name: raw.name,
     width: raw.width,
     height: raw.height,
+    grid,
     tilesets: loadedTilesets,
     layers: loadedLayers,
     paths: paths.map((path) => ({ ...path, closed: path.closed ?? false })),

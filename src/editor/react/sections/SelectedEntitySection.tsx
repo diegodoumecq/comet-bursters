@@ -1,14 +1,14 @@
 import { useState } from 'react';
 
+import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { useEditorStore } from '../../state/editorStore';
-import { CollapsibleSection } from '../components/CollapsibleSection';
 
 export function SelectedEntitySection() {
   const deleteSelectedEntity = useEditorStore((state) => state.deleteSelectedEntity);
   const level = useEditorStore((state) => state.level);
   const selectedEntityId = useEditorStore((state) => state.selectedEntityId);
-  const selectedEntity = useEditorStore((state) =>
-    state.level.entities.find((entity) => entity.id === selectedEntityId) ?? null,
+  const selectedEntity = useEditorStore(
+    (state) => state.level.entities.find((entity) => entity.id === selectedEntityId) ?? null,
   );
   const updateSelectedEntity = useEditorStore((state) => state.updateSelectedEntity);
   const updateSelectedEntityType = useEditorStore((state) => state.updateSelectedEntityType);
@@ -26,9 +26,7 @@ export function SelectedEntitySection() {
     >
       <div className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
         <div>
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
-            Id
-          </div>
+          <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Id</div>
           <div className="mt-2 rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-sm text-slate-200">
             {selectedEntity.id}
           </div>
@@ -37,7 +35,9 @@ export function SelectedEntitySection() {
           Type
           <select
             value={selectedEntity.type}
-            onChange={(event) => updateSelectedEntityType(event.target.value as 'player' | 'enemy-patroller')}
+            onChange={(event) =>
+              updateSelectedEntityType(event.target.value as 'player' | 'enemy-patroller')
+            }
             className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm normal-case tracking-normal text-slate-100 outline-none transition focus:border-cyan-400"
           >
             <option value="player">player</option>
@@ -79,7 +79,9 @@ export function SelectedEntitySection() {
             Path
             <select
               value={selectedEntity.pathId ?? ''}
-              onChange={(event) => updateSelectedEntity({ pathId: event.target.value || undefined })}
+              onChange={(event) =>
+                updateSelectedEntity({ pathId: event.target.value || undefined })
+              }
               className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm normal-case tracking-normal text-slate-100 outline-none transition focus:border-cyan-400"
             >
               <option value="">None</option>

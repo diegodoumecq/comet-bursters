@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
+import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { useEditorStore } from '../../state/editorStore';
-import { CollapsibleSection } from '../components/CollapsibleSection';
 
 export function EntitiesSection() {
   const level = useEditorStore((state) => state.level);

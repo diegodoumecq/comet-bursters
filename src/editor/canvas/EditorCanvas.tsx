@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 
+import { getLevelGrid, getTilesetTilePositionMap } from '../../scenes/ShipInteriorScene/level';
 import { useEditorStore } from '../state/editorStore';
 
 export type EditorCanvasPointerInfo = {
@@ -50,13 +51,14 @@ export function EditorCanvas({
 
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.12)';
     ctx.lineWidth = 1;
-    for (let x = 0; x <= level.width; x += 32) {
+    const levelGrid = getLevelGrid(level);
+    for (let x = 0; x <= level.width; x += levelGrid.cellWidth) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, level.height);
       ctx.stroke();
     }
-    for (let y = 0; y <= level.height; y += 32) {
+    for (let y = 0; y <= level.height; y += levelGrid.cellHeight) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(level.width, y);
@@ -82,6 +84,7 @@ export function EditorCanvas({
           continue;
         }
 
+        const tilePositions = getTilesetTilePositionMap(tileset);
         ctx.save();
         const layerOpacity = layer.opacity ?? 1;
         const editableLayerOpacity =
@@ -89,8 +92,24 @@ export function EditorCanvas({
         ctx.globalAlpha =
           editableLayerOpacity * (layer.id === selectedLayerId ? 1 : inactiveLayerOpacity);
         for (const tile of layer.tiles) {
-          const frame = tileset.tiles[tile.tile];
+          const tileX = tile.x * levelGrid.cellWidth;
+          const tileY = tile.y * levelGrid.cellHeight;
+          const frame = tilePositions[tile.tile];
           if (!frame) {
+            const markerSize = Math.min(levelGrid.cellWidth, levelGrid.cellHeight);
+            ctx.save();
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = 'rgba(244, 63, 94, 0.24)';
+            ctx.fillRect(tileX, tileY, levelGrid.cellWidth, levelGrid.cellHeight);
+            ctx.strokeStyle = '#fb7185';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(tileX + 1, tileY + 1, levelGrid.cellWidth - 2, levelGrid.cellHeight - 2);
+            ctx.fillStyle = '#fecdd3';
+            ctx.font = `${Math.max(12, Math.floor(markerSize * 0.75))}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('?', tileX + levelGrid.cellWidth / 2, tileY + levelGrid.cellHeight / 2);
+            ctx.restore();
             continue;
           }
 
@@ -100,8 +119,8 @@ export function EditorCanvas({
             frame[1] * tileset.grid.frameHeight,
             tileset.grid.frameWidth,
             tileset.grid.frameHeight,
-            tile.x * tileset.grid.frameWidth,
-            tile.y * tileset.grid.frameHeight,
+            tileX,
+            tileY,
             tileset.grid.frameWidth,
             tileset.grid.frameHeight,
           );

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 
 import { EditorCanvas, type EditorCanvasPointerInfo } from '../canvas/EditorCanvas';
+import { getLevelGrid } from '../../scenes/ShipInteriorScene/level';
 import { EditorStoreEffects } from '../state/EditorStoreEffects';
 import { useEditorStore } from '../state/editorStore';
 import {
@@ -22,8 +23,8 @@ import { LevelSection } from './sections/LevelSection';
 import { PathsSection } from './sections/PathsSection';
 import { SelectedEntitySection } from './sections/SelectedEntitySection';
 import { TilesSection } from './sections/TilesSection';
-import { ConfirmationDialog } from './components/ConfirmationDialog';
-import { DropdownMenu } from './components/DropdownMenu';
+import { ConfirmationDialog } from '@/ui/components/ConfirmationDialog';
+import { DropdownMenu } from '@/ui/components/DropdownMenu';
 import { ToolSwitcher } from './components/ToolSwitcher';
 
 const BACKUP_PREFERENCE_STORAGE_KEY = 'comet-bursters.editor.create-backups';
@@ -155,8 +156,9 @@ export function EditorApp() {
       return;
     }
 
-    const x = Math.floor(worldX / selectedTileset.grid.frameWidth);
-    const y = Math.floor(worldY / selectedTileset.grid.frameHeight);
+    const levelGrid = getLevelGrid(level);
+    const x = Math.floor(worldX / levelGrid.cellWidth);
+    const y = Math.floor(worldY / levelGrid.cellHeight);
     setLevel((currentLevel) => placeTile(currentLevel, selectedLayerId, selectedTileId, x, y));
   };
 
@@ -166,8 +168,9 @@ export function EditorApp() {
       return;
     }
 
-    const x = Math.floor(worldX / selectedTileset.grid.frameWidth);
-    const y = Math.floor(worldY / selectedTileset.grid.frameHeight);
+    const levelGrid = getLevelGrid(level);
+    const x = Math.floor(worldX / levelGrid.cellWidth);
+    const y = Math.floor(worldY / levelGrid.cellHeight);
     setLevel((currentLevel) => eraseTile(currentLevel, selectedLayerId, x, y));
   };
 
