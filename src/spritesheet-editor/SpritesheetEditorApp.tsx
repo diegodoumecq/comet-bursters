@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import { ConfirmationDialog } from '@/ui/components/ConfirmationDialog';
+import { DropdownMenu } from '@/ui/components/DropdownMenu';
 import { shipInteriorTileAssets } from '../scenes/ShipInteriorScene/tileAssets';
 import { GridSection } from './sections/GridSection';
 import { MatchingGroupsSection } from './sections/MatchingGroupsSection';
@@ -17,10 +18,14 @@ import {
 } from './state/spritesheetEditorStore';
 
 export function SpritesheetEditorApp() {
+  const canRedo = useSpritesheetEditorStore((state) => state.futureDocuments.length > 0);
+  const canUndo = useSpritesheetEditorStore((state) => state.pastDocuments.length > 0);
   const createNewTileset = useSpritesheetEditorStore((state) => state.createNewTileset);
   const deleteTileEntry = useSpritesheetEditorStore((state) => state.deleteTileEntry);
   const previewMode = useSpritesheetEditorStore((state) => state.previewMode);
   const previewZoom = useSpritesheetEditorStore((state) => state.previewZoom);
+  const redo = useSpritesheetEditorStore((state) => state.redo);
+  const resetEditor = useSpritesheetEditorStore((state) => state.resetEditor);
   const saveTileset = useSpritesheetEditorStore((state) => state.saveTileset);
   const selectedTileId = useSpritesheetEditorStore((state) => state.selectedTileId);
   const setPreviewMode = useSpritesheetEditorStore((state) => state.setPreviewMode);
@@ -29,10 +34,13 @@ export function SpritesheetEditorApp() {
   const tileDeleteIndex = useSpritesheetEditorStore((state) => state.tileDeleteIndex);
   const tileEntries = useSpritesheetEditorStore((state) => state.tileEntries);
   const tileset = useSpritesheetEditorStore((state) => state.tileset);
+  const undo = useSpritesheetEditorStore((state) => state.undo);
   const updateTileMatchingGroup = useSpritesheetEditorStore(
     (state) => state.updateTileMatchingGroup,
   );
   const [image, setImage] = useState<HTMLImageElement | null>(null);
+  const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   const selectedAsset = useMemo(
     () =>
@@ -205,20 +213,109 @@ export function SpritesheetEditorApp() {
             >
               Back Home
             </a>
-            <button
-              type="button"
-              onClick={() => void saveTileset()}
-              className="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-100 hover:bg-cyan-500/20"
-            >
-              Save
-            </button>
-            <button
-              type="button"
-              onClick={createNewTileset}
-              className="rounded-full border border-slate-700 bg-slate-900/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-200 hover:border-slate-500 hover:text-white"
-            >
-              New
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={undo}
+                disabled={!canUndo}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 text-slate-300 transition hover:border-slate-500 hover:text-white not-disabled:cursor-pointer disabled:opacity-40"
+                aria-label="Undo"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M8 6 4 10l4 4" />
+                  <path d="M5 10h6a5 5 0 1 1 0 10" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={redo}
+                disabled={!canRedo}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 text-slate-300 transition hover:border-slate-500 hover:text-white not-disabled:cursor-pointer disabled:opacity-40"
+                aria-label="Redo"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="m12 6 4 4-4 4" />
+                  <path d="M15 10H9a5 5 0 1 0 0 10" />
+                </svg>
+              </button>
+              <DropdownMenu
+                align="left"
+                isOpen={isHeaderMenuOpen}
+                onClose={() => setIsHeaderMenuOpen(false)}
+                onToggle={() => setIsHeaderMenuOpen((current) => !current)}
+                menuClassName="rounded-xl"
+                trigger={
+                  <span
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 text-slate-300 transition hover:border-slate-500 hover:text-white"
+                    aria-label="More options"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 20 20"
+                      className="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 5h14" />
+                      <path d="M3 10h14" />
+                      <path d="M3 15h14" />
+                    </svg>
+                  </span>
+                }
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsHeaderMenuOpen(false);
+                    void saveTileset();
+                  }}
+                  className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsHeaderMenuOpen(false);
+                    createNewTileset();
+                  }}
+                  className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+                >
+                  New
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsHeaderMenuOpen(false);
+                    setIsResetModalOpen(true);
+                  }}
+                  className="block w-full rounded-lg px-3 py-2 text-left text-sm text-rose-200 transition hover:bg-rose-500/15"
+                >
+                  Reset
+                </button>
+              </DropdownMenu>
+            </div>
           </div>
           <div className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">
             Spritesheet Editor
@@ -394,6 +491,19 @@ export function SpritesheetEditorApp() {
           if (tileDeleteIndex !== null) {
             deleteTileEntry(tileDeleteIndex);
           }
+        }}
+      />
+
+      <ConfirmationDialog
+        isOpen={isResetModalOpen}
+        title="Reset spritesheet editor?"
+        message="This will clear the current spritesheet editor session, including persisted local changes and undo history."
+        confirmLabel="Reset"
+        onCancel={() => setIsResetModalOpen(false)}
+        onConfirm={() => {
+          resetEditor();
+          setIsResetModalOpen(false);
+          setIsHeaderMenuOpen(false);
         }}
       />
     </div>

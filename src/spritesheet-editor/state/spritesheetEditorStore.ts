@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type {
   ShipInteriorTilesetDefinition,
@@ -42,7 +43,9 @@ export const editorBundledTilesets = bundledTilesets as Array<{
   tileset: SpritesheetEditorTilesetDefinition;
 }>;
 
-function cloneMatchingGroups(matchingGroups: MatchingGroups | undefined): MatchingGroups | undefined {
+function cloneMatchingGroups(
+  matchingGroups: MatchingGroups | undefined,
+): MatchingGroups | undefined {
   if (!matchingGroups) {
     return undefined;
   }
@@ -232,6 +235,8 @@ export function readNumber(value: string): number {
 }
 
 type SpritesheetEditorState = {
+  futureDocuments: SpritesheetEditorDocument[];
+  pastDocuments: SpritesheetEditorDocument[];
   previewMode: PreviewMode;
   previewZoom: number;
   selectedFileName: string;
@@ -251,12 +256,16 @@ type SpritesheetEditorActions = {
   deleteTileEntry: (index: number) => void;
   renameMatchingGroup: (oldName: string, nextName: string) => void;
   renameMaterial: (oldName: string, nextName: string) => void;
+  redo: () => void;
+  resetEditor: () => void;
   saveTileset: () => Promise<void>;
   selectTileset: (fileName: string) => void;
   setPreviewMode: (previewMode: PreviewMode) => void;
   setSelectedFileName: (selectedFileName: string) => void;
   setSelectedTileId: (selectedTileId: string | null) => void;
   setTileDeleteIndex: (tileDeleteIndex: number | null) => void;
+  syncDerivedState: () => void;
+  undo: () => void;
   updateDefaultMatchingGroup: (groupName: string) => void;
   updateGrid: (key: keyof SpritesheetEditorTilesetDefinition['grid'], value: number) => void;
   updatePreviewZoom: (nextZoom: number) => void;
@@ -273,365 +282,530 @@ type SpritesheetEditorActions = {
 };
 
 type SpritesheetEditorStore = SpritesheetEditorState & SpritesheetEditorActions;
+type SpritesheetEditorDocument = {
+  selectedFileName: string;
+  selectedTileId: string | null;
+  tileEntries: TileEntry[];
+  tileset: SpritesheetEditorTilesetDefinition | null;
+};
 
 const initialEntry = editorBundledTilesets[0] ?? null;
 const initialTileEntries = initialEntry ? makeTileEntries(initialEntry.tileset) : [];
+const HISTORY_LIMIT = 100;
+const SPRITESHEET_EDITOR_STORAGE_KEY = 'comet-bursters.spritesheet-editor';
 
-export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()((set, get) => ({
-  previewMode: 'sheet',
-  previewZoom: 2,
-  selectedFileName: initialEntry?.fileName ?? '',
-  selectedTileId: initialTileEntries[0]?.id ?? null,
-  tileDeleteIndex: null,
-  tileEntries: initialTileEntries,
-  tileset: initialEntry ? cloneTileset(initialEntry.tileset) : null,
+function cloneTileEntry(entry: TileEntry): TileEntry {
+  return {
+    ...entry,
+    adjacency: entry.adjacency ? { ...entry.adjacency } : undefined,
+  };
+}
 
-  addMatchingGroup: () =>
-    set((state) => {
-      if (!state.tileset) {
-        return {};
-      }
+function cloneTileEntries(entries: TileEntry[]): TileEntry[] {
+  return entries.map(cloneTileEntry);
+}
 
-      const nextName = makeMatchingGroupName(state.tileset.matchingGroups);
-      return {
-        tileset: {
-          ...state.tileset,
-          matchingGroups: [...(state.tileset.matchingGroups ?? []), nextName],
-        },
-      };
-    }),
+function cloneDocument(document: SpritesheetEditorDocument): SpritesheetEditorDocument {
+  return {
+    selectedFileName: document.selectedFileName,
+    selectedTileId: document.selectedTileId,
+    tileEntries: cloneTileEntries(document.tileEntries),
+    tileset: document.tileset ? cloneTileset(document.tileset) : null,
+  };
+}
 
-  addMaterial: () =>
-    set((state) => {
-      if (!state.tileset) {
-        return {};
-      }
+function getDocument(state: SpritesheetEditorState): SpritesheetEditorDocument {
+  return cloneDocument({
+    selectedFileName: state.selectedFileName,
+    selectedTileId: state.selectedTileId,
+    tileEntries: state.tileEntries,
+    tileset: state.tileset,
+  });
+}
 
-      const nextName = makeMaterialName(state.tileset.materials);
-      return {
-        tileset: {
-          ...state.tileset,
-          materials: [...(state.tileset.materials ?? []), nextName],
-        },
-      };
-    }),
+function makeInitialSpritesheetEditorState(): SpritesheetEditorState {
+  return {
+    futureDocuments: [],
+    pastDocuments: [],
+    previewMode: 'sheet',
+    previewZoom: 2,
+    selectedFileName: initialEntry?.fileName ?? '',
+    selectedTileId: initialTileEntries[0]?.id ?? null,
+    tileDeleteIndex: null,
+    tileEntries: cloneTileEntries(initialTileEntries),
+    tileset: initialEntry ? cloneTileset(initialEntry.tileset) : null,
+  };
+}
 
-  addTileEntry: () =>
-    set((state) => {
-      const nextId = `tile_${state.tileEntries.length + 1}`;
-      return {
-        selectedTileId: nextId,
-        tileEntries: [...state.tileEntries, { column: 0, id: nextId, row: 0 }],
-      };
-    }),
+export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
+  persist(
+    (set, get) => ({
+      ...makeInitialSpritesheetEditorState(),
 
-  createNewTileset: () => {
-    const firstAsset = shipInteriorTileAssets[0];
-    if (!firstAsset) {
-      alert('Cannot create a tileset without a PNG asset in src/assets/tiles.');
-      return;
-    }
+      addMatchingGroup: () =>
+        set((state) => {
+          if (!state.tileset) {
+            return {};
+          }
 
-    set({
-      selectedFileName: '',
-      selectedTileId: null,
-      tileEntries: [],
-      tileset: {
-        id: makeNewTilesetId(),
-        imageSrc: firstAsset.imageSrc,
-        grid: {
-          frameWidth: 32,
-          frameHeight: 32,
-          offsetX: 0,
-          offsetY: 0,
-          gapX: 0,
-          gapY: 0,
-          columns: 1,
-          rows: 1,
-        },
-        tiles: [],
-      },
-    });
-  },
-
-  deleteMatchingGroup: (groupName) =>
-    set((state) => {
-      const current = state.tileset;
-      if (!current?.matchingGroups) {
-        return {};
-      }
-
-      const nextMatchingGroups = current.matchingGroups.filter(
-        (currentGroupName) => currentGroupName !== groupName,
-      );
-      return {
-        tileEntries: state.tileEntries.map((entry) => {
-          const nextAdjacency = Object.fromEntries(
-            adjacencyDirections
-              .filter((direction) => {
-                const tileGroupName = entry.adjacency?.[direction];
-                return tileGroupName && tileGroupName !== groupName;
-              })
-              .map((direction) => [direction, entry.adjacency?.[direction]]),
-          );
+          const nextName = makeMatchingGroupName(state.tileset.matchingGroups);
           return {
-            ...entry,
-            adjacency: Object.keys(nextAdjacency).length > 0 ? nextAdjacency : undefined,
+            futureDocuments: [],
+            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+            tileset: {
+              ...state.tileset,
+              matchingGroups: [...(state.tileset.matchingGroups ?? []), nextName],
+            },
           };
         }),
-        tileset: {
-          ...current,
-          defaultMatchingGroup:
-            current.defaultMatchingGroup === groupName ? undefined : current.defaultMatchingGroup,
-          matchingGroups: nextMatchingGroups.length > 0 ? nextMatchingGroups : undefined,
-        },
-      };
-    }),
 
-  deleteMaterial: (materialName) =>
-    set((state) => {
-      const current = state.tileset;
-      if (!current?.materials) {
-        return {};
-      }
-
-      const nextMaterials = current.materials.filter(
-        (currentMaterialName) => currentMaterialName !== materialName,
-      );
-      return {
-        tileEntries: state.tileEntries.map((entry) =>
-          entry.material === materialName ? { ...entry, material: undefined } : entry,
-        ),
-        tileset: {
-          ...current,
-          materials: nextMaterials.length > 0 ? nextMaterials : undefined,
-        },
-      };
-    }),
-
-  deleteTileEntry: (index) =>
-    set((state) => {
-      const deletedId = state.tileEntries[index]?.id;
-      const nextEntries = state.tileEntries.filter((_, entryIndex) => entryIndex !== index);
-      return {
-        selectedTileId: state.selectedTileId === deletedId ? (nextEntries[0]?.id ?? null) : state.selectedTileId,
-        tileDeleteIndex: null,
-        tileEntries: nextEntries,
-      };
-    }),
-
-  renameMatchingGroup: (oldName, nextName) =>
-    set((state) => {
-      const current = state.tileset;
-      if (!current?.matchingGroups || oldName === nextName) {
-        return {};
-      }
-
-      const trimmedNextName = nextName.trim();
-      if (
-        !trimmedNextName ||
-        (trimmedNextName !== oldName && current.matchingGroups.includes(trimmedNextName))
-      ) {
-        return {};
-      }
-
-      return {
-        tileEntries: state.tileEntries.map((entry) => ({
-          ...entry,
-          adjacency: entry.adjacency
-            ? Object.fromEntries(
-                adjacencyDirections
-                  .filter((direction) => entry.adjacency?.[direction])
-                  .map((direction) => [
-                    direction,
-                    entry.adjacency?.[direction] === oldName
-                      ? trimmedNextName
-                      : entry.adjacency?.[direction],
-                  ]),
-              )
-            : undefined,
-        })),
-        tileset: {
-          ...current,
-          defaultMatchingGroup:
-            current.defaultMatchingGroup === oldName
-              ? trimmedNextName
-              : current.defaultMatchingGroup,
-          matchingGroups: current.matchingGroups.map((groupName) =>
-            groupName === oldName ? trimmedNextName : groupName,
-          ),
-        },
-      };
-    }),
-
-  renameMaterial: (oldName, nextName) =>
-    set((state) => {
-      const current = state.tileset;
-      if (!current?.materials || oldName === nextName) {
-        return {};
-      }
-
-      const trimmedNextName = nextName.trim();
-      if (
-        !trimmedNextName ||
-        (trimmedNextName !== oldName && current.materials.includes(trimmedNextName))
-      ) {
-        return {};
-      }
-
-      return {
-        tileEntries: state.tileEntries.map((entry) =>
-          entry.material === oldName ? { ...entry, material: trimmedNextName } : entry,
-        ),
-        tileset: {
-          ...current,
-          materials: current.materials.map((materialName) =>
-            materialName === oldName ? trimmedNextName : materialName,
-          ),
-        },
-      };
-    }),
-
-  saveTileset: async () => {
-    const { tileEntries, tileset } = get();
-    if (!tileset) {
-      return;
-    }
-
-    const tilesetToSave = makeTilesetFromEntries(tileset, tileEntries);
-    const fileName = makeTilesetFileName(tilesetToSave);
-
-    try {
-      const response = await fetch('/__editor/save-tileset', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fileName,
-          tileset: tilesetToSave,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorPayload = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(errorPayload?.error ?? 'Failed to save tileset');
-      }
-
-      set({ selectedFileName: fileName });
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to save tileset');
-    }
-  },
-
-  selectTileset: (fileName) => {
-    const entry = editorBundledTilesets.find((candidate) => candidate.fileName === fileName);
-    if (!entry) {
-      return;
-    }
-
-    const nextTileset = cloneTileset(entry.tileset);
-    const nextEntries = makeTileEntries(nextTileset);
-    set({
-      selectedFileName: fileName,
-      selectedTileId: nextEntries[0]?.id ?? null,
-      tileEntries: nextEntries,
-      tileset: nextTileset,
-    });
-  },
-
-  setPreviewMode: (previewMode) => set({ previewMode }),
-  setSelectedFileName: (selectedFileName) => set({ selectedFileName }),
-  setSelectedTileId: (selectedTileId) => set({ selectedTileId }),
-  setTileDeleteIndex: (tileDeleteIndex) => set({ tileDeleteIndex }),
-
-  updateDefaultMatchingGroup: (groupName) =>
-    set((state) => ({
-      tileset: state.tileset
-        ? {
-            ...state.tileset,
-            defaultMatchingGroup: groupName || undefined,
+      addMaterial: () =>
+        set((state) => {
+          if (!state.tileset) {
+            return {};
           }
-        : state.tileset,
-    })),
 
-  updateGrid: (key, value) =>
-    set((state) => ({
-      tileset: state.tileset
-        ? {
-            ...state.tileset,
-            grid: {
-              ...state.tileset.grid,
-              [key]: value,
+          const nextName = makeMaterialName(state.tileset.materials);
+          return {
+            futureDocuments: [],
+            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+            tileset: {
+              ...state.tileset,
+              materials: [...(state.tileset.materials ?? []), nextName],
             },
+          };
+        }),
+
+      addTileEntry: () =>
+        set((state) => {
+          const nextId = `tile_${state.tileEntries.length + 1}`;
+          return {
+            futureDocuments: [],
+            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+            selectedTileId: nextId,
+            tileEntries: [...state.tileEntries, { column: 0, id: nextId, row: 0 }],
+          };
+        }),
+
+      createNewTileset: () => {
+        const firstAsset = shipInteriorTileAssets[0];
+        if (!firstAsset) {
+          alert('Cannot create a tileset without a PNG asset in src/assets/tiles.');
+          return;
+        }
+
+        set({
+          futureDocuments: [],
+          pastDocuments: [],
+          selectedFileName: '',
+          selectedTileId: null,
+          tileEntries: [],
+          tileset: {
+            id: makeNewTilesetId(),
+            imageSrc: firstAsset.imageSrc,
+            grid: {
+              frameWidth: 32,
+              frameHeight: 32,
+              offsetX: 0,
+              offsetY: 0,
+              gapX: 0,
+              gapY: 0,
+              columns: 1,
+              rows: 1,
+            },
+            tiles: [],
+          },
+        });
+      },
+
+      deleteMatchingGroup: (groupName) =>
+        set((state) => {
+          const current = state.tileset;
+          if (!current?.matchingGroups) {
+            return {};
           }
-        : state.tileset,
-    })),
 
-  updatePreviewZoom: (nextZoom) =>
-    set({
-      previewZoom: Math.min(6, Math.max(0.5, nextZoom)),
-    }),
+          const nextMatchingGroups = current.matchingGroups.filter(
+            (currentGroupName) => currentGroupName !== groupName,
+          );
+          return {
+            futureDocuments: [],
+            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+            tileEntries: state.tileEntries.map((entry) => {
+              const nextAdjacency = Object.fromEntries(
+                adjacencyDirections
+                  .filter((direction) => {
+                    const tileGroupName = entry.adjacency?.[direction];
+                    return tileGroupName && tileGroupName !== groupName;
+                  })
+                  .map((direction) => [direction, entry.adjacency?.[direction]]),
+              );
+              return {
+                ...entry,
+                adjacency: Object.keys(nextAdjacency).length > 0 ? nextAdjacency : undefined,
+              };
+            }),
+            tileset: {
+              ...current,
+              defaultMatchingGroup:
+                current.defaultMatchingGroup === groupName
+                  ? undefined
+                  : current.defaultMatchingGroup,
+              matchingGroups: nextMatchingGroups.length > 0 ? nextMatchingGroups : undefined,
+            },
+          };
+        }),
 
-  updateTileEntry: (index, updates) =>
-    set((state) => ({
-      tileEntries: state.tileEntries.map((entry, entryIndex) =>
-        entryIndex === index
-          ? {
+      deleteMaterial: (materialName) =>
+        set((state) => {
+          const current = state.tileset;
+          if (!current?.materials) {
+            return {};
+          }
+
+          const nextMaterials = current.materials.filter(
+            (currentMaterialName) => currentMaterialName !== materialName,
+          );
+          return {
+            futureDocuments: [],
+            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+            tileEntries: state.tileEntries.map((entry) =>
+              entry.material === materialName ? { ...entry, material: undefined } : entry,
+            ),
+            tileset: {
+              ...current,
+              materials: nextMaterials.length > 0 ? nextMaterials : undefined,
+            },
+          };
+        }),
+
+      deleteTileEntry: (index) =>
+        set((state) => {
+          const deletedId = state.tileEntries[index]?.id;
+          const nextEntries = state.tileEntries.filter((_, entryIndex) => entryIndex !== index);
+          return {
+            futureDocuments: [],
+            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+            selectedTileId:
+              state.selectedTileId === deletedId
+                ? (nextEntries[0]?.id ?? null)
+                : state.selectedTileId,
+            tileDeleteIndex: null,
+            tileEntries: nextEntries,
+          };
+        }),
+
+      renameMatchingGroup: (oldName, nextName) =>
+        set((state) => {
+          const current = state.tileset;
+          if (!current?.matchingGroups || oldName === nextName) {
+            return {};
+          }
+
+          const trimmedNextName = nextName.trim();
+          if (
+            !trimmedNextName ||
+            (trimmedNextName !== oldName && current.matchingGroups.includes(trimmedNextName))
+          ) {
+            return {};
+          }
+
+          return {
+            futureDocuments: [],
+            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+            tileEntries: state.tileEntries.map((entry) => ({
               ...entry,
-              ...updates,
+              adjacency: entry.adjacency
+                ? Object.fromEntries(
+                    adjacencyDirections
+                      .filter((direction) => entry.adjacency?.[direction])
+                      .map((direction) => [
+                        direction,
+                        entry.adjacency?.[direction] === oldName
+                          ? trimmedNextName
+                          : entry.adjacency?.[direction],
+                      ]),
+                  )
+                : undefined,
+            })),
+            tileset: {
+              ...current,
+              defaultMatchingGroup:
+                current.defaultMatchingGroup === oldName
+                  ? trimmedNextName
+                  : current.defaultMatchingGroup,
+              matchingGroups: current.matchingGroups.map((groupName) =>
+                groupName === oldName ? trimmedNextName : groupName,
+              ),
+            },
+          };
+        }),
+
+      renameMaterial: (oldName, nextName) =>
+        set((state) => {
+          const current = state.tileset;
+          if (!current?.materials || oldName === nextName) {
+            return {};
+          }
+
+          const trimmedNextName = nextName.trim();
+          if (
+            !trimmedNextName ||
+            (trimmedNextName !== oldName && current.materials.includes(trimmedNextName))
+          ) {
+            return {};
+          }
+
+          return {
+            futureDocuments: [],
+            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+            tileEntries: state.tileEntries.map((entry) =>
+              entry.material === oldName ? { ...entry, material: trimmedNextName } : entry,
+            ),
+            tileset: {
+              ...current,
+              materials: current.materials.map((materialName) =>
+                materialName === oldName ? trimmedNextName : materialName,
+              ),
+            },
+          };
+        }),
+
+      saveTileset: async () => {
+        const { tileEntries, tileset } = get();
+        if (!tileset) {
+          return;
+        }
+
+        const tilesetToSave = makeTilesetFromEntries(tileset, tileEntries);
+        const fileName = makeTilesetFileName(tilesetToSave);
+
+        try {
+          const response = await fetch('/__editor/save-tileset', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              fileName,
+              tileset: tilesetToSave,
+            }),
+          });
+
+          if (!response.ok) {
+            const errorPayload = (await response.json().catch(() => null)) as {
+              error?: string;
+            } | null;
+            throw new Error(errorPayload?.error ?? 'Failed to save tileset');
+          }
+
+          set({ selectedFileName: fileName });
+        } catch (error) {
+          alert(error instanceof Error ? error.message : 'Failed to save tileset');
+        }
+      },
+
+      redo: () => {
+        const { futureDocuments } = get();
+        const nextDocument = futureDocuments[0];
+        if (!nextDocument) {
+          return;
+        }
+
+        set((state) => ({
+          ...cloneDocument(nextDocument),
+          futureDocuments: state.futureDocuments.slice(1),
+          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+          tileDeleteIndex: null,
+        }));
+        get().syncDerivedState();
+      },
+
+      resetEditor: () => {
+        set(makeInitialSpritesheetEditorState());
+      },
+
+      selectTileset: (fileName) => {
+        const entry = editorBundledTilesets.find((candidate) => candidate.fileName === fileName);
+        if (!entry) {
+          return;
+        }
+
+        const nextTileset = cloneTileset(entry.tileset);
+        const nextEntries = makeTileEntries(nextTileset);
+        set({
+          futureDocuments: [],
+          pastDocuments: [],
+          selectedFileName: fileName,
+          selectedTileId: nextEntries[0]?.id ?? null,
+          tileEntries: nextEntries,
+          tileset: nextTileset,
+        });
+      },
+
+      setPreviewMode: (previewMode) => set({ previewMode }),
+      setSelectedFileName: (selectedFileName) => set({ selectedFileName }),
+      setSelectedTileId: (selectedTileId) => set({ selectedTileId }),
+      setTileDeleteIndex: (tileDeleteIndex) => set({ tileDeleteIndex }),
+
+      updateDefaultMatchingGroup: (groupName) =>
+        set((state) => ({
+          futureDocuments: [],
+          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+          tileset: state.tileset
+            ? {
+                ...state.tileset,
+                defaultMatchingGroup: groupName || undefined,
+              }
+            : state.tileset,
+        })),
+
+      updateGrid: (key, value) =>
+        set((state) => ({
+          futureDocuments: [],
+          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+          tileset: state.tileset
+            ? {
+                ...state.tileset,
+                grid: {
+                  ...state.tileset.grid,
+                  [key]: value,
+                },
+              }
+            : state.tileset,
+        })),
+
+      updatePreviewZoom: (nextZoom) =>
+        set({
+          previewZoom: Math.min(6, Math.max(0.5, nextZoom)),
+        }),
+
+      updateTileEntry: (index, updates) =>
+        set((state) => ({
+          futureDocuments: [],
+          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+          tileEntries: state.tileEntries.map((entry, entryIndex) =>
+            entryIndex === index
+              ? {
+                  ...entry,
+                  ...updates,
+                }
+              : entry,
+          ),
+        })),
+
+      updateTileId: (index, nextId) =>
+        set((state) => {
+          const oldId = state.tileEntries[index]?.id;
+          const nextEntries = state.tileEntries.map((entry, entryIndex) =>
+            entryIndex === index ? { ...entry, id: nextId } : entry,
+          );
+          return {
+            futureDocuments: [],
+            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+            selectedTileId: state.selectedTileId === oldId ? nextId : state.selectedTileId,
+            tileEntries: nextEntries,
+          };
+        }),
+
+      updateTilesetId: (id) =>
+        set((state) => ({
+          futureDocuments: [],
+          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+          tileset: state.tileset ? { ...state.tileset, id } : state.tileset,
+        })),
+
+      updateTilesetImageSrc: (imageSrc) =>
+        set((state) => ({
+          futureDocuments: [],
+          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+          tileset: state.tileset ? { ...state.tileset, imageSrc } : state.tileset,
+        })),
+
+      updateTileMatchingGroup: (tileId, direction, groupName) =>
+        set((state) => ({
+          futureDocuments: [],
+          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+          tileEntries: state.tileEntries.map((entry) => {
+            if (entry.id !== tileId) {
+              return entry;
             }
-          : entry,
-      ),
-    })),
 
-  updateTileId: (index, nextId) =>
-    set((state) => {
-      const oldId = state.tileEntries[index]?.id;
-      const nextEntries = state.tileEntries.map((entry, entryIndex) =>
-        entryIndex === index ? { ...entry, id: nextId } : entry,
-      );
-      return {
-        selectedTileId: state.selectedTileId === oldId ? nextId : state.selectedTileId,
-        tileEntries: nextEntries,
-      };
+            const nextAdjacency = { ...(entry.adjacency ?? {}) };
+            if (groupName) {
+              nextAdjacency[direction] = groupName;
+            } else {
+              delete nextAdjacency[direction];
+            }
+
+            return {
+              ...entry,
+              adjacency: Object.keys(nextAdjacency).length > 0 ? nextAdjacency : undefined,
+            };
+          }),
+        })),
+
+      updateTileMaterial: (tileId, materialName) =>
+        set((state) => ({
+          futureDocuments: [],
+          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+          tileEntries: state.tileEntries.map((entry) =>
+            entry.id === tileId ? { ...entry, material: materialName || undefined } : entry,
+          ),
+        })),
+
+      syncDerivedState: () => {
+        const state = get();
+        const nextState: Partial<SpritesheetEditorState> = {};
+
+        if (
+          state.selectedTileId &&
+          !state.tileEntries.some((entry) => entry.id === state.selectedTileId)
+        ) {
+          nextState.selectedTileId = state.tileEntries[0]?.id ?? null;
+        }
+
+        if (state.tileDeleteIndex !== null && !state.tileEntries[state.tileDeleteIndex]) {
+          nextState.tileDeleteIndex = null;
+        }
+
+        if (Object.keys(nextState).length > 0) {
+          set(nextState);
+        }
+      },
+
+      undo: () => {
+        const { pastDocuments } = get();
+        const previousDocument = pastDocuments[0];
+        if (!previousDocument) {
+          return;
+        }
+
+        set((state) => ({
+          ...cloneDocument(previousDocument),
+          futureDocuments: [getDocument(state), ...state.futureDocuments].slice(0, HISTORY_LIMIT),
+          pastDocuments: state.pastDocuments.slice(1),
+          tileDeleteIndex: null,
+        }));
+        get().syncDerivedState();
+      },
     }),
-
-  updateTilesetId: (id) =>
-    set((state) => ({
-      tileset: state.tileset ? { ...state.tileset, id } : state.tileset,
-    })),
-
-  updateTilesetImageSrc: (imageSrc) =>
-    set((state) => ({
-      tileset: state.tileset ? { ...state.tileset, imageSrc } : state.tileset,
-    })),
-
-  updateTileMatchingGroup: (tileId, direction, groupName) =>
-    set((state) => ({
-      tileEntries: state.tileEntries.map((entry) => {
-        if (entry.id !== tileId) {
-          return entry;
-        }
-
-        const nextAdjacency = { ...(entry.adjacency ?? {}) };
-        if (groupName) {
-          nextAdjacency[direction] = groupName;
-        } else {
-          delete nextAdjacency[direction];
-        }
-
-        return {
-          ...entry,
-          adjacency: Object.keys(nextAdjacency).length > 0 ? nextAdjacency : undefined,
-        };
+    {
+      name: SPRITESHEET_EDITOR_STORAGE_KEY,
+      storage: createJSONStorage(() => localStorage),
+      onRehydrateStorage: () => (state) => {
+        state?.syncDerivedState();
+      },
+      partialize: (state) => ({
+        futureDocuments: state.futureDocuments,
+        pastDocuments: state.pastDocuments,
+        previewMode: state.previewMode,
+        previewZoom: state.previewZoom,
+        selectedFileName: state.selectedFileName,
+        selectedTileId: state.selectedTileId,
+        tileEntries: state.tileEntries,
+        tileset: state.tileset,
       }),
-    })),
-
-  updateTileMaterial: (tileId, materialName) =>
-    set((state) => ({
-      tileEntries: state.tileEntries.map((entry) =>
-        entry.id === tileId ? { ...entry, material: materialName || undefined } : entry,
-      ),
-    })),
-}));
+    },
+  ),
+);
