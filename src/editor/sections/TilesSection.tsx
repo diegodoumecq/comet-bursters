@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 
 import { getTilesetTilePositionMap } from '../../scenes/ShipInteriorScene/level';
 import { bundledTilesets } from '../../scenes/ShipInteriorScene/tilesetCatalog';
+import type { EditorTilesetDefinition } from '../shared/editorTileset';
 import { getTilesetForLayer } from '../shared/levelEditing';
 import { useEditorStore } from '../state/editorStore';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
@@ -56,6 +57,10 @@ export function TilesSection() {
   const [isLayerOpen, setIsLayerOpen] = useState(true);
   const [isPaletteOpen, setIsPaletteOpen] = useState(true);
   const tilesetFileOptions = bundledTilesets
+    .map((entry) => ({
+      ...entry,
+      tileset: entry.tileset as EditorTilesetDefinition,
+    }))
     .filter((entry) => level.tilesets.some((tileset) => tileset.id === entry.tileset.id))
     .sort((left, right) => left.fileName.localeCompare(right.fileName));
   const renderedLayers = dragLayerOrder

@@ -1,19 +1,14 @@
-import type {
-  RawShipInteriorLevel,
-  ShipInteriorTilesetDefinition,
-  ShipInteriorTilesetTileDefinition,
-} from '../../scenes/ShipInteriorScene/level';
-
-export type EditorTileAdjacencyDirection = 'up' | 'right' | 'down' | 'left';
-export type EditorTilesetTileDefinition = ShipInteriorTilesetTileDefinition & {
-  adjacency?: Partial<Record<EditorTileAdjacencyDirection, string>>;
-  material?: string;
-};
-export type EditorTilesetDefinition = Omit<ShipInteriorTilesetDefinition, 'tiles'> & {
-  defaultMatchingGroup?: string;
-  materials?: string[];
-  tiles: EditorTilesetTileDefinition[];
-};
+import {
+  getTileTopologyRelation,
+  getTileTopologySpecificity,
+  getTileVariantWeight,
+  topologyDirectionOffsets,
+  topologyDirections,
+  type TileTopologyDirection,
+  type TileTopologyRelation,
+} from './autotile';
+import type { RawShipInteriorLevel } from '../../scenes/ShipInteriorScene/level';
+import type { EditorTilesetDefinition, EditorTilesetTileDefinition } from './editorTileset';
 export type MaterialPlacementMap = Record<string, Record<string, string>>;
 
 export const materialColorByName: Record<string, string> = {
@@ -24,17 +19,7 @@ export const materialColorByName: Record<string, string> = {
 };
 
 const fallbackMaterialColors = ['#a78bfa', '#fb923c', '#2dd4bf', '#f472b6', '#c4b5fd'];
-const adjacencyDirections: Array<{
-  direction: EditorTileAdjacencyDirection;
-  dx: number;
-  dy: number;
-  opposite: EditorTileAdjacencyDirection;
-}> = [
-  { direction: 'up', dx: 0, dy: -1, opposite: 'down' },
-  { direction: 'right', dx: 1, dy: 0, opposite: 'left' },
-  { direction: 'down', dx: 0, dy: 1, opposite: 'up' },
-  { direction: 'left', dx: -1, dy: 0, opposite: 'right' },
-];
+
 type MaterialCell = {
   key: string;
   material: string;
@@ -54,18 +39,17 @@ export function getMaterialColor(materialName: string): string {
   return fallbackMaterialColors[colorIndex];
 }
 
-export function getTilesetMaterials(tileset: ShipInteriorTilesetDefinition | null): string[] {
+export function getTilesetMaterials(tileset: EditorTilesetDefinition | null): string[] {
   if (!tileset) {
     return [];
   }
 
-  const editorTileset = tileset as EditorTilesetDefinition;
   return Array.from(
     new Set([
-      ...(editorTileset.materials ?? []),
-      ...editorTileset.tiles.map((tile) => tile.material).filter((material): material is string =>
-        Boolean(material),
-      ),
+      ...(tileset.materials ?? []),
+      ...tileset.tiles
+        .map((tile) => tile.material)
+        .filter((material): material is string => Boolean(material)),
     ]),
   ).sort((left, right) => left.localeCompare(right));
 }
@@ -83,146 +67,101 @@ function parseMaterialPlacementCell(key: string, material: string): MaterialCell
   return { key, material, x, y };
 }
 
-function tileMatchesDefaultBorders(
-  tile: EditorTilesetTileDefinition,
-  tileset: EditorTilesetDefinition,
-  materialCellKeys: Set<string>,
-  cell: MaterialCell,
-): boolean {
-  return adjacencyDirections.every(({ direction, dx, dy }) => {
-    const neighborKey = getMaterialPlacementKey(cell.x + dx, cell.y + dy);
-    if (materialCellKeys.has(neighborKey) || !tileset.defaultMatchingGroup) {
-      return true;
-    }
+function getLayerMaterialCells(
+  materialPlacements: MaterialPlacementMap,
+  layerId: string,
+): MaterialCell[] {
+  return Object.entries(materialPlacements[layerId] ?? {})
+    .map(([key, material]) => parseMaterialPlacementCell(key, material))
+    .filter((cell): cell is MaterialCell => Boolean(cell));
+}
 
-    return tile.adjacency?.[direction] === tileset.defaultMatchingGroup;
+function getTopologyRelationForDirection(
+  cell: MaterialCell,
+  direction: TileTopologyDirection,
+  materialsByCellKey: Map<string, string>,
+): TileTopologyRelation {
+  const offset = topologyDirectionOffsets[direction];
+  const neighborMaterial = materialsByCellKey.get(
+    getMaterialPlacementKey(cell.x + offset.dx, cell.y + offset.dy),
+  );
+  return neighborMaterial === cell.material ? 'same' : 'different';
+}
+
+function tileMatchesTopology(
+  tile: EditorTilesetTileDefinition,
+  cell: MaterialCell,
+  materialsByCellKey: Map<string, string>,
+): boolean {
+  if (tile.topology === undefined) {
+    return false;
+  }
+
+  return topologyDirections.every((direction) => {
+    const expectedRelation = getTileTopologyRelation(tile.topology, direction);
+    return (
+      expectedRelation === 'any' ||
+      expectedRelation === getTopologyRelationForDirection(cell, direction, materialsByCellKey)
+    );
   });
 }
 
-function tileSidesMatch(
-  tile: EditorTilesetTileDefinition,
-  direction: EditorTileAdjacencyDirection,
-  neighbor: EditorTilesetTileDefinition,
-  opposite: EditorTileAdjacencyDirection,
-): boolean {
-  const tileGroup = tile.adjacency?.[direction];
-  const neighborGroup = neighbor.adjacency?.[opposite];
-  return Boolean(tileGroup && neighborGroup && tileGroup === neighborGroup);
-}
-
-function getConnectedMaterialComponents(cells: MaterialCell[]): MaterialCell[][] {
-  const cellsByKey = new Map(cells.map((cell) => [cell.key, cell]));
-  const visited = new Set<string>();
-  const components: MaterialCell[][] = [];
-
-  for (const cell of cells) {
-    if (visited.has(cell.key)) {
-      continue;
-    }
-
-    const component: MaterialCell[] = [];
-    const queue = [cell];
-    visited.add(cell.key);
-
-    while (queue.length > 0) {
-      const current = queue.shift();
-      if (!current) {
-        continue;
-      }
-
-      component.push(current);
-      for (const { dx, dy } of adjacencyDirections) {
-        const neighborKey = getMaterialPlacementKey(current.x + dx, current.y + dy);
-        const neighbor = cellsByKey.get(neighborKey);
-        if (!neighbor || visited.has(neighborKey)) {
-          continue;
-        }
-
-        visited.add(neighborKey);
-        queue.push(neighbor);
-      }
-    }
-
-    components.push(component);
-  }
-
-  return components;
-}
-
-function solveMaterialComponent(
-  component: MaterialCell[],
-  candidatesByCellKey: Map<string, EditorTilesetTileDefinition[]>,
-): Map<string, EditorTilesetTileDefinition> {
-  const assignments = new Map<string, EditorTilesetTileDefinition>();
-
-  const tileCanFit = (cell: MaterialCell, tile: EditorTilesetTileDefinition): boolean =>
-    adjacencyDirections.every(({ direction, dx, dy, opposite }) => {
-      const neighborKey = getMaterialPlacementKey(cell.x + dx, cell.y + dy);
-      const neighbor = assignments.get(neighborKey);
-      return neighbor ? tileSidesMatch(tile, direction, neighbor, opposite) : true;
-    });
-
-  const hasFutureCandidate = (cell: MaterialCell): boolean => {
-    const candidates = candidatesByCellKey.get(cell.key) ?? [];
-    return candidates.some((candidate) => tileCanFit(cell, candidate));
-  };
-
-  const chooseNextCell = (): MaterialCell | null => {
-    const unassignedCells = component.filter((cell) => !assignments.has(cell.key));
-    if (unassignedCells.length === 0) {
-      return null;
-    }
-
-    return unassignedCells
-      .map((cell) => ({
-        cell,
-        candidateCount: (candidatesByCellKey.get(cell.key) ?? []).filter((candidate) =>
-          tileCanFit(cell, candidate),
-        ).length,
-      }))
-      .sort(
-        (left, right) =>
-          left.candidateCount - right.candidateCount ||
-          left.cell.y - right.cell.y ||
-          left.cell.x - right.cell.x,
-      )[0].cell;
-  };
-
-  const solve = (): boolean => {
-    const cell = chooseNextCell();
-    if (!cell) {
-      return true;
-    }
-
-    const candidates = candidatesByCellKey.get(cell.key) ?? [];
-    for (const candidate of candidates) {
-      if (!tileCanFit(cell, candidate)) {
-        continue;
-      }
-
-      assignments.set(cell.key, candidate);
-      const canStillSolve = component
-        .filter((futureCell) => !assignments.has(futureCell.key))
-        .every(hasFutureCandidate);
-      if (canStillSolve && solve()) {
-        return true;
-      }
-      assignments.delete(cell.key);
-    }
-
-    return false;
-  };
-
-  if (solve()) {
-    return assignments;
-  }
-
-  return new Map(
-    component.flatMap((cell) => {
-      const [fallback] = candidatesByCellKey.get(cell.key) ?? [];
-      return fallback ? [[cell.key, fallback] as const] : [];
-    }),
+function compareTileVariants(
+  left: EditorTilesetTileDefinition,
+  right: EditorTilesetTileDefinition,
+): number {
+  return (
+    (left.variantGroup ?? left.id).localeCompare(right.variantGroup ?? right.id) ||
+    left.id.localeCompare(right.id)
   );
+}
+
+function hashText(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+function chooseAutotileVariant(
+  layerId: string,
+  cell: MaterialCell,
+  candidates: EditorTilesetTileDefinition[],
+): EditorTilesetTileDefinition | null {
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const highestSpecificity = Math.max(
+    ...candidates.map((candidate) => getTileTopologySpecificity(candidate.topology)),
+  );
+  const exactCandidates = candidates
+    .filter((candidate) => getTileTopologySpecificity(candidate.topology) === highestSpecificity)
+    .sort(compareTileVariants);
+  const weightedCandidates = exactCandidates.flatMap((candidate) => {
+    const weight = getTileVariantWeight(candidate.variantWeight);
+    return weight > 0 ? [[candidate, weight] as const] : [];
+  });
+
+  if (weightedCandidates.length === 0) {
+    return null;
+  }
+
+  const totalWeight = weightedCandidates.reduce((sum, [, weight]) => sum + weight, 0);
+  const targetWeight = hashText(`${layerId}:${cell.material}:${cell.x},${cell.y}`) % totalWeight;
+
+  let remainingWeight = targetWeight;
+  for (const [candidate, weight] of weightedCandidates) {
+    if (remainingWeight < weight) {
+      return candidate;
+    }
+    remainingWeight -= weight;
+  }
+
+  return weightedCandidates[0]?.[0] ?? null;
 }
 
 function resolveMaterialTilesForLayer(
@@ -239,30 +178,23 @@ function resolveMaterialTilesForLayer(
   if (!tileset) {
     return new Map();
   }
-
   const editorTileset = tileset as EditorTilesetDefinition;
-  const cells = Object.entries(materialPlacements[layerId] ?? {})
-    .map(([key, material]) => parseMaterialPlacementCell(key, material))
-    .filter((cell): cell is MaterialCell => Boolean(cell));
-  const materialCellKeys = new Set(cells.map((cell) => cell.key));
-  const candidatesByCellKey = new Map(
-    cells.map((cell) => [
-      cell.key,
-      editorTileset.tiles.filter(
+
+  const cells = getLayerMaterialCells(materialPlacements, layerId);
+  const materialsByCellKey = new Map(cells.map((cell) => [cell.key, cell.material]));
+
+  return new Map(
+    cells.flatMap((cell) => {
+      const candidates = editorTileset.tiles.filter(
         (tile) =>
           tile.material === cell.material &&
-          tileMatchesDefaultBorders(tile, editorTileset, materialCellKeys, cell),
-      ),
-    ]),
+          tile.topology !== undefined &&
+          tileMatchesTopology(tile, cell, materialsByCellKey),
+      );
+      const resolvedTile = chooseAutotileVariant(layerId, cell, candidates);
+      return resolvedTile ? [[cell.key, resolvedTile] as const] : [];
+    }),
   );
-
-  return getConnectedMaterialComponents(cells).reduce((assignments, component) => {
-    const componentAssignments = solveMaterialComponent(component, candidatesByCellKey);
-    for (const [key, tile] of componentAssignments) {
-      assignments.set(key, tile);
-    }
-    return assignments;
-  }, new Map<string, EditorTilesetTileDefinition>());
 }
 
 function paintConcreteTile(
@@ -288,19 +220,42 @@ function paintConcreteTile(
   };
 }
 
+function clearConcreteTilesAtMaterialCells(
+  level: RawShipInteriorLevel,
+  layerId: string,
+  cells: MaterialCell[],
+): RawShipInteriorLevel {
+  const cellKeys = new Set(cells.map((cell) => cell.key));
+  return {
+    ...level,
+    layers: level.layers.map((layer) =>
+      layer.id !== layerId
+        ? layer
+        : {
+            ...layer,
+            tiles: layer.tiles.filter(
+              (tile) => !cellKeys.has(getMaterialPlacementKey(tile.x, tile.y)),
+            ),
+          },
+    ),
+  };
+}
+
 function applyResolvedMaterialTiles(
   level: RawShipInteriorLevel,
   materialPlacements: MaterialPlacementMap,
   layerId: string,
 ): RawShipInteriorLevel {
+  const cells = getLayerMaterialCells(materialPlacements, layerId);
   const assignments = resolveMaterialTilesForLayer(level, layerId, materialPlacements);
+  const clearedLevel = clearConcreteTilesAtMaterialCells(level, layerId, cells);
 
   return Array.from(assignments.entries()).reduce((nextLevel, [key, tile]) => {
     const materialCell = parseMaterialPlacementCell(key, tile.material ?? '');
     return materialCell
       ? paintConcreteTile(nextLevel, layerId, tile.id, materialCell.x, materialCell.y)
       : nextLevel;
-  }, level);
+  }, clearedLevel);
 }
 
 function setPlacedMaterial(

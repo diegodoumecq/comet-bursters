@@ -37,7 +37,8 @@ export function MaterialsSection() {
           </select>
         </label>
         <div className="text-xs leading-5 text-slate-500">
-          Paints the selected material using the first tile that matches adjacent neighbors.
+          Paints the selected material using tiles whose local topology matches surrounding material
+          cells.
         </div>
         {materialNames.length > 0 ? (
           <div className="grid grid-cols-2 gap-3">

@@ -1,10 +1,16 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import {
+  cloneTileTopology,
+  pruneTileTopology,
+  type TileTopology,
+  type TileTopologyDirection,
+  type TileTopologyRelation,
+} from '../../editor/shared/autotile';
 import type {
-  ShipInteriorTilesetDefinition,
-  ShipInteriorTilesetTileDefinition,
-} from '../../scenes/ShipInteriorScene/level';
+  EditorTilesetDefinition as SpritesheetEditorTilesetDefinition,
+} from '../../editor/shared/editorTileset';
 import { shipInteriorTileAssets } from '../../scenes/ShipInteriorScene/tileAssets';
 import { bundledTilesets } from '../../scenes/ShipInteriorScene/tilesetCatalog';
 
@@ -12,82 +18,41 @@ export type TileEntry = {
   id: string;
   column: number;
   material?: string;
-  adjacency?: Partial<Record<AdjacencyDirection, string>>;
   row: number;
+  topology?: TileTopology;
+  variantGroup?: string;
+  variantWeight?: number;
 };
 
-export type AdjacencyDirection = 'up' | 'right' | 'down' | 'left';
 export type Materials = string[];
-export type MatchingGroups = string[];
-export type PreviewMode = 'sheet' | 'adjacency';
-export type SpritesheetEditorTileDefinition = ShipInteriorTilesetTileDefinition & {
-  material?: string;
-  adjacency?: Partial<Record<AdjacencyDirection, string>>;
-};
-export type SpritesheetEditorTilesetDefinition = Omit<ShipInteriorTilesetDefinition, 'tiles'> & {
-  defaultMatchingGroup?: string;
-  materials?: Materials;
-  matchingGroups?: MatchingGroups;
-  tiles: SpritesheetEditorTileDefinition[];
-};
+export type PreviewMode = 'sheet' | 'topology';
 
-export const adjacencyDirections: AdjacencyDirection[] = ['up', 'right', 'down', 'left'];
-export const oppositeDirections: Record<AdjacencyDirection, AdjacencyDirection> = {
-  down: 'up',
-  left: 'right',
-  right: 'left',
-  up: 'down',
-};
 export const editorBundledTilesets = bundledTilesets as Array<{
   fileName: string;
   tileset: SpritesheetEditorTilesetDefinition;
 }>;
 
-function cloneMatchingGroups(
-  matchingGroups: MatchingGroups | undefined,
-): MatchingGroups | undefined {
-  if (!matchingGroups) {
-    return undefined;
-  }
-
-  if (Array.isArray(matchingGroups)) {
-    return [...matchingGroups];
-  }
-
-  return Object.keys(matchingGroups);
-}
-
 function cloneMaterials(materials: Materials | undefined): Materials | undefined {
-  if (!materials) {
-    return undefined;
-  }
-
-  if (Array.isArray(materials)) {
-    return [...materials];
-  }
-
-  return Object.keys(materials);
+  return materials ? [...materials] : undefined;
 }
 
 export function makeTileEntries(tileset: SpritesheetEditorTilesetDefinition): TileEntry[] {
   const legacyTileset = tileset as SpritesheetEditorTilesetDefinition & {
     tileMaterials?: Record<string, string>;
-    tileMatchingGroups?: Record<string, Partial<Record<AdjacencyDirection, string>>>;
     tiles: unknown;
   };
   const entries = Array.isArray(legacyTileset.tiles)
     ? legacyTileset.tiles.map((tile) => ({
-        adjacency: tile.adjacency ? { ...tile.adjacency } : undefined,
         column: tile.position[0],
         id: tile.id,
         material: tile.material,
         row: tile.position[1],
+        topology: cloneTileTopology(tile.topology),
+        variantGroup: tile.variantGroup,
+        variantWeight: tile.variantWeight,
       }))
     : Object.entries(legacyTileset.tiles as Record<string, [number, number]>).map(
         ([id, [column, row]]) => ({
-          adjacency: legacyTileset.tileMatchingGroups?.[id]
-            ? { ...legacyTileset.tileMatchingGroups[id] }
-            : undefined,
           column,
           id,
           material: legacyTileset.tileMaterials?.[id],
@@ -101,31 +66,34 @@ export function makeTileEntries(tileset: SpritesheetEditorTilesetDefinition): Ti
   );
 }
 
+function cloneTileEntry(entry: TileEntry): TileEntry {
+  return {
+    ...entry,
+    topology: cloneTileTopology(entry.topology),
+  };
+}
+
+function cloneTileEntries(entries: TileEntry[]): TileEntry[] {
+  return entries.map(cloneTileEntry);
+}
+
 function cloneTileset(
   tileset: SpritesheetEditorTilesetDefinition,
 ): SpritesheetEditorTilesetDefinition {
-  const {
-    adjacency: _legacyAdjacency,
-    tileMaterials: _legacyTileMaterials,
-    tileMatchingGroups: _legacyTileMatchingGroups,
-    ...tilesetWithoutLegacyFields
-  } = tileset as SpritesheetEditorTilesetDefinition & {
-    adjacency?: unknown;
-    tileMaterials?: unknown;
-    tileMatchingGroups?: unknown;
-  };
-
+  const { tiles, ...tilesetWithoutTiles } = tileset;
   return {
-    ...tilesetWithoutLegacyFields,
+    ...tilesetWithoutTiles,
     grid: { ...tileset.grid },
-    ...(tileset.defaultMatchingGroup ? { defaultMatchingGroup: tileset.defaultMatchingGroup } : {}),
     materials: cloneMaterials(tileset.materials),
-    matchingGroups: cloneMatchingGroups(tileset.matchingGroups),
     tiles: makeTileEntries(tileset).map((entry) => ({
       id: entry.id,
       ...(entry.material ? { material: entry.material } : {}),
-      ...(entry.adjacency ? { adjacency: { ...entry.adjacency } } : {}),
       position: [entry.column, entry.row] as [number, number],
+      ...(entry.topology !== undefined
+        ? { topology: pruneTileTopology(entry.topology) ?? {} }
+        : {}),
+      ...(entry.variantGroup ? { variantGroup: entry.variantGroup } : {}),
+      ...(entry.variantWeight !== undefined ? { variantWeight: entry.variantWeight } : {}),
     })),
   };
 }
@@ -134,55 +102,32 @@ function makeTilesetFromEntries(
   tileset: SpritesheetEditorTilesetDefinition,
   entries: TileEntry[],
 ): SpritesheetEditorTilesetDefinition {
-  const {
-    adjacency: _legacyAdjacency,
-    tileMaterials: _legacyTileMaterials,
-    tileMatchingGroups: _legacyTileMatchingGroups,
-    ...tilesetWithoutLegacyFields
-  } = tileset as SpritesheetEditorTilesetDefinition & {
-    adjacency?: unknown;
-    tileMaterials?: unknown;
-    tileMatchingGroups?: unknown;
-  };
+  const { tiles, ...tilesetWithoutTiles } = tileset;
   const materials = cloneMaterials(tileset.materials) ?? [];
   const nextMaterials = Array.from(
     new Set(materials.map((materialName) => materialName.trim()).filter(Boolean)),
   );
   const validMaterialNames = new Set(nextMaterials);
-  const matchingGroups = tileset.matchingGroups ?? [];
-  const nextMatchingGroups = Array.from(
-    new Set(matchingGroups.map((groupName) => groupName.trim()).filter(Boolean)),
-  );
-  const validGroupNames = new Set(nextMatchingGroups);
-  const defaultMatchingGroup = tileset.defaultMatchingGroup?.trim();
 
   return {
-    ...tilesetWithoutLegacyFields,
-    ...(defaultMatchingGroup && validGroupNames.has(defaultMatchingGroup)
-      ? { defaultMatchingGroup }
-      : {}),
+    ...tilesetWithoutTiles,
     materials: nextMaterials.length > 0 ? nextMaterials : undefined,
-    matchingGroups: nextMatchingGroups.length > 0 ? nextMatchingGroups : undefined,
     tiles: entries
       .filter((entry) => entry.id.trim())
-      .map((entry) => {
-        const adjacency = Object.fromEntries(
-          adjacencyDirections
-            .filter((direction) => {
-              const groupName = entry.adjacency?.[direction];
-              return groupName ? validGroupNames.has(groupName) : false;
-            })
-            .map((direction) => [direction, entry.adjacency?.[direction]]),
-        );
-        return {
-          id: entry.id.trim(),
-          ...(entry.material && validMaterialNames.has(entry.material)
-            ? { material: entry.material }
-            : {}),
-          ...(Object.keys(adjacency).length > 0 ? { adjacency } : {}),
-          position: [entry.column, entry.row] as [number, number],
-        };
-      }),
+      .map((entry) => ({
+        id: entry.id.trim(),
+        ...(entry.material && validMaterialNames.has(entry.material)
+          ? { material: entry.material }
+          : {}),
+        position: [entry.column, entry.row] as [number, number],
+        ...(entry.topology !== undefined
+          ? { topology: pruneTileTopology(entry.topology) ?? {} }
+          : {}),
+        ...(entry.variantGroup?.trim() ? { variantGroup: entry.variantGroup.trim() } : {}),
+        ...(entry.variantWeight !== undefined
+          ? { variantWeight: Math.max(0, entry.variantWeight) }
+          : {}),
+      })),
   };
 }
 
@@ -201,19 +146,6 @@ function makeNewTilesetId(): string {
   }
 
   return nextId;
-}
-
-function makeMatchingGroupName(matchingGroups: MatchingGroups | undefined): string {
-  const existingNames = new Set(matchingGroups ?? []);
-  let nextIndex = existingNames.size + 1;
-  let nextName = `group_${nextIndex}`;
-
-  while (existingNames.has(nextName)) {
-    nextIndex += 1;
-    nextName = `group_${nextIndex}`;
-  }
-
-  return nextName;
 }
 
 function makeMaterialName(materials: Materials | undefined): string {
@@ -247,16 +179,13 @@ type SpritesheetEditorState = {
 };
 
 type SpritesheetEditorActions = {
-  addMatchingGroup: () => void;
   addMaterial: () => void;
   addTileEntry: () => void;
   createNewTileset: () => void;
-  deleteMatchingGroup: (groupName: string) => void;
   deleteMaterial: (materialName: string) => void;
   deleteTileEntry: (index: number) => void;
-  renameMatchingGroup: (oldName: string, nextName: string) => void;
-  renameMaterial: (oldName: string, nextName: string) => void;
   redo: () => void;
+  renameMaterial: (oldName: string, nextName: string) => void;
   resetEditor: () => void;
   saveTileset: () => Promise<void>;
   selectTileset: (fileName: string) => void;
@@ -266,19 +195,21 @@ type SpritesheetEditorActions = {
   setTileDeleteIndex: (tileDeleteIndex: number | null) => void;
   syncDerivedState: () => void;
   undo: () => void;
-  updateDefaultMatchingGroup: (groupName: string) => void;
   updateGrid: (key: keyof SpritesheetEditorTilesetDefinition['grid'], value: number) => void;
   updatePreviewZoom: (nextZoom: number) => void;
   updateTileEntry: (index: number, updates: Partial<TileEntry>) => void;
   updateTileId: (index: number, nextId: string) => void;
+  updateTileMaterial: (tileId: string, materialName: string) => void;
+  updateTileTopologyEnabled: (tileId: string, enabled: boolean) => void;
+  updateTileTopologyRelation: (
+    tileId: string,
+    direction: TileTopologyDirection,
+    relation: TileTopologyRelation,
+  ) => void;
+  updateTileVariantGroup: (tileId: string, variantGroup: string) => void;
+  updateTileVariantWeight: (tileId: string, variantWeight: number) => void;
   updateTilesetId: (id: string) => void;
   updateTilesetImageSrc: (imageSrc: string) => void;
-  updateTileMatchingGroup: (
-    tileId: string,
-    direction: AdjacencyDirection,
-    groupName: string,
-  ) => void;
-  updateTileMaterial: (tileId: string, materialName: string) => void;
 };
 
 type SpritesheetEditorStore = SpritesheetEditorState & SpritesheetEditorActions;
@@ -292,18 +223,7 @@ type SpritesheetEditorDocument = {
 const initialEntry = editorBundledTilesets[0] ?? null;
 const initialTileEntries = initialEntry ? makeTileEntries(initialEntry.tileset) : [];
 const HISTORY_LIMIT = 100;
-const SPRITESHEET_EDITOR_STORAGE_KEY = 'comet-bursters.spritesheet-editor';
-
-function cloneTileEntry(entry: TileEntry): TileEntry {
-  return {
-    ...entry,
-    adjacency: entry.adjacency ? { ...entry.adjacency } : undefined,
-  };
-}
-
-function cloneTileEntries(entries: TileEntry[]): TileEntry[] {
-  return entries.map(cloneTileEntry);
-}
+const SPRITESHEET_EDITOR_STORAGE_KEY = 'comet-bursters.spritesheet-editor-v2';
 
 function cloneDocument(document: SpritesheetEditorDocument): SpritesheetEditorDocument {
   return {
@@ -321,6 +241,17 @@ function getDocument(state: SpritesheetEditorState): SpritesheetEditorDocument {
     tileEntries: state.tileEntries,
     tileset: state.tileset,
   });
+}
+
+function withHistory(
+  state: SpritesheetEditorState,
+  changes: Partial<SpritesheetEditorState>,
+): Partial<SpritesheetEditorState> {
+  return {
+    ...changes,
+    futureDocuments: [],
+    pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+  };
 }
 
 function makeInitialSpritesheetEditorState(): SpritesheetEditorState {
@@ -342,23 +273,6 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
     (set, get) => ({
       ...makeInitialSpritesheetEditorState(),
 
-      addMatchingGroup: () =>
-        set((state) => {
-          if (!state.tileset) {
-            return {};
-          }
-
-          const nextName = makeMatchingGroupName(state.tileset.matchingGroups);
-          return {
-            futureDocuments: [],
-            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
-            tileset: {
-              ...state.tileset,
-              matchingGroups: [...(state.tileset.matchingGroups ?? []), nextName],
-            },
-          };
-        }),
-
       addMaterial: () =>
         set((state) => {
           if (!state.tileset) {
@@ -366,25 +280,21 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
           }
 
           const nextName = makeMaterialName(state.tileset.materials);
-          return {
-            futureDocuments: [],
-            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+          return withHistory(state, {
             tileset: {
               ...state.tileset,
               materials: [...(state.tileset.materials ?? []), nextName],
             },
-          };
+          });
         }),
 
       addTileEntry: () =>
         set((state) => {
           const nextId = `tile_${state.tileEntries.length + 1}`;
-          return {
-            futureDocuments: [],
-            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+          return withHistory(state, {
             selectedTileId: nextId,
             tileEntries: [...state.tileEntries, { column: 0, id: nextId, row: 0 }],
-          };
+          });
         }),
 
       createNewTileset: () => {
@@ -418,44 +328,6 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
         });
       },
 
-      deleteMatchingGroup: (groupName) =>
-        set((state) => {
-          const current = state.tileset;
-          if (!current?.matchingGroups) {
-            return {};
-          }
-
-          const nextMatchingGroups = current.matchingGroups.filter(
-            (currentGroupName) => currentGroupName !== groupName,
-          );
-          return {
-            futureDocuments: [],
-            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
-            tileEntries: state.tileEntries.map((entry) => {
-              const nextAdjacency = Object.fromEntries(
-                adjacencyDirections
-                  .filter((direction) => {
-                    const tileGroupName = entry.adjacency?.[direction];
-                    return tileGroupName && tileGroupName !== groupName;
-                  })
-                  .map((direction) => [direction, entry.adjacency?.[direction]]),
-              );
-              return {
-                ...entry,
-                adjacency: Object.keys(nextAdjacency).length > 0 ? nextAdjacency : undefined,
-              };
-            }),
-            tileset: {
-              ...current,
-              defaultMatchingGroup:
-                current.defaultMatchingGroup === groupName
-                  ? undefined
-                  : current.defaultMatchingGroup,
-              matchingGroups: nextMatchingGroups.length > 0 ? nextMatchingGroups : undefined,
-            },
-          };
-        }),
-
       deleteMaterial: (materialName) =>
         set((state) => {
           const current = state.tileset;
@@ -466,9 +338,7 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
           const nextMaterials = current.materials.filter(
             (currentMaterialName) => currentMaterialName !== materialName,
           );
-          return {
-            futureDocuments: [],
-            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+          return withHistory(state, {
             tileEntries: state.tileEntries.map((entry) =>
               entry.material === materialName ? { ...entry, material: undefined } : entry,
             ),
@@ -476,70 +346,38 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
               ...current,
               materials: nextMaterials.length > 0 ? nextMaterials : undefined,
             },
-          };
+          });
         }),
 
       deleteTileEntry: (index) =>
         set((state) => {
           const deletedId = state.tileEntries[index]?.id;
           const nextEntries = state.tileEntries.filter((_, entryIndex) => entryIndex !== index);
-          return {
-            futureDocuments: [],
-            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+          return withHistory(state, {
             selectedTileId:
               state.selectedTileId === deletedId
                 ? (nextEntries[0]?.id ?? null)
                 : state.selectedTileId,
             tileDeleteIndex: null,
             tileEntries: nextEntries,
-          };
+          });
         }),
 
-      renameMatchingGroup: (oldName, nextName) =>
-        set((state) => {
-          const current = state.tileset;
-          if (!current?.matchingGroups || oldName === nextName) {
-            return {};
-          }
+      redo: () => {
+        const { futureDocuments } = get();
+        const nextDocument = futureDocuments[0];
+        if (!nextDocument) {
+          return;
+        }
 
-          const trimmedNextName = nextName.trim();
-          if (
-            !trimmedNextName ||
-            (trimmedNextName !== oldName && current.matchingGroups.includes(trimmedNextName))
-          ) {
-            return {};
-          }
-
-          return {
-            futureDocuments: [],
-            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
-            tileEntries: state.tileEntries.map((entry) => ({
-              ...entry,
-              adjacency: entry.adjacency
-                ? Object.fromEntries(
-                    adjacencyDirections
-                      .filter((direction) => entry.adjacency?.[direction])
-                      .map((direction) => [
-                        direction,
-                        entry.adjacency?.[direction] === oldName
-                          ? trimmedNextName
-                          : entry.adjacency?.[direction],
-                      ]),
-                  )
-                : undefined,
-            })),
-            tileset: {
-              ...current,
-              defaultMatchingGroup:
-                current.defaultMatchingGroup === oldName
-                  ? trimmedNextName
-                  : current.defaultMatchingGroup,
-              matchingGroups: current.matchingGroups.map((groupName) =>
-                groupName === oldName ? trimmedNextName : groupName,
-              ),
-            },
-          };
-        }),
+        set((state) => ({
+          ...cloneDocument(nextDocument),
+          futureDocuments: state.futureDocuments.slice(1),
+          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+          tileDeleteIndex: null,
+        }));
+        get().syncDerivedState();
+      },
 
       renameMaterial: (oldName, nextName) =>
         set((state) => {
@@ -556,9 +394,7 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
             return {};
           }
 
-          return {
-            futureDocuments: [],
-            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+          return withHistory(state, {
             tileEntries: state.tileEntries.map((entry) =>
               entry.material === oldName ? { ...entry, material: trimmedNextName } : entry,
             ),
@@ -568,8 +404,12 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
                 materialName === oldName ? trimmedNextName : materialName,
               ),
             },
-          };
+          });
         }),
+
+      resetEditor: () => {
+        set(makeInitialSpritesheetEditorState());
+      },
 
       saveTileset: async () => {
         const { tileEntries, tileset } = get();
@@ -605,26 +445,6 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
         }
       },
 
-      redo: () => {
-        const { futureDocuments } = get();
-        const nextDocument = futureDocuments[0];
-        if (!nextDocument) {
-          return;
-        }
-
-        set((state) => ({
-          ...cloneDocument(nextDocument),
-          futureDocuments: state.futureDocuments.slice(1),
-          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
-          tileDeleteIndex: null,
-        }));
-        get().syncDerivedState();
-      },
-
-      resetEditor: () => {
-        set(makeInitialSpritesheetEditorState());
-      },
-
       selectTileset: (fileName) => {
         const entry = editorBundledTilesets.find((candidate) => candidate.fileName === fileName);
         if (!entry) {
@@ -647,112 +467,6 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
       setSelectedFileName: (selectedFileName) => set({ selectedFileName }),
       setSelectedTileId: (selectedTileId) => set({ selectedTileId }),
       setTileDeleteIndex: (tileDeleteIndex) => set({ tileDeleteIndex }),
-
-      updateDefaultMatchingGroup: (groupName) =>
-        set((state) => ({
-          futureDocuments: [],
-          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
-          tileset: state.tileset
-            ? {
-                ...state.tileset,
-                defaultMatchingGroup: groupName || undefined,
-              }
-            : state.tileset,
-        })),
-
-      updateGrid: (key, value) =>
-        set((state) => ({
-          futureDocuments: [],
-          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
-          tileset: state.tileset
-            ? {
-                ...state.tileset,
-                grid: {
-                  ...state.tileset.grid,
-                  [key]: value,
-                },
-              }
-            : state.tileset,
-        })),
-
-      updatePreviewZoom: (nextZoom) =>
-        set({
-          previewZoom: Math.min(6, Math.max(0.5, nextZoom)),
-        }),
-
-      updateTileEntry: (index, updates) =>
-        set((state) => ({
-          futureDocuments: [],
-          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
-          tileEntries: state.tileEntries.map((entry, entryIndex) =>
-            entryIndex === index
-              ? {
-                  ...entry,
-                  ...updates,
-                }
-              : entry,
-          ),
-        })),
-
-      updateTileId: (index, nextId) =>
-        set((state) => {
-          const oldId = state.tileEntries[index]?.id;
-          const nextEntries = state.tileEntries.map((entry, entryIndex) =>
-            entryIndex === index ? { ...entry, id: nextId } : entry,
-          );
-          return {
-            futureDocuments: [],
-            pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
-            selectedTileId: state.selectedTileId === oldId ? nextId : state.selectedTileId,
-            tileEntries: nextEntries,
-          };
-        }),
-
-      updateTilesetId: (id) =>
-        set((state) => ({
-          futureDocuments: [],
-          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
-          tileset: state.tileset ? { ...state.tileset, id } : state.tileset,
-        })),
-
-      updateTilesetImageSrc: (imageSrc) =>
-        set((state) => ({
-          futureDocuments: [],
-          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
-          tileset: state.tileset ? { ...state.tileset, imageSrc } : state.tileset,
-        })),
-
-      updateTileMatchingGroup: (tileId, direction, groupName) =>
-        set((state) => ({
-          futureDocuments: [],
-          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
-          tileEntries: state.tileEntries.map((entry) => {
-            if (entry.id !== tileId) {
-              return entry;
-            }
-
-            const nextAdjacency = { ...(entry.adjacency ?? {}) };
-            if (groupName) {
-              nextAdjacency[direction] = groupName;
-            } else {
-              delete nextAdjacency[direction];
-            }
-
-            return {
-              ...entry,
-              adjacency: Object.keys(nextAdjacency).length > 0 ? nextAdjacency : undefined,
-            };
-          }),
-        })),
-
-      updateTileMaterial: (tileId, materialName) =>
-        set((state) => ({
-          futureDocuments: [],
-          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
-          tileEntries: state.tileEntries.map((entry) =>
-            entry.id === tileId ? { ...entry, material: materialName || undefined } : entry,
-          ),
-        })),
 
       syncDerivedState: () => {
         const state = get();
@@ -789,6 +503,127 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
         }));
         get().syncDerivedState();
       },
+
+      updateGrid: (key, value) =>
+        set((state) =>
+          withHistory(state, {
+            tileset: state.tileset
+              ? {
+                  ...state.tileset,
+                  grid: {
+                    ...state.tileset.grid,
+                    [key]: value,
+                  },
+                }
+              : state.tileset,
+          }),
+        ),
+
+      updatePreviewZoom: (nextZoom) =>
+        set({
+          previewZoom: Math.min(6, Math.max(0.5, nextZoom)),
+        }),
+
+      updateTileEntry: (index, updates) =>
+        set((state) =>
+          withHistory(state, {
+            tileEntries: state.tileEntries.map((entry, entryIndex) =>
+              entryIndex === index ? { ...entry, ...updates } : entry,
+            ),
+          }),
+        ),
+
+      updateTileId: (index, nextId) =>
+        set((state) => {
+          const oldId = state.tileEntries[index]?.id;
+          const nextEntries = state.tileEntries.map((entry, entryIndex) =>
+            entryIndex === index ? { ...entry, id: nextId } : entry,
+          );
+          return withHistory(state, {
+            selectedTileId: state.selectedTileId === oldId ? nextId : state.selectedTileId,
+            tileEntries: nextEntries,
+          });
+        }),
+
+      updateTileMaterial: (tileId, materialName) =>
+        set((state) =>
+          withHistory(state, {
+            tileEntries: state.tileEntries.map((entry) =>
+              entry.id === tileId ? { ...entry, material: materialName || undefined } : entry,
+            ),
+          }),
+        ),
+
+      updateTileTopologyEnabled: (tileId, enabled) =>
+        set((state) =>
+          withHistory(state, {
+            tileEntries: state.tileEntries.map((entry) =>
+              entry.id !== tileId
+                ? entry
+                : {
+                    ...entry,
+                    topology: enabled ? (entry.topology ? { ...entry.topology } : {}) : undefined,
+                  },
+            ),
+          }),
+        ),
+
+      updateTileTopologyRelation: (tileId, direction, relation) =>
+        set((state) =>
+          withHistory(state, {
+            tileEntries: state.tileEntries.map((entry) => {
+              if (entry.id !== tileId || entry.topology === undefined) {
+                return entry;
+              }
+
+              const nextTopology = { ...(entry.topology ?? {}) };
+              if (relation === 'any') {
+                delete nextTopology[direction];
+              } else {
+                nextTopology[direction] = relation;
+              }
+
+              return {
+                ...entry,
+                topology: nextTopology,
+              };
+            }),
+          }),
+        ),
+
+      updateTileVariantGroup: (tileId, variantGroup) =>
+        set((state) =>
+          withHistory(state, {
+            tileEntries: state.tileEntries.map((entry) =>
+              entry.id === tileId
+                ? { ...entry, variantGroup: variantGroup.trim() || undefined }
+                : entry,
+            ),
+          }),
+        ),
+
+      updateTileVariantWeight: (tileId, variantWeight) =>
+        set((state) =>
+          withHistory(state, {
+            tileEntries: state.tileEntries.map((entry) =>
+              entry.id === tileId ? { ...entry, variantWeight: Math.max(0, variantWeight) } : entry,
+            ),
+          }),
+        ),
+
+      updateTilesetId: (id) =>
+        set((state) =>
+          withHistory(state, {
+            tileset: state.tileset ? { ...state.tileset, id } : state.tileset,
+          }),
+        ),
+
+      updateTilesetImageSrc: (imageSrc) =>
+        set((state) =>
+          withHistory(state, {
+            tileset: state.tileset ? { ...state.tileset, imageSrc } : state.tileset,
+          }),
+        ),
     }),
     {
       name: SPRITESHEET_EDITOR_STORAGE_KEY,

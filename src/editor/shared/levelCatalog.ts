@@ -1,6 +1,6 @@
 import type { RawShipInteriorLevel } from '../../scenes/ShipInteriorScene/level';
 import { bundledTilesets } from '../../scenes/ShipInteriorScene/tilesetCatalog';
-import type { EditorTilesetDefinition } from './materials';
+import type { EditorTilesetDefinition } from './editorTileset';
 
 const bundledLevelModules = import.meta.glob('../../assets/levels/*.json', {
   eager: true,
@@ -24,15 +24,14 @@ function getEditorBundledTilesetDefinitions(): EditorTilesetDefinition[] {
       id: tileset.id,
       imageSrc: tileset.imageSrc,
       grid: { ...tileset.grid },
-      ...(tileset.defaultMatchingGroup
-        ? { defaultMatchingGroup: tileset.defaultMatchingGroup }
-        : {}),
       ...(tileset.materials ? { materials: [...tileset.materials] } : {}),
       tiles: tileset.tiles.map((tile) => ({
-        ...(tile.adjacency ? { adjacency: { ...tile.adjacency } } : {}),
         id: tile.id,
         ...(tile.material ? { material: tile.material } : {}),
+        ...(tile.topology ? { topology: { ...tile.topology } } : {}),
         position: [...tile.position],
+        ...(tile.variantGroup ? { variantGroup: tile.variantGroup } : {}),
+        ...(tile.variantWeight !== undefined ? { variantWeight: tile.variantWeight } : {}),
       })),
     };
   });

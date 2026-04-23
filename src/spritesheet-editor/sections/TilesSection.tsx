@@ -39,9 +39,6 @@ export function TilesSection() {
                   <div className="truncate text-sm font-medium text-slate-100">
                     {entry.id.trim() || 'unnamed tile'}
                   </div>
-                  <div className="mt-0.5 text-[11px] text-slate-500">
-                    Column {entry.column}, row {entry.row}
-                  </div>
                 </div>
               </button>
               <button

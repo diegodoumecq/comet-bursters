@@ -2,20 +2,35 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { ConfirmationDialog } from '@/ui/components/ConfirmationDialog';
 import { DropdownMenu } from '@/ui/components/DropdownMenu';
+import {
+  getTileTopologyRelation,
+  tileTopologiesEqual,
+  type TileTopologyDirection,
+} from '../editor/shared/autotile';
 import { shipInteriorTileAssets } from '../scenes/ShipInteriorScene/tileAssets';
 import { GridSection } from './sections/GridSection';
-import { MatchingGroupsSection } from './sections/MatchingGroupsSection';
 import { MaterialsSection } from './sections/MaterialsSection';
-import { PreviewZoomSection } from './sections/PreviewZoomSection';
 import { TilePropertiesSection } from './sections/TilePropertiesSection';
 import { TilesSection } from './sections/TilesSection';
 import { TilesetSection } from './sections/TilesetSection';
-import {
-  oppositeDirections,
-  type AdjacencyDirection,
-  type TileEntry,
-  useSpritesheetEditorStore,
-} from './state/spritesheetEditorStore';
+import { type TileEntry, useSpritesheetEditorStore } from './state/spritesheetEditorStore';
+
+const topologyGrid: Array<Array<TileTopologyDirection | null>> = [
+  ['upLeft', 'up', 'upRight'],
+  ['left', null, 'right'],
+  ['downLeft', 'down', 'downRight'],
+];
+
+const topologyDirectionLabel: Record<TileTopologyDirection, string> = {
+  up: 'Up',
+  right: 'Right',
+  down: 'Down',
+  left: 'Left',
+  upRight: 'Up Right',
+  downRight: 'Down Right',
+  downLeft: 'Down Left',
+  upLeft: 'Up Left',
+};
 
 export function SpritesheetEditorApp() {
   const canRedo = useSpritesheetEditorStore((state) => state.futureDocuments.length > 0);
@@ -35,8 +50,9 @@ export function SpritesheetEditorApp() {
   const tileEntries = useSpritesheetEditorStore((state) => state.tileEntries);
   const tileset = useSpritesheetEditorStore((state) => state.tileset);
   const undo = useSpritesheetEditorStore((state) => state.undo);
-  const updateTileMatchingGroup = useSpritesheetEditorStore(
-    (state) => state.updateTileMatchingGroup,
+  const updatePreviewZoom = useSpritesheetEditorStore((state) => state.updatePreviewZoom);
+  const updateTileTopologyRelation = useSpritesheetEditorStore(
+    (state) => state.updateTileTopologyRelation,
   );
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
@@ -79,31 +95,17 @@ export function SpritesheetEditorApp() {
   const selectedTile = selectedTileIndex >= 0 ? tileEntries[selectedTileIndex] : null;
   const tilePendingDelete =
     tileDeleteIndex === null ? null : (tileEntries[tileDeleteIndex] ?? null);
-  const matchingGroupNames = [...(tileset?.matchingGroups ?? [])].sort((left, right) =>
-    left.localeCompare(right),
-  );
-  const getResolvedMatchingTiles = (tileId: string, direction: AdjacencyDirection): string[] => {
-    const groupName = tileEntries.find((entry) => entry.id === tileId)?.adjacency?.[direction];
-    if (!tileset || !groupName) {
-      return [];
-    }
-
-    const oppositeDirection = oppositeDirections[direction];
-    return tileEntries
-      .map((entry) => entry.id)
-      .filter((candidateTileId) => {
-        const candidateGroupName = tileEntries.find((entry) => entry.id === candidateTileId)
-          ?.adjacency?.[oppositeDirection];
-        return candidateGroupName === groupName;
-      });
-  };
-  const getResolvedMatchingTileEntries = (
-    tileId: string,
-    direction: AdjacencyDirection,
-  ): TileEntry[] => {
-    const resolvedTileIds = new Set(getResolvedMatchingTiles(tileId, direction));
-    return tileEntries.filter((entry) => resolvedTileIds.has(entry.id));
-  };
+  const topologyVariants =
+    selectedTile?.topology !== undefined
+      ? tileEntries
+          .filter(
+            (entry) =>
+              entry.material === selectedTile.material &&
+              entry.topology !== undefined &&
+              tileTopologiesEqual(entry.topology, selectedTile.topology),
+          )
+          .sort((left, right) => left.id.localeCompare(right.id))
+      : [];
   const grid = tileset?.grid;
   const frameWidth = grid?.frameWidth ?? 32;
   const frameHeight = grid?.frameHeight ?? 32;
@@ -115,8 +117,12 @@ export function SpritesheetEditorApp() {
   const rows = grid?.rows ?? 0;
   const previewScale = previewZoom;
   const largestFrameSide = Math.max(1, frameWidth, frameHeight);
-  const adjacencyCenterScale = Math.max(1, Math.min(6, Math.floor(128 / largestFrameSide)));
-  const adjacencyMatchScale = Math.max(1, Math.min(4, Math.floor(64 / largestFrameSide)));
+  const topologyZoomScale = previewZoom / 2;
+  const topologyCenterScale =
+    Math.max(1, Math.min(6, Math.floor(128 / largestFrameSide))) * topologyZoomScale;
+  const topologyVariantScale =
+    Math.max(1, Math.min(4, Math.floor(64 / largestFrameSide))) * topologyZoomScale;
+
   const renderTileSprite = (tile: TileEntry, scale: number) => {
     if (!image) {
       return null;
@@ -149,53 +155,199 @@ export function SpritesheetEditorApp() {
       </div>
     );
   };
-  const renderAdjacencyMatches = (direction: AdjacencyDirection) => {
-    const matches = selectedTile ? getResolvedMatchingTileEntries(selectedTile.id, direction) : [];
+
+  const renderTopologyCell = (direction: TileTopologyDirection) => {
+    const relation = getTileTopologyRelation(selectedTile?.topology, direction);
+    const toneClassName =
+      relation === 'same'
+        ? 'border-cyan-300/40 bg-cyan-500/10 text-cyan-100'
+        : relation === 'different'
+          ? 'border-rose-300/30 bg-rose-500/10 text-rose-100'
+          : 'border-amber-300/30 bg-amber-500/10 text-amber-100';
 
     return (
-      <div className="flex min-h-32 flex-col rounded-xl border border-slate-800 bg-slate-950/70 p-3">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
-            {direction}
-          </div>
-          <div className="text-[11px] text-slate-500">{matches.length} matches</div>
+      <div
+        key={direction}
+        className={`flex min-h-24 flex-col justify-between rounded-xl border p-3 ${toneClassName}`}
+      >
+        <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+          {topologyDirectionLabel[direction]}
         </div>
         {selectedTile ? (
           <select
-            value={selectedTile.adjacency?.[direction] ?? ''}
+            value={relation}
             onChange={(event) =>
-              updateTileMatchingGroup(selectedTile.id, direction, event.currentTarget.value)
+              updateTileTopologyRelation(
+                selectedTile.id,
+                direction,
+                event.currentTarget.value as 'same' | 'different' | 'any',
+              )
             }
-            className="mb-3 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-cyan-400"
+            className="w-full rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1.5 text-xs text-slate-100 outline-none transition focus:border-cyan-400"
           >
-            <option value="">No group</option>
-            {matchingGroupNames.map((groupName) => (
-              <option key={groupName} value={groupName}>
-                {groupName}
-              </option>
-            ))}
+            <option value="any">Any</option>
+            <option value="same">Same</option>
+            <option value="different">Different</option>
           </select>
-        ) : null}
-        {matches.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {matches.map((match, index) => (
-              <button
-                key={`${direction}-${match.id}-${index}`}
-                type="button"
-                onClick={() => setSelectedTileId(match.id)}
-                className="rounded-lg border border-transparent p-1 text-left transition hover:border-cyan-300/60 hover:bg-cyan-500/10"
-                title={`${match.id} [${match.column}, ${match.row}]`}
-              >
-                {renderTileSprite(match, adjacencyMatchScale)}
-                <div className="mt-1 max-w-16 truncate text-[10px] text-slate-400">
-                  {match.id.trim() || 'unnamed'}
-                </div>
-              </button>
-            ))}
-          </div>
         ) : (
-          <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-slate-800 px-3 py-4 text-center text-xs text-slate-600">
-            No matches
+          <div className="text-sm font-medium capitalize">{relation}</div>
+        )}
+      </div>
+    );
+  };
+
+  const renderSheetPreview = () => {
+    if (!image) {
+      return null;
+    }
+
+    return (
+      <div className="h-full w-full overflow-auto border border-slate-800 bg-slate-950">
+        <div className="flex min-h-full min-w-full items-center justify-center">
+          <div
+            className="relative shrink-0"
+            style={{
+              height: image.height * previewScale,
+              width: image.width * previewScale,
+            }}
+          >
+            <img
+              src={image.src}
+              alt={tileset?.id ?? 'spritesheet'}
+              draggable={false}
+              className="absolute inset-0 max-w-none"
+              style={{
+                height: image.height * previewScale,
+                imageRendering: 'pixelated',
+                width: image.width * previewScale,
+              }}
+            />
+            {Array.from({ length: Math.max(0, rows) }).flatMap((_, row) =>
+              Array.from({ length: Math.max(0, columns) }).map((__, column) => {
+                const left = (offsetX + column * (frameWidth + gapX)) * previewScale;
+                const top = (offsetY + row * (frameHeight + gapY)) * previewScale;
+                const tile = tileEntries.find((entry) => entry.column === column && entry.row === row);
+                const isSelected = selectedTile?.column === column && selectedTile.row === row;
+                return (
+                  <button
+                    key={`${column}-${row}`}
+                    type="button"
+                    onClick={() => {
+                      if (tile) {
+                        setSelectedTileId(tile.id);
+                      }
+                    }}
+                    className={`absolute border bg-transparent ${
+                      isSelected
+                        ? 'border-yellow-300 shadow-[0_0_0_2px_rgba(250,204,21,0.35)]'
+                        : tile
+                          ? 'border-cyan-300/70'
+                          : 'border-slate-400/20'
+                    }`}
+                    style={{
+                      height: frameHeight * previewScale,
+                      left,
+                      top,
+                      width: frameWidth * previewScale,
+                    }}
+                    title={tile ? `${tile.id} [${column}, ${row}]` : `[${column}, ${row}]`}
+                  />
+                );
+              }),
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTopologyPreview = () => {
+    if (!image) {
+      return null;
+    }
+
+    return (
+      <div className="h-full w-full overflow-auto rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
+        {selectedTile ? (
+          selectedTile.topology !== undefined ? (
+            <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col gap-4">
+              <div className="grid w-full grid-cols-3 gap-3 md:gap-4">
+                {topologyGrid.flatMap((row, rowIndex) =>
+                  row.map((direction, columnIndex) =>
+                    direction ? (
+                      renderTopologyCell(direction)
+                    ) : (
+                      <div
+                        key={`selected-${rowIndex}-${columnIndex}`}
+                        className="flex min-h-24 items-center justify-center rounded-2xl border border-cyan-300/50 bg-cyan-500/10 p-4 md:min-h-28 md:p-5"
+                      >
+                        {renderTileSprite(selectedTile, topologyCenterScale)}
+                      </div>
+                    ),
+                  ),
+                )}
+              </div>
+
+              <div className="flex min-h-0 flex-col rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                      Variants
+                    </div>
+                    <div className="mt-1 text-sm text-slate-300">
+                      Tiles with the exact same topology and material.
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-slate-500">{topologyVariants.length} matches</div>
+                </div>
+
+                <div className="mb-4 rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 text-[11px] leading-5 text-slate-400">
+                  `same` neighbors share this tile&apos;s material. `different` means empty space or
+                  another material.
+                </div>
+
+                {topologyVariants.length > 0 ? (
+                  <div className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-3">
+                    {topologyVariants.map((variant) => (
+                      <button
+                        key={variant.id}
+                        type="button"
+                        onClick={() => setSelectedTileId(variant.id)}
+                        className={`rounded-xl border p-2 text-left transition ${
+                          variant.id === selectedTile.id
+                            ? 'border-cyan-300 bg-cyan-500/15'
+                            : 'border-slate-800 bg-slate-950/70 hover:border-slate-600'
+                        }`}
+                        title={`${variant.id} [${variant.column}, ${variant.row}]`}
+                      >
+                        <div className="flex justify-center">{renderTileSprite(variant, topologyVariantScale)}</div>
+                        <div className="mt-2 truncate text-xs text-slate-300">
+                          {variant.id.trim() || 'unnamed'}
+                        </div>
+                        <div className="mt-1 text-[10px] text-slate-500">
+                          {variant.variantGroup ?? 'no-group'}
+                        </div>
+                        <div className="text-[10px] text-slate-500">
+                          weight {variant.variantWeight ?? 1}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-slate-800 p-4 text-sm text-slate-500">
+                    No exact topology variants.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-800 text-sm text-slate-500">
+              Autotile is disabled for the selected tile.
+            </div>
+          )
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-slate-500">
+            Select a tile to preview topology.
           </div>
         )}
       </div>
@@ -327,10 +479,8 @@ export function SpritesheetEditorApp() {
           <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
             <TilesetSection />
             <GridSection />
-            <PreviewZoomSection />
             <TilesSection />
             <MaterialsSection />
-            <MatchingGroupsSection />
             <TilePropertiesSection />
           </div>
         ) : (
@@ -350,11 +500,68 @@ export function SpritesheetEditorApp() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="inline-flex rounded-xl border border-slate-800 bg-slate-950/80 p-1">
+              <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/80 px-2 py-1">
+                <button
+                  type="button"
+                  onClick={() => updatePreviewZoom(previewZoom - 0.5)}
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-800/70 hover:text-white"
+                  aria-label="Zoom out"
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 20 20"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  >
+                    <path d="M5 10h10" />
+                  </svg>
+                </button>
+                <input
+                  id="spritesheet-preview-zoom"
+                  type="range"
+                  min="50"
+                  max="600"
+                  step="50"
+                  value={Math.round(previewZoom * 100)}
+                  onChange={(event) => updatePreviewZoom(Number(event.target.value) / 100)}
+                  className="w-28"
+                  aria-label="Preview zoom"
+                />
+                <button
+                  type="button"
+                  onClick={() => updatePreviewZoom(previewZoom + 0.5)}
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-300 transition hover:bg-slate-800/70 hover:text-white"
+                  aria-label="Zoom in"
+                >
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 20 20"
+                    className="h-4 w-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  >
+                    <path d="M10 5v10" />
+                    <path d="M5 10h10" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updatePreviewZoom(2)}
+                  className="rounded-lg px-2 py-1.5 text-xs text-slate-300 transition hover:bg-slate-800/70 hover:text-white"
+                >
+                  {Math.round(previewZoom * 100)}%
+                </button>
+              </div>
+              <div className="inline-flex rounded-xl border border-slate-800 bg-slate-950/80 p-1 2xl:hidden">
                 {(
                   [
                     ['sheet', 'Sheet'],
-                    ['adjacency', 'Adjacency'],
+                    ['topology', 'Topology'],
                   ] as const
                 ).map(([mode, label]) => (
                   <button
@@ -371,6 +578,9 @@ export function SpritesheetEditorApp() {
                   </button>
                 ))}
               </div>
+              <div className="hidden rounded-xl border border-slate-800 bg-slate-950/80 px-3 py-2 text-xs uppercase tracking-[0.16em] text-slate-400 2xl:block">
+                Sheet + Topology
+              </div>
               {image ? (
                 <div className="text-xs text-slate-500">
                   {image.width} x {image.height}
@@ -380,94 +590,19 @@ export function SpritesheetEditorApp() {
           </div>
 
           <div className="min-h-0 flex-1">
-            {image && previewMode === 'sheet' ? (
-              <div className="h-full w-full overflow-auto border border-slate-800 bg-slate-950">
-                <div className="flex min-h-full min-w-full items-center justify-center">
-                  <div
-                    className="relative shrink-0"
-                    style={{
-                      height: image.height * previewScale,
-                      width: image.width * previewScale,
-                    }}
-                  >
-                    <img
-                      src={image.src}
-                      alt={tileset?.id ?? 'spritesheet'}
-                      draggable={false}
-                      className="absolute inset-0 max-w-none"
-                      style={{
-                        height: image.height * previewScale,
-                        imageRendering: 'pixelated',
-                        width: image.width * previewScale,
-                      }}
-                    />
-                    {Array.from({ length: Math.max(0, rows) }).flatMap((_, row) =>
-                      Array.from({ length: Math.max(0, columns) }).map((__, column) => {
-                        const left = (offsetX + column * (frameWidth + gapX)) * previewScale;
-                        const top = (offsetY + row * (frameHeight + gapY)) * previewScale;
-                        const tile = tileEntries.find(
-                          (entry) => entry.column === column && entry.row === row,
-                        );
-                        const isSelected =
-                          selectedTile?.column === column && selectedTile.row === row;
-                        return (
-                          <button
-                            key={`${column}-${row}`}
-                            type="button"
-                            onClick={() => {
-                              if (tile) {
-                                setSelectedTileId(tile.id);
-                              }
-                            }}
-                            className={`absolute border bg-transparent ${
-                              isSelected
-                                ? 'border-yellow-300 shadow-[0_0_0_2px_rgba(250,204,21,0.35)]'
-                                : tile
-                                  ? 'border-cyan-300/70'
-                                  : 'border-slate-400/20'
-                            }`}
-                            style={{
-                              height: frameHeight * previewScale,
-                              left,
-                              top,
-                              width: frameWidth * previewScale,
-                            }}
-                            title={tile ? `${tile.id} [${column}, ${row}]` : `[${column}, ${row}]`}
-                          />
-                        );
-                      }),
-                    )}
-                  </div>
-                </div>
+            {image ? (
+              <div className="hidden h-full min-h-0 2xl:grid 2xl:grid-cols-2 2xl:gap-4">
+                <div className="min-h-0 overflow-hidden rounded-2xl">{renderSheetPreview()}</div>
+                <div className="min-h-0 overflow-hidden rounded-2xl">{renderTopologyPreview()}</div>
               </div>
             ) : null}
 
-            {image && previewMode === 'adjacency' ? (
-              <div className="h-full w-full overflow-auto rounded-2xl border border-slate-800 bg-slate-950/70 p-5">
-                {selectedTile ? (
-                  <div className="grid min-h-full min-w-176 grid-cols-[minmax(10rem,1fr)_auto_minmax(10rem,1fr)] grid-rows-[auto_auto_auto] items-center gap-4">
-                    <div className="col-start-2">{renderAdjacencyMatches('up')}</div>
-                    <div className="col-start-1 row-start-2">{renderAdjacencyMatches('left')}</div>
-                    <div className="col-start-2 row-start-2 flex flex-col items-center justify-center gap-3 rounded-2xl border border-cyan-300/50 bg-cyan-500/10 p-5">
-                      {renderTileSprite(selectedTile, adjacencyCenterScale)}
-                      <div className="max-w-44 text-center">
-                        <div className="truncate text-sm font-semibold text-cyan-100">
-                          {selectedTile.id.trim() || 'unnamed tile'}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-500">
-                          Column {selectedTile.column}, row {selectedTile.row}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="col-start-3 row-start-2">{renderAdjacencyMatches('right')}</div>
-                    <div className="col-start-2 row-start-3">{renderAdjacencyMatches('down')}</div>
-                  </div>
-                ) : (
-                  <div className="flex h-full items-center justify-center text-sm text-slate-500">
-                    Select a tile to preview adjacency matches.
-                  </div>
-                )}
-              </div>
+            {image && previewMode === 'sheet' ? (
+              <div className="h-full 2xl:hidden">{renderSheetPreview()}</div>
+            ) : null}
+
+            {image && previewMode === 'topology' ? (
+              <div className="h-full 2xl:hidden">{renderTopologyPreview()}</div>
             ) : null}
 
             {!image ? (

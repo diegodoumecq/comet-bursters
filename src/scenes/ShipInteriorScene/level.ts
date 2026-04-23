@@ -1,9 +1,8 @@
-import shipInteriorLevelUrl from '../../assets/levels/shipInterior.level.json?url';
-
 import { computeAlphaMask } from '@/assets';
 import type { AlphaMask } from '@/constants';
 import { loadSpriteSheet } from '@/spritesheet';
 import type { SpriteSheet, SpriteSheetGridConfig, TilemapLayer } from '@/spritesheet';
+import shipInteriorLevelUrl from '../../assets/levels/shipInterior.level.json?url';
 import { resolveShipInteriorTileAssetUrl } from './tileAssets';
 import { getBundledTilesetDefinitions } from './tilesetCatalog';
 
@@ -146,7 +145,9 @@ function clampOpacity(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-export function getLevelGrid(level: { grid?: ShipInteriorLevelGridDefinition }): ShipInteriorLevelGridDefinition {
+export function getLevelGrid(level: {
+  grid?: ShipInteriorLevelGridDefinition;
+}): ShipInteriorLevelGridDefinition {
   return {
     cellWidth:
       level.grid && isFiniteNumber(level.grid.cellWidth) && level.grid.cellWidth > 0
@@ -187,10 +188,7 @@ function validateTileTuple(value: unknown, label: string): TileCoordinateTuple {
   return value as TileCoordinateTuple;
 }
 
-function normalizeTilesetTiles(
-  tiles: unknown,
-  label: string,
-): ShipInteriorTilesetTileDefinition[] {
+function normalizeTilesetTiles(tiles: unknown, label: string): ShipInteriorTilesetTileDefinition[] {
   if (Array.isArray(tiles)) {
     return tiles.map((tile, index) => {
       if (!tile || typeof tile !== 'object') {
@@ -205,7 +203,7 @@ function normalizeTilesetTiles(
       validateTileTuple(tileDefinition.position, `${label}.tiles[${index}].position`);
 
       return {
-        id: tileDefinition.id,
+        id: tileDefinition.id.trim(),
         position: tileDefinition.position,
       };
     });
@@ -401,7 +399,9 @@ export async function fetchRawShipInteriorLevel(): Promise<RawShipInteriorLevel>
   return (await response.json()) as RawShipInteriorLevel;
 }
 
-export async function parseShipInteriorLevel(raw: RawShipInteriorLevel): Promise<ShipInteriorLevel> {
+export async function parseShipInteriorLevel(
+  raw: RawShipInteriorLevel,
+): Promise<ShipInteriorLevel> {
   if (
     !raw ||
     typeof raw !== 'object' ||
