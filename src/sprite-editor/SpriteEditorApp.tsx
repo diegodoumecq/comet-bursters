@@ -380,6 +380,20 @@ export function SpriteEditorApp() {
     setMoveOffset({ x: 0, y: 0 });
   };
 
+  const clearSelection = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (canvas && ctx && moveOffset.x !== 0 && moveOffset.y !== 0) {
+      commitMoveOffset();
+    }
+
+    selectionPixelsRef.current = null;
+    selectionDragOriginRef.current = null;
+    moveDragOriginRef.current = null;
+    setSelectionRect(null);
+    setMoveOffset({ x: 0, y: 0 });
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !activeAsset) {
@@ -775,6 +789,11 @@ export function SpriteEditorApp() {
       if (key === '0') {
         event.preventDefault();
         centerCanvasInViewport(zoom);
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        clearSelection();
       }
     };
 
@@ -814,16 +833,22 @@ export function SpriteEditorApp() {
 
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
+    const activeTool = event.altKey ? 'picker' : tool;
     if (!canvas || !ctx) {
+      if (activeTool === 'select' && selectionRect) {
+        clearSelection();
+      }
       return;
     }
 
     const point = getPixelCoordinates(canvas, event);
     if (!point) {
+      if (activeTool === 'select' && selectionRect) {
+        clearSelection();
+      }
       return;
     }
 
-    const activeTool = event.altKey ? 'picker' : tool;
     if (activeTool === 'select') {
       if (moveOffset.x !== 0 || moveOffset.y !== 0) {
         commitMoveOffset();
@@ -839,14 +864,12 @@ export function SpriteEditorApp() {
     if (activeTool === 'move') {
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
-      if (moveSourceImageDataRef.current === null) {
-        moveSourceImageDataRef.current = cloneImageData(ctx);
-      }
-      if (selectionRect && !selectionPixelsRef.current) {
-        selectionPixelsRef.current = cropImageData(moveSourceImageDataRef.current, selectionRect);
-      }
       if (moveOffset.x === 0 && moveOffset.y === 0) {
         commitSnapshot();
+      }
+      moveSourceImageDataRef.current = cloneImageData(ctx);
+      if (selectionRect) {
+        selectionPixelsRef.current = cropImageData(moveSourceImageDataRef.current, selectionRect);
       }
       moveDragOriginRef.current = {
         startOffsetX: moveOffset.x,
@@ -1645,19 +1668,19 @@ export function SpriteEditorApp() {
             </div>
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
-              <div className="flex flex-wrap items-center gap-4">
-                <div>Canvas {canvasSizeLabel}</div>
-                <div>Tool {tool}</div>
-                <div>Brush {brushSize}px</div>
-                <div>Zoom {zoom}x</div>
+            <div className="flex flex-wrap items-center gap-4">
+              <div>Canvas {canvasSizeLabel}</div>
+              <div>Tool {tool}</div>
+              <div>Brush {brushSize}px</div>
+              <div>Zoom {zoom}x</div>
                 <div>
                   Selection{' '}
                   {displayedSelectionRect
-                    ? `${displayedSelectionRect.width} x ${displayedSelectionRect.height}`
-                    : '—'}
-                </div>
-                <div>Cursor {hoveredPixel ? `${hoveredPixel.x}, ${hoveredPixel.y}` : '—'}</div>
+                  ? `${displayedSelectionRect.width} x ${displayedSelectionRect.height}`
+                  : '—'}
               </div>
+              <div>Cursor {hoveredPixel ? `${hoveredPixel.x}, ${hoveredPixel.y}` : '—'}</div>
+            </div>
               <div className="flex flex-wrap items-center gap-4 text-xs uppercase tracking-[0.16em] text-slate-500">
                 <span>`Alt` pick</span>
                 <span>`Space` drag</span>
