@@ -463,6 +463,24 @@ export function SpriteEditorApp() {
     };
   }, [isActionsOpen]);
 
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const handleNativeWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+      }
+    };
+
+    viewport.addEventListener('wheel', handleNativeWheel, { passive: false });
+    return () => {
+      viewport.removeEventListener('wheel', handleNativeWheel);
+    };
+  }, []);
+
   const commitSnapshot = () => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
@@ -698,6 +716,16 @@ export function SpriteEditorApp() {
       if ((event.metaKey || event.ctrlKey) && key === 's') {
         event.preventDefault();
         void handleSave();
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && (key === '+' || key === '=')) {
+        event.preventDefault();
+        applyZoom(zoom + 2);
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && key === '-') {
+        event.preventDefault();
+        applyZoom(zoom - 2);
         return;
       }
       if ((event.metaKey || event.ctrlKey) && key === 'z') {
