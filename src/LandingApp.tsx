@@ -15,7 +15,7 @@ export function LandingApp() {
           </p>
         </header>
 
-        <main className="grid flex-1 gap-6 lg:grid-cols-3">
+        <main className="grid flex-1 gap-6 lg:grid-cols-2 2xl:grid-cols-4">
           <a
             href="/game.html"
             className="group rounded-3xl border border-slate-800 bg-slate-900/70 p-8 transition hover:border-cyan-400/50 hover:bg-slate-900"
@@ -59,6 +59,21 @@ export function LandingApp() {
               named tile coordinates.
             </p>
             <div className="mt-10 text-sm font-medium text-cyan-200">Go to spritesheets</div>
+          </a>
+
+          <a
+            href="/sprite-editor.html"
+            className="group rounded-3xl border border-slate-800 bg-slate-900/70 p-8 transition hover:border-cyan-400/50 hover:bg-slate-900"
+          >
+            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-300">
+              Paint
+            </div>
+            <h2 className="mt-4 text-3xl font-semibold text-white">Open Sprite Editor</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-400">
+              Browse PNG assets, paint directly on them pixel by pixel, and save the edited image
+              back into `src/assets`.
+            </p>
+            <div className="mt-10 text-sm font-medium text-cyan-200">Go to sprite editor</div>
           </a>
         </main>
       </div>

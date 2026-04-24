@@ -140,6 +140,62 @@ function createEditorSavePlugin(): Plugin {
           );
         }
       });
+      server.middlewares.use('/__editor/save-image', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+
+        try {
+          const chunks: Uint8Array[] = [];
+          for await (const chunk of req) {
+            chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+          }
+
+          const rawBody = Buffer.concat(chunks).toString('utf8');
+          const payload = JSON.parse(rawBody) as {
+            assetPath?: string;
+            pngDataUrl?: string;
+          };
+
+          if (!payload.assetPath || typeof payload.assetPath !== 'string') {
+            throw new Error('Missing assetPath');
+          }
+          if (!payload.assetPath.endsWith('.png')) {
+            throw new Error('Only PNG assets can be saved');
+          }
+          if (!payload.pngDataUrl || typeof payload.pngDataUrl !== 'string') {
+            throw new Error('Missing pngDataUrl');
+          }
+
+          const match = payload.pngDataUrl.match(/^data:image\/png;base64,(.+)$/);
+          if (!match) {
+            throw new Error('Invalid PNG data payload');
+          }
+
+          const assetsDir = path.resolve(server.config.root, 'src/assets');
+          const targetFilePath = path.resolve(assetsDir, payload.assetPath);
+          if (!targetFilePath.startsWith(assetsDir + path.sep)) {
+            throw new Error('Resolved path is outside assets directory');
+          }
+
+          await fs.writeFile(targetFilePath, Buffer.from(match[1], 'base64'));
+
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ assetPath: payload.assetPath, ok: true }));
+        } catch (error) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              error: error instanceof Error ? error.message : 'Failed to save image',
+            }),
+          );
+        }
+      });
     },
   };
 }
@@ -161,6 +217,7 @@ export default defineConfig({
         main: path.resolve(__dirname, 'index.html'),
         editor: path.resolve(__dirname, 'editor.html'),
         spritesheetEditor: path.resolve(__dirname, 'spritesheet-editor.html'),
+        spriteEditor: path.resolve(__dirname, 'sprite-editor.html'),
         game: path.resolve(__dirname, 'game.html'),
       },
     },
