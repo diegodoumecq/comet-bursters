@@ -1,4 +1,4 @@
-export { loadSpriteSheet, SpriteSheet } from './SpriteSheet';
+export { inferSpriteSheetGridSize, loadSpriteSheet, SpriteSheet } from './SpriteSheet';
 export { createTilePlacement, drawTilemapLayer } from './tilemap';
 export type {
   DrawSpriteFrameOptions,

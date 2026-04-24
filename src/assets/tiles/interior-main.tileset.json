@@ -7,9 +7,7 @@
     "offsetX": 0,
     "offsetY": 0,
     "gapX": 0,
-    "gapY": 0,
-    "columns": 4,
-    "rows": 5
+    "gapY": 0
   },
   "materials": [
     "wall",
@@ -43,7 +41,8 @@
         "up": "different",
         "right": "same",
         "down": "same",
-        "left": "different"
+        "left": "different",
+        "downRight": "different"
       },
       "variantGroup": "wall_corner_down_right",
       "variantWeight": 2
@@ -79,6 +78,42 @@
       },
       "variantGroup": "wall_horizontal",
       "variantWeight": 3
+    },
+    {
+      "id": "wall_horizontal_panel_c",
+      "material": "wall",
+      "position": [
+        4,
+        0
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "different",
+        "left": "same",
+        "upRight": "same",
+        "upLeft": "same"
+      },
+      "variantGroup": "wall_horizontal",
+      "variantWeight": 2
+    },
+    {
+      "id": "wall_horizontal_split_b",
+      "material": "wall",
+      "position": [
+        5,
+        0
+      ],
+      "topology": {
+        "up": "different",
+        "right": "same",
+        "down": "same",
+        "left": "same",
+        "downRight": "same",
+        "downLeft": "same"
+      },
+      "variantGroup": "wall_t_up",
+      "variantWeight": 2
     },
     {
       "id": "wall_top_notch_right_a",
@@ -139,10 +174,48 @@
         "up": "same",
         "right": "same",
         "down": "different",
-        "left": "same"
+        "left": "same",
+        "upRight": "different",
+        "upLeft": "different"
       },
       "variantGroup": "wall_t_down",
       "variantWeight": 2
+    },
+    {
+      "id": "wall_t_down_a",
+      "material": "wall",
+      "position": [
+        4,
+        1
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "different",
+        "left": "same",
+        "upRight": "same",
+        "upLeft": "different"
+      },
+      "variantGroup": "wall_t_down",
+      "variantWeight": 1
+    },
+    {
+      "id": "wall_t_down_b",
+      "material": "wall",
+      "position": [
+        5,
+        1
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "different",
+        "left": "same",
+        "upRight": "different",
+        "upLeft": "same"
+      },
+      "variantGroup": "wall_t_down",
+      "variantWeight": 1
     },
     {
       "id": "wall_right_with_top_left_edge",
@@ -204,6 +277,40 @@
       "variantWeight": 2
     },
     {
+      "id": "wall_corner_down_right_b",
+      "material": "wall",
+      "position": [
+        4,
+        2
+      ],
+      "topology": {
+        "up": "different",
+        "right": "same",
+        "down": "same",
+        "left": "different",
+        "downRight": "same"
+      },
+      "variantGroup": "wall_corner_down_right",
+      "variantWeight": 1
+    },
+    {
+      "id": "wall_horizontal_panel_d",
+      "material": "wall",
+      "position": [
+        5,
+        2
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "different",
+        "left": "different",
+        "upRight": "same"
+      },
+      "variantGroup": "wall_horizontal",
+      "variantWeight": 1
+    },
+    {
       "id": "wall_inner_top_left",
       "material": "wall",
       "position": [
@@ -214,7 +321,8 @@
         "up": "different",
         "right": "different",
         "down": "same",
-        "left": "same"
+        "left": "same",
+        "downLeft": "different"
       },
       "variantGroup": "wall_corner_down_left",
       "variantWeight": 2
@@ -246,7 +354,8 @@
         "up": "same",
         "right": "same",
         "down": "different",
-        "left": "different"
+        "left": "different",
+        "upRight": "same"
       },
       "variantGroup": "wall_end_right",
       "variantWeight": 2
@@ -262,10 +371,46 @@
         "up": "same",
         "right": "different",
         "down": "same",
-        "left": "same"
+        "left": "same",
+        "downLeft": "different",
+        "upLeft": "different"
       },
       "variantGroup": "wall_t_right",
       "variantWeight": 2
+    },
+    {
+      "id": "wall_end_right_b",
+      "material": "wall",
+      "position": [
+        4,
+        3
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "same",
+        "left": "different"
+      },
+      "variantGroup": "wall_t_left",
+      "variantWeight": 1
+    },
+    {
+      "id": "wall_vertical_c",
+      "material": "wall",
+      "position": [
+        5,
+        3
+      ],
+      "topology": {
+        "up": "same",
+        "right": "different",
+        "down": "same",
+        "left": "same",
+        "downLeft": "same",
+        "upLeft": "same"
+      },
+      "variantGroup": "wall_vertical",
+      "variantWeight": 1
     },
     {
       "id": "wall_debris_left",
@@ -310,10 +455,65 @@
         "up": "same",
         "right": "same",
         "down": "same",
-        "left": "same"
+        "left": "same",
+        "upRight": "same",
+        "downRight": "same",
+        "downLeft": "same",
+        "upLeft": "same"
       },
       "variantGroup": "wall_cross",
       "variantWeight": 2
+    },
+    {
+      "id": "wall_end_left_b",
+      "material": "wall",
+      "position": [
+        3,
+        4
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "different",
+        "left": "different",
+        "upRight": "same"
+      },
+      "variantGroup": "wall_end_left",
+      "variantWeight": 1
+    },
+    {
+      "id": "wall_end_right_c",
+      "material": "wall",
+      "position": [
+        4,
+        4
+      ],
+      "topology": {
+        "up": "same",
+        "right": "different",
+        "down": "different",
+        "left": "same",
+        "upLeft": "same"
+      },
+      "variantGroup": "wall_end_right",
+      "variantWeight": 1
+    },
+    {
+      "id": "wall_corner_down_right_c",
+      "material": "wall",
+      "position": [
+        5,
+        4
+      ],
+      "topology": {
+        "up": "different",
+        "right": "different",
+        "down": "same",
+        "left": "same",
+        "downLeft": "same"
+      },
+      "variantGroup": "wall_corner_down_right",
+      "variantWeight": 1
     }
   ]
 }

@@ -1,6 +1,7 @@
 import {
+  cardinalTopologyDirections,
   getTileTopologyRelation,
-  getTileTopologySpecificity,
+  getTileTopologySpecificityForDirections,
   getTileVariantWeight,
   topologyDirectionOffsets,
   topologyDirections,
@@ -88,16 +89,17 @@ function getTopologyRelationForDirection(
   return neighborMaterial === cell.material ? 'same' : 'different';
 }
 
-function tileMatchesTopology(
+function tileMatchesTopologyForDirections(
   tile: EditorTilesetTileDefinition,
   cell: MaterialCell,
   materialsByCellKey: Map<string, string>,
+  directions: readonly TileTopologyDirection[],
 ): boolean {
   if (tile.topology === undefined) {
     return false;
   }
 
-  return topologyDirections.every((direction) => {
+  return directions.every((direction) => {
     const expectedRelation = getTileTopologyRelation(tile.topology, direction);
     return (
       expectedRelation === 'any' ||
@@ -130,38 +132,50 @@ function chooseAutotileVariant(
   layerId: string,
   cell: MaterialCell,
   candidates: EditorTilesetTileDefinition[],
+  specificityDirections: readonly TileTopologyDirection[],
 ): EditorTilesetTileDefinition | null {
   if (candidates.length === 0) {
     return null;
   }
 
   const highestSpecificity = Math.max(
-    ...candidates.map((candidate) => getTileTopologySpecificity(candidate.topology)),
+    ...candidates.map((candidate) =>
+      getTileTopologySpecificityForDirections(candidate.topology, specificityDirections),
+    ),
   );
-  const exactCandidates = candidates
-    .filter((candidate) => getTileTopologySpecificity(candidate.topology) === highestSpecificity)
-    .sort(compareTileVariants);
-  const weightedCandidates = exactCandidates.flatMap((candidate) => {
-    const weight = getTileVariantWeight(candidate.variantWeight);
-    return weight > 0 ? [[candidate, weight] as const] : [];
-  });
 
-  if (weightedCandidates.length === 0) {
-    return null;
-  }
+  for (let specificity = highestSpecificity; specificity >= 0; specificity -= 1) {
+    const exactCandidates = candidates
+      .filter(
+        (candidate) =>
+          getTileTopologySpecificityForDirections(candidate.topology, specificityDirections) ===
+          specificity,
+      )
+      .sort(compareTileVariants);
+    const weightedCandidates = exactCandidates.flatMap((candidate) => {
+      const weight = getTileVariantWeight(candidate.variantWeight);
+      return weight > 0 ? [[candidate, weight] as const] : [];
+    });
 
-  const totalWeight = weightedCandidates.reduce((sum, [, weight]) => sum + weight, 0);
-  const targetWeight = hashText(`${layerId}:${cell.material}:${cell.x},${cell.y}`) % totalWeight;
-
-  let remainingWeight = targetWeight;
-  for (const [candidate, weight] of weightedCandidates) {
-    if (remainingWeight < weight) {
-      return candidate;
+    if (weightedCandidates.length === 0) {
+      continue;
     }
-    remainingWeight -= weight;
+
+    const totalWeight = weightedCandidates.reduce((sum, [, weight]) => sum + weight, 0);
+    const targetWeight = hashText(`${layerId}:${cell.material}:${cell.x},${cell.y}`) % totalWeight;
+
+    let remainingWeight = targetWeight;
+    for (const [candidate, weight] of weightedCandidates) {
+      if (remainingWeight < weight) {
+        return candidate;
+      }
+      remainingWeight -= weight;
+    }
+
+    return weightedCandidates[0]?.[0] ?? null;
   }
 
-  return weightedCandidates[0]?.[0] ?? null;
+  return null;
 }
 
 function resolveMaterialTilesForLayer(
@@ -185,13 +199,27 @@ function resolveMaterialTilesForLayer(
 
   return new Map(
     cells.flatMap((cell) => {
-      const candidates = editorTileset.tiles.filter(
-        (tile) =>
-          tile.material === cell.material &&
-          tile.topology !== undefined &&
-          tileMatchesTopology(tile, cell, materialsByCellKey),
+      const materialTiles = editorTileset.tiles.filter(
+        (tile) => tile.material === cell.material && tile.topology !== undefined,
       );
-      const resolvedTile = chooseAutotileVariant(layerId, cell, candidates);
+      const exactCandidates = materialTiles.filter((tile) =>
+        tileMatchesTopologyForDirections(tile, cell, materialsByCellKey, topologyDirections),
+      );
+      const resolvedTile =
+        chooseAutotileVariant(layerId, cell, exactCandidates, topologyDirections) ??
+        chooseAutotileVariant(
+          layerId,
+          cell,
+          materialTiles.filter((tile) =>
+            tileMatchesTopologyForDirections(
+              tile,
+              cell,
+              materialsByCellKey,
+              cardinalTopologyDirections,
+            ),
+          ),
+          cardinalTopologyDirections,
+        );
       return resolvedTile ? [[cell.key, resolvedTile] as const] : [];
     }),
   );

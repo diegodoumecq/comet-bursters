@@ -320,8 +320,6 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
               offsetY: 0,
               gapX: 0,
               gapY: 0,
-              columns: 1,
-              rows: 1,
             },
             tiles: [],
           },

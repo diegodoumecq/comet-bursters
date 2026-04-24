@@ -113,8 +113,19 @@ export function SpritesheetEditorApp() {
   const offsetY = grid?.offsetY ?? 0;
   const gapX = grid?.gapX ?? 0;
   const gapY = grid?.gapY ?? 0;
-  const columns = grid?.columns ?? 0;
-  const rows = grid?.rows ?? 0;
+  const inferredGridSize =
+    image && grid
+      ? inferSpriteSheetGridSize(image.width, image.height, {
+          frameWidth,
+          frameHeight,
+          offsetX,
+          offsetY,
+          gapX,
+          gapY,
+        })
+      : { columns: 0, rows: 0 };
+  const columns = inferredGridSize.columns;
+  const rows = inferredGridSize.rows;
   const previewScale = previewZoom;
   const largestFrameSide = Math.max(1, frameWidth, frameHeight);
   const topologyZoomScale = previewZoom / 2;
@@ -644,3 +655,4 @@ export function SpritesheetEditorApp() {
     </div>
   );
 }
+import { inferSpriteSheetGridSize } from '@/spritesheet';

@@ -13,9 +13,7 @@
         "offsetX": 0,
         "offsetY": 0,
         "gapX": 0,
-        "gapY": 0,
-        "columns": 8,
-        "rows": 8
+        "gapY": 0
       },
       "tiles": {
         "floor_a": [

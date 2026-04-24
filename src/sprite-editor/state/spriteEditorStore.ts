@@ -10,7 +10,6 @@ export type SpriteEditorInteractionMode = 'idle' | 'paint' | 'pan' | 'move' | 's
 export type RgbaColor = { r: number; g: number; b: number; a: number };
 export type PixelRect = { x: number; y: number; width: number; height: number };
 export type GridSettings = {
-  columns?: number;
   frameCount?: number;
   frameHeight: number;
   frameWidth: number;
@@ -18,7 +17,6 @@ export type GridSettings = {
   gapY?: number;
   offsetX?: number;
   offsetY?: number;
-  rows?: number;
 };
 export type ViewportOffset = { x: number; y: number };
 export type HoveredPixel = { x: number; y: number } | null;
@@ -85,7 +83,6 @@ function normalizeOptionalGridValue(value?: number): number | undefined {
 
 export function normalizeGridSettings(config?: SpriteSheetGridConfig): GridSettings {
   return {
-    columns: normalizeOptionalGridValue(config?.columns),
     frameCount: normalizeOptionalGridValue(config?.frameCount),
     frameHeight:
       config?.frameHeight && Number.isFinite(config.frameHeight) && config.frameHeight > 0
@@ -99,7 +96,6 @@ export function normalizeGridSettings(config?: SpriteSheetGridConfig): GridSetti
     gapY: normalizeOptionalGridValue(config?.gapY),
     offsetX: normalizeOptionalGridValue(config?.offsetX),
     offsetY: normalizeOptionalGridValue(config?.offsetY),
-    rows: normalizeOptionalGridValue(config?.rows),
   };
 }
 

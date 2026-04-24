@@ -10,8 +10,6 @@ export type SpriteSheetGridConfig = {
   offsetY?: number;
   gapX?: number;
   gapY?: number;
-  columns?: number;
-  rows?: number;
   frameCount?: number;
   namedFrames?: Record<string, SpriteSheetFrameSelector>;
 };

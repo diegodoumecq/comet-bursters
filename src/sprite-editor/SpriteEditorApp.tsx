@@ -51,6 +51,64 @@ function cloneImageData(ctx: CanvasRenderingContext2D): ImageData {
   return ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
 }
 
+function imageDataToBlob(imageData: ImageData): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = imageData.width;
+    canvas.height = imageData.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      resolve(null);
+      return;
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    canvas.toBlob((blob) => resolve(blob), 'image/png');
+  });
+}
+
+function blobToImageData(blob: Blob): Promise<ImageData | null> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(blob);
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const ctx = canvas.getContext('2d');
+      URL.revokeObjectURL(objectUrl);
+      if (!ctx) {
+        resolve(null);
+        return;
+      }
+
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(image, 0, 0);
+      resolve(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(null);
+    };
+    image.src = objectUrl;
+  });
+}
+
+function clipImageData(source: ImageData, width: number, height: number): ImageData {
+  const clippedWidth = Math.max(1, Math.min(width, source.width));
+  const clippedHeight = Math.max(1, Math.min(height, source.height));
+  const sourceCanvas = document.createElement('canvas');
+  sourceCanvas.width = source.width;
+  sourceCanvas.height = source.height;
+  const sourceCtx = sourceCanvas.getContext('2d');
+  if (!sourceCtx) {
+    return new ImageData(clippedWidth, clippedHeight);
+  }
+
+  sourceCtx.putImageData(source, 0, 0);
+  return sourceCtx.getImageData(0, 0, clippedWidth, clippedHeight);
+}
+
 function getPixelCoordinates(
   canvas: HTMLCanvasElement,
   event: React.PointerEvent<HTMLElement>,
@@ -178,6 +236,7 @@ function drawSelectionAtOffset(
   selectionRect: PixelRect,
   selectionPixels: ImageData,
   offset: { x: number; y: number },
+  options?: { clearSourceRect?: boolean },
 ) {
   const scratchCanvas = document.createElement('canvas');
   scratchCanvas.width = source.width;
@@ -188,7 +247,9 @@ function drawSelectionAtOffset(
   }
 
   scratchCtx.putImageData(source, 0, 0);
-  scratchCtx.clearRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
+  if (options?.clearSourceRect ?? true) {
+    scratchCtx.clearRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
+  }
 
   const selectionCanvas = document.createElement('canvas');
   selectionCanvas.width = selectionPixels.width;
@@ -207,6 +268,56 @@ function drawSelectionAtOffset(
   ctx.drawImage(scratchCanvas, 0, 0);
 }
 
+function ToolIcon({ tool }: { tool: Tool }) {
+  const className = 'h-4 w-4';
+
+  if (tool === 'draw') {
+    return (
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+        <path d="M4 14.5 13.8 4.7a1.8 1.8 0 0 1 2.5 0l-10 10L3.5 16.5z" />
+        <path d="M12.5 6l1.5 1.5" />
+      </svg>
+    );
+  }
+
+  if (tool === 'move') {
+    return (
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+        <path d="m10 2 2.5 2.5L10 7 7.5 4.5 10 2Z" />
+        <path d="m18 10-2.5 2.5L13 10l2.5-2.5L18 10Z" />
+        <path d="m10 18-2.5-2.5L10 13l2.5 2.5L10 18Z" />
+        <path d="M2 10 4.5 7.5 7 10l-2.5 2.5L2 10Z" />
+        <path d="M10 6v8M6 10h8" />
+      </svg>
+    );
+  }
+
+  if (tool === 'select') {
+    return (
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+        <path d="M4 7V4h3M13 4h3v3M16 13v3h-3M7 16H4v-3" />
+        <path d="M4 10V8M10 4H8M16 10V8M10 16H8M4 12v-2M12 4h-2M16 12v-2M12 16h-2" />
+      </svg>
+    );
+  }
+
+  if (tool === 'erase') {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+        <path d="M19 20h-10.5l-4.21 -4.3a1 1 0 0 1 0 -1.41l10 -10a1 1 0 0 1 1.41 0l5 5a1 1 0 0 1 0 1.41l-9.2 9.3" />
+        <path d="M18 13.3l-6.3 -6.3" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      <path d="M11 7l6 6" />
+      <path d="M4 16l11.7 -11.7a1 1 0 0 1 1.4 0l2.6 2.6a1 1 0 0 1 0 1.4l-11.7 11.7h-4v-4" />
+    </svg>
+  );
+}
+
 export function SpriteEditorApp() {
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -220,6 +331,7 @@ export function SpriteEditorApp() {
   } | null>(null);
   const moveSourceImageDataRef = useRef<ImageData | null>(null);
   const selectionPixelsRef = useRef<ImageData | null>(null);
+  const isSelectionCopyRef = useRef(false);
   const originalImageDataRef = useRef<ImageData | null>(null);
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
   const panOriginRef = useRef<{
@@ -367,7 +479,6 @@ export function SpriteEditorApp() {
     }
 
     const committedImage = cloneImageData(ctx);
-    moveSourceImageDataRef.current = committedImage;
     if (selectionRect) {
       const nextSelectionRect = {
         ...selectionRect,
@@ -375,7 +486,26 @@ export function SpriteEditorApp() {
         y: selectionRect.y + moveOffset.y,
       };
       setSelectionRect(nextSelectionRect);
-      selectionPixelsRef.current = cropImageData(committedImage, nextSelectionRect);
+      if (isSelectionCopyRef.current && moveSourceImageDataRef.current) {
+        const backgroundPixels = cropImageData(moveSourceImageDataRef.current, nextSelectionRect);
+        const baseCanvas = document.createElement('canvas');
+        baseCanvas.width = committedImage.width;
+        baseCanvas.height = committedImage.height;
+        const baseCtx = baseCanvas.getContext('2d');
+        if (baseCtx) {
+          baseCtx.putImageData(committedImage, 0, 0);
+          baseCtx.putImageData(backgroundPixels, nextSelectionRect.x, nextSelectionRect.y);
+          moveSourceImageDataRef.current = baseCtx.getImageData(0, 0, committedImage.width, committedImage.height);
+        } else {
+          moveSourceImageDataRef.current = committedImage;
+        }
+        selectionPixelsRef.current = selectionPixelsRef.current ?? cropImageData(committedImage, nextSelectionRect);
+      } else {
+        moveSourceImageDataRef.current = committedImage;
+        selectionPixelsRef.current = cropImageData(committedImage, nextSelectionRect);
+      }
+    } else {
+      moveSourceImageDataRef.current = committedImage;
     }
     setMoveOffset({ x: 0, y: 0 });
   };
@@ -388,6 +518,7 @@ export function SpriteEditorApp() {
     }
 
     selectionPixelsRef.current = null;
+    isSelectionCopyRef.current = false;
     selectionDragOriginRef.current = null;
     moveDragOriginRef.current = null;
     setSelectionRect(null);
@@ -423,6 +554,7 @@ export function SpriteEditorApp() {
       originalImageDataRef.current = cloneImageData(ctx);
       moveSourceImageDataRef.current = cloneImageData(ctx);
       selectionPixelsRef.current = null;
+      isSelectionCopyRef.current = false;
       selectionDragOriginRef.current = null;
       moveDragOriginRef.current = null;
       setUndoStack([]);
@@ -502,8 +634,107 @@ export function SpriteEditorApp() {
       return;
     }
 
-    setUndoStack((current) => [...current, cloneImageData(ctx)].slice(-50));
+    const snapshot = cloneImageData(ctx);
+    setUndoStack((current) => [...current, snapshot].slice(-50));
     setRedoStack([]);
+  };
+
+  const getCanvasSelectionImageData = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx || !selectionRect) {
+      return null;
+    }
+
+    if (moveOffset.x !== 0 || moveOffset.y !== 0) {
+      commitMoveOffset();
+    }
+
+    const safeX = Math.max(0, Math.min(selectionRect.x, canvas.width - 1));
+    const safeY = Math.max(0, Math.min(selectionRect.y, canvas.height - 1));
+    const safeWidth = Math.max(1, Math.min(selectionRect.width, canvas.width - safeX));
+    const safeHeight = Math.max(1, Math.min(selectionRect.height, canvas.height - safeY));
+    return ctx.getImageData(safeX, safeY, safeWidth, safeHeight);
+  };
+
+  const handleCopySelection = async () => {
+    const selectionImage = getCanvasSelectionImageData();
+    if (!selectionImage) {
+      return;
+    }
+
+    if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+      setLoadError('Clipboard image copy is not supported in this browser.');
+      return;
+    }
+
+    const blob = await imageDataToBlob(selectionImage);
+    if (!blob) {
+      setLoadError('Failed to copy the current selection.');
+      return;
+    }
+
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    setLoadError(null);
+    setMessage('Copied selection to clipboard.');
+  };
+
+  const handlePasteSelection = async (blob: Blob) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) {
+      return;
+    }
+
+    if (moveOffset.x !== 0 || moveOffset.y !== 0) {
+      commitMoveOffset();
+    }
+
+    const pastedImage = await blobToImageData(blob);
+    if (!pastedImage) {
+      setLoadError('Failed to read clipboard image.');
+      return;
+    }
+
+    const clippedImage =
+      pastedImage.width > canvas.width || pastedImage.height > canvas.height
+        ? clipImageData(pastedImage, canvas.width, canvas.height)
+        : pastedImage;
+    const preferredX = selectionRect?.x ?? 0;
+    const preferredY = selectionRect?.y ?? 0;
+    const pasteRect = {
+      x: Math.max(0, Math.min(preferredX, canvas.width - clippedImage.width)),
+      y: Math.max(0, Math.min(preferredY, canvas.height - clippedImage.height)),
+      width: clippedImage.width,
+      height: clippedImage.height,
+    };
+
+    commitSnapshot();
+
+    const scratchCanvas = document.createElement('canvas');
+    scratchCanvas.width = clippedImage.width;
+    scratchCanvas.height = clippedImage.height;
+    const scratchCtx = scratchCanvas.getContext('2d');
+    if (!scratchCtx) {
+      setLoadError('Failed to paste clipboard image.');
+      return;
+    }
+
+    scratchCtx.putImageData(clippedImage, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(scratchCanvas, pasteRect.x, pasteRect.y);
+
+    moveSourceImageDataRef.current = cloneImageData(ctx);
+    selectionPixelsRef.current = clippedImage;
+    isSelectionCopyRef.current = true;
+    selectionDragOriginRef.current = null;
+    moveDragOriginRef.current = null;
+    setSelectionRect(pasteRect);
+    setMoveOffset({ x: 0, y: 0 });
+    setTool('move');
+    setDirty(true);
+    setLoadError(null);
+    setMessage('Pasted clipboard image.');
   };
 
   const handleSelectAsset = (nextAssetPath: string) => {
@@ -534,6 +765,7 @@ export function SpriteEditorApp() {
     selectionPixelsRef.current = selectionRect
       ? cropImageData(cloneImageData(ctx), selectionRect)
       : null;
+    isSelectionCopyRef.current = false;
     selectionDragOriginRef.current = null;
     moveDragOriginRef.current = null;
     setMoveOffset({ x: 0, y: 0 });
@@ -558,6 +790,7 @@ export function SpriteEditorApp() {
     selectionPixelsRef.current = selectionRect
       ? cropImageData(cloneImageData(ctx), selectionRect)
       : null;
+    isSelectionCopyRef.current = false;
     selectionDragOriginRef.current = null;
     moveDragOriginRef.current = null;
     setMoveOffset({ x: 0, y: 0 });
@@ -580,6 +813,7 @@ export function SpriteEditorApp() {
     ctx.putImageData(originalImageData, 0, 0);
     moveSourceImageDataRef.current = cloneImageData(ctx);
     selectionPixelsRef.current = null;
+    isSelectionCopyRef.current = false;
     selectionDragOriginRef.current = null;
     moveDragOriginRef.current = null;
     setUndoStack([]);
@@ -628,6 +862,7 @@ export function SpriteEditorApp() {
         selectionPixelsRef.current = selectionRect
           ? cropImageData(cloneImageData(ctx), selectionRect)
           : null;
+        isSelectionCopyRef.current = false;
       }
       setDirty(false);
       selectionDragOriginRef.current = null;
@@ -693,6 +928,7 @@ export function SpriteEditorApp() {
     ctx.drawImage(resizeSource, 0, 0);
     moveSourceImageDataRef.current = cloneImageData(ctx);
     selectionPixelsRef.current = null;
+    isSelectionCopyRef.current = false;
     selectionDragOriginRef.current = null;
     moveDragOriginRef.current = null;
     setDirty(true);
@@ -730,6 +966,14 @@ export function SpriteEditorApp() {
       if ((event.metaKey || event.ctrlKey) && key === 's') {
         event.preventDefault();
         void handleSave();
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && key === 'c') {
+        if (!selectionRect) {
+          return;
+        }
+        event.preventDefault();
+        void handleCopySelection();
         return;
       }
       if ((event.metaKey || event.ctrlKey) && (key === '+' || key === '=')) {
@@ -803,13 +1047,38 @@ export function SpriteEditorApp() {
       }
     };
 
+    const handlePaste = (event: ClipboardEvent) => {
+      const target = event.target;
+      const isEditingField =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+      if (isEditingField) {
+        return;
+      }
+
+      const imageItem = Array.from(event.clipboardData?.items ?? []).find((item) =>
+        item.type.startsWith('image/'),
+      );
+      const file = imageItem?.getAsFile();
+      if (!file) {
+        return;
+      }
+
+      event.preventDefault();
+      void handlePasteSelection(file);
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('paste', handlePaste);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('paste', handlePaste);
     };
-  }, [handleRedo, handleSave, handleUndo, zoom]);
+  }, [handleRedo, handleSave, handleUndo, selectionRect, zoom]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     const shouldPan = event.button === 1 || (event.button === 0 && isSpacePressed);
@@ -867,8 +1136,10 @@ export function SpriteEditorApp() {
       if (moveOffset.x === 0 && moveOffset.y === 0) {
         commitSnapshot();
       }
-      moveSourceImageDataRef.current = cloneImageData(ctx);
-      if (selectionRect) {
+      if (!selectionRect || !isSelectionCopyRef.current) {
+        moveSourceImageDataRef.current = cloneImageData(ctx);
+      }
+      if (selectionRect && !isSelectionCopyRef.current && moveSourceImageDataRef.current) {
         selectionPixelsRef.current = cropImageData(moveSourceImageDataRef.current, selectionRect);
       }
       moveDragOriginRef.current = {
@@ -949,6 +1220,7 @@ export function SpriteEditorApp() {
           selectionRect,
           selectionPixelsRef.current,
           nextOffset,
+          { clearSourceRect: !isSelectionCopyRef.current },
         );
       } else {
         drawImageDataAtOffset(ctx, moveSource, nextOffset);
@@ -986,6 +1258,7 @@ export function SpriteEditorApp() {
         moveSourceImageDataRef.current,
         completedSelectionRect,
       );
+      isSelectionCopyRef.current = false;
     }
     setInteractionMode('idle');
   };
@@ -1224,26 +1497,6 @@ export function SpriteEditorApp() {
                         className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
                       />
                     </label>
-                    <label className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-300">
-                      <div className="uppercase tracking-[0.16em] text-slate-500">Columns</div>
-                      <input
-                        type="number"
-                        min="0"
-                        value={gridSettings.columns ?? ''}
-                        onChange={(event) => updateGridNumber('columns', event.currentTarget.value)}
-                        className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
-                      />
-                    </label>
-                    <label className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-300">
-                      <div className="uppercase tracking-[0.16em] text-slate-500">Rows</div>
-                      <input
-                        type="number"
-                        min="0"
-                        value={gridSettings.rows ?? ''}
-                        onChange={(event) => updateGridNumber('rows', event.currentTarget.value)}
-                        className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
-                      />
-                    </label>
                     <label className="col-span-2 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-300">
                       <div className="uppercase tracking-[0.16em] text-slate-500">Frame Count</div>
                       <input
@@ -1420,7 +1673,7 @@ export function SpriteEditorApp() {
               </div>
             </div>
 
-            <div className="mb-4 grid gap-3 rounded-3xl border border-slate-800 bg-slate-950/70 p-4 xl:grid-cols-[auto_auto_auto_1fr]">
+            <div className="mb-4 grid gap-3 rounded-3xl border border-slate-800 bg-slate-950/70 p-4 xl:grid-cols-[auto_auto_auto_auto]">
               <div className="flex flex-wrap gap-2">
                 {(
                   [
@@ -1435,16 +1688,15 @@ export function SpriteEditorApp() {
                     key={nextTool}
                     type="button"
                     onClick={() => setTool(nextTool)}
-                    className={`rounded-2xl border px-3 py-2 text-left transition ${
+                    aria-label={`${label} (${shortcut})`}
+                    title={`${label} (${shortcut})`}
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl border transition ${
                       tool === nextTool
                         ? 'border-cyan-300 bg-cyan-500/15 text-cyan-100'
                         : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-600'
                     }`}
                   >
-                    <div className="text-sm font-medium">{label}</div>
-                    <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                      {shortcut}
-                    </div>
+                    <ToolIcon tool={nextTool} />
                   </button>
                 ))}
               </div>
@@ -1479,66 +1731,62 @@ export function SpriteEditorApp() {
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="flex min-w-[15rem] items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-xs text-slate-300">
+              <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3">
+                <label className="flex items-center gap-2 text-xs text-slate-300">
                   <span className="uppercase tracking-[0.18em] text-slate-500">Opacity</span>
                   <input
-                    type="range"
+                    type="number"
                     min="0"
-                    max="255"
-                    value={brushColor.a}
+                    max="100"
+                    value={Math.round((brushColor.a / 255) * 100)}
                     onChange={(event) => {
-                      const nextAlpha = clampAlpha(Number(event.currentTarget.value));
+                      const nextPercent = Math.max(
+                        0,
+                        Math.min(100, Number(event.currentTarget.value) || 0),
+                      );
                       setBrushColor((current) => ({
                         ...current,
-                        a: nextAlpha,
+                        a: clampAlpha(Math.round((nextPercent / 100) * 255)),
                       }));
                     }}
-                    className="flex-1"
+                    className="w-16 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
                   />
-                  <span className="w-10 text-right text-sm text-slate-100">
-                    {Math.round((brushColor.a / 255) * 100)}%
-                  </span>
+                  <span className="text-xs text-slate-500">%</span>
                 </label>
 
-                <label className="flex min-w-[15rem] items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3 text-xs text-slate-300">
+                <label className="flex items-center gap-2 text-xs text-slate-300">
                   <span className="uppercase tracking-[0.18em] text-slate-500">Brush</span>
                   <input
-                    type="range"
+                    type="number"
                     min="1"
                     max="12"
                     value={brushSize}
                     onChange={(event) =>
-                      setBrushSize(clampBrushSize(Number(event.currentTarget.value)))
+                      setBrushSize(clampBrushSize(Number(event.currentTarget.value) || 1))
                     }
-                    className="flex-1"
+                    className="w-16 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
                   />
-                  <span className="w-10 text-right text-sm text-slate-100">{brushSize}px</span>
+                  <span className="text-xs text-slate-500">px</span>
                 </label>
               </div>
 
-              <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-end">
-                <div className="mr-2 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500">
-                  Zoom
-                </div>
-                {[4, 8, 16, 24, 32].map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => applyZoom(preset)}
-                    className={`rounded-xl border px-3 py-2 text-sm transition ${
-                      zoom === preset
-                        ? 'border-cyan-300 bg-cyan-500/15 text-cyan-100'
-                        : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-600'
-                    }`}
-                  >
-                    {preset}x
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3 xl:justify-end">
+                <label className="flex items-center gap-2 text-xs text-slate-300">
+                  <span className="uppercase tracking-[0.18em] text-slate-500">Zoom</span>
+                  <input
+                    type="number"
+                    min="2"
+                    max="48"
+                    value={zoom}
+                    onChange={(event) => applyZoom(Number(event.currentTarget.value) || zoom)}
+                    className="w-16 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
+                  />
+                  <span className="text-xs text-slate-500">x</span>
+                </label>
                 <button
                   type="button"
                   onClick={() => centerCanvasInViewport(zoom)}
-                  className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm text-slate-300 transition hover:border-slate-600"
+                  className="rounded-lg border border-slate-800 bg-slate-900/70 px-2.5 py-1.5 text-xs text-slate-300 transition hover:border-slate-600"
                 >
                   Center
                 </button>

@@ -22,13 +22,7 @@ function resolveAxisFrameCount(
   availablePixels: number,
   frameSize: number,
   gap: number,
-  explicitCount?: number,
 ): number {
-  if (explicitCount !== undefined) {
-    assertPositiveInteger(explicitCount, axisName);
-    return explicitCount;
-  }
-
   const step = frameSize + gap;
   const inferred = Math.floor((availablePixels + gap) / step);
   if (inferred <= 0) {
@@ -36,6 +30,39 @@ function resolveAxisFrameCount(
   }
 
   return inferred;
+}
+
+export function inferSpriteSheetGridSize(
+  imageWidth: number,
+  imageHeight: number,
+  config: Pick<
+    SpriteSheetGridConfig,
+    'frameWidth' | 'frameHeight' | 'offsetX' | 'offsetY' | 'gapX' | 'gapY'
+  >,
+): { columns: number; rows: number } {
+  assertPositiveInteger(config.frameWidth, 'frameWidth');
+  assertPositiveInteger(config.frameHeight, 'frameHeight');
+
+  const offsetX = config.offsetX ?? 0;
+  const offsetY = config.offsetY ?? 0;
+  const gapX = config.gapX ?? 0;
+  const gapY = config.gapY ?? 0;
+
+  assertNonNegativeInteger(offsetX, 'offsetX');
+  assertNonNegativeInteger(offsetY, 'offsetY');
+  assertNonNegativeInteger(gapX, 'gapX');
+  assertNonNegativeInteger(gapY, 'gapY');
+
+  const availableWidth = imageWidth - offsetX;
+  const availableHeight = imageHeight - offsetY;
+  if (availableWidth < config.frameWidth || availableHeight < config.frameHeight) {
+    throw new Error('Spritesheet image is smaller than the configured frame bounds.');
+  }
+
+  return {
+    columns: resolveAxisFrameCount('columns', availableWidth, config.frameWidth, gapX),
+    rows: resolveAxisFrameCount('rows', availableHeight, config.frameHeight, gapY),
+  };
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -49,7 +76,9 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 
 export class SpriteSheet {
   readonly image: HTMLImageElement;
-  readonly config: Readonly<Required<Omit<SpriteSheetGridConfig, 'namedFrames'>>>;
+  readonly config: Readonly<
+    Required<Omit<SpriteSheetGridConfig, 'namedFrames'>> & { columns: number; rows: number }
+  >;
   readonly frames: readonly SpriteSheetFrame[];
 
   private readonly namedFrames: Readonly<Record<string, SpriteSheetFrameSelector>>;
@@ -62,39 +91,14 @@ export class SpriteSheet {
     const offsetY = config.offsetY ?? 0;
     const gapX = config.gapX ?? 0;
     const gapY = config.gapY ?? 0;
-
-    assertNonNegativeInteger(offsetX, 'offsetX');
-    assertNonNegativeInteger(offsetY, 'offsetY');
-    assertNonNegativeInteger(gapX, 'gapX');
-    assertNonNegativeInteger(gapY, 'gapY');
-
-    const availableWidth = image.width - offsetX;
-    const availableHeight = image.height - offsetY;
-    if (availableWidth < config.frameWidth || availableHeight < config.frameHeight) {
-      throw new Error('Spritesheet image is smaller than the configured frame bounds.');
-    }
-
-    const columns = resolveAxisFrameCount(
-      'columns',
-      availableWidth,
-      config.frameWidth,
-      gapX,
-      config.columns,
-    );
-    const rows = resolveAxisFrameCount(
-      'rows',
-      availableHeight,
-      config.frameHeight,
-      gapY,
-      config.rows,
-    );
+    const { columns, rows } = inferSpriteSheetGridSize(image.width, image.height, config);
 
     const maxFrameCount = columns * rows;
     const frameCount = config.frameCount ?? maxFrameCount;
     assertPositiveInteger(frameCount, 'frameCount');
 
     if (frameCount > maxFrameCount) {
-      throw new Error('frameCount exceeds the grid capacity defined by columns and rows.');
+      throw new Error('frameCount exceeds the inferred grid capacity for this spritesheet.');
     }
 
     this.image = image;

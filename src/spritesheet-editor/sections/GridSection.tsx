@@ -14,8 +14,6 @@ export function GridSection() {
   const offsetY = grid?.offsetY ?? 0;
   const gapX = grid?.gapX ?? 0;
   const gapY = grid?.gapY ?? 0;
-  const columns = grid?.columns ?? 0;
-  const rows = grid?.rows ?? 0;
 
   return (
     <CollapsibleSection
@@ -33,8 +31,6 @@ export function GridSection() {
               ['offsetY', offsetY],
               ['gapX', gapX],
               ['gapY', gapY],
-              ['columns', columns],
-              ['rows', rows],
             ] as const
           ).map(([key, value]) => (
             <label key={key} className="text-xs uppercase tracking-[0.14em] text-slate-500">

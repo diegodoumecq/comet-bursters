@@ -49,6 +49,17 @@ export function getTileTopologySpecificity(topology: TileTopology | undefined): 
   );
 }
 
+export function getTileTopologySpecificityForDirections(
+  topology: TileTopology | undefined,
+  directions: readonly TileTopologyDirection[],
+): number {
+  return directions.reduce(
+    (specificity, direction) =>
+      specificity + (getTileTopologyRelation(topology, direction) === 'any' ? 0 : 1),
+    0,
+  );
+}
+
 export function pruneTileTopology(topology: TileTopology | undefined): TileTopology | undefined {
   if (!topology) {
     return undefined;
