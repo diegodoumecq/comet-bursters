@@ -161,6 +161,20 @@ function makeMaterialName(materials: Materials | undefined): string {
   return nextName;
 }
 
+function makeDuplicateTileId(entries: TileEntry[], sourceId: string): string {
+  const existingIds = new Set(entries.map((entry) => entry.id));
+  const baseId = sourceId.trim() || 'tile';
+  let nextId = `${baseId}_copy`;
+  let suffix = 2;
+
+  while (existingIds.has(nextId)) {
+    nextId = `${baseId}_copy_${suffix}`;
+    suffix += 1;
+  }
+
+  return nextId;
+}
+
 export function readNumber(value: string): number {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -184,6 +198,7 @@ type SpritesheetEditorActions = {
   createNewTileset: () => void;
   deleteMaterial: (materialName: string) => void;
   deleteTileEntry: (index: number) => void;
+  duplicateSelectedTile: () => void;
   redo: () => void;
   renameMaterial: (oldName: string, nextName: string) => void;
   resetEditor: () => void;
@@ -357,6 +372,29 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
                 ? (nextEntries[0]?.id ?? null)
                 : state.selectedTileId,
             tileDeleteIndex: null,
+            tileEntries: nextEntries,
+          });
+        }),
+
+      duplicateSelectedTile: () =>
+        set((state) => {
+          const selectedIndex = state.tileEntries.findIndex(
+            (entry) => entry.id === state.selectedTileId,
+          );
+          const selectedEntry = selectedIndex >= 0 ? state.tileEntries[selectedIndex] : null;
+          if (!selectedEntry) {
+            return {};
+          }
+
+          const duplicatedEntry = {
+            ...cloneTileEntry(selectedEntry),
+            id: makeDuplicateTileId(state.tileEntries, selectedEntry.id),
+          };
+          const nextEntries = [...state.tileEntries];
+          nextEntries.splice(selectedIndex + 1, 0, duplicatedEntry);
+
+          return withHistory(state, {
+            selectedTileId: duplicatedEntry.id,
             tileEntries: nextEntries,
           });
         }),

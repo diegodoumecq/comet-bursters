@@ -7,6 +7,7 @@ import { readNumber, useSpritesheetEditorStore } from '../state/spritesheetEdito
 
 export function TilePropertiesSection() {
   const addTileEntry = useSpritesheetEditorStore((state) => state.addTileEntry);
+  const duplicateSelectedTile = useSpritesheetEditorStore((state) => state.duplicateSelectedTile);
   const selectedTileId = useSpritesheetEditorStore((state) => state.selectedTileId);
   const tileEntries = useSpritesheetEditorStore((state) => state.tileEntries);
   const tileset = useSpritesheetEditorStore((state) => state.tileset);
@@ -77,7 +78,15 @@ export function TilePropertiesSection() {
       onToggle={() => setIsOpen((current) => !current)}
     >
       <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-        <div className="mb-4 flex justify-end">
+        <div className="mb-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={duplicateSelectedTile}
+            disabled={!selectedTile}
+            className="rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1 text-xs text-slate-200 hover:border-slate-500 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500"
+          >
+            Dupe
+          </button>
           <button
             type="button"
             onClick={addTileEntry}

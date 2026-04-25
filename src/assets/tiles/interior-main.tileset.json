@@ -244,7 +244,9 @@
         "up": "same",
         "right": "same",
         "down": "same",
-        "left": "different"
+        "left": "different",
+        "upRight": "different",
+        "downRight": "different"
       },
       "variantGroup": "wall_t_left",
       "variantWeight": 2
@@ -301,11 +303,10 @@
         2
       ],
       "topology": {
-        "up": "same",
-        "right": "same",
+        "up": "different",
+        "right": "different",
         "down": "different",
-        "left": "different",
-        "upRight": "same"
+        "left": "different"
       },
       "variantGroup": "wall_horizontal",
       "variantWeight": 1
@@ -353,9 +354,11 @@
       "topology": {
         "up": "same",
         "right": "same",
-        "down": "different",
-        "left": "different",
-        "upRight": "same"
+        "down": "same",
+        "left": "same",
+        "upRight": "different",
+        "downRight": "different",
+        "upLeft": "same"
       },
       "variantGroup": "wall_end_right",
       "variantWeight": 2
@@ -389,7 +392,8 @@
         "up": "same",
         "right": "same",
         "down": "same",
-        "left": "different"
+        "left": "same",
+        "upRight": "same"
       },
       "variantGroup": "wall_t_left",
       "variantWeight": 1
@@ -514,6 +518,316 @@
       },
       "variantGroup": "wall_corner_down_right",
       "variantWeight": 1
+    },
+    {
+      "id": "wall_cross",
+      "material": "wall",
+      "position": [
+        0,
+        5
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "same",
+        "left": "same",
+        "upRight": "different",
+        "downRight": "different",
+        "downLeft": "different",
+        "upLeft": "different"
+      }
+    },
+    {
+      "id": "wall_cross_copy",
+      "material": "wall",
+      "position": [
+        0,
+        6
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "same",
+        "left": "same",
+        "upRight": "different",
+        "downRight": "same",
+        "downLeft": "different",
+        "upLeft": "same"
+      }
+    },
+    {
+      "id": "wall_cross_copy_copy",
+      "material": "wall",
+      "position": [
+        1,
+        6
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "same",
+        "left": "same",
+        "upRight": "same",
+        "downRight": "different",
+        "downLeft": "same",
+        "upLeft": "different"
+      }
+    },
+    {
+      "id": "wall_cross_copy_copy_copy",
+      "material": "wall",
+      "position": [
+        2,
+        6
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "same",
+        "left": "same",
+        "upRight": "different",
+        "downRight": "different",
+        "downLeft": "different",
+        "upLeft": "same"
+      }
+    },
+    {
+      "id": "wall_cross_copy_copy_copy_copy",
+      "material": "wall",
+      "position": [
+        3,
+        6
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "same",
+        "left": "same",
+        "upRight": "same",
+        "downRight": "different",
+        "downLeft": "different",
+        "upLeft": "different"
+      }
+    },
+    {
+      "id": "tile_32",
+      "material": "wall",
+      "position": [
+        1,
+        5
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "same",
+        "left": "same",
+        "upRight": "same",
+        "downRight": "same",
+        "downLeft": "same",
+        "upLeft": "different"
+      }
+    },
+    {
+      "id": "tile_33",
+      "material": "wall",
+      "position": [
+        2,
+        5
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "same",
+        "left": "same",
+        "upRight": "different",
+        "downRight": "same",
+        "downLeft": "same",
+        "upLeft": "same"
+      }
+    },
+    {
+      "id": "tile_34",
+      "material": "wall",
+      "position": [
+        3,
+        5
+      ],
+      "topology": {
+        "up": "different",
+        "right": "same",
+        "down": "same",
+        "left": "same",
+        "downRight": "different",
+        "downLeft": "same"
+      }
+    },
+    {
+      "id": "tile_35",
+      "material": "wall",
+      "position": [
+        4,
+        5
+      ],
+      "topology": {
+        "up": "different",
+        "right": "same",
+        "down": "same",
+        "left": "same",
+        "downRight": "same",
+        "downLeft": "different"
+      }
+    },
+    {
+      "id": "tile_35_copy",
+      "material": "wall",
+      "position": [
+        4,
+        6
+      ],
+      "topology": {
+        "up": "same",
+        "right": "different",
+        "down": "same",
+        "left": "same",
+        "downLeft": "different",
+        "upLeft": "same"
+      }
+    },
+    {
+      "id": "tile_36",
+      "material": "wall",
+      "position": [
+        5,
+        5
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "same",
+        "left": "different",
+        "upRight": "same",
+        "downRight": "same"
+      }
+    },
+    {
+      "id": "tile_36_copy",
+      "material": "wall",
+      "position": [
+        5,
+        6
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "same",
+        "left": "same",
+        "upRight": "different",
+        "downRight": "same",
+        "downLeft": "same",
+        "upLeft": "different"
+      }
+    },
+    {
+      "id": "tile_37",
+      "material": "wall",
+      "position": [
+        6,
+        0
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "same",
+        "left": "same",
+        "upRight": "same",
+        "downRight": "different",
+        "downLeft": "same",
+        "upLeft": "same"
+      }
+    },
+    {
+      "id": "tile_38",
+      "material": "wall",
+      "position": [
+        6,
+        1
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "same",
+        "left": "same",
+        "upRight": "same",
+        "downRight": "different",
+        "downLeft": "different",
+        "upLeft": "same"
+      }
+    },
+    {
+      "id": "tile_39",
+      "material": "wall",
+      "position": [
+        6,
+        2
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "same",
+        "left": "same",
+        "upRight": "same",
+        "downRight": "same",
+        "downLeft": "different",
+        "upLeft": "same"
+      }
+    },
+    {
+      "id": "tile_39_copy",
+      "material": "wall",
+      "position": [
+        6,
+        3
+      ],
+      "topology": {
+        "up": "same",
+        "right": "different",
+        "down": "same",
+        "left": "same",
+        "downLeft": "same",
+        "upLeft": "different"
+      }
+    },
+    {
+      "id": "tile_39_copy_copy",
+      "material": "wall",
+      "position": [
+        6,
+        4
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "same",
+        "left": "different",
+        "upRight": "different",
+        "downRight": "same"
+      }
+    },
+    {
+      "id": "tile_39_copy_copy_copy",
+      "material": "wall",
+      "position": [
+        6,
+        5
+      ],
+      "topology": {
+        "up": "same",
+        "right": "same",
+        "down": "same",
+        "left": "different",
+        "upRight": "same",
+        "downRight": "different"
+      }
     }
   ]
 }

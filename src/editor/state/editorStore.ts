@@ -88,6 +88,23 @@ const EDITOR_STORAGE_KEY = 'comet-bursters.editor';
 const initialSelectedLevelAssetPath =
   bundledLevels.find((entry) => entry.level.name === initialLevel.name)?.assetPath ?? null;
 
+const editorStorage = createJSONStorage(() => ({
+  getItem: (name: string) => localStorage.getItem(name),
+  setItem: (name: string, value: string) => {
+    try {
+      localStorage.setItem(name, value);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+        console.warn('Editor state was not persisted because localStorage quota was exceeded.');
+        return;
+      }
+
+      throw error;
+    }
+  },
+  removeItem: (name: string) => localStorage.removeItem(name),
+}));
+
 function buildLevelResetState(
   level: RawShipInteriorLevel,
   selectedLevelAssetPath: string | null,
@@ -514,18 +531,15 @@ export const useEditorStore = create<EditorStore>()(
     }),
     {
       name: EDITOR_STORAGE_KEY,
-      storage: createJSONStorage(() => localStorage),
+      storage: editorStorage,
       onRehydrateStorage: () => (state) => {
         state?.syncDerivedState();
       },
       partialize: (state) => ({
         assetPathInput: state.assetPathInput,
-        futureLevels: state.futureLevels,
         layerVisibility: state.layerVisibility,
         inactiveLayerOpacity: state.inactiveLayerOpacity,
         level: state.level,
-        materialPlacements: state.materialPlacements,
-        pastLevels: state.pastLevels,
         selectedEntityId: state.selectedEntityId,
         selectedEntityPathId: state.selectedEntityPathId,
         selectedEntityType: state.selectedEntityType,
