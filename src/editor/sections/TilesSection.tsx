@@ -27,7 +27,7 @@ function makeLayerId(level: ReturnType<typeof useEditorStore.getState>['level'])
   return nextId;
 }
 
-export function TilesSection() {
+export function TilesSection({ showPalette = true }: { showPalette?: boolean }) {
   const activeImage = useEditorStore((state) => {
     const selectedTileset = getTilesetForLayer(state.level, state.selectedLayerId);
     return selectedTileset ? state.images[selectedTileset.id] : null;
@@ -533,29 +533,31 @@ export function TilesSection() {
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection
-        title="Palette"
-        isOpen={isPaletteOpen}
-        onToggle={() => setIsPaletteOpen((current) => !current)}
-      >
-        <div className="flex items-center justify-between">
-          <div className="text-xs text-slate-500">{selectedTiles.length} tiles</div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {selectedTiles.map(({ id: tileId, label, tile }) => (
-            <TileSwatch
-              key={tileId}
-              image={activeImage}
-              frameWidth={selectedTileset?.grid.frameWidth ?? 32}
-              frameHeight={selectedTileset?.grid.frameHeight ?? 32}
-              tile={tile}
-              label={label}
-              selected={selectedTileId === tileId}
-              onClick={() => setSelectedTileId(tileId)}
-            />
-          ))}
-        </div>
-      </CollapsibleSection>
+      {showPalette ? (
+        <CollapsibleSection
+          title="Palette"
+          isOpen={isPaletteOpen}
+          onToggle={() => setIsPaletteOpen((current) => !current)}
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-slate-500">{selectedTiles.length} tiles</div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {selectedTiles.map(({ id: tileId, label, tile }) => (
+              <TileSwatch
+                key={tileId}
+                image={activeImage}
+                frameWidth={selectedTileset?.grid.frameWidth ?? 32}
+                frameHeight={selectedTileset?.grid.frameHeight ?? 32}
+                tile={tile}
+                label={label}
+                selected={selectedTileId === tileId}
+                onClick={() => setSelectedTileId(tileId)}
+              />
+            ))}
+          </div>
+        </CollapsibleSection>
+      ) : null}
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import columnPixelartUrl from '../assets/columnPixelart.png';
+import type { ShipInteriorTileId } from '../scenes/ShipInteriorScene/level';
 import { getLevelGrid, getTilesetTilePositionMap } from '../scenes/ShipInteriorScene/level';
 import { getMaterialColor } from './shared/materials';
 import { useEditorStore } from './state/editorStore';
@@ -11,20 +12,53 @@ export type EditorCanvasPointerInfo = {
   shiftKey: boolean;
 };
 
+export type EditorCanvasPreviewTile = {
+  layerId: string;
+  tileId: ShipInteriorTileId;
+  x: number;
+  y: number;
+};
+
+export type EditorCanvasPreviewMaterialCell = {
+  material: string;
+  x: number;
+  y: number;
+};
+
+export type EditorCanvasRectanglePreview = {
+  color: string;
+  endX: number;
+  endY: number;
+  materialCells: EditorCanvasPreviewMaterialCell[];
+  startX: number;
+  startY: number;
+  tileOverrides: EditorCanvasPreviewTile[];
+};
+
 export function EditorCanvas({
   onPointerDown,
   onPointerMove,
   onPointerUp,
   onSecondaryInteraction,
+  rectanglePreview,
   zoom,
 }: {
   onPointerDown: (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => void;
   onPointerMove: (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => void;
   onPointerUp: (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => void;
   onSecondaryInteraction: (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => void;
+  rectanglePreview: EditorCanvasRectanglePreview | null;
   zoom: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const materialOverlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const tileLayerCanvasesRef = useRef<{
+    overhead: HTMLCanvasElement | null;
+    underlay: HTMLCanvasElement | null;
+  }>({
+    overhead: null,
+    underlay: null,
+  });
   const images = useEditorStore((state) => state.images);
   const inactiveLayerOpacity = useEditorStore((state) => state.inactiveLayerOpacity);
   const layerVisibility = useEditorStore((state) => state.layerVisibility);
@@ -46,6 +80,149 @@ export function EditorCanvas({
     };
     columnImageRef.current = image;
   }, []);
+
+  useEffect(() => {
+    if (tool !== 'materials') {
+      return;
+    }
+
+    const overlayCanvas = document.createElement('canvas');
+    overlayCanvas.width = level.width;
+    overlayCanvas.height = level.height;
+    const overlayCtx = overlayCanvas.getContext('2d');
+    if (!overlayCtx) {
+      materialOverlayCanvasRef.current = null;
+      return;
+    }
+
+    const levelGrid = getLevelGrid(level);
+    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    overlayCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    overlayCtx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+    for (const layer of level.layers) {
+      if (layerVisibility[layer.id] === false) {
+        continue;
+      }
+
+      const layerMaterialPlacements = materialPlacements[layer.id];
+      if (!layerMaterialPlacements) {
+        continue;
+      }
+
+      for (const [key, material] of Object.entries(layerMaterialPlacements)) {
+        const [x, y] = key.split(',').map((value) => Number.parseInt(value, 10));
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          continue;
+        }
+
+        const tileX = x * levelGrid.cellWidth;
+        const tileY = y * levelGrid.cellHeight;
+        overlayCtx.globalAlpha = layer.id === selectedLayerId ? 0.88 : 0.62;
+        overlayCtx.fillStyle = getMaterialColor(material);
+        overlayCtx.fillRect(tileX, tileY, levelGrid.cellWidth, levelGrid.cellHeight);
+        overlayCtx.globalAlpha = 1;
+        overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        overlayCtx.lineWidth = 1;
+        overlayCtx.strokeRect(
+          tileX + 0.5,
+          tileY + 0.5,
+          levelGrid.cellWidth - 1,
+          levelGrid.cellHeight - 1,
+        );
+      }
+    }
+
+    materialOverlayCanvasRef.current = overlayCanvas;
+  }, [layerVisibility, level, materialPlacements, selectedLayerId, tool]);
+
+  useEffect(() => {
+    const levelGrid = getLevelGrid(level);
+
+    const buildLayerCanvas = (overhead: boolean) => {
+      const layerCanvas = document.createElement('canvas');
+      layerCanvas.width = level.width;
+      layerCanvas.height = level.height;
+      const layerCtx = layerCanvas.getContext('2d');
+      if (!layerCtx) {
+        return null;
+      }
+
+      for (const layer of level.layers) {
+        if ((layer.overhead ?? false) !== overhead) {
+          continue;
+        }
+        if (layerVisibility[layer.id] === false) {
+          continue;
+        }
+
+        const tileset = level.tilesets.find((candidate) => candidate.id === layer.tilesetId);
+        if (!tileset) {
+          continue;
+        }
+
+        const image = images[tileset.id];
+        if (!image) {
+          continue;
+        }
+
+        const tilePositions = getTilesetTilePositionMap(tileset);
+        layerCtx.save();
+        const layerOpacity = layer.opacity ?? 1;
+        const editableLayerOpacity =
+          layer.id === selectedLayerId ? Math.max(layerOpacity, 0.25) : layerOpacity;
+        layerCtx.globalAlpha =
+          editableLayerOpacity * (layer.id === selectedLayerId ? 1 : inactiveLayerOpacity);
+        for (const tile of layer.tiles) {
+          const tileX = tile.x * levelGrid.cellWidth;
+          const tileY = tile.y * levelGrid.cellHeight;
+          const frame = tilePositions[String(tile.tile)];
+          if (!frame) {
+            const markerSize = Math.min(levelGrid.cellWidth, levelGrid.cellHeight);
+            layerCtx.save();
+            layerCtx.globalAlpha = 1;
+            layerCtx.fillStyle = 'rgba(244, 63, 94, 0.24)';
+            layerCtx.fillRect(tileX, tileY, levelGrid.cellWidth, levelGrid.cellHeight);
+            layerCtx.strokeStyle = '#fb7185';
+            layerCtx.lineWidth = 2;
+            layerCtx.strokeRect(
+              tileX + 1,
+              tileY + 1,
+              levelGrid.cellWidth - 2,
+              levelGrid.cellHeight - 2,
+            );
+            layerCtx.fillStyle = '#fecdd3';
+            layerCtx.font = `${Math.max(12, Math.floor(markerSize * 0.75))}px monospace`;
+            layerCtx.textAlign = 'center';
+            layerCtx.textBaseline = 'middle';
+            layerCtx.fillText('?', tileX + levelGrid.cellWidth / 2, tileY + levelGrid.cellHeight / 2);
+            layerCtx.restore();
+            continue;
+          }
+
+          layerCtx.drawImage(
+            image,
+            frame[0] * tileset.grid.frameWidth,
+            frame[1] * tileset.grid.frameHeight,
+            tileset.grid.frameWidth,
+            tileset.grid.frameHeight,
+            tileX,
+            tileY,
+            layer.scaleToGrid ? levelGrid.cellWidth : tileset.grid.frameWidth,
+            layer.scaleToGrid ? levelGrid.cellHeight : tileset.grid.frameHeight,
+          );
+        }
+        layerCtx.restore();
+      }
+
+      return layerCanvas;
+    };
+
+    tileLayerCanvasesRef.current = {
+      overhead: buildLayerCanvas(true),
+      underlay: buildLayerCanvas(false),
+    };
+  }, [images, inactiveLayerOpacity, layerVisibility, level, selectedLayerId]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -80,71 +257,10 @@ export function EditorCanvas({
       ctx.stroke();
     }
 
-    const drawLayerTiles = (overhead: boolean) => {
-      for (const layer of level.layers) {
-        if ((layer.overhead ?? false) !== overhead) {
-          continue;
-        }
-        if (layerVisibility[layer.id] === false) {
-          continue;
-        }
-
-        const tileset = level.tilesets.find((candidate) => candidate.id === layer.tilesetId);
-        if (!tileset) {
-          continue;
-        }
-
-        const image = images[tileset.id];
-        if (!image) {
-          continue;
-        }
-
-        const tilePositions = getTilesetTilePositionMap(tileset);
-        ctx.save();
-        const layerOpacity = layer.opacity ?? 1;
-        const editableLayerOpacity =
-          layer.id === selectedLayerId ? Math.max(layerOpacity, 0.25) : layerOpacity;
-        ctx.globalAlpha =
-          editableLayerOpacity * (layer.id === selectedLayerId ? 1 : inactiveLayerOpacity);
-        for (const tile of layer.tiles) {
-          const tileX = tile.x * levelGrid.cellWidth;
-          const tileY = tile.y * levelGrid.cellHeight;
-          const frame = tilePositions[String(tile.tile)];
-          if (!frame) {
-            const markerSize = Math.min(levelGrid.cellWidth, levelGrid.cellHeight);
-            ctx.save();
-            ctx.globalAlpha = 1;
-            ctx.fillStyle = 'rgba(244, 63, 94, 0.24)';
-            ctx.fillRect(tileX, tileY, levelGrid.cellWidth, levelGrid.cellHeight);
-            ctx.strokeStyle = '#fb7185';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(tileX + 1, tileY + 1, levelGrid.cellWidth - 2, levelGrid.cellHeight - 2);
-            ctx.fillStyle = '#fecdd3';
-            ctx.font = `${Math.max(12, Math.floor(markerSize * 0.75))}px monospace`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('?', tileX + levelGrid.cellWidth / 2, tileY + levelGrid.cellHeight / 2);
-            ctx.restore();
-            continue;
-          }
-
-          ctx.drawImage(
-            image,
-            frame[0] * tileset.grid.frameWidth,
-            frame[1] * tileset.grid.frameHeight,
-            tileset.grid.frameWidth,
-            tileset.grid.frameHeight,
-            tileX,
-            tileY,
-            layer.scaleToGrid ? levelGrid.cellWidth : tileset.grid.frameWidth,
-            layer.scaleToGrid ? levelGrid.cellHeight : tileset.grid.frameHeight,
-          );
-        }
-        ctx.restore();
-      }
-    };
-
-    drawLayerTiles(false);
+    const underlayCanvas = tileLayerCanvasesRef.current.underlay;
+    if (underlayCanvas) {
+      ctx.drawImage(underlayCanvas, 0, 0);
+    }
 
     for (const entity of level.entities) {
       const isPlayer = entity.type === 'player';
@@ -175,7 +291,10 @@ export function EditorCanvas({
       ctx.fillText(isPlayer ? 'P' : 'E', entity.x, entity.y + 3);
     }
 
-    drawLayerTiles(true);
+    const overheadCanvas = tileLayerCanvasesRef.current.overhead;
+    if (overheadCanvas) {
+      ctx.drawImage(overheadCanvas, 0, 0);
+    }
 
     const selectedEntity = level.entities.find((entity) => entity.id === selectedEntityId) ?? null;
     const inspectedEntityPath =
@@ -231,44 +350,12 @@ export function EditorCanvas({
     };
 
     const drawMaterialOverlay = () => {
-      ctx.save();
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      for (const layer of level.layers) {
-        if (layerVisibility[layer.id] === false) {
-          continue;
-        }
-
-        const layerMaterialPlacements = materialPlacements[layer.id];
-        if (!layerMaterialPlacements) {
-          continue;
-        }
-
-        for (const [key, material] of Object.entries(layerMaterialPlacements)) {
-          const [x, y] = key.split(',').map((value) => Number.parseInt(value, 10));
-          if (!Number.isFinite(x) || !Number.isFinite(y)) {
-            continue;
-          }
-
-          const tileX = x * levelGrid.cellWidth;
-          const tileY = y * levelGrid.cellHeight;
-          ctx.globalAlpha = layer.id === selectedLayerId ? 0.88 : 0.62;
-          ctx.fillStyle = getMaterialColor(material);
-          ctx.fillRect(tileX, tileY, levelGrid.cellWidth, levelGrid.cellHeight);
-          ctx.globalAlpha = 1;
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(
-            tileX + 0.5,
-            tileY + 0.5,
-            levelGrid.cellWidth - 1,
-            levelGrid.cellHeight - 1,
-          );
-        }
+      const overlayCanvas = materialOverlayCanvasRef.current;
+      if (!overlayCanvas) {
+        return;
       }
 
-      ctx.restore();
+      ctx.drawImage(overlayCanvas, 0, 0);
     };
 
     if (inspectedEntityPath && inspectedEntityPath !== selectedPath) {
@@ -292,14 +379,81 @@ export function EditorCanvas({
     if (tool === 'materials') {
       drawMaterialOverlay();
     }
+
+    if (rectanglePreview) {
+      for (const materialCell of rectanglePreview.materialCells) {
+        const tileX = materialCell.x * levelGrid.cellWidth;
+        const tileY = materialCell.y * levelGrid.cellHeight;
+        ctx.save();
+        ctx.globalAlpha = 0.92;
+        ctx.fillStyle = getMaterialColor(materialCell.material);
+        ctx.fillRect(tileX, tileY, levelGrid.cellWidth, levelGrid.cellHeight);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(tileX + 0.5, tileY + 0.5, levelGrid.cellWidth - 1, levelGrid.cellHeight - 1);
+        ctx.restore();
+      }
+
+      for (const previewTile of rectanglePreview.tileOverrides) {
+        const layer = level.layers.find((candidate) => candidate.id === previewTile.layerId);
+        if (!layer || layerVisibility[layer.id] === false) {
+          continue;
+        }
+
+        const tileset = level.tilesets.find((candidate) => candidate.id === layer.tilesetId);
+        if (!tileset) {
+          continue;
+        }
+
+        const image = images[tileset.id];
+        if (!image) {
+          continue;
+        }
+
+        const frame = getTilesetTilePositionMap(tileset)[String(previewTile.tileId)];
+        if (!frame) {
+          continue;
+        }
+
+        const tileX = previewTile.x * levelGrid.cellWidth;
+        const tileY = previewTile.y * levelGrid.cellHeight;
+        ctx.save();
+        ctx.globalAlpha = layer.id === selectedLayerId ? 0.95 : 0.85;
+        ctx.drawImage(
+          image,
+          frame[0] * tileset.grid.frameWidth,
+          frame[1] * tileset.grid.frameHeight,
+          tileset.grid.frameWidth,
+          tileset.grid.frameHeight,
+          tileX,
+          tileY,
+          layer.scaleToGrid ? levelGrid.cellWidth : tileset.grid.frameWidth,
+          layer.scaleToGrid ? levelGrid.cellHeight : tileset.grid.frameHeight,
+        );
+        ctx.restore();
+      }
+    }
+
+    if (rectanglePreview) {
+      const left = Math.min(rectanglePreview.startX, rectanglePreview.endX) * levelGrid.cellWidth;
+      const top = Math.min(rectanglePreview.startY, rectanglePreview.endY) * levelGrid.cellHeight;
+      const width =
+        (Math.abs(rectanglePreview.endX - rectanglePreview.startX) + 1) * levelGrid.cellWidth;
+      const height =
+        (Math.abs(rectanglePreview.endY - rectanglePreview.startY) + 1) * levelGrid.cellHeight;
+
+      ctx.save();
+      ctx.strokeStyle = rectanglePreview.color;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 6]);
+      ctx.strokeRect(left + 1, top + 1, Math.max(0, width - 2), Math.max(0, height - 2));
+      ctx.restore();
+    }
   }, [
-    images,
-    inactiveLayerOpacity,
-    layerVisibility,
     level,
-    materialPlacements,
+    rectanglePreview,
     selectedEntityId,
-    selectedLayerId,
     selectedPathId,
     tool,
   ]);

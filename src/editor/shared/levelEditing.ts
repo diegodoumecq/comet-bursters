@@ -41,6 +41,29 @@ export function placeTile(
   };
 }
 
+export function placeTiles(
+  level: RawShipInteriorLevel,
+  layerId: string,
+  tileId: ShipInteriorTileId,
+  cells: Array<{ x: number; y: number }>,
+): RawShipInteriorLevel {
+  const cellKeys = new Set(cells.map((cell) => `${cell.x},${cell.y}`));
+  return {
+    ...level,
+    layers: level.layers.map((layer) =>
+      layer.id !== layerId
+        ? layer
+        : {
+            ...layer,
+            tiles: [
+              ...layer.tiles.filter((tile) => !cellKeys.has(`${tile.x},${tile.y}`)),
+              ...cells.map((cell) => ({ tile: tileId, x: cell.x, y: cell.y })),
+            ],
+          },
+    ),
+  };
+}
+
 export function eraseTile(
   level: RawShipInteriorLevel,
   layerId: string,

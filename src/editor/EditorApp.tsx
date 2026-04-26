@@ -1,6 +1,12 @@
 import { useRef, useState } from 'react';
 
-import { EditorCanvas, type EditorCanvasPointerInfo } from './EditorCanvas';
+import {
+  EditorCanvas,
+  type EditorCanvasPreviewMaterialCell,
+  type EditorCanvasPreviewTile,
+  type EditorCanvasPointerInfo,
+  type EditorCanvasRectanglePreview,
+} from './EditorCanvas';
 import { getLevelGrid } from '../scenes/ShipInteriorScene/level';
 import type { EditorDocument } from './state/history';
 import { EditorStoreEffects } from './state/EditorStoreEffects';
@@ -14,6 +20,7 @@ import {
   getTilesetForLayer,
   makeEntityId,
   placeTile,
+  placeTiles,
   removeEntity,
   removePathPoint,
   updatePathPoint,
@@ -21,8 +28,14 @@ import {
 } from './shared/levelEditing';
 import {
   applyMaterialPlacement,
+  applyMaterialPlacements,
   clearMaterialPlacement,
+  clearMaterialPlacements,
+  getMaterialPlacementKey,
+  getMaterialColor,
   refreshMaterialPlacementTilesAround,
+  refreshMaterialPlacementTilesForCells,
+  resolveMaterialTilesForCells,
 } from './shared/materials';
 import { EntitiesSection } from './sections/EntitiesSection';
 import { LevelSection } from './sections/LevelSection';
@@ -32,10 +45,62 @@ import { SelectedEntitySection } from './sections/SelectedEntitySection';
 import { TilesSection } from './sections/TilesSection';
 import { ConfirmationDialog } from '@/ui/components/ConfirmationDialog';
 import { DropdownMenu } from '@/ui/components/DropdownMenu';
+import { Switch } from '@/ui/components/Switch';
 import { ToolSwitcher } from './components/ToolSwitcher';
 
 const BACKUP_PREFERENCE_STORAGE_KEY = 'comet-bursters.editor.create-backups';
 const COLUMN_ENTITY_SPRITE = '../columnPixelart.png';
+
+type RectangleDragState = {
+  endX: number;
+  endY: number;
+  mode: 'materials' | 'tiles';
+  startX: number;
+  startY: number;
+};
+
+type RectangleDragContext = {
+  fillRectangleDrag: boolean;
+  onlyPaintUnoccupiedCells: boolean;
+  selectedLayerId: string | null;
+  selectedMaterialId: string | null;
+  selectedTileId: ReturnType<typeof useEditorStore.getState>['selectedTileId'];
+};
+
+function createPlacedEntity(
+  currentLevel: ReturnType<typeof useEditorStore.getState>['level'],
+  selectedEntityType: ReturnType<typeof useEditorStore.getState>['selectedEntityType'],
+  selectedEntityPathId: string | null,
+  worldX: number,
+  worldY: number,
+) {
+  if (selectedEntityType === 'player') {
+    return {
+      id: 'player',
+      type: 'player',
+      x: worldX,
+      y: worldY,
+    } as const;
+  }
+
+  if (selectedEntityType === 'column') {
+    return {
+      id: makeEntityId(currentLevel, 'column'),
+      type: 'column',
+      x: worldX,
+      y: worldY,
+      sprite: COLUMN_ENTITY_SPRITE,
+    } as const;
+  }
+
+  return {
+    id: makeEntityId(currentLevel, 'enemy'),
+    type: 'enemy-patroller',
+    x: worldX,
+    y: worldY,
+    pathId: selectedEntityPathId ?? undefined,
+  } as const;
+}
 
 function readBackupPreference(): boolean {
   if (typeof window === 'undefined') {
@@ -45,10 +110,271 @@ function readBackupPreference(): boolean {
   return window.localStorage.getItem(BACKUP_PREFERENCE_STORAGE_KEY) !== 'false';
 }
 
+function getCellKey(x: number, y: number): string {
+  return `${x},${y}`;
+}
+
+function getGridCell(level: ReturnType<typeof useEditorStore.getState>['level'], worldX: number, worldY: number) {
+  const levelGrid = getLevelGrid(level);
+  return {
+    x: Math.floor(worldX / levelGrid.cellWidth),
+    y: Math.floor(worldY / levelGrid.cellHeight),
+  };
+}
+
+function getRectangleBorderCells(startX: number, startY: number, endX: number, endY: number) {
+  const left = Math.min(startX, endX);
+  const right = Math.max(startX, endX);
+  const top = Math.min(startY, endY);
+  const bottom = Math.max(startY, endY);
+  const cells: { x: number; y: number }[] = [];
+
+  for (let x = left; x <= right; x += 1) {
+    cells.push({ x, y: top });
+    if (bottom !== top) {
+      cells.push({ x, y: bottom });
+    }
+  }
+
+  for (let y = top + 1; y < bottom; y += 1) {
+    cells.push({ x: left, y });
+    if (right !== left) {
+      cells.push({ x: right, y });
+    }
+  }
+
+  return cells;
+}
+
+function getRectangleFilledCells(startX: number, startY: number, endX: number, endY: number) {
+  const left = Math.min(startX, endX);
+  const right = Math.max(startX, endX);
+  const top = Math.min(startY, endY);
+  const bottom = Math.max(startY, endY);
+  const cells: { x: number; y: number }[] = [];
+
+  for (let y = top; y <= bottom; y += 1) {
+    for (let x = left; x <= right; x += 1) {
+      cells.push({ x, y });
+    }
+  }
+
+  return cells;
+}
+
+function getRectangleTargetCells(
+  rectangleDrag: RectangleDragState,
+  fillRectangleDrag: boolean,
+) {
+  return fillRectangleDrag
+    ? getRectangleFilledCells(
+        rectangleDrag.startX,
+        rectangleDrag.startY,
+        rectangleDrag.endX,
+        rectangleDrag.endY,
+      )
+    : getRectangleBorderCells(
+        rectangleDrag.startX,
+        rectangleDrag.startY,
+        rectangleDrag.endX,
+        rectangleDrag.endY,
+      );
+}
+
+function isCellOccupied(document: EditorDocument, layerId: string, x: number, y: number): boolean {
+  return (
+    document.level.layers
+      .find((layer) => layer.id === layerId)
+      ?.tiles.some((tile) => tile.x === x && tile.y === y) ||
+    Boolean(document.materialPlacements[layerId]?.[getCellKey(x, y)])
+  );
+}
+
+function applyRectangleDragToDocument(
+  document: EditorDocument,
+  rectangleDrag: RectangleDragState,
+  context: RectangleDragContext,
+): EditorDocument {
+  const targetCells = getRectangleTargetCells(rectangleDrag, context.fillRectangleDrag);
+  const selectedLayerId = context.selectedLayerId;
+  const filteredTargetCells =
+    selectedLayerId && context.onlyPaintUnoccupiedCells
+      ? targetCells.filter((cell) => !isCellOccupied(document, selectedLayerId, cell.x, cell.y))
+      : targetCells;
+
+  if (rectangleDrag.mode === 'tiles') {
+    if (!selectedLayerId || !context.selectedTileId || filteredTargetCells.length === 0) {
+      return document;
+    }
+
+    const nextMaterialPlacements = clearMaterialPlacements(
+      document.materialPlacements,
+      selectedLayerId,
+      filteredTargetCells,
+    );
+    const refreshedLevel = refreshMaterialPlacementTilesForCells(
+      document.level,
+      nextMaterialPlacements,
+      selectedLayerId,
+      filteredTargetCells,
+    );
+
+    return {
+      level: placeTiles(refreshedLevel, selectedLayerId, context.selectedTileId, filteredTargetCells),
+      materialPlacements: nextMaterialPlacements,
+    };
+  }
+
+  if (rectangleDrag.mode === 'materials') {
+    if (!selectedLayerId || !context.selectedMaterialId || filteredTargetCells.length === 0) {
+      return document;
+    }
+
+    return applyMaterialPlacements(
+      document.level,
+      document.materialPlacements,
+      selectedLayerId,
+      context.selectedMaterialId,
+      filteredTargetCells,
+    );
+  }
+
+  return document;
+}
+
+function getExpandedRectanglePreviewCells(cells: Array<{ x: number; y: number }>) {
+  const uniqueCells = new Map<string, { x: number; y: number }>();
+
+  for (const cell of cells) {
+    for (let dy = -1; dy <= 1; dy += 1) {
+      for (let dx = -1; dx <= 1; dx += 1) {
+        const expandedCell = { x: cell.x + dx, y: cell.y + dy };
+        uniqueCells.set(getCellKey(expandedCell.x, expandedCell.y), expandedCell);
+      }
+    }
+  }
+
+  return Array.from(uniqueCells.values());
+}
+
+function buildRectanglePreview(
+  level: ReturnType<typeof useEditorStore.getState>['level'],
+  materialPlacements: ReturnType<typeof useEditorStore.getState>['materialPlacements'],
+  rectangleDrag: RectangleDragState,
+  context: RectangleDragContext,
+): EditorCanvasRectanglePreview {
+  const targetCells = getRectangleTargetCells(rectangleDrag, context.fillRectangleDrag);
+  const tileOverrides: EditorCanvasPreviewTile[] = [];
+  const materialCells: EditorCanvasPreviewMaterialCell[] = [];
+  const selectedLayerId = context.selectedLayerId;
+
+  if (selectedLayerId) {
+    const previewTargetCells = targetCells.filter(
+      (cell) =>
+        !context.onlyPaintUnoccupiedCells ||
+        !isCellOccupied({ level, materialPlacements }, selectedLayerId, cell.x, cell.y),
+    );
+
+    if (rectangleDrag.mode === 'tiles' && context.selectedTileId) {
+      for (const cell of previewTargetCells) {
+        tileOverrides.push({
+          layerId: selectedLayerId,
+          tileId: context.selectedTileId,
+          x: cell.x,
+          y: cell.y,
+        });
+      }
+
+      const layerPlacements = materialPlacements[selectedLayerId] ?? {};
+      const nextLayerPlacements = { ...layerPlacements };
+      let hadMaterialClears = false;
+      for (const cell of previewTargetCells) {
+        const key = getMaterialPlacementKey(cell.x, cell.y);
+        if (key in nextLayerPlacements) {
+          delete nextLayerPlacements[key];
+          hadMaterialClears = true;
+        }
+      }
+
+      if (hadMaterialClears) {
+        const nextMaterialPlacements = {
+          ...materialPlacements,
+          [selectedLayerId]: nextLayerPlacements,
+        };
+        const affectedCells = getExpandedRectanglePreviewCells(previewTargetCells);
+        tileOverrides.push(
+          ...resolveMaterialTilesForCells(
+            level,
+            selectedLayerId,
+            nextMaterialPlacements,
+            affectedCells,
+          ).map((tile) => ({
+            layerId: selectedLayerId,
+            tileId: tile.tileId,
+            x: tile.x,
+            y: tile.y,
+          })),
+        );
+      }
+    }
+
+    if (rectangleDrag.mode === 'materials' && context.selectedMaterialId) {
+      const selectedMaterialId = context.selectedMaterialId;
+      const layerPlacements = materialPlacements[selectedLayerId] ?? {};
+      const nextMaterialPlacements = {
+        ...materialPlacements,
+        [selectedLayerId]: {
+          ...layerPlacements,
+          ...Object.fromEntries(
+            previewTargetCells.map((cell) => [
+              getMaterialPlacementKey(cell.x, cell.y),
+              selectedMaterialId,
+            ]),
+          ),
+        },
+      };
+
+      materialCells.push(
+        ...previewTargetCells.map((cell) => ({
+          material: selectedMaterialId,
+          x: cell.x,
+          y: cell.y,
+        })),
+      );
+      tileOverrides.push(
+        ...resolveMaterialTilesForCells(
+          level,
+          selectedLayerId,
+          nextMaterialPlacements,
+          getExpandedRectanglePreviewCells(previewTargetCells),
+        ).map((tile) => ({
+          layerId: selectedLayerId,
+          tileId: tile.tileId,
+          x: tile.x,
+          y: tile.y,
+        })),
+      );
+    }
+  }
+
+  return {
+    color:
+      rectangleDrag.mode === 'materials' ? getMaterialColor(context.selectedMaterialId ?? 'wall') : '#facc15',
+    startX: rectangleDrag.startX,
+    startY: rectangleDrag.startY,
+    endX: rectangleDrag.endX,
+    endY: rectangleDrag.endY,
+    materialCells,
+    tileOverrides,
+  };
+}
+
 export function EditorApp() {
   const canRedo = useEditorStore((state) => state.futureHistory.length > 0);
   const canUndo = useEditorStore((state) => state.pastHistory.length > 0);
+  const fillRectangleDrag = useEditorStore((state) => state.fillRectangleDrag);
   const level = useEditorStore((state) => state.level);
+  const onlyPaintUnoccupiedCells = useEditorStore((state) => state.onlyPaintUnoccupiedCells);
   const selectedLevelAssetPath = useEditorStore((state) => state.selectedLevelAssetPath);
   const selectedEntityId = useEditorStore((state) => state.selectedEntityId);
   const selectedEntityPathId = useEditorStore((state) => state.selectedEntityPathId);
@@ -61,7 +387,9 @@ export function EditorApp() {
   const commitDocumentChange = useEditorStore((state) => state.commitDocumentChange);
   const setDocument = useEditorStore((state) => state.setDocument);
   const setDocumentWithoutHistory = useEditorStore((state) => state.setDocumentWithoutHistory);
+  const setFillRectangleDrag = useEditorStore((state) => state.setFillRectangleDrag);
   const setLevel = useEditorStore((state) => state.setLevel);
+  const setOnlyPaintUnoccupiedCells = useEditorStore((state) => state.setOnlyPaintUnoccupiedCells);
   const setSelectedEntityId = useEditorStore((state) => state.setSelectedEntityId);
   const tool = useEditorStore((state) => state.tool);
   const redo = useEditorStore((state) => state.redo);
@@ -72,12 +400,29 @@ export function EditorApp() {
   const draggedEntityStartDocumentRef = useRef<EditorDocument | null>(null);
   const draggedPathPointRef = useRef<{ pathId: string; pointIndex: number } | null>(null);
   const draggedPathPointStartDocumentRef = useRef<EditorDocument | null>(null);
+  const rectangleDragRef = useRef<RectangleDragState | null>(null);
   const [canvasZoom, setCanvasZoom] = useState(1);
   const [createBackupsOnSave, setCreateBackupsOnSave] = useState(readBackupPreference);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [rectanglePreview, setRectanglePreview] = useState<EditorCanvasRectanglePreview | null>(
+    null,
+  );
 
-  const getCurrentDocument = (): EditorDocument => ({
+  const rectangleDragContext: RectangleDragContext = {
+    fillRectangleDrag,
+    onlyPaintUnoccupiedCells,
+    selectedLayerId,
+    selectedMaterialId,
+    selectedTileId,
+  };
+
+  const getLiveDocument = (): EditorDocument => ({
+    level,
+    materialPlacements,
+  });
+
+  const getCurrentDocumentSnapshot = (): EditorDocument => ({
     level: cloneLevel(level),
     materialPlacements: structuredClone(materialPlacements),
   });
@@ -140,33 +485,22 @@ export function EditorApp() {
     }
   };
 
-  const handleEntityPlacement = (worldX: number, worldY: number) => {
-    setLevel((currentLevel) => {
-      if (selectedEntityType === 'player') {
-        const withoutPlayer = currentLevel.entities.filter((entity) => entity.type !== 'player');
-        return {
-          ...currentLevel,
-          entities: [...withoutPlayer, { id: 'player', type: 'player', x: worldX, y: worldY }],
-        };
-      }
-
-      if (selectedEntityType === 'column') {
-        return upsertEntity(currentLevel, {
-          id: makeEntityId(currentLevel, 'column'),
-          type: 'column',
-          x: worldX,
-          y: worldY,
-          sprite: COLUMN_ENTITY_SPRITE,
-        });
-      }
-
-      return upsertEntity(currentLevel, {
-        id: makeEntityId(currentLevel, 'enemy'),
-        type: 'enemy-patroller',
-        x: worldX,
-        y: worldY,
-        pathId: selectedEntityPathId ?? undefined,
-      });
+  const handleEntityPlacementPreviewStart = (worldX: number, worldY: number) => {
+    draggedEntityStartDocumentRef.current = getCurrentDocumentSnapshot();
+    setDocumentWithoutHistory((currentDocument) => {
+      const entity = createPlacedEntity(
+        currentDocument.level,
+        selectedEntityType,
+        selectedEntityPathId,
+        worldX,
+        worldY,
+      );
+      draggedEntityIdRef.current = entity.id;
+      setSelectedEntityId(entity.id);
+      return {
+        ...currentDocument,
+        level: upsertEntity(currentDocument.level, entity),
+      };
     });
   };
 
@@ -186,6 +520,14 @@ export function EditorApp() {
     const levelGrid = getLevelGrid(level);
     const x = Math.floor(worldX / levelGrid.cellWidth);
     const y = Math.floor(worldY / levelGrid.cellHeight);
+    const isOccupied =
+      level.layers
+        .find((layer) => layer.id === selectedLayerId)
+        ?.tiles.some((tile) => tile.x === x && tile.y === y) ||
+      Boolean(materialPlacements[selectedLayerId]?.[`${x},${y}`]);
+    if (onlyPaintUnoccupiedCells && isOccupied) {
+      return;
+    }
     const nextMaterialPlacements = clearMaterialPlacement(
       materialPlacements,
       selectedLayerId,
@@ -240,6 +582,14 @@ export function EditorApp() {
     if (!selectedLayerId || !selectedMaterialId) {
       return;
     }
+    const isOccupied =
+      level.layers
+        .find((layer) => layer.id === selectedLayerId)
+        ?.tiles.some((tile) => tile.x === x && tile.y === y) ||
+      Boolean(materialPlacements[selectedLayerId]?.[`${x},${y}`]);
+    if (onlyPaintUnoccupiedCells && isOccupied) {
+      return;
+    }
 
     const result = applyMaterialPlacement(
       level,
@@ -255,18 +605,78 @@ export function EditorApp() {
     });
   };
 
+  const handleRectanglePreviewStart = (mode: RectangleDragState['mode'], worldX: number, worldY: number) => {
+    const { x, y } = getGridCell(level, worldX, worldY);
+    const nextRectangleDrag = {
+      mode,
+      startX: x,
+      startY: y,
+      endX: x,
+      endY: y,
+    };
+    rectangleDragRef.current = nextRectangleDrag;
+    setRectanglePreview(
+      buildRectanglePreview(level, materialPlacements, nextRectangleDrag, rectangleDragContext),
+    );
+  };
+
+  const handleRectanglePreviewMove = (worldX: number, worldY: number) => {
+    const rectangleDrag = rectangleDragRef.current;
+    if (!rectangleDrag) {
+      return false;
+    }
+
+    const { x, y } = getGridCell(level, worldX, worldY);
+    rectangleDrag.endX = x;
+    rectangleDrag.endY = y;
+    setRectanglePreview(
+      buildRectanglePreview(level, materialPlacements, rectangleDrag, rectangleDragContext),
+    );
+    return true;
+  };
+
+  const handleRectanglePreviewCommit = () => {
+    const rectangleDrag = rectangleDragRef.current;
+    if (!rectangleDrag) {
+      return;
+    }
+
+    const nextDocument = applyRectangleDragToDocument(
+      getLiveDocument(),
+      rectangleDrag,
+      rectangleDragContext,
+    );
+    setDocument(nextDocument);
+
+    rectangleDragRef.current = null;
+    setRectanglePreview(null);
+  };
+
+  const clearRectanglePreview = () => {
+    rectangleDragRef.current = null;
+    setRectanglePreview(null);
+  };
+
   const handleTileDrag = (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => {
+    if (handleRectanglePreviewMove(worldX, worldY)) {
+      return;
+    }
+
     if ((info.buttons & 2) === 2) {
       handleTileErase(worldX, worldY);
       return;
     }
 
-    if (info.shiftKey && (info.buttons & 1) === 1) {
+    if ((info.buttons & 1) === 1) {
       handleTilePaint(worldX, worldY);
     }
   };
 
   const handleMaterialDrag = (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => {
+    if (handleRectanglePreviewMove(worldX, worldY)) {
+      return;
+    }
+
     if ((info.buttons & 2) === 2) {
       handleTileErase(worldX, worldY);
       return;
@@ -285,7 +695,7 @@ export function EditorApp() {
     const hitPoint = findPathPointAtPosition(level, selectedPathId, worldX, worldY);
     if (hitPoint) {
       draggedPathPointRef.current = { pathId: selectedPathId, pointIndex: hitPoint.index };
-      draggedPathPointStartDocumentRef.current = getCurrentDocument();
+      draggedPathPointStartDocumentRef.current = getCurrentDocumentSnapshot();
       return;
     }
 
@@ -345,7 +755,7 @@ export function EditorApp() {
     }
 
     draggedEntityIdRef.current = entity.id;
-    draggedEntityStartDocumentRef.current = getCurrentDocument();
+    draggedEntityStartDocumentRef.current = getCurrentDocumentSnapshot();
     if (shouldSelect) {
       setSelectedEntityId(entity.id);
     }
@@ -399,17 +809,27 @@ export function EditorApp() {
       if (handleEntityPointerDown(worldX, worldY, false)) {
         return;
       }
-      handleEntityPlacement(worldX, worldY);
+      if ((info.buttons & 1) === 1) {
+        handleEntityPlacementPreviewStart(worldX, worldY);
+      }
       return;
     }
     if (tool === 'tiles') {
       if ((info.buttons & 1) === 1) {
+        if (info.shiftKey) {
+          handleRectanglePreviewStart('tiles', worldX, worldY);
+          return;
+        }
         handleTilePaint(worldX, worldY);
       }
       return;
     }
     if (tool === 'materials') {
       if ((info.buttons & 1) === 1) {
+        if (info.shiftKey) {
+          handleRectanglePreviewStart('materials', worldX, worldY);
+          return;
+        }
         handleMaterialPaint(worldX, worldY);
       }
       return;
@@ -446,6 +866,13 @@ export function EditorApp() {
       handleEntityPointerUp(worldX, worldY);
       return;
     }
+    if (tool === 'tiles' || tool === 'materials') {
+      if (rectangleDragRef.current) {
+        handleRectanglePreviewMove(worldX, worldY);
+        handleRectanglePreviewCommit();
+      }
+      return;
+    }
     if (tool === 'paths') {
       handlePathPointerUp(worldX, worldY);
     }
@@ -455,14 +882,17 @@ export function EditorApp() {
     if (tool === 'entities') {
       draggedEntityIdRef.current = null;
       draggedEntityStartDocumentRef.current = null;
+      clearRectanglePreview();
       handleEntityRemoval(worldX, worldY);
       return;
     }
     if (tool === 'tiles') {
+      clearRectanglePreview();
       handleTileErase(worldX, worldY);
       return;
     }
     if (tool === 'materials') {
+      clearRectanglePreview();
       handleTileErase(worldX, worldY);
       return;
     }
@@ -606,9 +1036,44 @@ export function EditorApp() {
 
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
           <ToolSwitcher />
+          {tool === 'tiles' || tool === 'materials' ? (
+            <>
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+                      Empty Cell Paint
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Skip tiles or materials that already occupy the target cell.
+                    </div>
+                  </div>
+                  <Switch
+                    checked={onlyPaintUnoccupiedCells}
+                    onCheckedChange={setOnlyPaintUnoccupiedCells}
+                  />
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+                      Filled Rectangle Paint
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Shift-drag paints the entire rectangle area instead of only the border.
+                    </div>
+                  </div>
+                  <Switch checked={fillRectangleDrag} onCheckedChange={setFillRectangleDrag} />
+                </div>
+              </div>
+            </>
+          ) : null}
 
           {tool === 'select' && selectedEntityId ? <SelectedEntitySection /> : null}
-          {tool === 'tiles' ? <TilesSection /> : null}
+          {tool === 'tiles' || tool === 'materials' ? (
+            <TilesSection showPalette={tool === 'tiles'} />
+          ) : null}
           {tool === 'materials' ? <MaterialsSection /> : null}
           {tool === 'entities' ? <EntitiesSection /> : null}
           {tool === 'paths' ? <PathsSection onScrollIntoView={scrollIntoView} /> : null}
@@ -622,6 +1087,7 @@ export function EditorApp() {
             onPointerMove={handleCanvasPointerMove}
             onPointerUp={handleCanvasPointerUp}
             onSecondaryInteraction={handleSecondaryCanvasInteraction}
+            rectanglePreview={rectanglePreview}
             zoom={canvasZoom}
           />
         </div>

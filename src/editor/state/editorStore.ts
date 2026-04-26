@@ -28,11 +28,13 @@ type EditorState = {
   assetPathInput: string;
   assetUrls: AssetUrlMap;
   futureHistory: EditorHistoryEntry[];
+  fillRectangleDrag: boolean;
   images: ImageMap;
   layerVisibility: Record<string, boolean>;
   inactiveLayerOpacity: number;
   level: RawShipInteriorLevel;
   materialPlacements: MaterialPlacementMap;
+  onlyPaintUnoccupiedCells: boolean;
   openPathMenuId: string | null;
   pastHistory: EditorHistoryEntry[];
   renamingPathId: string | null;
@@ -62,9 +64,11 @@ type EditorActions = {
   setImages: (images: ImageMap) => void;
   setInactiveLayerOpacity: (opacity: number) => void;
   setLayerVisibility: (layerId: string, isVisible: boolean) => void;
+  setOnlyPaintUnoccupiedCells: (enabled: boolean) => void;
   setDocument: (
     updater: EditorDocument | ((currentDocument: EditorDocument) => EditorDocument),
   ) => void;
+  setFillRectangleDrag: (enabled: boolean) => void;
   setDocumentWithoutHistory: (
     updater: EditorDocument | ((currentDocument: EditorDocument) => EditorDocument),
   ) => void;
@@ -123,10 +127,12 @@ function buildLevelResetState(
   return {
     assetPathInput: '',
     futureHistory: [],
+    fillRectangleDrag: false,
     layerVisibility: {},
     inactiveLayerOpacity: 0.35,
     level,
     materialPlacements: cloneMaterialPlacements(materialPlacements),
+    onlyPaintUnoccupiedCells: false,
     openPathMenuId: null,
     pastHistory: [],
     renamingPathId: null,
@@ -147,11 +153,13 @@ function buildInitialEditorState(): EditorState {
     assetPathInput: '',
     assetUrls: {},
     futureHistory: [],
+    fillRectangleDrag: false,
     images: {},
     layerVisibility: {},
     inactiveLayerOpacity: 0.35,
     level: cloneLevel(initialLevel),
     materialPlacements: cloneMaterialPlacements(initialMaterialPlacements),
+    onlyPaintUnoccupiedCells: false,
     openPathMenuId: null,
     pastHistory: [],
     renamingPathId: null,
@@ -342,6 +350,7 @@ export const useEditorStore = create<EditorStore>()(
       setImages: (images) => set({ images }),
       setInactiveLayerOpacity: (inactiveLayerOpacity) =>
         set({ inactiveLayerOpacity: Math.min(1, Math.max(0, inactiveLayerOpacity)) }),
+      setFillRectangleDrag: (fillRectangleDrag) => set({ fillRectangleDrag }),
       setLayerVisibility: (layerId, isVisible) =>
         set((state) => ({
           layerVisibility: {
@@ -349,6 +358,7 @@ export const useEditorStore = create<EditorStore>()(
             [layerId]: isVisible,
           },
         })),
+      setOnlyPaintUnoccupiedCells: (onlyPaintUnoccupiedCells) => set({ onlyPaintUnoccupiedCells }),
       setDocument: (updater) =>
         set((state) => {
           const currentDocument = getEditorDocument(state);
@@ -597,9 +607,12 @@ export const useEditorStore = create<EditorStore>()(
       },
       partialize: (state) => ({
         assetPathInput: state.assetPathInput,
+        fillRectangleDrag: state.fillRectangleDrag,
         layerVisibility: state.layerVisibility,
         inactiveLayerOpacity: state.inactiveLayerOpacity,
         level: state.level,
+        materialPlacements: state.materialPlacements,
+        onlyPaintUnoccupiedCells: state.onlyPaintUnoccupiedCells,
         selectedEntityId: state.selectedEntityId,
         selectedEntityPathId: state.selectedEntityPathId,
         selectedEntityType: state.selectedEntityType,

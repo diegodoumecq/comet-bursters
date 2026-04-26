@@ -6,11 +6,16 @@ import {
   topologyDirectionOffsets,
   topologyDirections,
   type TileTopologyDirection,
-  type TileTopologyRelation,
 } from './autotile';
 import type { RawShipInteriorLevel, ShipInteriorTileId } from '../../scenes/ShipInteriorScene/level';
 import type { EditorTilesetDefinition, EditorTilesetTileDefinition } from './editorTileset';
 export type MaterialPlacementMap = Record<string, Record<string, string>>;
+export type ResolvedMaterialTilePreview = {
+  material: string;
+  tileId: ShipInteriorTileId;
+  x: number;
+  y: number;
+};
 
 export function cloneMaterialPlacementMap(
   materialPlacements: MaterialPlacementMap,
@@ -63,7 +68,7 @@ export function getTilesetMaterials(tileset: EditorTilesetDefinition | null): st
   ).sort((left, right) => left.localeCompare(right));
 }
 
-function getMaterialPlacementKey(x: number, y: number): string {
+export function getMaterialPlacementKey(x: number, y: number): string {
   return `${x},${y}`;
 }
 
@@ -76,31 +81,10 @@ function parseMaterialPlacementCell(key: string, material: string): MaterialCell
   return { key, material, x, y };
 }
 
-function getLayerMaterialCells(
-  materialPlacements: MaterialPlacementMap,
-  layerId: string,
-): MaterialCell[] {
-  return Object.entries(materialPlacements[layerId] ?? {})
-    .map(([key, material]) => parseMaterialPlacementCell(key, material))
-    .filter((cell): cell is MaterialCell => Boolean(cell));
-}
-
-function getTopologyRelationForDirection(
-  cell: MaterialCell,
-  direction: TileTopologyDirection,
-  materialsByCellKey: Map<string, string>,
-): TileTopologyRelation {
-  const offset = topologyDirectionOffsets[direction];
-  const neighborMaterial = materialsByCellKey.get(
-    getMaterialPlacementKey(cell.x + offset.dx, cell.y + offset.dy),
-  );
-  return neighborMaterial === cell.material ? 'same' : 'different';
-}
-
-function tileMatchesTopologyForDirections(
+function tileMatchesTopologyForPlacements(
   tile: EditorTilesetTileDefinition,
   cell: MaterialCell,
-  materialsByCellKey: Map<string, string>,
+  placementsByCellKey: Record<string, string>,
   directions: readonly TileTopologyDirection[],
 ): boolean {
   if (tile.topology === undefined) {
@@ -109,9 +93,12 @@ function tileMatchesTopologyForDirections(
 
   return directions.every((direction) => {
     const expectedRelation = getTileTopologyRelation(tile.topology, direction);
+    const offset = topologyDirectionOffsets[direction];
+    const neighborMaterial =
+      placementsByCellKey[getMaterialPlacementKey(cell.x + offset.dx, cell.y + offset.dy)];
     return (
       expectedRelation === 'any' ||
-      expectedRelation === getTopologyRelationForDirection(cell, direction, materialsByCellKey)
+      expectedRelation === (neighborMaterial === cell.material ? 'same' : 'different')
     );
   });
 }
@@ -187,51 +174,70 @@ function chooseAutotileVariant(
   return null;
 }
 
-function resolveMaterialTilesForLayer(
+export function resolveMaterialTilesForCells(
   level: RawShipInteriorLevel,
   layerId: string,
   materialPlacements: MaterialPlacementMap,
-): Map<string, EditorTilesetTileDefinition> {
+  cells: Array<{ x: number; y: number }>,
+): ResolvedMaterialTilePreview[] {
   const layer = level.layers.find((candidate) => candidate.id === layerId);
   if (!layer) {
-    return new Map();
+    return [];
   }
 
   const tileset = level.tilesets.find((candidate) => candidate.id === layer.tilesetId);
   if (!tileset) {
-    return new Map();
+    return [];
   }
+
   const editorTileset = tileset as EditorTilesetDefinition;
+  const placementsByCellKey = materialPlacements[layerId] ?? {};
+  const uniqueKeys = new Set(cells.map((cell) => getMaterialPlacementKey(cell.x, cell.y)));
 
-  const cells = getLayerMaterialCells(materialPlacements, layerId);
-  const materialsByCellKey = new Map(cells.map((cell) => [cell.key, cell.material]));
+  return Array.from(uniqueKeys).flatMap((key) => {
+    const material = placementsByCellKey[key];
+    if (!material) {
+      return [];
+    }
 
-  return new Map(
-    cells.flatMap((cell) => {
-      const materialTiles = editorTileset.tiles.filter(
-        (tile) => tile.material === cell.material && tile.topology !== undefined,
-      );
-      const exactCandidates = materialTiles.filter((tile) =>
-        tileMatchesTopologyForDirections(tile, cell, materialsByCellKey, topologyDirections),
-      );
-      const resolvedTile =
-        chooseAutotileVariant(layerId, cell, exactCandidates, topologyDirections) ??
-        chooseAutotileVariant(
-          layerId,
-          cell,
-          materialTiles.filter((tile) =>
-            tileMatchesTopologyForDirections(
-              tile,
-              cell,
-              materialsByCellKey,
-              cardinalTopologyDirections,
-            ),
+    const cell = parseMaterialPlacementCell(key, material);
+    if (!cell) {
+      return [];
+    }
+
+    const materialTiles = editorTileset.tiles.filter(
+      (tile) => tile.material === cell.material && tile.topology !== undefined,
+    );
+    const exactCandidates = materialTiles.filter((tile) =>
+      tileMatchesTopologyForPlacements(tile, cell, placementsByCellKey, topologyDirections),
+    );
+    const resolvedTile =
+      chooseAutotileVariant(layerId, cell, exactCandidates, topologyDirections) ??
+      chooseAutotileVariant(
+        layerId,
+        cell,
+        materialTiles.filter((tile) =>
+          tileMatchesTopologyForPlacements(
+            tile,
+            cell,
+            placementsByCellKey,
+            cardinalTopologyDirections,
           ),
-          cardinalTopologyDirections,
-        );
-      return resolvedTile ? [[cell.key, resolvedTile] as const] : [];
-    }),
-  );
+        ),
+        cardinalTopologyDirections,
+      );
+
+    return resolvedTile
+      ? [
+          {
+            material: cell.material,
+            tileId: resolvedTile.id,
+            x: cell.x,
+            y: cell.y,
+          } satisfies ResolvedMaterialTilePreview,
+        ]
+      : [];
+  });
 }
 
 function paintConcreteTile(
@@ -257,12 +263,11 @@ function paintConcreteTile(
   };
 }
 
-function clearConcreteTilesAtMaterialCells(
+function clearConcreteTilesAtCellKeys(
   level: RawShipInteriorLevel,
   layerId: string,
-  cells: MaterialCell[],
+  cellKeys: Set<string>,
 ): RawShipInteriorLevel {
-  const cellKeys = new Set(cells.map((cell) => cell.key));
   return {
     ...level,
     layers: level.layers.map((layer) =>
@@ -278,21 +283,42 @@ function clearConcreteTilesAtMaterialCells(
   };
 }
 
-function applyResolvedMaterialTiles(
+function getExpandedMaterialCells(cells: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
+  const expandedCells = new Map<string, { x: number; y: number }>();
+
+  for (const cell of cells) {
+    for (let dy = -1; dy <= 1; dy += 1) {
+      for (let dx = -1; dx <= 1; dx += 1) {
+        const expandedCell = { x: cell.x + dx, y: cell.y + dy };
+        expandedCells.set(getMaterialPlacementKey(expandedCell.x, expandedCell.y), expandedCell);
+      }
+    }
+  }
+
+  return Array.from(expandedCells.values());
+}
+
+function applyResolvedMaterialTilesForCells(
   level: RawShipInteriorLevel,
   materialPlacements: MaterialPlacementMap,
   layerId: string,
+  cells: Array<{ x: number; y: number }>,
 ): RawShipInteriorLevel {
-  const cells = getLayerMaterialCells(materialPlacements, layerId);
-  const assignments = resolveMaterialTilesForLayer(level, layerId, materialPlacements);
-  const clearedLevel = clearConcreteTilesAtMaterialCells(level, layerId, cells);
+  if (cells.length === 0) {
+    return level;
+  }
 
-  return Array.from(assignments.entries()).reduce((nextLevel, [key, tile]) => {
-    const materialCell = parseMaterialPlacementCell(key, tile.material ?? '');
-    return materialCell
-      ? paintConcreteTile(nextLevel, layerId, tile.id, materialCell.x, materialCell.y)
-      : nextLevel;
-  }, clearedLevel);
+  const affectedCells = getExpandedMaterialCells(cells);
+  const affectedCellKeys = new Set(
+    affectedCells.map((cell) => getMaterialPlacementKey(cell.x, cell.y)),
+  );
+  const assignments = resolveMaterialTilesForCells(level, layerId, materialPlacements, affectedCells);
+  const clearedLevel = clearConcreteTilesAtCellKeys(level, layerId, affectedCellKeys);
+
+  return assignments.reduce(
+    (nextLevel, tile) => paintConcreteTile(nextLevel, layerId, tile.tileId, tile.x, tile.y),
+    clearedLevel,
+  );
 }
 
 function setPlacedMaterial(
@@ -330,18 +356,51 @@ export function clearMaterialPlacement(
   };
 }
 
+export function clearMaterialPlacements(
+  materialPlacements: MaterialPlacementMap,
+  layerId: string | null,
+  cells: Array<{ x: number; y: number }>,
+): MaterialPlacementMap {
+  if (!layerId || !materialPlacements[layerId] || cells.length === 0) {
+    return materialPlacements;
+  }
+
+  const nextLayerPlacements = { ...materialPlacements[layerId] };
+  for (const cell of cells) {
+    delete nextLayerPlacements[getMaterialPlacementKey(cell.x, cell.y)];
+  }
+
+  return {
+    ...materialPlacements,
+    [layerId]: nextLayerPlacements,
+  };
+}
+
 export function refreshMaterialPlacementTilesAround(
   level: RawShipInteriorLevel,
   materialPlacements: MaterialPlacementMap,
   layerId: string | null,
-  _x: number,
-  _y: number,
+  x: number,
+  y: number,
 ): RawShipInteriorLevel {
   if (!layerId) {
     return level;
   }
 
-  return applyResolvedMaterialTiles(level, materialPlacements, layerId);
+  return applyResolvedMaterialTilesForCells(level, materialPlacements, layerId, [{ x, y }]);
+}
+
+export function refreshMaterialPlacementTilesForCells(
+  level: RawShipInteriorLevel,
+  materialPlacements: MaterialPlacementMap,
+  layerId: string | null,
+  cells: Array<{ x: number; y: number }>,
+): RawShipInteriorLevel {
+  if (!layerId) {
+    return level;
+  }
+
+  return applyResolvedMaterialTilesForCells(level, materialPlacements, layerId, cells);
 }
 
 export function applyMaterialPlacement(
@@ -359,7 +418,34 @@ export function applyMaterialPlacement(
   const nextMaterialPlacements = setPlacedMaterial(materialPlacements, layerId, x, y, materialName);
 
   return {
-    level: applyResolvedMaterialTiles(level, nextMaterialPlacements, layerId),
+    level: applyResolvedMaterialTilesForCells(level, nextMaterialPlacements, layerId, [{ x, y }]),
+    materialPlacements: nextMaterialPlacements,
+  };
+}
+
+export function applyMaterialPlacements(
+  level: RawShipInteriorLevel,
+  materialPlacements: MaterialPlacementMap,
+  layerId: string | null,
+  materialName: string | null,
+  cells: Array<{ x: number; y: number }>,
+): { level: RawShipInteriorLevel; materialPlacements: MaterialPlacementMap } {
+  if (!layerId || !materialName || cells.length === 0) {
+    return { level, materialPlacements };
+  }
+
+  const nextMaterialPlacements = {
+    ...materialPlacements,
+    [layerId]: {
+      ...(materialPlacements[layerId] ?? {}),
+      ...Object.fromEntries(
+        cells.map((cell) => [getMaterialPlacementKey(cell.x, cell.y), materialName]),
+      ),
+    },
+  };
+
+  return {
+    level: applyResolvedMaterialTilesForCells(level, nextMaterialPlacements, layerId, cells),
     materialPlacements: nextMaterialPlacements,
   };
 }
