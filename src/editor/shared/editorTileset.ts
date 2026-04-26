@@ -76,6 +76,7 @@ export function cloneEditorTilesetTile(
 ): EditorTilesetTileDefinition {
   return {
     id: tile.id,
+    name: tile.name,
     ...(tile.material ? { material: tile.material } : {}),
     position: [...tile.position],
     ...(tile.topology ? { topology: cloneTileTopology(tile.topology) } : {}),

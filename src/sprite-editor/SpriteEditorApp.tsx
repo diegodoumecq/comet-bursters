@@ -4,6 +4,17 @@ import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/ui/components/Resizable';
 import { Switch } from '@/ui/components/Switch';
 import {
+  applyHistoryEntry,
+  createDocumentHistorySession,
+  createPatchHistorySession,
+  extendPatchHistorySession,
+  finalizeHistorySession,
+  getBrushStampBounds,
+  getStrokeSegmentBounds,
+  type PendingSpriteHistorySession,
+  type SpriteHistoryEntry,
+} from './history';
+import {
   getGridSourcesForSpriteAsset,
   spriteAssets,
   type SpriteAssetGridSource,
@@ -364,8 +375,9 @@ export function SpriteEditorApp() {
   const selectionRect = useSpriteEditorStore((state) => state.selectionRect);
   const sidebarSize = useSpriteEditorStore((state) => state.sidebarSize);
   const tool = useSpriteEditorStore((state) => state.tool);
-  const [undoStack, setUndoStack] = useState<ImageData[]>([]);
-  const [redoStack, setRedoStack] = useState<ImageData[]>([]);
+  const pendingHistorySessionRef = useRef<PendingSpriteHistorySession | null>(null);
+  const [undoStack, setUndoStack] = useState<SpriteHistoryEntry[]>([]);
+  const [redoStack, setRedoStack] = useState<SpriteHistoryEntry[]>([]);
   const viewportOffset = useSpriteEditorStore((state) => state.viewportOffset);
   const zoom = useSpriteEditorStore((state) => state.zoom);
   const applyGridSettings = useSpriteEditorStore((state) => state.applyGridSettings);
@@ -557,6 +569,7 @@ export function SpriteEditorApp() {
       isSelectionCopyRef.current = false;
       selectionDragOriginRef.current = null;
       moveDragOriginRef.current = null;
+      discardCurrentHistorySession();
       setUndoStack([]);
       setRedoStack([]);
       setDirty(false);
@@ -627,16 +640,63 @@ export function SpriteEditorApp() {
     };
   }, []);
 
-  const commitSnapshot = () => {
+  const pushHistoryEntry = (entry: SpriteHistoryEntry | null) => {
+    if (!entry) {
+      return;
+    }
+
+    setUndoStack((current) => [...current, entry].slice(-50));
+    setRedoStack([]);
+  };
+
+  const beginPatchHistorySession = (label: string, bounds: PixelRect) => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) {
       return;
     }
 
-    const snapshot = cloneImageData(ctx);
-    setUndoStack((current) => [...current, snapshot].slice(-50));
-    setRedoStack([]);
+    pendingHistorySessionRef.current = createPatchHistorySession(ctx, bounds, label);
+  };
+
+  const extendCurrentPatchHistorySession = (bounds: PixelRect) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) {
+      return;
+    }
+
+    pendingHistorySessionRef.current = extendPatchHistorySession(
+      pendingHistorySessionRef.current,
+      ctx,
+      bounds,
+    );
+  };
+
+  const beginDocumentHistorySession = (label: string) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) {
+      return;
+    }
+
+    pendingHistorySessionRef.current = createDocumentHistorySession(ctx, label);
+  };
+
+  const finalizeCurrentHistorySession = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) {
+      pendingHistorySessionRef.current = null;
+      return;
+    }
+
+    pushHistoryEntry(finalizeHistorySession(ctx, pendingHistorySessionRef.current));
+    pendingHistorySessionRef.current = null;
+  };
+
+  const discardCurrentHistorySession = () => {
+    pendingHistorySessionRef.current = null;
   };
 
   const getCanvasSelectionImageData = () => {
@@ -709,7 +769,7 @@ export function SpriteEditorApp() {
       height: clippedImage.height,
     };
 
-    commitSnapshot();
+    beginDocumentHistorySession('Paste');
 
     const scratchCanvas = document.createElement('canvas');
     scratchCanvas.width = clippedImage.width;
@@ -735,6 +795,7 @@ export function SpriteEditorApp() {
     setDirty(true);
     setLoadError(null);
     setMessage('Pasted clipboard image.');
+    finalizeCurrentHistorySession();
   };
 
   const handleSelectAsset = (nextAssetPath: string) => {
@@ -755,12 +816,11 @@ export function SpriteEditorApp() {
       return;
     }
 
-    const currentSnapshot = cloneImageData(ctx);
-    const nextUndoStack = undoStack.slice(0, -1);
-    const snapshot = undoStack[undoStack.length - 1];
-    ctx.putImageData(snapshot, 0, 0);
-    setUndoStack(nextUndoStack);
-    setRedoStack((current) => [...current, currentSnapshot].slice(-50));
+    discardCurrentHistorySession();
+    const entry = undoStack[undoStack.length - 1];
+    applyHistoryEntry(ctx, entry, 'undo');
+    setUndoStack((current) => current.slice(0, -1));
+    setRedoStack((current) => [...current, entry].slice(-50));
     moveSourceImageDataRef.current = cloneImageData(ctx);
     selectionPixelsRef.current = selectionRect
       ? cropImageData(cloneImageData(ctx), selectionRect)
@@ -780,12 +840,11 @@ export function SpriteEditorApp() {
       return;
     }
 
-    const currentSnapshot = cloneImageData(ctx);
-    const nextRedoStack = redoStack.slice(0, -1);
-    const snapshot = redoStack[redoStack.length - 1];
-    ctx.putImageData(snapshot, 0, 0);
-    setRedoStack(nextRedoStack);
-    setUndoStack((current) => [...current, currentSnapshot].slice(-50));
+    discardCurrentHistorySession();
+    const entry = redoStack[redoStack.length - 1];
+    applyHistoryEntry(ctx, entry, 'redo');
+    setRedoStack((current) => current.slice(0, -1));
+    setUndoStack((current) => [...current, entry].slice(-50));
     moveSourceImageDataRef.current = cloneImageData(ctx);
     selectionPixelsRef.current = selectionRect
       ? cropImageData(cloneImageData(ctx), selectionRect)
@@ -816,6 +875,7 @@ export function SpriteEditorApp() {
     isSelectionCopyRef.current = false;
     selectionDragOriginRef.current = null;
     moveDragOriginRef.current = null;
+    discardCurrentHistorySession();
     setUndoStack([]);
     setRedoStack([]);
     setDirty(false);
@@ -864,6 +924,7 @@ export function SpriteEditorApp() {
           : null;
         isSelectionCopyRef.current = false;
       }
+      discardCurrentHistorySession();
       setDirty(false);
       selectionDragOriginRef.current = null;
       moveDragOriginRef.current = null;
@@ -920,7 +981,7 @@ export function SpriteEditorApp() {
     resizeSource.height = canvas.height;
     resizeSource.getContext('2d')?.putImageData(previousSnapshot, 0, 0);
 
-    commitSnapshot();
+    beginDocumentHistorySession('Resize');
     canvas.width = nextWidth;
     canvas.height = nextHeight;
     ctx.imageSmoothingEnabled = false;
@@ -938,6 +999,7 @@ export function SpriteEditorApp() {
     setSelectionRect(null);
     setMessage(`Resized canvas to ${nextWidth} x ${nextHeight}.`);
     setIsActionsOpen(false);
+    finalizeCurrentHistorySession();
     window.requestAnimationFrame(() => {
       centerCanvasInViewport(zoom);
     });
@@ -1133,9 +1195,7 @@ export function SpriteEditorApp() {
     if (activeTool === 'move') {
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
-      if (moveOffset.x === 0 && moveOffset.y === 0) {
-        commitSnapshot();
-      }
+      beginDocumentHistorySession('Move');
       if (!selectionRect || !isSelectionCopyRef.current) {
         moveSourceImageDataRef.current = cloneImageData(ctx);
       }
@@ -1163,7 +1223,7 @@ export function SpriteEditorApp() {
 
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    commitSnapshot();
+    beginPatchHistorySession('Brush', getBrushStampBounds(point.x, point.y, brushSize));
     paintPoint(ctx, point.x, point.y, brushSize, activeTool, brushColor);
     lastPointerRef.current = point;
     setInteractionMode('paint');
@@ -1239,6 +1299,7 @@ export function SpriteEditorApp() {
       return;
     }
 
+    extendCurrentPatchHistorySession(getStrokeSegmentBounds(previousPoint, point, brushSize));
     paintLine(ctx, previousPoint, point, brushSize, tool, brushColor);
     lastPointerRef.current = point;
     setDirty(true);
@@ -1259,6 +1320,11 @@ export function SpriteEditorApp() {
         completedSelectionRect,
       );
       isSelectionCopyRef.current = false;
+    }
+    if (interactionMode === 'paint' || interactionMode === 'move') {
+      finalizeCurrentHistorySession();
+    } else {
+      discardCurrentHistorySession();
     }
     setInteractionMode('idle');
   };

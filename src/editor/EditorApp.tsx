@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 
 import { EditorCanvas, type EditorCanvasPointerInfo } from './EditorCanvas';
 import { getLevelGrid } from '../scenes/ShipInteriorScene/level';
+import type { EditorDocument } from './state/history';
 import { EditorStoreEffects } from './state/EditorStoreEffects';
 import { useEditorStore } from './state/editorStore';
 import {
@@ -34,6 +35,7 @@ import { DropdownMenu } from '@/ui/components/DropdownMenu';
 import { ToolSwitcher } from './components/ToolSwitcher';
 
 const BACKUP_PREFERENCE_STORAGE_KEY = 'comet-bursters.editor.create-backups';
+const COLUMN_ENTITY_SPRITE = '../columnPixelart.png';
 
 function readBackupPreference(): boolean {
   if (typeof window === 'undefined') {
@@ -44,8 +46,8 @@ function readBackupPreference(): boolean {
 }
 
 export function EditorApp() {
-  const canRedo = useEditorStore((state) => state.futureLevels.length > 0);
-  const canUndo = useEditorStore((state) => state.pastLevels.length > 0);
+  const canRedo = useEditorStore((state) => state.futureHistory.length > 0);
+  const canUndo = useEditorStore((state) => state.pastHistory.length > 0);
   const level = useEditorStore((state) => state.level);
   const selectedLevelAssetPath = useEditorStore((state) => state.selectedLevelAssetPath);
   const selectedEntityId = useEditorStore((state) => state.selectedEntityId);
@@ -56,10 +58,10 @@ export function EditorApp() {
   const selectedMaterialId = useEditorStore((state) => state.selectedMaterialId);
   const selectedPathId = useEditorStore((state) => state.selectedPathId);
   const selectedTileId = useEditorStore((state) => state.selectedTileId);
-  const commitLevelChange = useEditorStore((state) => state.commitLevelChange);
+  const commitDocumentChange = useEditorStore((state) => state.commitDocumentChange);
+  const setDocument = useEditorStore((state) => state.setDocument);
+  const setDocumentWithoutHistory = useEditorStore((state) => state.setDocumentWithoutHistory);
   const setLevel = useEditorStore((state) => state.setLevel);
-  const setLevelWithoutHistory = useEditorStore((state) => state.setLevelWithoutHistory);
-  const setMaterialPlacements = useEditorStore((state) => state.setMaterialPlacements);
   const setSelectedEntityId = useEditorStore((state) => state.setSelectedEntityId);
   const tool = useEditorStore((state) => state.tool);
   const redo = useEditorStore((state) => state.redo);
@@ -67,13 +69,18 @@ export function EditorApp() {
   const undo = useEditorStore((state) => state.undo);
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
   const draggedEntityIdRef = useRef<string | null>(null);
-  const draggedEntityStartLevelRef = useRef<typeof level | null>(null);
+  const draggedEntityStartDocumentRef = useRef<EditorDocument | null>(null);
   const draggedPathPointRef = useRef<{ pathId: string; pointIndex: number } | null>(null);
-  const draggedPathPointStartLevelRef = useRef<typeof level | null>(null);
+  const draggedPathPointStartDocumentRef = useRef<EditorDocument | null>(null);
   const [canvasZoom, setCanvasZoom] = useState(1);
   const [createBackupsOnSave, setCreateBackupsOnSave] = useState(readBackupPreference);
   const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+
+  const getCurrentDocument = (): EditorDocument => ({
+    level: cloneLevel(level),
+    materialPlacements: structuredClone(materialPlacements),
+  });
 
   const scrollIntoView = (worldX: number, worldY: number) => {
     const viewport = canvasViewportRef.current;
@@ -120,6 +127,7 @@ export function EditorApp() {
           createBackup: createBackupsOnSave,
           fileName,
           level,
+          materialPlacements,
         }),
       });
 
@@ -140,6 +148,16 @@ export function EditorApp() {
           ...currentLevel,
           entities: [...withoutPlayer, { id: 'player', type: 'player', x: worldX, y: worldY }],
         };
+      }
+
+      if (selectedEntityType === 'column') {
+        return upsertEntity(currentLevel, {
+          id: makeEntityId(currentLevel, 'column'),
+          type: 'column',
+          x: worldX,
+          y: worldY,
+          sprite: COLUMN_ENTITY_SPRITE,
+        });
       }
 
       return upsertEntity(currentLevel, {
@@ -181,8 +199,10 @@ export function EditorApp() {
       x,
       y,
     );
-    setMaterialPlacements(nextMaterialPlacements);
-    setLevel(placeTile(refreshedLevel, selectedLayerId, selectedTileId, x, y));
+    setDocument({
+      level: placeTile(refreshedLevel, selectedLayerId, selectedTileId, x, y),
+      materialPlacements: nextMaterialPlacements,
+    });
   };
 
   const handleTileErase = (worldX: number, worldY: number) => {
@@ -207,8 +227,10 @@ export function EditorApp() {
       x,
       y,
     );
-    setMaterialPlacements(nextMaterialPlacements);
-    setLevel(eraseTile(refreshedLevel, selectedLayerId, x, y));
+    setDocument({
+      level: eraseTile(refreshedLevel, selectedLayerId, x, y),
+      materialPlacements: nextMaterialPlacements,
+    });
   };
 
   const handleMaterialPaint = (worldX: number, worldY: number) => {
@@ -227,8 +249,10 @@ export function EditorApp() {
       x,
       y,
     );
-    setMaterialPlacements(result.materialPlacements);
-    setLevel(result.level);
+    setDocument({
+      level: result.level,
+      materialPlacements: result.materialPlacements,
+    });
   };
 
   const handleTileDrag = (worldX: number, worldY: number, info: EditorCanvasPointerInfo) => {
@@ -261,7 +285,7 @@ export function EditorApp() {
     const hitPoint = findPathPointAtPosition(level, selectedPathId, worldX, worldY);
     if (hitPoint) {
       draggedPathPointRef.current = { pathId: selectedPathId, pointIndex: hitPoint.index };
-      draggedPathPointStartLevelRef.current = cloneLevel(level);
+      draggedPathPointStartDocumentRef.current = getCurrentDocument();
       return;
     }
 
@@ -276,15 +300,16 @@ export function EditorApp() {
       return;
     }
 
-    setLevelWithoutHistory((currentLevel) =>
-      updatePathPoint(
-        currentLevel,
+    setDocumentWithoutHistory((currentDocument) => ({
+      ...currentDocument,
+      level: updatePathPoint(
+        currentDocument.level,
         draggedPoint.pathId,
         draggedPoint.pointIndex,
         Math.round(worldX),
         Math.round(worldY),
       ),
-    );
+    }));
   };
 
   const handlePathPointerUp = (worldX: number, worldY: number) => {
@@ -293,20 +318,21 @@ export function EditorApp() {
       return;
     }
 
-    setLevelWithoutHistory((currentLevel) =>
-      updatePathPoint(
-        currentLevel,
+    setDocumentWithoutHistory((currentDocument) => ({
+      ...currentDocument,
+      level: updatePathPoint(
+        currentDocument.level,
         draggedPoint.pathId,
         draggedPoint.pointIndex,
         Math.round(worldX),
         Math.round(worldY),
       ),
-    );
-    if (draggedPathPointStartLevelRef.current) {
-      commitLevelChange(draggedPathPointStartLevelRef.current);
+    }));
+    if (draggedPathPointStartDocumentRef.current) {
+      commitDocumentChange(draggedPathPointStartDocumentRef.current);
     }
     draggedPathPointRef.current = null;
-    draggedPathPointStartLevelRef.current = null;
+    draggedPathPointStartDocumentRef.current = null;
   };
 
   const handleEntityPointerDown = (worldX: number, worldY: number, shouldSelect: boolean) => {
@@ -319,7 +345,7 @@ export function EditorApp() {
     }
 
     draggedEntityIdRef.current = entity.id;
-    draggedEntityStartLevelRef.current = cloneLevel(level);
+    draggedEntityStartDocumentRef.current = getCurrentDocument();
     if (shouldSelect) {
       setSelectedEntityId(entity.id);
     }
@@ -332,27 +358,32 @@ export function EditorApp() {
       return;
     }
 
-    setLevelWithoutHistory((currentLevel) => {
-      const entity = currentLevel.entities.find((candidate) => candidate.id === draggedEntityId);
+    setDocumentWithoutHistory((currentDocument) => {
+      const entity = currentDocument.level.entities.find(
+        (candidate) => candidate.id === draggedEntityId,
+      );
       if (!entity) {
-        return currentLevel;
+        return currentDocument;
       }
 
-      return upsertEntity(currentLevel, {
-        ...entity,
-        x: Math.round(worldX),
-        y: Math.round(worldY),
-      });
+      return {
+        ...currentDocument,
+        level: upsertEntity(currentDocument.level, {
+          ...entity,
+          x: Math.round(worldX),
+          y: Math.round(worldY),
+        }),
+      };
     });
   };
 
   const handleEntityPointerUp = (worldX: number, worldY: number) => {
     handleEntityPointerMove(worldX, worldY);
-    if (draggedEntityStartLevelRef.current) {
-      commitLevelChange(draggedEntityStartLevelRef.current);
+    if (draggedEntityStartDocumentRef.current) {
+      commitDocumentChange(draggedEntityStartDocumentRef.current);
     }
     draggedEntityIdRef.current = null;
-    draggedEntityStartLevelRef.current = null;
+    draggedEntityStartDocumentRef.current = null;
   };
 
   const handlePrimaryCanvasInteraction = (
@@ -423,7 +454,7 @@ export function EditorApp() {
   const handleSecondaryCanvasInteraction = (worldX: number, worldY: number) => {
     if (tool === 'entities') {
       draggedEntityIdRef.current = null;
-      draggedEntityStartLevelRef.current = null;
+      draggedEntityStartDocumentRef.current = null;
       handleEntityRemoval(worldX, worldY);
       return;
     }
@@ -442,7 +473,7 @@ export function EditorApp() {
       }
 
       draggedPathPointRef.current = null;
-      draggedPathPointStartLevelRef.current = null;
+      draggedPathPointStartDocumentRef.current = null;
       setLevel((currentLevel) => removePathPoint(currentLevel, selectedPathId, hitPoint.index));
     }
   };

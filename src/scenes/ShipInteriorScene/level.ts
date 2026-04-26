@@ -3,7 +3,7 @@ import type { AlphaMask } from '@/constants';
 import { loadSpriteSheet } from '@/spritesheet';
 import type { SpriteSheet, SpriteSheetGridConfig, TilemapLayer } from '@/spritesheet';
 import shipInteriorLevelUrl from '../../assets/levels/shipInterior.level.json?url';
-import { resolveShipInteriorTileAssetUrl } from './tileAssets';
+import { resolveShipInteriorAssetUrl as resolveShipInteriorSceneAssetUrl } from './tileAssets';
 import { getBundledTilesetDefinitions } from './tilesetCatalog';
 
 export type Point = { x: number; y: number };
@@ -11,13 +11,15 @@ export type Rect = { x: number; y: number; width: number; height: number };
 export type TileGridPoint = { x: number; y: number };
 export type TileCoordinateTuple = [number, number];
 export type TileSelector = { column: number; row: number };
+export type ShipInteriorTileId = number;
 export type ShipInteriorLevelGridDefinition = {
   cellWidth: number;
   cellHeight: number;
 };
 
 export type ShipInteriorTilesetTileDefinition = {
-  id: string;
+  id: ShipInteriorTileId;
+  name: string;
   position: TileCoordinateTuple;
 };
 
@@ -29,7 +31,7 @@ export type ShipInteriorTilesetDefinition = {
 };
 
 export type ShipInteriorLayerTileDefinition = {
-  tile: string;
+  tile: ShipInteriorTileId | string;
   x: number;
   y: number;
 };
@@ -60,6 +62,7 @@ export type ShipInteriorEntityDefinition = {
   x: number;
   y: number;
   pathId?: string;
+  sprite?: string;
 };
 
 export type RawShipInteriorLevel = {
@@ -80,10 +83,11 @@ export type LoadedShipInteriorTileset = {
   alphaMask: AlphaMask;
   grid: Readonly<Required<Omit<SpriteSheetGridConfig, 'namedFrames'>>>;
   tiles: Record<string, TileSelector>;
+  tileNames: Record<string, string>;
 };
 
 export type LoadedShipInteriorTile = {
-  tileId: string;
+  tileId: ShipInteriorTileId;
   frame: TileSelector;
   tileX: number;
   tileY: number;
@@ -195,24 +199,45 @@ function normalizeTilesetTiles(tiles: unknown, label: string): ShipInteriorTiles
         throw new Error(`${label}.tiles[${index}] must be an object.`);
       }
 
-      const tileDefinition = tile as ShipInteriorTilesetTileDefinition;
-      if (!tileDefinition.id || typeof tileDefinition.id !== 'string') {
-        throw new Error(`${label}.tiles[${index}].id must be a string.`);
+      const tileDefinition = tile as {
+        id: number | string;
+        name?: string;
+        position: TileCoordinateTuple;
+      };
+      const nextId =
+        typeof tileDefinition.id === 'number'
+          ? tileDefinition.id
+          : typeof tileDefinition.id === 'string'
+            ? index + 1
+            : null;
+      if (!isInteger(nextId) || nextId < 0) {
+        throw new Error(`${label}.tiles[${index}].id must be a non-negative integer.`);
+      }
+      const nextName =
+        typeof tileDefinition.name === 'string'
+          ? tileDefinition.name.trim()
+          : typeof tileDefinition.id === 'string'
+            ? tileDefinition.id.trim()
+            : '';
+      if (!nextName) {
+        throw new Error(`${label}.tiles[${index}].name must be a string.`);
       }
 
       validateTileTuple(tileDefinition.position, `${label}.tiles[${index}].position`);
 
       return {
-        id: tileDefinition.id.trim(),
+        id: nextId,
+        name: nextName,
         position: tileDefinition.position,
       };
     });
   }
 
   if (tiles && typeof tiles === 'object') {
-    return Object.entries(tiles as Record<string, unknown>).map(([tileId, tuple]) => ({
-      id: tileId,
-      position: validateTileTuple(tuple, `${label}.tiles.${tileId}`),
+    return Object.entries(tiles as Record<string, unknown>).map(([tileName, tuple], index) => ({
+      id: index + 1,
+      name: tileName,
+      position: validateTileTuple(tuple, `${label}.tiles.${tileName}`),
     }));
   }
 
@@ -279,7 +304,7 @@ function validateLayer(value: unknown, label: string): ShipInteriorLayerDefiniti
     if (
       !tile ||
       typeof tile !== 'object' ||
-      typeof tile.tile !== 'string' ||
+      (typeof tile.tile !== 'string' && !isInteger(tile.tile)) ||
       !isInteger(tile.x) ||
       !isInteger(tile.y)
     ) {
@@ -342,14 +367,17 @@ function validateEntity(value: unknown, label: string): ShipInteriorEntityDefini
   if (entity.pathId !== undefined && typeof entity.pathId !== 'string') {
     throw new Error(`${label}.pathId must be a string when provided.`);
   }
+  if (entity.sprite !== undefined && typeof entity.sprite !== 'string') {
+    throw new Error(`${label}.sprite must be a string when provided.`);
+  }
 
   return entity;
 }
 
 function resolveLevelAssetUrl(path: string): string {
-  const tileAssetUrl = resolveShipInteriorTileAssetUrl(path);
-  if (tileAssetUrl) {
-    return tileAssetUrl;
+  const assetUrl = resolveShipInteriorSceneAssetUrl(path);
+  if (assetUrl) {
+    return assetUrl;
   }
   return new URL(path, shipInteriorLevelUrl).href;
 }
@@ -365,7 +393,11 @@ function tupleToSelector(tuple: TileCoordinateTuple): TileSelector {
 export function getTilesetTilePositionMap(
   tileset: ShipInteriorTilesetDefinition,
 ): Record<string, TileCoordinateTuple> {
-  return Object.fromEntries(tileset.tiles.map((tile) => [tile.id, tile.position]));
+  return Object.fromEntries(tileset.tiles.map((tile) => [String(tile.id), tile.position]));
+}
+
+export function getTilesetTileNameMap(tileset: ShipInteriorTilesetDefinition): Record<string, string> {
+  return Object.fromEntries(tileset.tiles.map((tile) => [String(tile.id), tile.name]));
 }
 
 function buildLoadedTileset(
@@ -373,8 +405,10 @@ function buildLoadedTileset(
   sheet: SpriteSheet,
 ): LoadedShipInteriorTileset {
   const tiles: Record<string, TileSelector> = {};
+  const tileNames: Record<string, string> = {};
   for (const tile of definition.tiles) {
-    tiles[tile.id] = tupleToSelector(tile.position);
+    tiles[String(tile.id)] = tupleToSelector(tile.position);
+    tileNames[String(tile.id)] = tile.name;
   }
 
   return {
@@ -383,7 +417,34 @@ function buildLoadedTileset(
     alphaMask: computeAlphaMask(sheet.image),
     grid: sheet.config,
     tiles,
+    tileNames,
   };
+}
+
+function normalizeLayerTileReferences(
+  layerDefinitions: ShipInteriorLayerDefinition[],
+  tilesetDefinitions: ShipInteriorTilesetDefinition[],
+): ShipInteriorLayerDefinition[] {
+  const tileIdByTilesetId = new Map(
+    tilesetDefinitions.map((tileset) => [
+      tileset.id,
+      new Map(tileset.tiles.map((tile) => [tile.name, tile.id] as const)),
+    ]),
+  );
+
+  return layerDefinitions.map((layer) => {
+    const tileIdByName = tileIdByTilesetId.get(layer.tilesetId);
+    return {
+      ...layer,
+      tiles: layer.tiles.flatMap((tile) => {
+        const normalizedTileId =
+          typeof tile.tile === 'number' ? tile.tile : tileIdByName?.get(tile.tile) ?? null;
+        return normalizedTileId === null
+          ? []
+          : [{ ...tile, tile: normalizedTileId }];
+      }),
+    };
+  });
 }
 
 export function getShipInteriorLevelUrl(): string {
@@ -424,6 +485,7 @@ export async function parseShipInteriorLevel(
   const layerDefinitions = Array.isArray(raw.layers)
     ? raw.layers.map((layer, index) => validateLayer(layer, `layers[${index}]`))
     : [];
+  const normalizedLayerDefinitions = normalizeLayerTileReferences(layerDefinitions, tilesetDefinitions);
   const paths = Array.isArray(raw.paths)
     ? raw.paths.map((path, index) => validatePath(path, `paths[${index}]`))
     : [];
@@ -445,18 +507,18 @@ export async function parseShipInteriorLevel(
     tilesetMap.set(loadedTileset.id, loadedTileset);
   }
 
-  const loadedLayers: LoadedShipInteriorLayer[] = layerDefinitions.map((layer) => {
+  const loadedLayers: LoadedShipInteriorLayer[] = normalizedLayerDefinitions.map((layer) => {
     const tileset = tilesetMap.get(layer.tilesetId);
     if (!tileset) {
       throw new Error(`Layer "${layer.id}" references unknown tileset "${layer.tilesetId}".`);
     }
 
     const tiles: LoadedShipInteriorTile[] = layer.tiles.flatMap((tile) => {
-      const selector = tileset.tiles[tile.tile];
+      const selector = tileset.tiles[String(tile.tile)];
       return selector
         ? [
             {
-              tileId: tile.tile,
+              tileId: tile.tile as ShipInteriorTileId,
               frame: selector,
               tileX: tile.x,
               tileY: tile.y,

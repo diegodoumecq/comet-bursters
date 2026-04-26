@@ -8,9 +8,17 @@ import {
   type TileTopologyDirection,
   type TileTopologyRelation,
 } from './autotile';
-import type { RawShipInteriorLevel } from '../../scenes/ShipInteriorScene/level';
+import type { RawShipInteriorLevel, ShipInteriorTileId } from '../../scenes/ShipInteriorScene/level';
 import type { EditorTilesetDefinition, EditorTilesetTileDefinition } from './editorTileset';
 export type MaterialPlacementMap = Record<string, Record<string, string>>;
+
+export function cloneMaterialPlacementMap(
+  materialPlacements: MaterialPlacementMap,
+): MaterialPlacementMap {
+  return Object.fromEntries(
+    Object.entries(materialPlacements).map(([layerId, placements]) => [layerId, { ...placements }]),
+  );
+}
 
 export const materialColorByName: Record<string, string> = {
   door: '#facc15',
@@ -113,8 +121,9 @@ function compareTileVariants(
   right: EditorTilesetTileDefinition,
 ): number {
   return (
-    (left.variantGroup ?? left.id).localeCompare(right.variantGroup ?? right.id) ||
-    left.id.localeCompare(right.id)
+    (left.variantGroup ?? left.name).localeCompare(right.variantGroup ?? right.name) ||
+    left.name.localeCompare(right.name) ||
+    left.id - right.id
   );
 }
 
@@ -228,7 +237,7 @@ function resolveMaterialTilesForLayer(
 function paintConcreteTile(
   level: RawShipInteriorLevel,
   layerId: string,
-  tileId: string,
+  tileId: ShipInteriorTileId,
   x: number,
   y: number,
 ): RawShipInteriorLevel {

@@ -28,6 +28,7 @@ export function getBundledTilesetDefinitions(): ShipInteriorTilesetDefinition[] 
     grid: { ...(entry.tileset as ShipInteriorTilesetDefinition).grid },
     tiles: (entry.tileset as ShipInteriorTilesetDefinition).tiles.map((tile) => ({
       id: tile.id,
+      name: tile.name,
       position: [...tile.position],
     })),
   }));

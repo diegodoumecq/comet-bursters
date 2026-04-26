@@ -33,8 +33,8 @@ const topologyDirectionLabel: Record<TileTopologyDirection, string> = {
 };
 
 export function SpritesheetEditorApp() {
-  const canRedo = useSpritesheetEditorStore((state) => state.futureDocuments.length > 0);
-  const canUndo = useSpritesheetEditorStore((state) => state.pastDocuments.length > 0);
+  const canRedo = useSpritesheetEditorStore((state) => state.futureHistory.length > 0);
+  const canUndo = useSpritesheetEditorStore((state) => state.pastHistory.length > 0);
   const createNewTileset = useSpritesheetEditorStore((state) => state.createNewTileset);
   const deleteTileEntry = useSpritesheetEditorStore((state) => state.deleteTileEntry);
   const previewMode = useSpritesheetEditorStore((state) => state.previewMode);
@@ -104,7 +104,7 @@ export function SpritesheetEditorApp() {
               entry.topology !== undefined &&
               tileTopologiesEqual(entry.topology, selectedTile.topology),
           )
-          .sort((left, right) => left.id.localeCompare(right.id))
+          .sort((left, right) => left.name.localeCompare(right.name))
       : [];
   const grid = tileset?.grid;
   const frameWidth = grid?.frameWidth ?? 32;
@@ -261,7 +261,7 @@ export function SpritesheetEditorApp() {
                       top,
                       width: frameWidth * previewScale,
                     }}
-                    title={tile ? `${tile.id} [${column}, ${row}]` : `[${column}, ${row}]`}
+                    title={tile ? `${tile.name?.trim() || `tile_${tile.id}`} [${column}, ${row}]` : `[${column}, ${row}]`}
                   />
                 );
               }),
@@ -329,11 +329,11 @@ export function SpritesheetEditorApp() {
                             ? 'border-cyan-300 bg-cyan-500/15'
                             : 'border-slate-800 bg-slate-950/70 hover:border-slate-600'
                         }`}
-                        title={`${variant.id} [${variant.column}, ${variant.row}]`}
+                        title={`${variant.name?.trim() || `tile_${variant.id}`} [${variant.column}, ${variant.row}]`}
                       >
                         <div className="flex justify-center">{renderTileSprite(variant, topologyVariantScale)}</div>
                         <div className="mt-2 truncate text-xs text-slate-300">
-                          {variant.id.trim() || 'unnamed'}
+                          {variant.name?.trim() || `tile_${variant.id}`}
                         </div>
                         <div className="mt-1 text-[10px] text-slate-500">
                           {variant.variantGroup ?? 'no-group'}
@@ -629,7 +629,7 @@ export function SpritesheetEditorApp() {
         isOpen={tilePendingDelete !== null}
         title="Delete tile?"
         message={`This will remove ${
-          tilePendingDelete?.id.trim() || 'this tile'
+          tilePendingDelete?.name?.trim() || `tile_${tilePendingDelete?.id ?? ''}`
         } from the current tileset.`}
         confirmLabel="Delete"
         onCancel={() => setTileDeleteIndex(null)}

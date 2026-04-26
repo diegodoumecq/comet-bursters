@@ -43,6 +43,7 @@ import {
   type Rect,
   type ShipInteriorLevel,
 } from './level';
+import { resolveShipInteriorAssetUrl } from './tileAssets';
 
 const BULLET_RADIUS = 8;
 const BOUNDARY_WALL_THICKNESS = 45;
@@ -60,6 +61,7 @@ const ENEMY_VISION_RAY_COUNT = 48;
 const ENEMY_WAYPOINT_RADIUS = 8;
 const ALARM_HOLD_MS = 3000;
 const COLLISION_BUCKET_SIZE = 32;
+const COLUMN_BASE_SIZE = 16;
 
 type Camera = { x: number; y: number };
 
@@ -77,11 +79,28 @@ type Enemy = {
   alive: boolean;
 };
 
-type CollisionTileRef = {
-  layer: LoadedShipInteriorLayer;
-  rect: Rect;
-  tile: LoadedShipInteriorTile;
+type SceneColumn = {
+  sprite: string;
+  x: number;
+  y: number;
 };
+
+type CollisionRef =
+  | {
+      type: 'tile';
+      layer: LoadedShipInteriorLayer;
+      rect: Rect;
+      tile: LoadedShipInteriorTile;
+    }
+  | {
+      type: 'column';
+      rect: Rect;
+    };
+
+type SceneDrawable =
+  | { type: 'column'; baseY: number; column: SceneColumn }
+  | { type: 'enemy'; baseY: number; enemy: Enemy }
+  | { type: 'player'; baseY: number; player: Player };
 
 const EMPTY_LEVEL: ShipInteriorLevel = {
   formatVersion: 1,
@@ -101,19 +120,19 @@ const EMPTY_LEVEL: ShipInteriorLevel = {
 };
 
 let activeLevel: ShipInteriorLevel = EMPTY_LEVEL;
-let collisionTileBuckets = new Map<string, CollisionTileRef[]>();
+let collisionTileBuckets = new Map<string, CollisionRef[]>();
 
 function getCollisionBucketKey(bucketX: number, bucketY: number): string {
   return `${bucketX},${bucketY}`;
 }
 
 function rebuildCollisionTileBuckets(): void {
-  const nextBuckets = new Map<string, CollisionTileRef[]>();
+  const nextBuckets = new Map<string, CollisionRef[]>();
 
   for (const layer of getCollidableTileLayers()) {
     for (const tile of layer.tiles) {
       const rect = getTileWorldRect(layer, tile);
-      const ref = { layer, rect, tile };
+      const ref: CollisionRef = { type: 'tile', layer, rect, tile };
       const minBucketX = Math.floor(rect.x / COLLISION_BUCKET_SIZE);
       const maxBucketX = Math.floor((rect.x + rect.width - 1) / COLLISION_BUCKET_SIZE);
       const minBucketY = Math.floor(rect.y / COLLISION_BUCKET_SIZE);
@@ -128,6 +147,36 @@ function rebuildCollisionTileBuckets(): void {
           } else {
             nextBuckets.set(key, [ref]);
           }
+        }
+      }
+    }
+  }
+
+  for (const entity of activeLevel.entities) {
+    if (entity.type !== 'column') {
+      continue;
+    }
+
+    const rect = {
+      x: entity.x - COLUMN_BASE_SIZE / 2,
+      y: entity.y - COLUMN_BASE_SIZE,
+      width: COLUMN_BASE_SIZE,
+      height: COLUMN_BASE_SIZE,
+    };
+    const ref: CollisionRef = { type: 'column', rect };
+    const minBucketX = Math.floor(rect.x / COLLISION_BUCKET_SIZE);
+    const maxBucketX = Math.floor((rect.x + rect.width - 1) / COLLISION_BUCKET_SIZE);
+    const minBucketY = Math.floor(rect.y / COLLISION_BUCKET_SIZE);
+    const maxBucketY = Math.floor((rect.y + rect.height - 1) / COLLISION_BUCKET_SIZE);
+
+    for (let bucketY = minBucketY; bucketY <= maxBucketY; bucketY++) {
+      for (let bucketX = minBucketX; bucketX <= maxBucketX; bucketX++) {
+        const key = getCollisionBucketKey(bucketX, bucketY);
+        const bucket = nextBuckets.get(key);
+        if (bucket) {
+          bucket.push(ref);
+        } else {
+          nextBuckets.set(key, [ref]);
         }
       }
     }
@@ -169,8 +218,8 @@ function getCollidableTileLayers(): LoadedShipInteriorLayer[] {
   return activeLevel.layers.filter((layer) => layer.hasCollision);
 }
 
-function getNearbyCollidableTiles(x: number, y: number, radius: number): CollisionTileRef[] {
-  const refs = new Set<CollisionTileRef>();
+function getNearbyCollidableTiles(x: number, y: number, radius: number): CollisionRef[] {
+  const refs = new Set<CollisionRef>();
   const minBucketX = Math.floor((x - radius) / COLLISION_BUCKET_SIZE);
   const maxBucketX = Math.floor((x + radius) / COLLISION_BUCKET_SIZE);
   const minBucketY = Math.floor((y - radius) / COLLISION_BUCKET_SIZE);
@@ -255,7 +304,8 @@ function intersectsCollidableTiles(x: number, y: number, radius: number): boolea
     }
   }
 
-  for (const { layer, rect, tile } of getNearbyCollidableTiles(x, y, radius)) {
+  for (const ref of getNearbyCollidableTiles(x, y, radius)) {
+    const { rect } = ref;
     const nearestX = clamp(x, rect.x, rect.x + rect.width);
     const nearestY = clamp(y, rect.y, rect.y + rect.height);
     const dx = x - nearestX;
@@ -264,8 +314,12 @@ function intersectsCollidableTiles(x: number, y: number, radius: number): boolea
       continue;
     }
 
+    if (ref.type === 'column') {
+      return true;
+    }
+
     for (const sample of samplePoints) {
-      if (isPointInsideOpaqueTilePixel(layer, tile, sample.x, sample.y)) {
+      if (isPointInsideOpaqueTilePixel(ref.layer, ref.tile, sample.x, sample.y)) {
         return true;
       }
     }
@@ -277,7 +331,8 @@ function intersectsCollidableTiles(x: number, y: number, radius: number): boolea
 function intersectsCollidableTilePixels(x: number, y: number, radius: number): boolean {
   const samplePoints = getCircleCollisionSamplePoints(x, y, radius);
 
-  for (const { layer, rect, tile } of getNearbyCollidableTiles(x, y, radius)) {
+  for (const ref of getNearbyCollidableTiles(x, y, radius)) {
+    const { rect } = ref;
     const nearestX = clamp(x, rect.x, rect.x + rect.width);
     const nearestY = clamp(y, rect.y, rect.y + rect.height);
     const dx = x - nearestX;
@@ -286,8 +341,12 @@ function intersectsCollidableTilePixels(x: number, y: number, radius: number): b
       continue;
     }
 
+    if (ref.type === 'column') {
+      return true;
+    }
+
     for (const sample of samplePoints) {
-      if (isPointInsideOpaqueTilePixel(layer, tile, sample.x, sample.y)) {
+      if (isPointInsideOpaqueTilePixel(ref.layer, ref.tile, sample.x, sample.y)) {
         return true;
       }
     }
@@ -300,7 +359,19 @@ function getAllWalls(): Rect[] {
   const collisionTiles = getCollidableTileLayers().flatMap((layer) =>
     layer.tiles.map((tile) => getTileWorldRect(layer, tile)),
   );
-  return [...getBoundaryWalls(), ...collisionTiles];
+  const columnBases = activeLevel.entities.flatMap((entity) =>
+    entity.type === 'column'
+      ? [
+          {
+            x: entity.x - COLUMN_BASE_SIZE / 2,
+            y: entity.y - COLUMN_BASE_SIZE,
+            width: COLUMN_BASE_SIZE,
+            height: COLUMN_BASE_SIZE,
+          },
+        ]
+      : [],
+  );
+  return [...getBoundaryWalls(), ...collisionTiles, ...columnBases];
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -784,11 +855,13 @@ function drawWall(ctx: CanvasRenderingContext2D, wall: Rect): void {
 export class ShipInteriorScene implements Scene {
   private camera: Camera = { x: 0, y: 0 };
   private enemies: Enemy[] = [];
+  private columns: SceneColumn[] = [];
   private alarmActive = false;
   private alarmLastSeenAt = 0;
   private audioContext: AudioContext | null = null;
   private nextAlarmBeepAt = 0;
   private readonly spriteRenderer = new ShipInteriorSpriteRenderer();
+  private readonly loadedImages = new Map<string, HTMLImageElement>();
   private levelStatus: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   private levelLoadError: string | null = null;
 
@@ -849,6 +922,42 @@ export class ShipInteriorScene implements Scene {
           alive: true,
         };
       });
+  }
+
+  private collectColumns(): void {
+    this.columns = activeLevel.entities.flatMap((entity) =>
+      entity.type === 'column' && entity.sprite
+        ? [{ sprite: entity.sprite, x: entity.x, y: entity.y }]
+        : [],
+    );
+  }
+
+  private async ensureImageLoaded(spritePath: string): Promise<void> {
+    if (this.loadedImages.has(spritePath)) {
+      return;
+    }
+
+    const resolvedUrl = resolveShipInteriorAssetUrl(spritePath);
+    if (!resolvedUrl) {
+      return;
+    }
+
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const nextImage = new Image();
+      nextImage.onload = () => resolve(nextImage);
+      nextImage.onerror = () => reject(new Error(`Failed to load ${spritePath}`));
+      nextImage.src = resolvedUrl;
+    });
+    this.loadedImages.set(spritePath, image);
+  }
+
+  private drawColumn(ctx: CanvasRenderingContext2D, column: SceneColumn): void {
+    const image = this.loadedImages.get(column.sprite);
+    if (!image) {
+      return;
+    }
+
+    ctx.drawImage(image, Math.round(column.x - image.width / 2), Math.round(column.y - image.height));
   }
 
   private advanceEnemyPatrolTarget(enemy: Enemy): void {
@@ -1110,8 +1219,14 @@ export class ShipInteriorScene implements Scene {
 
     try {
       activeLevel = await loadShipInteriorLevel();
+      await Promise.all(
+        activeLevel.entities.flatMap((entity) =>
+          entity.type === 'column' && entity.sprite ? [this.ensureImageLoaded(entity.sprite)] : [],
+        ),
+      );
       rebuildCollisionTileBuckets();
       this.spawnEnemies();
+      this.collectColumns();
 
       const currentPlayer = player;
       if (currentPlayer) {
@@ -1124,6 +1239,7 @@ export class ShipInteriorScene implements Scene {
       activeLevel = EMPTY_LEVEL;
       rebuildCollisionTileBuckets();
       this.enemies = [];
+      this.columns = [];
       this.levelStatus = 'error';
       this.levelLoadError = error instanceof Error ? error.message : 'Unknown level load error.';
     }
@@ -1138,6 +1254,7 @@ export class ShipInteriorScene implements Scene {
     this.levelStatus = 'idle';
     this.levelLoadError = null;
     this.enemies = [];
+    this.columns = [];
     activeLevel = EMPTY_LEVEL;
     rebuildCollisionTileBuckets();
 
@@ -1272,18 +1389,42 @@ export class ShipInteriorScene implements Scene {
       drawBullet(bullet, ctx);
     }
 
-    for (const enemy of this.enemies) {
-      if (enemy.alive && isCircleVisible(enemy.x, enemy.y, ENEMY_RADIUS)) {
-        drawEnemy(ctx, enemy, this.alarmActive);
-      }
-    }
+    const sceneDrawables: SceneDrawable[] = [
+      ...this.columns
+        .filter((column) => {
+          const image = this.loadedImages.get(column.sprite);
+          const width = image?.width ?? 16;
+          const height = image?.height ?? 48;
+          return (
+            column.x + width / 2 >= this.camera.x &&
+            column.x - width / 2 <= this.camera.x + width + getGameWidth() &&
+            column.y >= this.camera.y &&
+            column.y - height <= this.camera.y + getGameHeight()
+          );
+        })
+        .map((column) => ({ type: 'column', baseY: column.y, column }) as const),
+      ...this.enemies
+        .filter((enemy) => enemy.alive && isCircleVisible(enemy.x, enemy.y, ENEMY_RADIUS))
+        .map((enemy) => ({ type: 'enemy', baseY: enemy.y, enemy }) as const),
+      ...(player && !player.waitingToRespawn
+        ? [{ type: 'player', baseY: player.y, player } as const]
+        : []),
+    ].sort((left, right) => left.baseY - right.baseY);
 
     for (let i = thrusterParticles.length - 1; i >= 0; i--) {
       drawThrusterParticle(thrusterParticles[i], ctx);
     }
 
-    if (player && !player.waitingToRespawn) {
-      drawPlayer(player, ctx);
+    for (const drawable of sceneDrawables) {
+      if (drawable.type === 'column') {
+        this.drawColumn(ctx, drawable.column);
+        continue;
+      }
+      if (drawable.type === 'enemy') {
+        drawEnemy(ctx, drawable.enemy, this.alarmActive);
+        continue;
+      }
+      drawPlayer(drawable.player, ctx);
     }
 
     for (let i = particles.length - 1; i >= 0; i--) {

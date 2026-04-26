@@ -6,28 +6,35 @@ import { getTilesetTilePositionMap } from '../../scenes/ShipInteriorScene/level'
 import type {
   RawShipInteriorLevel,
   ShipInteriorEntityDefinition,
+  ShipInteriorTileId,
 } from '../../scenes/ShipInteriorScene/level';
 import type { AssetUrlMap, EditorTool, ImageMap, PlaceableEntityType } from '../shared/editorTypes';
-import { bundledLevels, hydrateLevelTilesets } from '../shared/levelCatalog';
 import {
-  cloneLevel,
-  getTilesetForLayer,
-  removeEntity,
-  upsertEntity,
-} from '../shared/levelEditing';
+  bundledLevels,
+  getLevelMaterialPlacements,
+  hydrateLevelTilesets,
+} from '../shared/levelCatalog';
+import { cloneLevel, getTilesetForLayer, removeEntity, upsertEntity } from '../shared/levelEditing';
 import { getTilesetMaterials, type MaterialPlacementMap } from '../shared/materials';
+import {
+  applyEditorHistoryEntry,
+  cloneMaterialPlacements,
+  createEditorHistoryEntry,
+  type EditorDocument,
+  type EditorHistoryEntry,
+} from './history';
 
 type EditorState = {
   assetPathInput: string;
   assetUrls: AssetUrlMap;
-  futureLevels: RawShipInteriorLevel[];
+  futureHistory: EditorHistoryEntry[];
   images: ImageMap;
   layerVisibility: Record<string, boolean>;
   inactiveLayerOpacity: number;
   level: RawShipInteriorLevel;
   materialPlacements: MaterialPlacementMap;
   openPathMenuId: string | null;
-  pastLevels: RawShipInteriorLevel[];
+  pastHistory: EditorHistoryEntry[];
   renamingPathId: string | null;
   renamingPathValue: string;
   selectedLevelAssetPath: string | null;
@@ -37,7 +44,7 @@ type EditorState = {
   selectedEntityType: PlaceableEntityType;
   selectedLayerId: string | null;
   selectedPathId: string | null;
-  selectedTileId: string | null;
+  selectedTileId: ShipInteriorTileId | null;
   tool: EditorTool;
 };
 
@@ -55,14 +62,16 @@ type EditorActions = {
   setImages: (images: ImageMap) => void;
   setInactiveLayerOpacity: (opacity: number) => void;
   setLayerVisibility: (layerId: string, isVisible: boolean) => void;
-  setMaterialPlacements: (materialPlacements: MaterialPlacementMap) => void;
+  setDocument: (
+    updater: EditorDocument | ((currentDocument: EditorDocument) => EditorDocument),
+  ) => void;
+  setDocumentWithoutHistory: (
+    updater: EditorDocument | ((currentDocument: EditorDocument) => EditorDocument),
+  ) => void;
   setLevel: (
     updater: RawShipInteriorLevel | ((currentLevel: RawShipInteriorLevel) => RawShipInteriorLevel),
   ) => void;
-  setLevelWithoutHistory: (
-    updater: RawShipInteriorLevel | ((currentLevel: RawShipInteriorLevel) => RawShipInteriorLevel),
-  ) => void;
-  commitLevelChange: (previousLevel: RawShipInteriorLevel) => void;
+  commitDocumentChange: (previousDocument: EditorDocument) => void;
   setOpenPathMenuId: (pathId: string | null) => void;
   setRenamingPathId: (pathId: string | null) => void;
   setRenamingPathValue: (value: string) => void;
@@ -72,7 +81,7 @@ type EditorActions = {
   setSelectedLayerId: (layerId: string | null) => void;
   setSelectedMaterialId: (materialId: string | null) => void;
   setSelectedPathId: (pathId: string | null) => void;
-  setSelectedTileId: (tileId: string | null) => void;
+  setSelectedTileId: (tileId: ShipInteriorTileId | null) => void;
   setTool: (tool: EditorTool) => void;
   syncDerivedState: () => void;
   undo: () => void;
@@ -83,6 +92,7 @@ type EditorActions = {
 type EditorStore = EditorState & EditorActions;
 
 const initialLevel = hydrateLevelTilesets(defaultLevel as unknown as RawShipInteriorLevel);
+const initialMaterialPlacements = getLevelMaterialPlacements(defaultLevel);
 const HISTORY_LIMIT = 100;
 const EDITOR_STORAGE_KEY = 'comet-bursters.editor';
 const initialSelectedLevelAssetPath =
@@ -108,16 +118,17 @@ const editorStorage = createJSONStorage(() => ({
 function buildLevelResetState(
   level: RawShipInteriorLevel,
   selectedLevelAssetPath: string | null,
+  materialPlacements: MaterialPlacementMap = {},
 ): Partial<EditorState> {
   return {
     assetPathInput: '',
-    futureLevels: [],
+    futureHistory: [],
     layerVisibility: {},
     inactiveLayerOpacity: 0.35,
     level,
-    materialPlacements: {},
+    materialPlacements: cloneMaterialPlacements(materialPlacements),
     openPathMenuId: null,
-    pastLevels: [],
+    pastHistory: [],
     renamingPathId: null,
     renamingPathValue: '',
     selectedEntityId: null,
@@ -135,14 +146,14 @@ function buildInitialEditorState(): EditorState {
   return {
     assetPathInput: '',
     assetUrls: {},
-    futureLevels: [],
+    futureHistory: [],
     images: {},
     layerVisibility: {},
     inactiveLayerOpacity: 0.35,
     level: cloneLevel(initialLevel),
-    materialPlacements: {},
+    materialPlacements: cloneMaterialPlacements(initialMaterialPlacements),
     openPathMenuId: null,
-    pastLevels: [],
+    pastHistory: [],
     renamingPathId: null,
     renamingPathValue: '',
     selectedLevelAssetPath: initialSelectedLevelAssetPath,
@@ -154,6 +165,13 @@ function buildInitialEditorState(): EditorState {
     selectedPathId: null,
     selectedTileId: null,
     tool: 'select',
+  };
+}
+
+function getEditorDocument(state: EditorState): EditorDocument {
+  return {
+    level: state.level,
+    materialPlacements: state.materialPlacements,
   };
 }
 
@@ -213,8 +231,14 @@ export const useEditorStore = create<EditorStore>()(
 
       importLevelFromText: (text, fileName) => {
         try {
-          const parsed = hydrateLevelTilesets(JSON.parse(text) as RawShipInteriorLevel);
-          set(buildLevelResetState(parsed, null));
+          const parsed = JSON.parse(text) as unknown;
+          set(
+            buildLevelResetState(
+              hydrateLevelTilesets(parsed as RawShipInteriorLevel),
+              null,
+              getLevelMaterialPlacements(parsed),
+            ),
+          );
           get().syncDerivedState();
         } catch (error) {
           alert('Failed to import JSON ' + fileName);
@@ -228,7 +252,13 @@ export const useEditorStore = create<EditorStore>()(
           return;
         }
 
-        set(buildLevelResetState(cloneLevel(entry.level), assetPath));
+        set(
+          buildLevelResetState(
+            cloneLevel(entry.level),
+            assetPath,
+            cloneMaterialPlacements(entry.materialPlacements),
+          ),
+        );
         get().syncDerivedState();
       },
 
@@ -252,17 +282,21 @@ export const useEditorStore = create<EditorStore>()(
       },
 
       redo: () => {
-        const { futureLevels, level } = get();
-        const nextLevel = futureLevels[0];
-        if (!nextLevel) {
+        const { futureHistory } = get();
+        const nextEntry = futureHistory[0];
+        if (!nextEntry) {
           return;
         }
 
-        set((state) => ({
-          futureLevels: state.futureLevels.slice(1),
-          level: cloneLevel(nextLevel),
-          pastLevels: [cloneLevel(level), ...state.pastLevels].slice(0, HISTORY_LIMIT),
-        }));
+        set((state) => {
+          const nextDocument = applyEditorHistoryEntry(getEditorDocument(state), nextEntry, 'after');
+          return {
+            futureHistory: state.futureHistory.slice(1),
+            level: nextDocument.level,
+            materialPlacements: nextDocument.materialPlacements,
+            pastHistory: [nextEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
+          };
+        });
         get().syncDerivedState();
       },
 
@@ -315,47 +349,64 @@ export const useEditorStore = create<EditorStore>()(
             [layerId]: isVisible,
           },
         })),
-      setMaterialPlacements: (materialPlacements) => set({ materialPlacements }),
+      setDocument: (updater) =>
+        set((state) => {
+          const currentDocument = getEditorDocument(state);
+          const nextDocument = typeof updater === 'function' ? updater(currentDocument) : updater;
+          const historyEntry = createEditorHistoryEntry(currentDocument, nextDocument);
+          if (!historyEntry) {
+            return {};
+          }
+
+          return {
+            futureHistory: [],
+            level: cloneLevel(nextDocument.level),
+            materialPlacements: cloneMaterialPlacements(nextDocument.materialPlacements),
+            pastHistory: [historyEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
+          };
+        }),
+      setDocumentWithoutHistory: (updater) =>
+        set((state) => {
+          const currentDocument = getEditorDocument(state);
+          const nextDocument = typeof updater === 'function' ? updater(currentDocument) : updater;
+          const historyEntry = createEditorHistoryEntry(currentDocument, nextDocument);
+          if (!historyEntry) {
+            return {};
+          }
+
+          return {
+            level: cloneLevel(nextDocument.level),
+            materialPlacements: cloneMaterialPlacements(nextDocument.materialPlacements),
+          };
+        }),
       setLevel: (updater) =>
         set((state) => {
           const nextLevel = typeof updater === 'function' ? updater(state.level) : updater;
-          const currentSnapshot = JSON.stringify(state.level);
-          const nextSnapshot = JSON.stringify(nextLevel);
-          if (currentSnapshot === nextSnapshot) {
+          const currentDocument = getEditorDocument(state);
+          const nextDocument = {
+            level: nextLevel,
+            materialPlacements: state.materialPlacements,
+          };
+          const historyEntry = createEditorHistoryEntry(currentDocument, nextDocument);
+          if (!historyEntry) {
             return {};
           }
-
-          const pastLevels = [cloneLevel(state.level), ...state.pastLevels].slice(0, HISTORY_LIMIT);
           return {
-            futureLevels: [],
-            level: nextLevel,
-            pastLevels,
+            futureHistory: [],
+            level: cloneLevel(nextLevel),
+            pastHistory: [historyEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
           };
         }),
-      setLevelWithoutHistory: (updater) =>
+      commitDocumentChange: (previousDocument) =>
         set((state) => {
-          const nextLevel = typeof updater === 'function' ? updater(state.level) : updater;
-          const currentSnapshot = JSON.stringify(state.level);
-          const nextSnapshot = JSON.stringify(nextLevel);
-          if (currentSnapshot === nextSnapshot) {
+          const historyEntry = createEditorHistoryEntry(previousDocument, getEditorDocument(state));
+          if (!historyEntry) {
             return {};
           }
 
           return {
-            level: nextLevel,
-          };
-        }),
-      commitLevelChange: (previousLevel) =>
-        set((state) => {
-          const previousSnapshot = JSON.stringify(previousLevel);
-          const currentSnapshot = JSON.stringify(state.level);
-          if (previousSnapshot === currentSnapshot) {
-            return {};
-          }
-
-          return {
-            futureLevels: [],
-            pastLevels: [cloneLevel(previousLevel), ...state.pastLevels].slice(0, HISTORY_LIMIT),
+            futureHistory: [],
+            pastHistory: [historyEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
           };
         }),
       setOpenPathMenuId: (openPathMenuId) => set({ openPathMenuId }),
@@ -379,7 +430,7 @@ export const useEditorStore = create<EditorStore>()(
 
           const tilePositions = getTilesetTilePositionMap(selectedTileset);
 
-          if (state.selectedTileId && state.selectedTileId in tilePositions) {
+          if (state.selectedTileId !== null && String(state.selectedTileId) in tilePositions) {
             return {
               selectedLayerId,
               selectedMaterialId:
@@ -393,7 +444,7 @@ export const useEditorStore = create<EditorStore>()(
           return {
             selectedLayerId,
             selectedMaterialId: firstMaterialId ?? null,
-            selectedTileId: firstTileId ?? null,
+            selectedTileId: firstTileId ? Number.parseInt(firstTileId, 10) : null,
           };
         }),
       setSelectedMaterialId: (selectedMaterialId) => set({ selectedMaterialId }),
@@ -431,9 +482,9 @@ export const useEditorStore = create<EditorStore>()(
             nextState.selectedMaterialId = firstMaterialId ?? null;
           }
           const tilePositions = getTilesetTilePositionMap(selectedTileset);
-          if (!state.selectedTileId || !(state.selectedTileId in tilePositions)) {
+          if (state.selectedTileId === null || !(String(state.selectedTileId) in tilePositions)) {
             const [firstTileId] = Object.keys(tilePositions);
-            nextState.selectedTileId = firstTileId ?? null;
+            nextState.selectedTileId = firstTileId ? Number.parseInt(firstTileId, 10) : null;
           }
         }
 
@@ -464,17 +515,25 @@ export const useEditorStore = create<EditorStore>()(
       },
 
       undo: () => {
-        const { pastLevels, level } = get();
-        const previousLevel = pastLevels[0];
-        if (!previousLevel) {
+        const { pastHistory } = get();
+        const previousEntry = pastHistory[0];
+        if (!previousEntry) {
           return;
         }
 
-        set((state) => ({
-          futureLevels: [cloneLevel(level), ...state.futureLevels].slice(0, HISTORY_LIMIT),
-          level: cloneLevel(previousLevel),
-          pastLevels: state.pastLevels.slice(1),
-        }));
+        set((state) => {
+          const previousDocument = applyEditorHistoryEntry(
+            getEditorDocument(state),
+            previousEntry,
+            'before',
+          );
+          return {
+            futureHistory: [previousEntry, ...state.futureHistory].slice(0, HISTORY_LIMIT),
+            level: previousDocument.level,
+            materialPlacements: previousDocument.materialPlacements,
+            pastHistory: state.pastHistory.slice(1),
+          };
+        });
         get().syncDerivedState();
       },
 
@@ -507,6 +566,7 @@ export const useEditorStore = create<EditorStore>()(
             ...selectedEntity,
             type: nextType,
             pathId: nextType === 'enemy-patroller' ? selectedEntity.pathId : undefined,
+            sprite: nextType === 'column' ? '../columnPixelart.png' : undefined,
           };
 
           if (nextType === 'player') {

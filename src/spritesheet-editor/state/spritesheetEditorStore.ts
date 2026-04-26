@@ -13,9 +13,14 @@ import type {
 } from '../../editor/shared/editorTileset';
 import { shipInteriorTileAssets } from '../../scenes/ShipInteriorScene/tileAssets';
 import { bundledTilesets } from '../../scenes/ShipInteriorScene/tilesetCatalog';
+import type {
+  SpritesheetEditorDocument,
+  SpritesheetEditorHistoryEntry,
+} from './history';
 
 export type TileEntry = {
-  id: string;
+  id: number;
+  name: string;
   column: number;
   material?: string;
   row: number;
@@ -32,6 +37,16 @@ export const editorBundledTilesets = bundledTilesets as Array<{
   tileset: SpritesheetEditorTilesetDefinition;
 }>;
 
+function normalizeTileEntry(entry: TileEntry): TileEntry {
+  return {
+    ...entry,
+    name:
+      typeof entry.name === 'string' && entry.name.trim()
+        ? entry.name
+        : `tile_${entry.id}`,
+  };
+}
+
 function cloneMaterials(materials: Materials | undefined): Materials | undefined {
   return materials ? [...materials] : undefined;
 }
@@ -45,6 +60,7 @@ export function makeTileEntries(tileset: SpritesheetEditorTilesetDefinition): Ti
     ? legacyTileset.tiles.map((tile) => ({
         column: tile.position[0],
         id: tile.id,
+        name: tile.name || `tile_${tile.id}`,
         material: tile.material,
         row: tile.position[1],
         topology: cloneTileTopology(tile.topology),
@@ -54,7 +70,8 @@ export function makeTileEntries(tileset: SpritesheetEditorTilesetDefinition): Ti
     : Object.entries(legacyTileset.tiles as Record<string, [number, number]>).map(
         ([id, [column, row]]) => ({
           column,
-          id,
+          id: Number.parseInt(id, 10),
+          name: id,
           material: legacyTileset.tileMaterials?.[id],
           row,
         }),
@@ -62,15 +79,15 @@ export function makeTileEntries(tileset: SpritesheetEditorTilesetDefinition): Ti
 
   return entries.sort(
     (left, right) =>
-      left.row - right.row || left.column - right.column || left.id.localeCompare(right.id),
+      left.row - right.row || left.column - right.column || left.name.localeCompare(right.name),
   );
 }
 
 function cloneTileEntry(entry: TileEntry): TileEntry {
-  return {
+  return normalizeTileEntry({
     ...entry,
     topology: cloneTileTopology(entry.topology),
-  };
+  });
 }
 
 function cloneTileEntries(entries: TileEntry[]): TileEntry[] {
@@ -87,6 +104,7 @@ function cloneTileset(
     materials: cloneMaterials(tileset.materials),
     tiles: makeTileEntries(tileset).map((entry) => ({
       id: entry.id,
+      name: entry.name,
       ...(entry.material ? { material: entry.material } : {}),
       position: [entry.column, entry.row] as [number, number],
       ...(entry.topology !== undefined
@@ -113,9 +131,10 @@ function makeTilesetFromEntries(
     ...tilesetWithoutTiles,
     materials: nextMaterials.length > 0 ? nextMaterials : undefined,
     tiles: entries
-      .filter((entry) => entry.id.trim())
+      .filter((entry) => entry.name.trim())
       .map((entry) => ({
-        id: entry.id.trim(),
+        id: entry.id,
+        name: entry.name.trim(),
         ...(entry.material && validMaterialNames.has(entry.material)
           ? { material: entry.material }
           : {}),
@@ -161,14 +180,18 @@ function makeMaterialName(materials: Materials | undefined): string {
   return nextName;
 }
 
-function makeDuplicateTileId(entries: TileEntry[], sourceId: string): string {
-  const existingIds = new Set(entries.map((entry) => entry.id));
-  const baseId = sourceId.trim() || 'tile';
-  let nextId = `${baseId}_copy`;
+function makeNextTileId(entries: TileEntry[]): number {
+  return entries.reduce((maxId, entry) => Math.max(maxId, entry.id), 0) + 1;
+}
+
+function makeDuplicateTileName(entries: TileEntry[], sourceName: string): string {
+  const existingNames = new Set(entries.map((entry) => entry.name));
+  const baseName = sourceName.trim() || 'tile';
+  let nextId = `${baseName}_copy`;
   let suffix = 2;
 
-  while (existingIds.has(nextId)) {
-    nextId = `${baseId}_copy_${suffix}`;
+  while (existingNames.has(nextId)) {
+    nextId = `${baseName}_copy_${suffix}`;
     suffix += 1;
   }
 
@@ -181,12 +204,12 @@ export function readNumber(value: string): number {
 }
 
 type SpritesheetEditorState = {
-  futureDocuments: SpritesheetEditorDocument[];
-  pastDocuments: SpritesheetEditorDocument[];
+  futureHistory: SpritesheetEditorHistoryEntry[];
+  pastHistory: SpritesheetEditorHistoryEntry[];
   previewMode: PreviewMode;
   previewZoom: number;
   selectedFileName: string;
-  selectedTileId: string | null;
+  selectedTileId: number | null;
   tileDeleteIndex: number | null;
   tileEntries: TileEntry[];
   tileset: SpritesheetEditorTilesetDefinition | null;
@@ -206,34 +229,28 @@ type SpritesheetEditorActions = {
   selectTileset: (fileName: string) => void;
   setPreviewMode: (previewMode: PreviewMode) => void;
   setSelectedFileName: (selectedFileName: string) => void;
-  setSelectedTileId: (selectedTileId: string | null) => void;
+  setSelectedTileId: (selectedTileId: number | null) => void;
   setTileDeleteIndex: (tileDeleteIndex: number | null) => void;
   syncDerivedState: () => void;
   undo: () => void;
   updateGrid: (key: keyof SpritesheetEditorTilesetDefinition['grid'], value: number) => void;
   updatePreviewZoom: (nextZoom: number) => void;
   updateTileEntry: (index: number, updates: Partial<TileEntry>) => void;
-  updateTileId: (index: number, nextId: string) => void;
-  updateTileMaterial: (tileId: string, materialName: string) => void;
-  updateTileTopologyEnabled: (tileId: string, enabled: boolean) => void;
+  updateTileName: (index: number, nextName: string) => void;
+  updateTileMaterial: (tileId: number, materialName: string) => void;
+  updateTileTopologyEnabled: (tileId: number, enabled: boolean) => void;
   updateTileTopologyRelation: (
-    tileId: string,
+    tileId: number,
     direction: TileTopologyDirection,
     relation: TileTopologyRelation,
   ) => void;
-  updateTileVariantGroup: (tileId: string, variantGroup: string) => void;
-  updateTileVariantWeight: (tileId: string, variantWeight: number) => void;
+  updateTileVariantGroup: (tileId: number, variantGroup: string) => void;
+  updateTileVariantWeight: (tileId: number, variantWeight: number) => void;
   updateTilesetId: (id: string) => void;
   updateTilesetImageSrc: (imageSrc: string) => void;
 };
 
 type SpritesheetEditorStore = SpritesheetEditorState & SpritesheetEditorActions;
-type SpritesheetEditorDocument = {
-  selectedFileName: string;
-  selectedTileId: string | null;
-  tileEntries: TileEntry[];
-  tileset: SpritesheetEditorTilesetDefinition | null;
-};
 
 const initialEntry = editorBundledTilesets[0] ?? null;
 const initialTileEntries = initialEntry ? makeTileEntries(initialEntry.tileset) : [];
@@ -258,21 +275,40 @@ function getDocument(state: SpritesheetEditorState): SpritesheetEditorDocument {
   });
 }
 
+function documentsEqual(
+  left: SpritesheetEditorDocument,
+  right: SpritesheetEditorDocument,
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 function withHistory(
   state: SpritesheetEditorState,
   changes: Partial<SpritesheetEditorState>,
 ): Partial<SpritesheetEditorState> {
+  const before = getDocument(state);
+  const after = cloneDocument({
+    selectedFileName: changes.selectedFileName ?? state.selectedFileName,
+    selectedTileId:
+      changes.selectedTileId === undefined ? state.selectedTileId : changes.selectedTileId,
+    tileEntries: changes.tileEntries ?? state.tileEntries,
+    tileset: changes.tileset === undefined ? state.tileset : changes.tileset,
+  });
+  if (documentsEqual(before, after)) {
+    return changes;
+  }
+
   return {
     ...changes,
-    futureDocuments: [],
-    pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+    futureHistory: [],
+    pastHistory: [{ before, after }, ...state.pastHistory].slice(0, HISTORY_LIMIT),
   };
 }
 
 function makeInitialSpritesheetEditorState(): SpritesheetEditorState {
   return {
-    futureDocuments: [],
-    pastDocuments: [],
+    futureHistory: [],
+    pastHistory: [],
     previewMode: 'sheet',
     previewZoom: 2,
     selectedFileName: initialEntry?.fileName ?? '',
@@ -305,10 +341,10 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
 
       addTileEntry: () =>
         set((state) => {
-          const nextId = `tile_${state.tileEntries.length + 1}`;
+          const nextId = makeNextTileId(state.tileEntries);
           return withHistory(state, {
             selectedTileId: nextId,
-            tileEntries: [...state.tileEntries, { column: 0, id: nextId, row: 0 }],
+            tileEntries: [...state.tileEntries, { column: 0, id: nextId, name: `tile_${nextId}`, row: 0 }],
           });
         }),
 
@@ -320,8 +356,8 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
         }
 
         set({
-          futureDocuments: [],
-          pastDocuments: [],
+          futureHistory: [],
+          pastHistory: [],
           selectedFileName: '',
           selectedTileId: null,
           tileEntries: [],
@@ -388,7 +424,8 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
 
           const duplicatedEntry = {
             ...cloneTileEntry(selectedEntry),
-            id: makeDuplicateTileId(state.tileEntries, selectedEntry.id),
+            id: makeNextTileId(state.tileEntries),
+            name: makeDuplicateTileName(state.tileEntries, selectedEntry.name),
           };
           const nextEntries = [...state.tileEntries];
           nextEntries.splice(selectedIndex + 1, 0, duplicatedEntry);
@@ -400,16 +437,16 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
         }),
 
       redo: () => {
-        const { futureDocuments } = get();
-        const nextDocument = futureDocuments[0];
-        if (!nextDocument) {
+        const { futureHistory } = get();
+        const nextEntry = futureHistory[0];
+        if (!nextEntry) {
           return;
         }
 
         set((state) => ({
-          ...cloneDocument(nextDocument),
-          futureDocuments: state.futureDocuments.slice(1),
-          pastDocuments: [getDocument(state), ...state.pastDocuments].slice(0, HISTORY_LIMIT),
+          ...cloneDocument(nextEntry.after),
+          futureHistory: state.futureHistory.slice(1),
+          pastHistory: [nextEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
           tileDeleteIndex: null,
         }));
         get().syncDerivedState();
@@ -490,8 +527,8 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
         const nextTileset = cloneTileset(entry.tileset);
         const nextEntries = makeTileEntries(nextTileset);
         set({
-          futureDocuments: [],
-          pastDocuments: [],
+          futureHistory: [],
+          pastHistory: [],
           selectedFileName: fileName,
           selectedTileId: nextEntries[0]?.id ?? null,
           tileEntries: nextEntries,
@@ -507,15 +544,20 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
       syncDerivedState: () => {
         const state = get();
         const nextState: Partial<SpritesheetEditorState> = {};
+        const normalizedEntries = state.tileEntries.map(normalizeTileEntry);
+
+        if (JSON.stringify(normalizedEntries) !== JSON.stringify(state.tileEntries)) {
+          nextState.tileEntries = normalizedEntries;
+        }
 
         if (
           state.selectedTileId &&
-          !state.tileEntries.some((entry) => entry.id === state.selectedTileId)
+          !normalizedEntries.some((entry) => entry.id === state.selectedTileId)
         ) {
-          nextState.selectedTileId = state.tileEntries[0]?.id ?? null;
+          nextState.selectedTileId = normalizedEntries[0]?.id ?? null;
         }
 
-        if (state.tileDeleteIndex !== null && !state.tileEntries[state.tileDeleteIndex]) {
+        if (state.tileDeleteIndex !== null && !normalizedEntries[state.tileDeleteIndex]) {
           nextState.tileDeleteIndex = null;
         }
 
@@ -525,16 +567,16 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
       },
 
       undo: () => {
-        const { pastDocuments } = get();
-        const previousDocument = pastDocuments[0];
-        if (!previousDocument) {
+        const { pastHistory } = get();
+        const previousEntry = pastHistory[0];
+        if (!previousEntry) {
           return;
         }
 
         set((state) => ({
-          ...cloneDocument(previousDocument),
-          futureDocuments: [getDocument(state), ...state.futureDocuments].slice(0, HISTORY_LIMIT),
-          pastDocuments: state.pastDocuments.slice(1),
+          ...cloneDocument(previousEntry.before),
+          futureHistory: [previousEntry, ...state.futureHistory].slice(0, HISTORY_LIMIT),
+          pastHistory: state.pastHistory.slice(1),
           tileDeleteIndex: null,
         }));
         get().syncDerivedState();
@@ -569,14 +611,12 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
           }),
         ),
 
-      updateTileId: (index, nextId) =>
+      updateTileName: (index, nextName) =>
         set((state) => {
-          const oldId = state.tileEntries[index]?.id;
           const nextEntries = state.tileEntries.map((entry, entryIndex) =>
-            entryIndex === index ? { ...entry, id: nextId } : entry,
+            entryIndex === index ? { ...entry, name: nextName } : entry,
           );
           return withHistory(state, {
-            selectedTileId: state.selectedTileId === oldId ? nextId : state.selectedTileId,
             tileEntries: nextEntries,
           });
         }),
@@ -668,8 +708,6 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
         state?.syncDerivedState();
       },
       partialize: (state) => ({
-        futureDocuments: state.futureDocuments,
-        pastDocuments: state.pastDocuments,
         previewMode: state.previewMode,
         previewZoom: state.previewZoom,
         selectedFileName: state.selectedFileName,

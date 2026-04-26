@@ -17,8 +17,8 @@ export function EntitiesSection() {
       isOpen={isOpen}
       onToggle={() => setIsOpen((current) => !current)}
     >
-      <div className="grid grid-cols-2 gap-3">
-        {(['player', 'enemy-patroller'] as const).map((entityType) => (
+      <div className="grid grid-cols-3 gap-3">
+        {(['player', 'enemy-patroller', 'column'] as const).map((entityType) => (
           <button
             key={entityType}
             type="button"
@@ -37,6 +37,7 @@ export function EntitiesSection() {
         <div>{level.entities.length} entities in level</div>
         <div className="mt-2">In entity mode: left click places, right click removes nearest.</div>
         <div className="mt-2">Placing a player replaces the existing player spawn.</div>
+        <div className="mt-2">Columns are static scene props rendered from their assigned sprite.</div>
       </div>
       {selectedEntityType === 'enemy-patroller' ? (
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">

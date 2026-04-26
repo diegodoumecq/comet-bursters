@@ -27,6 +27,7 @@ function createEditorSavePlugin(): Plugin {
             createBackup?: boolean;
             fileName?: string;
             level?: unknown;
+            materialPlacements?: unknown;
           };
 
           if (!payload.fileName || typeof payload.fileName !== 'string') {
@@ -61,6 +62,16 @@ function createEditorSavePlugin(): Plugin {
 
           const levelToSave = { ...(payload.level as Record<string, unknown>) };
           delete levelToSave.tilesets;
+          const materialPlacements =
+            payload.materialPlacements &&
+            typeof payload.materialPlacements === 'object' &&
+            !Array.isArray(payload.materialPlacements)
+              ? payload.materialPlacements
+              : {};
+          levelToSave.editor = {
+            ...((levelToSave.editor as Record<string, unknown> | undefined) ?? {}),
+            materialPlacements,
+          };
           await fs.writeFile(targetFilePath, `${JSON.stringify(levelToSave, null, 2)}\n`, 'utf8');
 
           res.statusCode = 200;

@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import columnPixelartUrl from '../assets/columnPixelart.png';
 import { getLevelGrid, getTilesetTilePositionMap } from '../scenes/ShipInteriorScene/level';
 import { getMaterialColor } from './shared/materials';
 import { useEditorStore } from './state/editorStore';
@@ -33,6 +34,18 @@ export function EditorCanvas({
   const selectedEntityId = useEditorStore((state) => state.selectedEntityId);
   const selectedPathId = useEditorStore((state) => state.selectedPathId);
   const tool = useEditorStore((state) => state.tool);
+  const columnImageRef = useRef<HTMLImageElement | null>(null);
+  const [, setColumnImageVersion] = useState(0);
+
+  useEffect(() => {
+    const image = new Image();
+    image.src = columnPixelartUrl;
+    image.onload = () => {
+      columnImageRef.current = image;
+      setColumnImageVersion((current) => current + 1);
+    };
+    columnImageRef.current = image;
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -96,7 +109,7 @@ export function EditorCanvas({
         for (const tile of layer.tiles) {
           const tileX = tile.x * levelGrid.cellWidth;
           const tileY = tile.y * levelGrid.cellHeight;
-          const frame = tilePositions[tile.tile];
+          const frame = tilePositions[String(tile.tile)];
           if (!frame) {
             const markerSize = Math.min(levelGrid.cellWidth, levelGrid.cellHeight);
             ctx.save();
@@ -135,7 +148,19 @@ export function EditorCanvas({
 
     for (const entity of level.entities) {
       const isPlayer = entity.type === 'player';
+      const isColumn = entity.type === 'column';
       const isSelected = entity.id === selectedEntityId;
+      if (isColumn && columnImageRef.current) {
+        const image = columnImageRef.current;
+        const drawX = Math.round(entity.x - image.width / 2);
+        const drawY = Math.round(entity.y - image.height);
+        ctx.drawImage(image, drawX, drawY);
+        ctx.lineWidth = isSelected ? 3 : 2;
+        ctx.strokeStyle = isSelected ? '#facc15' : 'rgba(8, 15, 28, 0.95)';
+        ctx.strokeRect(drawX - 1, drawY - 1, image.width + 2, image.height + 2);
+        continue;
+      }
+
       ctx.beginPath();
       ctx.arc(entity.x, entity.y, isPlayer ? 14 : 11, 0, Math.PI * 2);
       ctx.fillStyle = isPlayer ? '#38bdf8' : '#f87171';

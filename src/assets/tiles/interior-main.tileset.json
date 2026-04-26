@@ -15,7 +15,7 @@
   ],
   "tiles": [
     {
-      "id": "wall_top_a",
+      "id": 1,
       "material": "wall",
       "position": [
         0,
@@ -28,10 +28,11 @@
         "left": "same"
       },
       "variantGroup": "wall_end_left",
-      "variantWeight": 3
+      "variantWeight": 3,
+      "name": "wall_top_a"
     },
     {
-      "id": "wall_inner_top_right_a",
+      "id": 2,
       "material": "wall",
       "position": [
         1,
@@ -45,10 +46,11 @@
         "downRight": "different"
       },
       "variantGroup": "wall_corner_down_right",
-      "variantWeight": 2
+      "variantWeight": 2,
+      "name": "wall_inner_top_right_a"
     },
     {
-      "id": "wall_right_a",
+      "id": 3,
       "material": "wall",
       "position": [
         2,
@@ -61,10 +63,11 @@
         "left": "different"
       },
       "variantGroup": "wall_vertical",
-      "variantWeight": 3
+      "variantWeight": 3,
+      "name": "wall_right_a"
     },
     {
-      "id": "wall_top_b",
+      "id": 4,
       "material": "wall",
       "position": [
         3,
@@ -77,10 +80,11 @@
         "left": "same"
       },
       "variantGroup": "wall_horizontal",
-      "variantWeight": 3
+      "variantWeight": 3,
+      "name": "wall_top_b"
     },
     {
-      "id": "wall_horizontal_panel_c",
+      "id": 5,
       "material": "wall",
       "position": [
         4,
@@ -95,10 +99,11 @@
         "upLeft": "same"
       },
       "variantGroup": "wall_horizontal",
-      "variantWeight": 2
+      "variantWeight": 2,
+      "name": "wall_horizontal_panel_c"
     },
     {
-      "id": "wall_horizontal_split_b",
+      "id": 6,
       "material": "wall",
       "position": [
         5,
@@ -113,10 +118,11 @@
         "downLeft": "same"
       },
       "variantGroup": "wall_t_up",
-      "variantWeight": 2
+      "variantWeight": 2,
+      "name": "wall_horizontal_split_b"
     },
     {
-      "id": "wall_top_notch_right_a",
+      "id": 7,
       "material": "wall",
       "position": [
         0,
@@ -129,10 +135,11 @@
         "left": "different"
       },
       "variantGroup": "wall_corner_up_right",
-      "variantWeight": 2
+      "variantWeight": 2,
+      "name": "wall_top_notch_right_a"
     },
     {
-      "id": "wall_top_notch_left",
+      "id": 8,
       "material": "wall",
       "position": [
         1,
@@ -145,10 +152,11 @@
         "left": "same"
       },
       "variantGroup": "wall_corner_up_left",
-      "variantWeight": 2
+      "variantWeight": 2,
+      "name": "wall_top_notch_left"
     },
     {
-      "id": "wall_inner_top_right_b",
+      "id": 9,
       "material": "wall",
       "position": [
         2,
@@ -161,10 +169,11 @@
         "left": "different"
       },
       "variantGroup": "wall_end_down",
-      "variantWeight": 2
+      "variantWeight": 2,
+      "name": "wall_inner_top_right_b"
     },
     {
-      "id": "wall_top_notch_right_b",
+      "id": 10,
       "material": "wall",
       "position": [
         3,
@@ -179,10 +188,11 @@
         "upLeft": "different"
       },
       "variantGroup": "wall_t_down",
-      "variantWeight": 2
+      "variantWeight": 2,
+      "name": "wall_top_notch_right_b"
     },
     {
-      "id": "wall_t_down_a",
+      "id": 11,
       "material": "wall",
       "position": [
         4,
@@ -197,10 +207,11 @@
         "upLeft": "different"
       },
       "variantGroup": "wall_t_down",
-      "variantWeight": 1
+      "variantWeight": 1,
+      "name": "wall_t_down_a"
     },
     {
-      "id": "wall_t_down_b",
+      "id": 12,
       "material": "wall",
       "position": [
         5,
@@ -215,10 +226,11 @@
         "upLeft": "same"
       },
       "variantGroup": "wall_t_down",
-      "variantWeight": 1
+      "variantWeight": 1,
+      "name": "wall_t_down_b"
     },
     {
-      "id": "wall_right_with_top_left_edge",
+      "id": 13,
       "material": "wall",
       "position": [
         0,
@@ -231,10 +243,11 @@
         "left": "same"
       },
       "variantGroup": "wall_t_up",
-      "variantWeight": 2
+      "variantWeight": 2,
+      "name": "wall_right_with_top_left_edge"
     },
     {
-      "id": "wall_right_with_top_notch",
+      "id": 14,
       "material": "wall",
       "position": [
         1,
@@ -249,10 +262,11 @@
         "downRight": "different"
       },
       "variantGroup": "wall_t_left",
-      "variantWeight": 2
+      "variantWeight": 2,
+      "name": "wall_right_with_top_notch"
     },
     {
-      "id": "window_panel",
+      "id": 15,
       "material": "floor",
       "position": [
         2,
@@ -260,10 +274,11 @@
       ],
       "topology": {},
       "variantGroup": "floor_fill",
-      "variantWeight": 1
+      "variantWeight": 1,
+      "name": "window_panel"
     },
     {
-      "id": "wall_horizontal_panel_a",
+      "id": 16,
       "material": "wall",
       "position": [
         3,
@@ -276,10 +291,11 @@
         "left": "different"
       },
       "variantGroup": "wall_end_right",
-      "variantWeight": 2
+      "variantWeight": 2,
+      "name": "wall_horizontal_panel_a"
     },
     {
-      "id": "wall_corner_down_right_b",
+      "id": 17,
       "material": "wall",
       "position": [
         4,
@@ -293,10 +309,11 @@
         "downRight": "same"
       },
       "variantGroup": "wall_corner_down_right",
-      "variantWeight": 1
+      "variantWeight": 1,
+      "name": "wall_corner_down_right_b"
     },
     {
-      "id": "wall_horizontal_panel_d",
+      "id": 18,
       "material": "wall",
       "position": [
         5,
@@ -309,10 +326,11 @@
         "left": "different"
       },
       "variantGroup": "wall_horizontal",
-      "variantWeight": 1
+      "variantWeight": 1,
+      "name": "wall_horizontal_panel_d"
     },
     {
-      "id": "wall_inner_top_left",
+      "id": 19,
       "material": "wall",
       "position": [
         0,
@@ -326,10 +344,11 @@
         "downLeft": "different"
       },
       "variantGroup": "wall_corner_down_left",
-      "variantWeight": 2
+      "variantWeight": 2,
+      "name": "wall_inner_top_left"
     },
     {
-      "id": "wall_horizontal_split",
+      "id": 20,
       "material": "wall",
       "position": [
         1,
@@ -342,10 +361,11 @@
         "left": "different"
       },
       "variantGroup": "wall_end_up",
-      "variantWeight": 2
+      "variantWeight": 2,
+      "name": "wall_horizontal_split"
     },
     {
-      "id": "wall_horizontal_panel_b",
+      "id": 21,
       "material": "wall",
       "position": [
         2,
@@ -361,10 +381,11 @@
         "upLeft": "same"
       },
       "variantGroup": "wall_end_right",
-      "variantWeight": 2
+      "variantWeight": 2,
+      "name": "wall_horizontal_panel_b"
     },
     {
-      "id": "wall_right_b",
+      "id": 22,
       "material": "wall",
       "position": [
         3,
@@ -379,10 +400,11 @@
         "upLeft": "different"
       },
       "variantGroup": "wall_t_right",
-      "variantWeight": 2
+      "variantWeight": 2,
+      "name": "wall_right_b"
     },
     {
-      "id": "wall_end_right_b",
+      "id": 23,
       "material": "wall",
       "position": [
         4,
@@ -396,10 +418,11 @@
         "upRight": "same"
       },
       "variantGroup": "wall_t_left",
-      "variantWeight": 1
+      "variantWeight": 1,
+      "name": "wall_end_right_b"
     },
     {
-      "id": "wall_vertical_c",
+      "id": 24,
       "material": "wall",
       "position": [
         5,
@@ -414,10 +437,11 @@
         "upLeft": "same"
       },
       "variantGroup": "wall_vertical",
-      "variantWeight": 1
+      "variantWeight": 1,
+      "name": "wall_vertical_c"
     },
     {
-      "id": "wall_debris_left",
+      "id": 25,
       "material": "wall",
       "position": [
         0,
@@ -430,10 +454,11 @@
         "left": "same"
       },
       "variantGroup": "wall_end_left",
-      "variantWeight": 0
+      "variantWeight": 0,
+      "name": "wall_debris_left"
     },
     {
-      "id": "wall_debris_right",
+      "id": 26,
       "material": "wall",
       "position": [
         1,
@@ -446,10 +471,11 @@
         "left": "different"
       },
       "variantGroup": "wall_end_right",
-      "variantWeight": 0
+      "variantWeight": 0,
+      "name": "wall_debris_right"
     },
     {
-      "id": "wall",
+      "id": 27,
       "material": "wall",
       "position": [
         2,
@@ -466,10 +492,11 @@
         "upLeft": "same"
       },
       "variantGroup": "wall_cross",
-      "variantWeight": 2
+      "variantWeight": 2,
+      "name": "wall"
     },
     {
-      "id": "wall_end_left_b",
+      "id": 28,
       "material": "wall",
       "position": [
         3,
@@ -483,10 +510,11 @@
         "upRight": "same"
       },
       "variantGroup": "wall_end_left",
-      "variantWeight": 1
+      "variantWeight": 1,
+      "name": "wall_end_left_b"
     },
     {
-      "id": "wall_end_right_c",
+      "id": 29,
       "material": "wall",
       "position": [
         4,
@@ -500,10 +528,11 @@
         "upLeft": "same"
       },
       "variantGroup": "wall_end_right",
-      "variantWeight": 1
+      "variantWeight": 1,
+      "name": "wall_end_right_c"
     },
     {
-      "id": "wall_corner_down_right_c",
+      "id": 30,
       "material": "wall",
       "position": [
         5,
@@ -517,10 +546,11 @@
         "downLeft": "same"
       },
       "variantGroup": "wall_corner_down_right",
-      "variantWeight": 1
+      "variantWeight": 1,
+      "name": "wall_corner_down_right_c"
     },
     {
-      "id": "wall_cross",
+      "id": 31,
       "material": "wall",
       "position": [
         0,
@@ -535,10 +565,11 @@
         "downRight": "different",
         "downLeft": "different",
         "upLeft": "different"
-      }
+      },
+      "name": "wall_cross"
     },
     {
-      "id": "wall_cross_copy",
+      "id": 32,
       "material": "wall",
       "position": [
         0,
@@ -553,10 +584,11 @@
         "downRight": "same",
         "downLeft": "different",
         "upLeft": "same"
-      }
+      },
+      "name": "wall_cross_copy"
     },
     {
-      "id": "wall_cross_copy_copy",
+      "id": 33,
       "material": "wall",
       "position": [
         1,
@@ -571,10 +603,11 @@
         "downRight": "different",
         "downLeft": "same",
         "upLeft": "different"
-      }
+      },
+      "name": "wall_cross_copy_copy"
     },
     {
-      "id": "wall_cross_copy_copy_copy",
+      "id": 34,
       "material": "wall",
       "position": [
         2,
@@ -589,10 +622,11 @@
         "downRight": "different",
         "downLeft": "different",
         "upLeft": "same"
-      }
+      },
+      "name": "wall_cross_copy_copy_copy"
     },
     {
-      "id": "wall_cross_copy_copy_copy_copy",
+      "id": 35,
       "material": "wall",
       "position": [
         3,
@@ -607,10 +641,11 @@
         "downRight": "different",
         "downLeft": "different",
         "upLeft": "different"
-      }
+      },
+      "name": "wall_cross_copy_copy_copy_copy"
     },
     {
-      "id": "tile_32",
+      "id": 36,
       "material": "wall",
       "position": [
         1,
@@ -625,10 +660,11 @@
         "downRight": "same",
         "downLeft": "same",
         "upLeft": "different"
-      }
+      },
+      "name": "tile_32"
     },
     {
-      "id": "tile_33",
+      "id": 37,
       "material": "wall",
       "position": [
         2,
@@ -643,10 +679,11 @@
         "downRight": "same",
         "downLeft": "same",
         "upLeft": "same"
-      }
+      },
+      "name": "tile_33"
     },
     {
-      "id": "tile_34",
+      "id": 38,
       "material": "wall",
       "position": [
         3,
@@ -659,10 +696,11 @@
         "left": "same",
         "downRight": "different",
         "downLeft": "same"
-      }
+      },
+      "name": "tile_34"
     },
     {
-      "id": "tile_35",
+      "id": 39,
       "material": "wall",
       "position": [
         4,
@@ -675,10 +713,11 @@
         "left": "same",
         "downRight": "same",
         "downLeft": "different"
-      }
+      },
+      "name": "tile_35"
     },
     {
-      "id": "tile_35_copy",
+      "id": 40,
       "material": "wall",
       "position": [
         4,
@@ -691,10 +730,11 @@
         "left": "same",
         "downLeft": "different",
         "upLeft": "same"
-      }
+      },
+      "name": "tile_35_copy"
     },
     {
-      "id": "tile_36",
+      "id": 41,
       "material": "wall",
       "position": [
         5,
@@ -707,10 +747,11 @@
         "left": "different",
         "upRight": "same",
         "downRight": "same"
-      }
+      },
+      "name": "tile_36"
     },
     {
-      "id": "tile_36_copy",
+      "id": 42,
       "material": "wall",
       "position": [
         5,
@@ -725,10 +766,11 @@
         "downRight": "same",
         "downLeft": "same",
         "upLeft": "different"
-      }
+      },
+      "name": "tile_36_copy"
     },
     {
-      "id": "tile_37",
+      "id": 43,
       "material": "wall",
       "position": [
         6,
@@ -743,10 +785,11 @@
         "downRight": "different",
         "downLeft": "same",
         "upLeft": "same"
-      }
+      },
+      "name": "tile_37"
     },
     {
-      "id": "tile_38",
+      "id": 44,
       "material": "wall",
       "position": [
         6,
@@ -761,10 +804,11 @@
         "downRight": "different",
         "downLeft": "different",
         "upLeft": "same"
-      }
+      },
+      "name": "tile_38"
     },
     {
-      "id": "tile_39",
+      "id": 45,
       "material": "wall",
       "position": [
         6,
@@ -779,10 +823,11 @@
         "downRight": "same",
         "downLeft": "different",
         "upLeft": "same"
-      }
+      },
+      "name": "tile_39"
     },
     {
-      "id": "tile_39_copy",
+      "id": 46,
       "material": "wall",
       "position": [
         6,
@@ -795,10 +840,11 @@
         "left": "same",
         "downLeft": "same",
         "upLeft": "different"
-      }
+      },
+      "name": "tile_39_copy"
     },
     {
-      "id": "tile_39_copy_copy",
+      "id": 47,
       "material": "wall",
       "position": [
         6,
@@ -811,10 +857,11 @@
         "left": "different",
         "upRight": "different",
         "downRight": "same"
-      }
+      },
+      "name": "tile_39_copy_copy"
     },
     {
-      "id": "tile_39_copy_copy_copy",
+      "id": 48,
       "material": "wall",
       "position": [
         6,
@@ -827,7 +874,8 @@
         "left": "different",
         "upRight": "same",
         "downRight": "different"
-      }
+      },
+      "name": "tile_39_copy_copy_copy"
     }
   ]
 }

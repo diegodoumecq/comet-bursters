@@ -37,7 +37,7 @@ export function TilesSection() {
               >
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium text-slate-100">
-                    {entry.id.trim() || 'unnamed tile'}
+                    {entry.name?.trim() || `tile_${entry.id}`}
                   </div>
                 </div>
               </button>

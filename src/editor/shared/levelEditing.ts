@@ -1,6 +1,7 @@
 import type {
   RawShipInteriorLevel,
   ShipInteriorEntityDefinition,
+  ShipInteriorTileId,
   ShipInteriorTilesetDefinition,
 } from '../../scenes/ShipInteriorScene/level';
 import { resolveShipInteriorAssetUrl } from '../../scenes/ShipInteriorScene/level';
@@ -20,7 +21,7 @@ export function serializeShipInteriorLevel(level: RawShipInteriorLevel): string 
 export function placeTile(
   level: RawShipInteriorLevel,
   layerId: string,
-  tileId: string,
+  tileId: ShipInteriorTileId,
   x: number,
   y: number,
 ): RawShipInteriorLevel {

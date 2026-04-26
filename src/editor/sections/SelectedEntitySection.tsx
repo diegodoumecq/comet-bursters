@@ -36,12 +36,15 @@ export function SelectedEntitySection() {
           <select
             value={selectedEntity.type}
             onChange={(event) =>
-              updateSelectedEntityType(event.target.value as 'player' | 'enemy-patroller')
+              updateSelectedEntityType(
+                event.target.value as 'player' | 'enemy-patroller' | 'column',
+              )
             }
             className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm normal-case tracking-normal text-slate-100 outline-none transition focus:border-cyan-400"
           >
             <option value="player">player</option>
             <option value="enemy-patroller">enemy-patroller</option>
+            <option value="column">column</option>
           </select>
         </label>
         <div className="grid grid-cols-2 gap-3">

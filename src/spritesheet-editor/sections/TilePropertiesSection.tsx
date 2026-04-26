@@ -12,7 +12,7 @@ export function TilePropertiesSection() {
   const tileEntries = useSpritesheetEditorStore((state) => state.tileEntries);
   const tileset = useSpritesheetEditorStore((state) => state.tileset);
   const updateTileEntry = useSpritesheetEditorStore((state) => state.updateTileEntry);
-  const updateTileId = useSpritesheetEditorStore((state) => state.updateTileId);
+  const updateTileName = useSpritesheetEditorStore((state) => state.updateTileName);
   const updateTileMaterial = useSpritesheetEditorStore((state) => state.updateTileMaterial);
   const updateTileTopologyEnabled = useSpritesheetEditorStore(
     (state) => state.updateTileTopologyEnabled,
@@ -25,7 +25,7 @@ export function TilePropertiesSection() {
   const [isOpen, setIsOpen] = useState(true);
   const selectedTileIndex = tileEntries.findIndex((entry) => entry.id === selectedTileId);
   const selectedTile = selectedTileIndex >= 0 ? tileEntries[selectedTileIndex] : null;
-  const selectedTileLabel = selectedTile?.id.trim() || 'unnamed tile';
+  const selectedTileLabel = selectedTile?.name?.trim() || (selectedTile ? `tile_${selectedTile.id}` : 'unnamed tile');
   const selectedAsset = useMemo(
     () =>
       tileset
@@ -139,11 +139,20 @@ export function TilePropertiesSection() {
               </div>
 
               <label className="block text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+                Name
+                <input
+                  value={selectedTile.name ?? ''}
+                  onChange={(event) => updateTileName(selectedTileIndex, event.currentTarget.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm normal-case tracking-normal text-slate-100 outline-none transition focus:border-cyan-400"
+                />
+              </label>
+
+              <label className="block text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
                 ID
                 <input
                   value={selectedTile.id}
-                  onChange={(event) => updateTileId(selectedTileIndex, event.currentTarget.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm normal-case tracking-normal text-slate-100 outline-none transition focus:border-cyan-400"
+                  readOnly
+                  className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm normal-case tracking-normal text-slate-400 outline-none"
                 />
               </label>
 

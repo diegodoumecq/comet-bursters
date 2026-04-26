@@ -46,7 +46,11 @@ export function TilesSection() {
   const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
   const setSelectedTileId = useEditorStore((state) => state.setSelectedTileId);
   const selectedTiles = selectedTileset
-    ? Object.entries(getTilesetTilePositionMap(selectedTileset))
+    ? selectedTileset.tiles.map((tile) => ({
+        id: tile.id,
+        label: tile.name,
+        tile: getTilesetTilePositionMap(selectedTileset)[String(tile.id)],
+      }))
     : [];
   const [openLayerMenuId, setOpenLayerMenuId] = useState<string | null>(null);
   const [renamingLayerId, setRenamingLayerId] = useState<string | null>(null);
@@ -152,7 +156,7 @@ export function TilesSection() {
 
       if (selectedLayerId === layerId) {
         const [firstTileId] = Object.keys(getTilesetTilePositionMap(nextTileset));
-        setSelectedTileId(firstTileId ?? null);
+        setSelectedTileId(firstTileId ? Number.parseInt(firstTileId, 10) : null);
       }
 
       return {
@@ -538,14 +542,14 @@ export function TilesSection() {
           <div className="text-xs text-slate-500">{selectedTiles.length} tiles</div>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          {selectedTiles.map(([tileId, tile]) => (
+          {selectedTiles.map(({ id: tileId, label, tile }) => (
             <TileSwatch
               key={tileId}
               image={activeImage}
               frameWidth={selectedTileset?.grid.frameWidth ?? 32}
               frameHeight={selectedTileset?.grid.frameHeight ?? 32}
               tile={tile}
-              label={tileId}
+              label={label}
               selected={selectedTileId === tileId}
               onClick={() => setSelectedTileId(tileId)}
             />
