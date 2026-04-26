@@ -1364,13 +1364,16 @@ export class ShipInteriorScene implements Scene {
       return;
     }
 
+    const renderCameraX = Math.round(this.camera.x);
+    const renderCameraY = Math.round(this.camera.y);
+
     ctx.save();
-    ctx.translate(-this.camera.x, -this.camera.y);
+    ctx.translate(-renderCameraX, -renderCameraY);
     const isCircleVisible = (x: number, y: number, radius: number) =>
-      x + radius >= this.camera.x &&
-      x - radius <= this.camera.x + width &&
-      y + radius >= this.camera.y &&
-      y - radius <= this.camera.y + height;
+      x + radius >= renderCameraX &&
+      x - radius <= renderCameraX + width &&
+      y + radius >= renderCameraY &&
+      y - radius <= renderCameraY + height;
 
     for (const enemy of this.enemies) {
       if (enemy.alive && isCircleVisible(enemy.x, enemy.y, enemy.visionRange)) {
@@ -1396,10 +1399,10 @@ export class ShipInteriorScene implements Scene {
           const width = image?.width ?? 16;
           const height = image?.height ?? 48;
           return (
-            column.x + width / 2 >= this.camera.x &&
-            column.x - width / 2 <= this.camera.x + width + getGameWidth() &&
-            column.y >= this.camera.y &&
-            column.y - height <= this.camera.y + getGameHeight()
+            column.x + width / 2 >= renderCameraX &&
+            column.x - width / 2 <= renderCameraX + width + getGameWidth() &&
+            column.y >= renderCameraY &&
+            column.y - height <= renderCameraY + getGameHeight()
           );
         })
         .map((column) => ({ type: 'column', baseY: column.y, column }) as const),

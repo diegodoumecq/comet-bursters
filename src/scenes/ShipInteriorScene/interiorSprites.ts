@@ -16,6 +16,7 @@ export class ShipInteriorSpriteRenderer {
     for (const layer of drawableLayers) {
       ctx.save();
       ctx.globalAlpha = layer.opacity;
+      ctx.imageSmoothingEnabled = false;
       drawTilemapLayer(ctx, layer.sheet, layer.tilemap);
       ctx.restore();
     }
