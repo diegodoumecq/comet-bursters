@@ -1,5 +1,4 @@
-import { computeAlphaMask, initAssets, loadAssets } from '@/assets';
-import gamepadUrl from '@/assets/gamepad.png';
+import { initAssets } from '@/assets';
 import { SIZE } from '@/constants';
 import { sceneManager } from '@/sceneManager';
 import { initBackground } from '@/scenes/GameScene/background';
@@ -14,14 +13,10 @@ export class LoadingScene implements Scene {
       height: SIZE.height,
     };
 
-    loadAssets(gamepadUrl, () => {
-      gameState.baseAlphaMask = computeAlphaMask(gameState.gamepadImage!);
-      initAssets();
-      initBackground();
-      setColorGradePreset('cinematic');
-
-      gameState.assetsLoaded = true;
-    });
+    initAssets();
+    initBackground();
+    setColorGradePreset('cinematic');
+    gameState.assetsLoaded = true;
   }
 
   update(_deltaTime: number): void {

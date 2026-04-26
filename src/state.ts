@@ -49,10 +49,8 @@ export type GamePhase = 'title' | 'playing' | 'gameover';
 export type PlayableSceneName = 'game' | 'sandbox' | 'shipinterior';
 
 export type GameState = {
-  gamepadImage: HTMLImageElement | null;
   baseAlphaMask: AlphaMask | null;
   assetsLoaded: boolean;
-  colorSprites: Record<string, HTMLCanvasElement>;
   asteroidSprites: {
     mega: Record<string, HTMLCanvasElement>;
     big: Record<string, HTMLCanvasElement>;
@@ -70,10 +68,8 @@ export type GameState = {
 };
 
 export const gameState: GameState = {
-  gamepadImage: null,
   baseAlphaMask: null,
   assetsLoaded: false,
-  colorSprites: {},
   asteroidSprites: {
     mega: {},
     big: {},

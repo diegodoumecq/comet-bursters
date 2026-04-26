@@ -1,13 +1,13 @@
 import {
   ASTEROID_CONFIGS,
   ASTEROID_COLORS,
-  PLAYER_COLORS,
   type AlphaMask,
-  type PlayerColor,
 } from './constants';
 import { gameState } from './state';
 
-export function computeAlphaMask(image: HTMLImageElement): AlphaMask {
+export function computeAlphaMask(
+  image: CanvasImageSource & { width: number; height: number },
+): AlphaMask {
   const canvas = document.createElement('canvas');
   canvas.width = image.width;
   canvas.height = image.height;
@@ -17,26 +17,10 @@ export function computeAlphaMask(image: HTMLImageElement): AlphaMask {
   const mask = new Uint8Array(canvas.width * canvas.height);
 
   for (let i = 0; i < mask.length; i++) {
-    const alpha = imageData.data[i * 4 + 3];
-    mask[i] = alpha > 50 ? 1 : 0;
+    mask[i] = imageData.data[i * 4 + 3] > 50 ? 1 : 0;
   }
 
   return { width: canvas.width, height: canvas.height, data: mask };
-}
-
-export function createTintedSprite(image: HTMLImageElement, color: string): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  canvas.width = image.width;
-  canvas.height = image.height;
-  const cctx = canvas.getContext('2d')!;
-  cctx.drawImage(image, 0, 0);
-  cctx.globalCompositeOperation = 'multiply';
-  cctx.fillStyle = color;
-  cctx.fillRect(0, 0, canvas.width, canvas.height);
-  cctx.globalCompositeOperation = 'destination-in';
-  cctx.drawImage(image, 0, 0);
-  cctx.globalCompositeOperation = 'source-over';
-  return canvas;
 }
 
 export function createParticleSprite(
@@ -342,6 +326,61 @@ function createCircularMask(diameter: number): AlphaMask {
   return { width: diameter, height: diameter, data };
 }
 
+function createPlayerBaseMask(): AlphaMask {
+  const size = 150;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.save();
+  ctx.translate(size / 2, size / 2);
+  ctx.fillStyle = '#fff';
+
+  ctx.beginPath();
+  ctx.moveTo(60, 0);
+  ctx.lineTo(28, -8);
+  ctx.lineTo(10, -14);
+  ctx.lineTo(-4, -34);
+  ctx.lineTo(-26, -29);
+  ctx.lineTo(-50, -14);
+  ctx.lineTo(-36, -5);
+  ctx.lineTo(-42, 0);
+  ctx.lineTo(-36, 5);
+  ctx.lineTo(-50, 14);
+  ctx.lineTo(-26, 29);
+  ctx.lineTo(-4, 34);
+  ctx.lineTo(10, 14);
+  ctx.lineTo(28, 8);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(0, 0, 18, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(8, -8);
+  ctx.lineTo(20, -8);
+  ctx.lineTo(38, -5);
+  ctx.lineTo(40, 0);
+  ctx.lineTo(38, 5);
+  ctx.lineTo(20, 8);
+  ctx.lineTo(8, 8);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+
+  const imageData = ctx.getImageData(0, 0, size, size);
+  const mask = new Uint8Array(size * size);
+  for (let i = 0; i < mask.length; i++) {
+    mask[i] = imageData.data[i * 4 + 3] > 50 ? 1 : 0;
+  }
+
+  return { width: size, height: size, data: mask };
+}
+
 export function scaleMask(mask: AlphaMask, scale: number): AlphaMask {
   const newWidth = Math.floor(mask.width * scale);
   const newHeight = Math.floor(mask.height * scale);
@@ -361,35 +400,19 @@ export function scaleMask(mask: AlphaMask, scale: number): AlphaMask {
 }
 
 export function initAssets() {
-  gameState.colorSprites = {};
   gameState.asteroidSprites = {
     mega: {},
     big: {},
     medium: {},
     small: {},
   };
-
-  const img = gameState.gamepadImage!;
-
-  for (const color of PLAYER_COLORS) {
-    gameState.colorSprites[color] = createTintedSprite(img, color);
-  }
+  gameState.baseAlphaMask = createPlayerBaseMask();
 
   for (const size of ['mega', 'big', 'medium', 'small'] as const) {
     for (const color of ASTEROID_COLORS[size]) {
       gameState.asteroidSprites[size][color] = createAsteroidSprite(size, color);
     }
   }
-}
-
-export function loadAssets(src: string, onLoad: () => void) {
-  gameState.gamepadImage = new Image();
-  gameState.gamepadImage.onload = onLoad;
-  gameState.gamepadImage.src = src;
-}
-
-export function getColorSprite(color: PlayerColor): HTMLCanvasElement | undefined {
-  return gameState.colorSprites[color];
 }
 
 export function getAsteroidSprite(
