@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { loadSpriteAssetImage } from './assetLoading';
 import {
   runCopySelection,
   runPasteSelection,
@@ -55,6 +54,7 @@ import {
   normalizeGridSettings,
   type PixelRect,
 } from './state/spriteEditorStore';
+import { useSpriteAssetLoader } from './useSpriteAssetLoader';
 import { clampAlpha, clampBrushSize, clampZoom, cloneImageData, cropImageData, getPixelCoordinates, parseHexColor, rgbaToHex } from './utils';
 
 type PointerOrigin = { x: number; y: number };
@@ -231,49 +231,6 @@ export function SpriteEditorApp() {
     resetSelectionState();
   };
 
-  const finishLoadingDocument = (ctx: CanvasRenderingContext2D) => {
-    session.originalImageData = cloneImageData(ctx);
-    syncCanvasSelectionSnapshot(ctx, null);
-    discardCurrentHistorySession();
-    setUndoStack([]);
-    setRedoStack([]);
-    setDirty(false);
-    resetSelectionState();
-    setHoveredPixel(null);
-    handlers.setInteractionMode('idle');
-    handlers.setIsLoading(false);
-  };
-
-  const loadActiveAsset = () => {
-    if (!activeAsset) {
-      return;
-    }
-
-    return loadSpriteAssetImage({
-      asset: activeAsset,
-      canvas: canvasRef.current,
-      onError: (message) => {
-        handlers.setLoadError(message);
-        handlers.setIsLoading(false);
-      },
-      onLoaded: (ctx) => {
-        finishLoadingDocument(ctx);
-        window.requestAnimationFrame(() => {
-          centerCanvas(zoom);
-        });
-      },
-      onStart: () => {
-        handlers.setIsLoading(true);
-        handlers.setLoadError(null);
-        handlers.setMessage(null);
-      },
-    });
-  };
-
-  useEffect(() => {
-    return loadActiveAsset();
-  }, [activeAsset]);
-
   useEffect(() => {
     if (!isActionsOpen) {
       return;
@@ -375,6 +332,20 @@ export function SpriteEditorApp() {
     setSelectionRect: handlers.setSelectionRect,
     setTool: handlers.setTool,
   };
+
+  useSpriteAssetLoader({
+    activeAsset,
+    canvasRef,
+    centerCanvas: () => centerCanvas(zoom),
+    discardCurrentHistorySession,
+    resetSelectionState,
+    session,
+    setDirty,
+    setHoveredPixel,
+    setRedoStack,
+    setUndoStack,
+    syncCanvasSelectionSnapshot,
+  });
 
   const getCanvasSelectionImageData = () => {
     const canvas = canvasRef.current;
