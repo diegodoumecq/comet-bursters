@@ -19,7 +19,6 @@ export type GridSettings = {
   offsetY?: number;
 };
 export type ViewportOffset = { x: number; y: number };
-export type HoveredPixel = { x: number; y: number } | null;
 type GridNumberKey = keyof GridSettings;
 
 type SpriteEditorState = {
@@ -29,9 +28,7 @@ type SpriteEditorState = {
   gridColor: string;
   gridOpacity: number;
   gridSettings: GridSettings;
-  hoveredPixel: HoveredPixel;
   interactionMode: SpriteEditorInteractionMode;
-  isActionsOpen: boolean;
   isGridVisible: boolean;
   isLoading: boolean;
   isSidebarResizable: boolean;
@@ -53,9 +50,7 @@ type SpriteEditorHandlers = {
   setBrushSize: (brushSize: number | ((current: number) => number)) => void;
   setGridColor: (gridColor: string) => void;
   setGridOpacity: (gridOpacity: number) => void;
-  setHoveredPixel: (hoveredPixel: HoveredPixel) => void;
   setInteractionMode: (interactionMode: SpriteEditorInteractionMode) => void;
-  setIsActionsOpen: (isActionsOpen: boolean | ((current: boolean) => boolean)) => void;
   setIsGridVisible: (isGridVisible: boolean) => void;
   setIsLoading: (isLoading: boolean) => void;
   setIsSidebarResizable: (isSidebarResizable: boolean) => void;
@@ -119,9 +114,7 @@ function getInitialSpriteEditorState(): SpriteEditorState {
     gridColor: '#67e8f9',
     gridOpacity: 0.45,
     gridSettings: getAssetGridSettings(DEFAULT_ACTIVE_ASSET_PATH),
-    hoveredPixel: null,
     interactionMode: 'idle',
-    isActionsOpen: false,
     isGridVisible: false,
     isLoading: false,
     isSidebarResizable: true,
@@ -177,16 +170,10 @@ function createSpriteEditorHandlers(set: SpriteEditorSet): SpriteEditorHandlers 
     setBrushSize: (brushSize) =>
       set((state) => ({
         brushSize: typeof brushSize === 'function' ? brushSize(state.brushSize) : brushSize,
-      })),
+    })),
     setGridColor: (gridColor) => set({ gridColor }),
     setGridOpacity: (gridOpacity) => set({ gridOpacity }),
-    setHoveredPixel: (hoveredPixel) => set({ hoveredPixel }),
     setInteractionMode: (interactionMode) => set({ interactionMode }),
-    setIsActionsOpen: (isActionsOpen) =>
-      set((state) => ({
-        isActionsOpen:
-          typeof isActionsOpen === 'function' ? isActionsOpen(state.isActionsOpen) : isActionsOpen,
-      })),
     setIsGridVisible: (isGridVisible) => set({ isGridVisible }),
     setIsLoading: (isLoading) => set({ isLoading }),
     setIsSidebarResizable: (isSidebarResizable) => set({ isSidebarResizable }),

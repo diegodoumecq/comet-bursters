@@ -91,6 +91,8 @@ export function SpriteEditorApp() {
     selectionPixels: null,
   });
   const [dirty, setDirty] = useState(false);
+  const [hoveredPixel, setHoveredPixel] = useState<{ x: number; y: number } | null>(null);
+  const [isActionsOpen, setIsActionsOpen] = useState(false);
   const [moveOffset, setMoveOffset] = useState({ x: 0, y: 0 });
   const [undoStack, setUndoStack] = useState<SpriteHistoryEntry[]>([]);
   const [redoStack, setRedoStack] = useState<SpriteHistoryEntry[]>([]);
@@ -100,9 +102,7 @@ export function SpriteEditorApp() {
   const gridColor = useSpriteEditorStore((state) => state.gridColor);
   const gridOpacity = useSpriteEditorStore((state) => state.gridOpacity);
   const gridSettings = useSpriteEditorStore((state) => state.gridSettings);
-  const hoveredPixel = useSpriteEditorStore((state) => state.hoveredPixel);
   const interactionMode = useSpriteEditorStore((state) => state.interactionMode);
-  const isActionsOpen = useSpriteEditorStore((state) => state.isActionsOpen);
   const isGridVisible = useSpriteEditorStore((state) => state.isGridVisible);
   const isLoading = useSpriteEditorStore((state) => state.isLoading);
   const isSaving = useSpriteEditorStore((state) => state.isSaving);
@@ -237,7 +237,7 @@ export function SpriteEditorApp() {
     setRedoStack([]);
     setDirty(false);
     resetSelectionState();
-    handlers.setHoveredPixel(null);
+    setHoveredPixel(null);
     handlers.setInteractionMode('idle');
     handlers.setIsLoading(false);
   };
@@ -279,7 +279,7 @@ export function SpriteEditorApp() {
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!actionsMenuRef.current?.contains(event.target as Node)) {
-        handlers.setIsActionsOpen(false);
+        setIsActionsOpen(false);
       }
     };
 
@@ -345,6 +345,35 @@ export function SpriteEditorApp() {
     discardCurrentHistorySessionState(session);
   };
 
+  const documentController = {
+    beginDocumentHistorySession,
+    canvas: canvasRef.current,
+    centerCanvas: () => centerCanvas(zoom),
+    cloneCanvasImage: () => {
+      const ctx = canvasRef.current?.getContext('2d');
+      return ctx ? cloneImageData(ctx) : null;
+    },
+    commitMoveOffset,
+    discardCurrentHistorySession,
+    finalizeCurrentHistorySession,
+    getContext: () => canvasRef.current?.getContext('2d'),
+    resetInteractionRefs,
+    resetSelectionState,
+    session,
+    syncCanvasSelectionSnapshot,
+  };
+  const documentUi = {
+    setDirty,
+    setHoveredPixel,
+    setIsActionsOpen,
+    setIsSaving: handlers.setIsSaving,
+    setLoadError: handlers.setLoadError,
+    setMessage: handlers.setMessage,
+    setMoveOffset,
+    setSelectionRect: handlers.setSelectionRect,
+    setTool: handlers.setTool,
+  };
+
   const getCanvasSelectionImageData = () => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
@@ -373,21 +402,10 @@ export function SpriteEditorApp() {
 
   const handlePasteSelection = async (blob: Blob) => {
     await runPasteSelection({
-      beginDocumentHistorySession,
       blob,
-      commitMoveOffset,
-      ctx: canvasRef.current?.getContext('2d'),
-      finalizeCurrentHistorySession,
-      session,
+      controller: documentController,
       preferredPosition: { x: selectionRect?.x ?? 0, y: selectionRect?.y ?? 0 },
-      resetInteractionRefs,
-      setDirty,
-      setLoadError: handlers.setLoadError,
-      setMessage: handlers.setMessage,
-      setMoveOffset,
-      setSelectionRect: handlers.setSelectionRect,
-      setTool: handlers.setTool,
-      syncCanvasSelectionSnapshot,
+      ui: documentUi,
     });
   };
 
@@ -410,88 +428,53 @@ export function SpriteEditorApp() {
 
   const handleUndo = () => {
     runUndoRedo({
-      ctx: canvasRef.current?.getContext('2d'),
+      controller: documentController,
       direction: 'undo',
-      discardCurrentHistorySession,
       entry: undoStack[undoStack.length - 1],
-      session,
-      resetSelectionState,
-      setDirty,
-      setRedoStack,
-      setUndoStack,
+      ui: { setDirty, setRedoStack, setUndoStack },
     });
   };
 
   const handleRedo = () => {
     runUndoRedo({
-      ctx: canvasRef.current?.getContext('2d'),
+      controller: documentController,
       direction: 'redo',
-      discardCurrentHistorySession,
       entry: redoStack[redoStack.length - 1],
-      session,
-      resetSelectionState,
-      setDirty,
-      setRedoStack,
-      setUndoStack,
+      ui: { setDirty, setRedoStack, setUndoStack },
     });
   };
 
   const handleRevert = () => {
     runRevert({
-      ctx: canvasRef.current?.getContext('2d'),
+      controller: documentController,
       dirty,
-      discardCurrentHistorySession,
       originalImageData: session.originalImageData,
-      session,
-      resetSelectionState,
-      setDirty,
-      setMessage: handlers.setMessage,
-      setRedoStack,
-      setUndoStack,
+      ui: {
+        setDirty,
+        setMessage: handlers.setMessage,
+        setRedoStack,
+        setUndoStack,
+      },
     });
   };
 
   const handleSave = async () => {
     await runSave({
       activeAsset,
-      canvas: canvasRef.current,
-      cloneCanvasImage: () => {
-        const ctx = canvasRef.current?.getContext('2d');
-        return ctx ? cloneImageData(ctx) : null;
-      },
-      commitMoveOffset,
-      discardCurrentHistorySession,
+      controller: documentController,
       isLoading,
       isSaving,
       moveOffset,
-      session,
-      resetInteractionRefs,
       selectionRect,
-      setDirty,
-      setIsSaving: handlers.setIsSaving,
-      setLoadError: handlers.setLoadError,
-      setMessage: handlers.setMessage,
-      setMoveOffset,
-      syncCanvasSelectionSnapshot,
+      ui: documentUi,
     });
   };
 
   const handleResizeCanvas = () => {
     runResizeCanvas({
-      beginDocumentHistorySession,
-      canvas: canvasRef.current,
-      commitMoveOffset,
-      ctx: canvasRef.current?.getContext('2d'),
-      finalizeCurrentHistorySession,
+      controller: documentController,
       moveOffset,
-      resetSelectionState,
-      session,
-      setDirty,
-      setHoveredPixel: handlers.setHoveredPixel,
-      setIsActionsOpen: handlers.setIsActionsOpen,
-      setLoadError: handlers.setLoadError,
-      setMessage: handlers.setMessage,
-      syncCenterCanvas: () => centerCanvas(zoom),
+      ui: documentUi,
     });
   };
 
@@ -607,7 +590,7 @@ export function SpriteEditorApp() {
     }
 
     const point = getPixelCoordinates(canvas, event);
-    handlers.setHoveredPixel(point);
+    setHoveredPixel(point);
 
     if (interactionMode === 'pan') {
       const panOrigin = session.panOrigin;
@@ -890,7 +873,7 @@ export function SpriteEditorApp() {
                     canvasSizeLabel={view.canvasSizeLabel}
                     isOpen={isActionsOpen}
                     onResizeCanvas={handleResizeCanvas}
-                    onToggle={() => handlers.setIsActionsOpen((current) => !current)}
+                    onToggle={() => setIsActionsOpen((current) => !current)}
                   />
                 </div>
                 <button
@@ -959,7 +942,7 @@ export function SpriteEditorApp() {
               onPointerCancel={handlePointerUp}
               onPointerLeave={() => {
                 if (interactionMode === 'idle') {
-                  handlers.setHoveredPixel(null);
+                  setHoveredPixel(null);
                 }
               }}
               onWheel={handleWheel}

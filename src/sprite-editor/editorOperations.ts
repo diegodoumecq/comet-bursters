@@ -9,6 +9,39 @@ type SpriteEditorDocumentSession = {
   originalImageData: ImageData | null;
   selectionPixels: ImageData | null;
 };
+type SpriteEditorAsset = { assetPath: string; fileName: string } | null;
+type SpriteHistoryStackSetter = (
+  updater: (current: SpriteHistoryEntry[]) => SpriteHistoryEntry[],
+) => void;
+type SpriteEditorDocumentController = {
+  beginDocumentHistorySession: (label: string) => void;
+  canvas: HTMLCanvasElement | null;
+  cloneCanvasImage: () => ImageData | null;
+  commitMoveOffset: () => void;
+  discardCurrentHistorySession: () => void;
+  finalizeCurrentHistorySession: () => void;
+  getContext: () => CanvasRenderingContext2D | null | undefined;
+  resetInteractionRefs: () => void;
+  resetSelectionState: () => void;
+  session: SpriteEditorDocumentSession;
+  syncCanvasSelectionSnapshot: (ctx: CanvasRenderingContext2D, rect: PixelRect | null) => void;
+};
+type SpriteEditorDocumentUi = {
+  setDirty: (dirty: boolean) => void;
+  setHoveredPixel: (point: { x: number; y: number } | null) => void;
+  setIsActionsOpen: (open: boolean) => void;
+  setIsSaving: (saving: boolean) => void;
+  setLoadError: (message: string | null) => void;
+  setMessage: (message: string | null) => void;
+  setMoveOffset: (offset: { x: number; y: number }) => void;
+  setSelectionRect: (rect: PixelRect | null) => void;
+  setTool: (tool: 'move') => void;
+};
+type SpriteEditorHistoryUi = {
+  setDirty: (dirty: boolean) => void;
+  setRedoStack: SpriteHistoryStackSetter;
+  setUndoStack: SpriteHistoryStackSetter;
+};
 
 export async function copySelectionToClipboard({
   selectionImage,
@@ -192,65 +225,47 @@ export async function runCopySelection({
 }
 
 export async function runPasteSelection({
-  beginDocumentHistorySession,
   blob,
-  commitMoveOffset,
-  ctx,
-  finalizeCurrentHistorySession,
+  controller,
   preferredPosition,
-  resetInteractionRefs,
-  session,
-  setDirty,
-  setLoadError,
-  setMessage,
-  setMoveOffset,
-  setSelectionRect,
-  setTool,
-  syncCanvasSelectionSnapshot,
+  ui,
 }: {
-  beginDocumentHistorySession: (label: string) => void;
   blob: Blob;
-  commitMoveOffset: () => void;
-  ctx: CanvasRenderingContext2D | null | undefined;
-  finalizeCurrentHistorySession: () => void;
+  controller: SpriteEditorDocumentController;
   preferredPosition: { x: number; y: number };
-  resetInteractionRefs: () => void;
-  session: SpriteEditorDocumentSession;
-  setDirty: (dirty: boolean) => void;
-  setLoadError: (message: string | null) => void;
-  setMessage: (message: string | null) => void;
-  setMoveOffset: (offset: { x: number; y: number }) => void;
-  setSelectionRect: (rect: PixelRect | null) => void;
-  setTool: (tool: 'move') => void;
-  syncCanvasSelectionSnapshot: (ctx: CanvasRenderingContext2D, rect: PixelRect | null) => void;
+  ui: Pick<
+    SpriteEditorDocumentUi,
+    'setDirty' | 'setLoadError' | 'setMessage' | 'setMoveOffset' | 'setSelectionRect' | 'setTool'
+  >;
 }) {
+  const ctx = controller.getContext();
   if (!ctx) {
     return;
   }
 
-  commitMoveOffset();
+  controller.commitMoveOffset();
   const pasteResult = await pasteSelectionFromClipboard({
-    beginDocumentHistorySession,
+    beginDocumentHistorySession: controller.beginDocumentHistorySession,
     blob,
     ctx,
     preferredPosition,
   });
   if (!pasteResult.clippedImage || !pasteResult.pasteRect) {
-    setLoadError(pasteResult.error);
+    ui.setLoadError(pasteResult.error);
     return;
   }
 
-  syncCanvasSelectionSnapshot(ctx, null);
-  session.selectionPixels = pasteResult.clippedImage;
-  session.isSelectionCopy = true;
-  resetInteractionRefs();
-  setSelectionRect(pasteResult.pasteRect);
-  setMoveOffset({ x: 0, y: 0 });
-  setTool('move');
-  setDirty(true);
-  setLoadError(null);
-  setMessage('Pasted clipboard image.');
-  finalizeCurrentHistorySession();
+  controller.syncCanvasSelectionSnapshot(ctx, null);
+  controller.session.selectionPixels = pasteResult.clippedImage;
+  controller.session.isSelectionCopy = true;
+  controller.resetInteractionRefs();
+  ui.setSelectionRect(pasteResult.pasteRect);
+  ui.setMoveOffset({ x: 0, y: 0 });
+  ui.setTool('move');
+  ui.setDirty(true);
+  ui.setLoadError(null);
+  ui.setMessage('Pasted clipboard image.');
+  controller.finalizeCurrentHistorySession();
 }
 
 export function runSelectAsset({
@@ -271,66 +286,55 @@ export function runSelectAsset({
 }
 
 export function runUndoRedo({
-  ctx,
+  controller,
   direction,
-  discardCurrentHistorySession,
   entry,
-  session,
-  resetSelectionState,
-  setDirty,
-  setRedoStack,
-  setUndoStack,
+  ui,
 }: {
-  ctx: CanvasRenderingContext2D | null | undefined;
+  controller: Pick<
+    SpriteEditorDocumentController,
+    'discardCurrentHistorySession' | 'getContext' | 'resetSelectionState' | 'session'
+  >;
   direction: 'undo' | 'redo';
-  discardCurrentHistorySession: () => void;
   entry: SpriteHistoryEntry | undefined;
-  session: SpriteEditorDocumentSession;
-  resetSelectionState: () => void;
-  setDirty: (dirty: boolean) => void;
-  setRedoStack: (updater: (current: SpriteHistoryEntry[]) => SpriteHistoryEntry[]) => void;
-  setUndoStack: (updater: (current: SpriteHistoryEntry[]) => SpriteHistoryEntry[]) => void;
+  ui: SpriteEditorHistoryUi;
 }) {
+  const ctx = controller.getContext();
   if (!ctx || !entry) {
     return;
   }
 
-  discardCurrentHistorySession();
-  session.moveSourceImageData = applyUndoRedoStep({ ctx, direction, entry });
+  controller.discardCurrentHistorySession();
+  controller.session.moveSourceImageData = applyUndoRedoStep({ ctx, direction, entry });
   if (direction === 'undo') {
-    setUndoStack((current) => current.slice(0, -1));
-    setRedoStack((current) => [...current, entry].slice(-50));
+    ui.setUndoStack((current) => current.slice(0, -1));
+    ui.setRedoStack((current) => [...current, entry].slice(-50));
   } else {
-    setRedoStack((current) => current.slice(0, -1));
-    setUndoStack((current) => [...current, entry].slice(-50));
+    ui.setRedoStack((current) => current.slice(0, -1));
+    ui.setUndoStack((current) => [...current, entry].slice(-50));
   }
-  resetSelectionState();
-  setDirty(true);
+  controller.resetSelectionState();
+  ui.setDirty(true);
 }
 
 export function runRevert({
-  ctx,
+  controller,
   dirty,
-  discardCurrentHistorySession,
   originalImageData,
-  session,
-  resetSelectionState,
-  setDirty,
-  setMessage,
-  setRedoStack,
-  setUndoStack,
+  ui,
 }: {
-  ctx: CanvasRenderingContext2D | null | undefined;
+  controller: Pick<
+    SpriteEditorDocumentController,
+    'discardCurrentHistorySession' | 'getContext' | 'resetSelectionState' | 'session'
+  >;
   dirty: boolean;
-  discardCurrentHistorySession: () => void;
   originalImageData: ImageData | null;
-  session: SpriteEditorDocumentSession;
-  resetSelectionState: () => void;
-  setDirty: (dirty: boolean) => void;
-  setMessage: (message: string) => void;
-  setRedoStack: (entries: []) => void;
-  setUndoStack: (entries: []) => void;
+  ui: Pick<SpriteEditorDocumentUi, 'setDirty' | 'setMessage'> & {
+    setRedoStack: (entries: []) => void;
+    setUndoStack: (entries: []) => void;
+  };
 }) {
+  const ctx = controller.getContext();
   if (!ctx || !originalImageData) {
     return;
   }
@@ -338,149 +342,134 @@ export function runRevert({
     return;
   }
 
-  session.moveSourceImageData = revertEditorDocument({ ctx, originalImageData });
-  discardCurrentHistorySession();
-  setUndoStack([]);
-  setRedoStack([]);
-  setDirty(false);
-  resetSelectionState();
-  setMessage('Reverted to the last saved image.');
+  controller.session.moveSourceImageData = revertEditorDocument({ ctx, originalImageData });
+  controller.discardCurrentHistorySession();
+  ui.setUndoStack([]);
+  ui.setRedoStack([]);
+  ui.setDirty(false);
+  controller.resetSelectionState();
+  ui.setMessage('Reverted to the last saved image.');
 }
 
 export async function runSave({
   activeAsset,
-  canvas,
-  cloneCanvasImage,
-  commitMoveOffset,
-  discardCurrentHistorySession,
+  controller,
   isLoading,
   isSaving,
   moveOffset,
-  session,
-  resetInteractionRefs,
   selectionRect,
-  setDirty,
-  setIsSaving,
-  setLoadError,
-  setMessage,
-  setMoveOffset,
-  syncCanvasSelectionSnapshot,
+  ui,
 }: {
-  activeAsset: { assetPath: string; fileName: string } | null;
-  canvas: HTMLCanvasElement | null;
-  cloneCanvasImage: () => ImageData | null;
-  commitMoveOffset: () => void;
-  discardCurrentHistorySession: () => void;
+  activeAsset: SpriteEditorAsset;
+  controller: Pick<
+    SpriteEditorDocumentController,
+    | 'canvas'
+    | 'cloneCanvasImage'
+    | 'commitMoveOffset'
+    | 'discardCurrentHistorySession'
+    | 'resetInteractionRefs'
+    | 'session'
+    | 'syncCanvasSelectionSnapshot'
+  >;
   isLoading: boolean;
   isSaving: boolean;
   moveOffset: { x: number; y: number };
-  session: SpriteEditorDocumentSession;
-  resetInteractionRefs: () => void;
   selectionRect: PixelRect | null;
-  setDirty: (dirty: boolean) => void;
-  setIsSaving: (saving: boolean) => void;
-  setLoadError: (message: string | null) => void;
-  setMessage: (message: string | null) => void;
-  setMoveOffset: (offset: { x: number; y: number }) => void;
-  syncCanvasSelectionSnapshot: (ctx: CanvasRenderingContext2D, rect: PixelRect | null) => void;
+  ui: Pick<
+    SpriteEditorDocumentUi,
+    'setDirty' | 'setIsSaving' | 'setLoadError' | 'setMessage' | 'setMoveOffset'
+  >;
 }) {
+  const canvas = controller.canvas;
   if (!canvas || !activeAsset || isLoading || isSaving) {
     return;
   }
   if (moveOffset.x !== 0 || moveOffset.y !== 0) {
-    commitMoveOffset();
+    controller.commitMoveOffset();
   }
 
-  setIsSaving(true);
-  setMessage(null);
-  setLoadError(null);
+  ui.setIsSaving(true);
+  ui.setMessage(null);
+  ui.setLoadError(null);
   try {
     const saveResult = await saveEditorDocument({
       assetPath: activeAsset.assetPath,
       canvas,
     });
-    session.originalImageData = saveResult.originalImageData ?? cloneCanvasImage();
+    controller.session.originalImageData = saveResult.originalImageData ?? controller.cloneCanvasImage();
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      syncCanvasSelectionSnapshot(ctx, selectionRect);
+      controller.syncCanvasSelectionSnapshot(ctx, selectionRect);
     }
-    discardCurrentHistorySession();
-    setDirty(false);
-    resetInteractionRefs();
-    setMoveOffset({ x: 0, y: 0 });
-    setMessage(`Saved ${activeAsset.fileName}.`);
+    controller.discardCurrentHistorySession();
+    ui.setDirty(false);
+    controller.resetInteractionRefs();
+    ui.setMoveOffset({ x: 0, y: 0 });
+    ui.setMessage(`Saved ${activeAsset.fileName}.`);
   } catch (error) {
-    setLoadError(error instanceof Error ? error.message : 'Failed to save image.');
+    ui.setLoadError(error instanceof Error ? error.message : 'Failed to save image.');
   } finally {
-    setIsSaving(false);
+    ui.setIsSaving(false);
   }
 }
 
 export function runResizeCanvas({
-  beginDocumentHistorySession,
-  canvas,
-  commitMoveOffset,
-  ctx,
-  finalizeCurrentHistorySession,
+  controller,
   moveOffset,
-  resetSelectionState,
-  session,
-  setDirty,
-  setHoveredPixel,
-  setIsActionsOpen,
-  setLoadError,
-  setMessage,
-  syncCenterCanvas,
+  ui,
 }: {
-  beginDocumentHistorySession: (label: string) => void;
-  canvas: HTMLCanvasElement | null;
-  commitMoveOffset: () => void;
-  ctx: CanvasRenderingContext2D | null | undefined;
-  finalizeCurrentHistorySession: () => void;
+  controller: Pick<
+    SpriteEditorDocumentController,
+    | 'beginDocumentHistorySession'
+    | 'canvas'
+    | 'commitMoveOffset'
+    | 'finalizeCurrentHistorySession'
+    | 'getContext'
+    | 'resetSelectionState'
+    | 'session'
+  > & { centerCanvas: () => void };
   moveOffset: { x: number; y: number };
-  resetSelectionState: () => void;
-  session: SpriteEditorDocumentSession;
-  setDirty: (dirty: boolean) => void;
-  setHoveredPixel: (point: { x: number; y: number } | null) => void;
-  setIsActionsOpen: (open: boolean) => void;
-  setLoadError: (message: string | null) => void;
-  setMessage: (message: string) => void;
-  syncCenterCanvas: () => void;
+  ui: Pick<
+    SpriteEditorDocumentUi,
+    'setDirty' | 'setHoveredPixel' | 'setIsActionsOpen' | 'setLoadError' | 'setMessage'
+  >;
 }) {
+  const canvas = controller.canvas;
+  const ctx = controller.getContext();
   if (!canvas || !ctx) {
     return;
   }
   if (moveOffset.x !== 0 || moveOffset.y !== 0) {
-    commitMoveOffset();
+    controller.commitMoveOffset();
   }
 
   const resizePrompt = promptResizeDimensions(canvas);
   if (resizePrompt.error) {
-    setLoadError(resizePrompt.error);
+    ui.setLoadError(resizePrompt.error);
     return;
   }
   if (resizePrompt.message) {
-    setMessage(resizePrompt.message);
+    ui.setMessage(resizePrompt.message);
     return;
   }
   if (resizePrompt.nextWidth === null || resizePrompt.nextHeight === null) {
     return;
   }
 
-  beginDocumentHistorySession('Resize');
-  session.moveSourceImageData = resizeEditorDocument({
+  controller.beginDocumentHistorySession('Resize');
+  controller.session.moveSourceImageData = resizeEditorDocument({
     ctx,
     nextHeight: resizePrompt.nextHeight,
     nextWidth: resizePrompt.nextWidth,
   });
-  session.selectionPixels = null;
-  session.isSelectionCopy = false;
-  setDirty(true);
-  setLoadError(null);
-  setHoveredPixel(null);
-  resetSelectionState();
-  setMessage(`Resized canvas to ${resizePrompt.nextWidth} x ${resizePrompt.nextHeight}.`);
-  setIsActionsOpen(false);
-  finalizeCurrentHistorySession();
-  window.requestAnimationFrame(syncCenterCanvas);
+  controller.session.selectionPixels = null;
+  controller.session.isSelectionCopy = false;
+  ui.setDirty(true);
+  ui.setLoadError(null);
+  ui.setHoveredPixel(null);
+  controller.resetSelectionState();
+  ui.setMessage(`Resized canvas to ${resizePrompt.nextWidth} x ${resizePrompt.nextHeight}.`);
+  ui.setIsActionsOpen(false);
+  controller.finalizeCurrentHistorySession();
+  window.requestAnimationFrame(controller.centerCanvas);
 }
