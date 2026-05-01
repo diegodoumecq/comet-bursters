@@ -51,7 +51,6 @@ import { Switch } from '@/ui/components/Switch';
 import { useSpriteEditorStore, type PixelRect } from './state/spriteEditorStore';
 import { useSpriteAssetLoader } from './useSpriteAssetLoader';
 import {
-  clampAlpha,
   clampBrushSize,
   clampZoom,
   cloneImageData,
@@ -369,14 +368,6 @@ export function SpriteEditorApp() {
   const handleBrushColorChange = (hexColor: string) => {
     const nextColor = parseHexColor(hexColor);
     handlers.setBrushColor((current) => ({ ...nextColor, a: current.a }));
-  };
-
-  const handleBrushAlphaChange = (nextPercent: number) => {
-    const clampedPercent = Math.max(0, Math.min(100, nextPercent));
-    handlers.setBrushColor((current) => ({
-      ...current,
-      a: clampAlpha(Math.round((clampedPercent / 100) * 255)),
-    }));
   };
 
   const handleUndo = () => {
@@ -831,14 +822,7 @@ export function SpriteEditorApp() {
                 onColorChange={handleBrushColorChange}
               />
 
-              <BrushSettingsPanel
-                alphaPercent={Math.round((brushColor.a / 255) * 100)}
-                brushSize={brushSize}
-                onAlphaChange={handleBrushAlphaChange}
-                onBrushSizeChange={(nextBrushSize) =>
-                  handlers.setBrushSize(clampBrushSize(nextBrushSize))
-                }
-              />
+              <BrushSettingsPanel />
 
               <ZoomPanel zoom={zoom} onCenter={() => centerCanvas(zoom)} onZoomChange={applyZoom} />
             </div>
