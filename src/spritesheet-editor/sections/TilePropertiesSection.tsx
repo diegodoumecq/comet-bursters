@@ -6,21 +6,19 @@ import { shipInteriorTileAssets } from '../../scenes/ShipInteriorScene/tileAsset
 import { readNumber, useSpritesheetEditorStore } from '../state/spritesheetEditorStore';
 
 export function TilePropertiesSection() {
-  const addTileEntry = useSpritesheetEditorStore((state) => state.addTileEntry);
-  const duplicateSelectedTile = useSpritesheetEditorStore((state) => state.duplicateSelectedTile);
+  const {
+    addTileEntry,
+    duplicateSelectedTile,
+    updateTileEntry,
+    updateTileMaterial,
+    updateTileName,
+    updateTileTopologyEnabled,
+    updateTileVariantGroup,
+    updateTileVariantWeight,
+  } = useSpritesheetEditorStore((state) => state.handlers);
   const selectedTileId = useSpritesheetEditorStore((state) => state.selectedTileId);
   const tileEntries = useSpritesheetEditorStore((state) => state.tileEntries);
   const tileset = useSpritesheetEditorStore((state) => state.tileset);
-  const updateTileEntry = useSpritesheetEditorStore((state) => state.updateTileEntry);
-  const updateTileName = useSpritesheetEditorStore((state) => state.updateTileName);
-  const updateTileMaterial = useSpritesheetEditorStore((state) => state.updateTileMaterial);
-  const updateTileTopologyEnabled = useSpritesheetEditorStore(
-    (state) => state.updateTileTopologyEnabled,
-  );
-  const updateTileVariantGroup = useSpritesheetEditorStore((state) => state.updateTileVariantGroup);
-  const updateTileVariantWeight = useSpritesheetEditorStore(
-    (state) => state.updateTileVariantWeight,
-  );
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [isOpen, setIsOpen] = useState(true);
   const selectedTileIndex = tileEntries.findIndex((entry) => entry.id === selectedTileId);

@@ -4,8 +4,8 @@ import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { useSpritesheetEditorStore } from '../state/spritesheetEditorStore';
 
 export function PreviewZoomSection() {
+  const { updatePreviewZoom } = useSpritesheetEditorStore((state) => state.handlers);
   const previewZoom = useSpritesheetEditorStore((state) => state.previewZoom);
-  const updatePreviewZoom = useSpritesheetEditorStore((state) => state.updatePreviewZoom);
   const [isOpen, setIsOpen] = useState(true);
 
   return (

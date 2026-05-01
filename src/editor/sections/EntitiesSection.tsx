@@ -4,11 +4,12 @@ import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { useEditorStore } from '../state/editorStore';
 
 export function EntitiesSection() {
+  const { setSelectedEntityPathId, setSelectedEntityType } = useEditorStore(
+    (state) => state.handlers,
+  );
   const level = useEditorStore((state) => state.level);
   const selectedEntityPathId = useEditorStore((state) => state.selectedEntityPathId);
   const selectedEntityType = useEditorStore((state) => state.selectedEntityType);
-  const setSelectedEntityPathId = useEditorStore((state) => state.setSelectedEntityPathId);
-  const setSelectedEntityType = useEditorStore((state) => state.setSelectedEntityType);
   const [isOpen, setIsOpen] = useState(true);
 
   return (

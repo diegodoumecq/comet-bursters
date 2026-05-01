@@ -1,9 +1,9 @@
-import { create } from 'zustand';
+import { create, type StateCreator } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { SpriteSheetGridConfig } from '@/spritesheet';
 
-import { spriteAssets } from '../assetCatalog';
+import { getGridSourcesForSpriteAsset, spriteAssets } from '../assetCatalog';
 
 export type SpriteEditorTool = 'draw' | 'erase' | 'picker' | 'move' | 'select';
 export type SpriteEditorInteractionMode = 'idle' | 'paint' | 'pan' | 'move' | 'select';
@@ -20,6 +20,7 @@ export type GridSettings = {
 };
 export type ViewportOffset = { x: number; y: number };
 export type HoveredPixel = { x: number; y: number } | null;
+type GridNumberKey = keyof GridSettings;
 
 type SpriteEditorState = {
   activeAssetPath: string | null;
@@ -45,9 +46,8 @@ type SpriteEditorState = {
   zoom: number;
 };
 
-type SpriteEditorActions = {
+type SpriteEditorHandlers = {
   applyGridSettings: (gridSettings: GridSettings) => void;
-  resetGridSettings: () => void;
   setActiveAssetPath: (activeAssetPath: string | null) => void;
   setBrushColor: (brushColor: RgbaColor | ((current: RgbaColor) => RgbaColor)) => void;
   setBrushSize: (brushSize: number | ((current: number) => number)) => void;
@@ -73,9 +73,14 @@ type SpriteEditorActions = {
   updateGridNumber: (key: keyof GridSettings, value: string, required?: boolean) => void;
 };
 
-export type SpriteEditorStore = SpriteEditorState & SpriteEditorActions;
+export type SpriteEditorStore = SpriteEditorState & { handlers: SpriteEditorHandlers };
+type SpriteEditorSet = Parameters<StateCreator<SpriteEditorStore>>[0];
 
 const SPRITE_EDITOR_STORAGE_KEY = 'comet-bursters.sprite-editor';
+const DEFAULT_GRID_FRAME_SIZE = 16;
+const DEFAULT_BRUSH_COLOR: RgbaColor = { r: 255, g: 255, b: 255, a: 255 };
+const DEFAULT_VIEWPORT_OFFSET: ViewportOffset = { x: 0, y: 0 };
+const DEFAULT_ACTIVE_ASSET_PATH = spriteAssets[0]?.assetPath ?? null;
 
 function normalizeOptionalGridValue(value?: number): number | undefined {
   return value !== undefined && Number.isFinite(value) ? value : undefined;
@@ -87,11 +92,11 @@ export function normalizeGridSettings(config?: SpriteSheetGridConfig): GridSetti
     frameHeight:
       config?.frameHeight && Number.isFinite(config.frameHeight) && config.frameHeight > 0
         ? Math.round(config.frameHeight)
-        : 16,
+        : DEFAULT_GRID_FRAME_SIZE,
     frameWidth:
       config?.frameWidth && Number.isFinite(config.frameWidth) && config.frameWidth > 0
         ? Math.round(config.frameWidth)
-        : 16,
+        : DEFAULT_GRID_FRAME_SIZE,
     gapX: normalizeOptionalGridValue(config?.gapX),
     gapY: normalizeOptionalGridValue(config?.gapY),
     offsetX: normalizeOptionalGridValue(config?.offsetX),
@@ -99,14 +104,21 @@ export function normalizeGridSettings(config?: SpriteSheetGridConfig): GridSetti
   };
 }
 
-function makeInitialSpriteEditorState(): SpriteEditorState {
+function getAssetGridSettings(activeAssetPath: string | null): GridSettings {
+  const matchingGridSource = activeAssetPath
+    ? (getGridSourcesForSpriteAsset(activeAssetPath)[0] ?? null)
+    : null;
+  return normalizeGridSettings(matchingGridSource?.grid);
+}
+
+function getInitialSpriteEditorState(): SpriteEditorState {
   return {
-    activeAssetPath: spriteAssets[0]?.assetPath ?? null,
-    brushColor: { r: 255, g: 255, b: 255, a: 255 },
+    activeAssetPath: DEFAULT_ACTIVE_ASSET_PATH,
+    brushColor: DEFAULT_BRUSH_COLOR,
     brushSize: 1,
     gridColor: '#67e8f9',
     gridOpacity: 0.45,
-    gridSettings: normalizeGridSettings(),
+    gridSettings: getAssetGridSettings(DEFAULT_ACTIVE_ASSET_PATH),
     hoveredPixel: null,
     interactionMode: 'idle',
     isActionsOpen: false,
@@ -120,82 +132,99 @@ function makeInitialSpriteEditorState(): SpriteEditorState {
     selectionRect: null,
     sidebarSize: 22,
     tool: 'draw',
-    viewportOffset: { x: 0, y: 0 },
+    viewportOffset: DEFAULT_VIEWPORT_OFFSET,
     zoom: 16,
+  };
+}
+
+function parseGridNumberUpdate(
+  current: GridSettings,
+  key: GridNumberKey,
+  value: string,
+  required = false,
+): GridSettings | null {
+  const normalizedValue = value.trim();
+  if (!normalizedValue) {
+    return required ? null : { ...current, [key]: undefined };
+  }
+
+  const parsedValue = Number.parseInt(normalizedValue, 10);
+  if (!Number.isFinite(parsedValue)) {
+    return null;
+  }
+
+  const requiresPositive = key === 'frameWidth' || key === 'frameHeight';
+  if ((requiresPositive && parsedValue < 1) || (!requiresPositive && parsedValue < 0)) {
+    return null;
+  }
+
+  return { ...current, [key]: parsedValue };
+}
+
+function createSpriteEditorHandlers(set: SpriteEditorSet): SpriteEditorHandlers {
+  return {
+    applyGridSettings: (gridSettings) => set({ gridSettings }),
+    setActiveAssetPath: (activeAssetPath) =>
+      set({
+        activeAssetPath,
+        gridSettings: getAssetGridSettings(activeAssetPath),
+      }),
+    setBrushColor: (brushColor) =>
+      set((state) => ({
+        brushColor:
+          typeof brushColor === 'function' ? brushColor(state.brushColor) : brushColor,
+      })),
+    setBrushSize: (brushSize) =>
+      set((state) => ({
+        brushSize: typeof brushSize === 'function' ? brushSize(state.brushSize) : brushSize,
+      })),
+    setGridColor: (gridColor) => set({ gridColor }),
+    setGridOpacity: (gridOpacity) => set({ gridOpacity }),
+    setHoveredPixel: (hoveredPixel) => set({ hoveredPixel }),
+    setInteractionMode: (interactionMode) => set({ interactionMode }),
+    setIsActionsOpen: (isActionsOpen) =>
+      set((state) => ({
+        isActionsOpen:
+          typeof isActionsOpen === 'function' ? isActionsOpen(state.isActionsOpen) : isActionsOpen,
+      })),
+    setIsGridVisible: (isGridVisible) => set({ isGridVisible }),
+    setIsLoading: (isLoading) => set({ isLoading }),
+    setIsSidebarResizable: (isSidebarResizable) => set({ isSidebarResizable }),
+    setIsSaving: (isSaving) => set({ isSaving }),
+    setIsSpacePressed: (isSpacePressed) => set({ isSpacePressed }),
+    setLoadError: (loadError) => set({ loadError }),
+    setMessage: (message) => set({ message }),
+    setSelectionRect: (selectionRect) => set({ selectionRect }),
+    setSidebarSize: (sidebarSize) => set({ sidebarSize }),
+    setTool: (tool) => set({ tool }),
+    setViewportOffset: (viewportOffset) =>
+      set((state) => ({
+        viewportOffset:
+          typeof viewportOffset === 'function'
+            ? viewportOffset(state.viewportOffset)
+            : viewportOffset,
+      })),
+    setZoom: (zoom) => set({ zoom }),
+    updateGridNumber: (key, value, required = false) =>
+      set((state) => {
+        const gridSettings = parseGridNumberUpdate(state.gridSettings, key, value, required);
+        return gridSettings ? { gridSettings } : state;
+      }),
   };
 }
 
 export const useSpriteEditorStore = create<SpriteEditorStore>()(
   persist(
     (set) => ({
-      ...makeInitialSpriteEditorState(),
-
-      applyGridSettings: (gridSettings) => set({ gridSettings }),
-      resetGridSettings: () => set({ gridSettings: normalizeGridSettings() }),
-      setActiveAssetPath: (activeAssetPath) => set({ activeAssetPath }),
-      setBrushColor: (brushColor) =>
-        set((state) => ({
-          brushColor:
-            typeof brushColor === 'function' ? brushColor(state.brushColor) : brushColor,
-        })),
-      setBrushSize: (brushSize) =>
-        set((state) => ({
-          brushSize: typeof brushSize === 'function' ? brushSize(state.brushSize) : brushSize,
-        })),
-      setGridColor: (gridColor) => set({ gridColor }),
-      setGridOpacity: (gridOpacity) => set({ gridOpacity }),
-      setHoveredPixel: (hoveredPixel) => set({ hoveredPixel }),
-      setInteractionMode: (interactionMode) => set({ interactionMode }),
-      setIsActionsOpen: (isActionsOpen) =>
-        set((state) => ({
-          isActionsOpen:
-            typeof isActionsOpen === 'function' ? isActionsOpen(state.isActionsOpen) : isActionsOpen,
-        })),
-      setIsGridVisible: (isGridVisible) => set({ isGridVisible }),
-      setIsLoading: (isLoading) => set({ isLoading }),
-      setIsSidebarResizable: (isSidebarResizable) => set({ isSidebarResizable }),
-      setIsSaving: (isSaving) => set({ isSaving }),
-      setIsSpacePressed: (isSpacePressed) => set({ isSpacePressed }),
-      setLoadError: (loadError) => set({ loadError }),
-      setMessage: (message) => set({ message }),
-      setSelectionRect: (selectionRect) => set({ selectionRect }),
-      setSidebarSize: (sidebarSize) => set({ sidebarSize }),
-      setTool: (tool) => set({ tool }),
-      setViewportOffset: (viewportOffset) =>
-        set((state) => ({
-          viewportOffset:
-            typeof viewportOffset === 'function'
-              ? viewportOffset(state.viewportOffset)
-              : viewportOffset,
-        })),
-      setZoom: (zoom) => set({ zoom }),
-      updateGridNumber: (key, value, required = false) =>
-        set((state) => {
-          const normalizedValue = value.trim();
-          if (!normalizedValue) {
-            return required ? state : { gridSettings: { ...state.gridSettings, [key]: undefined } };
-          }
-
-          const parsedValue = Number.parseInt(normalizedValue, 10);
-          if (!Number.isFinite(parsedValue)) {
-            return state;
-          }
-
-          if ((key === 'frameWidth' || key === 'frameHeight') && parsedValue < 1) {
-            return state;
-          }
-
-          if (key !== 'frameWidth' && key !== 'frameHeight' && parsedValue < 0) {
-            return state;
-          }
-
-          return {
-            gridSettings: { ...state.gridSettings, [key]: parsedValue },
-          };
-        }),
+      ...getInitialSpriteEditorState(),
+      handlers: createSpriteEditorHandlers(set),
     }),
     {
       name: SPRITE_EDITOR_STORAGE_KEY,
+      onRehydrateStorage: () => (state) => {
+        const activeAssetPath = state?.activeAssetPath ?? DEFAULT_ACTIVE_ASSET_PATH;
+        state?.handlers.setActiveAssetPath(activeAssetPath);
+      },
       partialize: (state) => ({
         activeAssetPath: state.activeAssetPath,
         brushColor: state.brushColor,

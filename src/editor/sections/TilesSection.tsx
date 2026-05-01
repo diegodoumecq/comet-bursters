@@ -6,8 +6,8 @@ import type { EditorTilesetDefinition } from '../shared/editorTileset';
 import { getTilesetForLayer } from '../shared/levelEditing';
 import { useEditorStore } from '../state/editorStore';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
-import { DropdownMenu } from '@/ui/components/DropdownMenu';
 import { TileSwatch } from '../TileSwatch';
+import { LayerActionsMenu } from './LayerActionsMenu';
 
 type LayerDefinition = ReturnType<typeof useEditorStore.getState>['level']['layers'][number];
 
@@ -28,6 +28,8 @@ function makeLayerId(level: ReturnType<typeof useEditorStore.getState>['level'])
 }
 
 export function TilesSection({ showPalette = true }: { showPalette?: boolean }) {
+  const { setInactiveLayerOpacity, setLayerVisibility, setLevel, setSelectedLayerId, setSelectedTileId } =
+    useEditorStore((state) => state.handlers);
   const activeImage = useEditorStore((state) => {
     const selectedTileset = getTilesetForLayer(state.level, state.selectedLayerId);
     return selectedTileset ? state.images[selectedTileset.id] : null;
@@ -40,11 +42,6 @@ export function TilesSection({ showPalette = true }: { showPalette?: boolean }) 
   const selectedTileset = useEditorStore((state) =>
     getTilesetForLayer(state.level, state.selectedLayerId),
   );
-  const setInactiveLayerOpacity = useEditorStore((state) => state.setInactiveLayerOpacity);
-  const setLayerVisibility = useEditorStore((state) => state.setLayerVisibility);
-  const setLevel = useEditorStore((state) => state.setLevel);
-  const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
-  const setSelectedTileId = useEditorStore((state) => state.setSelectedTileId);
   const selectedTiles = selectedTileset
     ? selectedTileset.tiles.map((tile) => ({
         id: tile.id,
@@ -408,125 +405,71 @@ export function TilesSection({ showPalette = true }: { showPalette?: boolean }) 
                     </svg>
                   )}
                 </button>
-                <DropdownMenu
+                <LayerActionsMenu
                   isOpen={openLayerMenuId === layer.id}
+                  isCollidable={layer.hasCollision}
+                  isOverhead={layer.overhead ?? false}
+                  layerId={layer.id}
                   onClose={() => setOpenLayerMenuId(null)}
+                  onDelete={() => {
+                    const remainingLayers = level.layers.filter(
+                      (candidate) => candidate.id !== layer.id,
+                    );
+                    setLevel((currentLevel) => ({
+                      ...currentLevel,
+                      layers: currentLevel.layers.filter(
+                        (candidate) => candidate.id !== layer.id,
+                      ),
+                    }));
+                    if (selectedLayerId === layer.id) {
+                      setSelectedLayerId(remainingLayers[0]?.id ?? null);
+                    }
+                    setOpenLayerMenuId(null);
+                    if (renamingLayerId === layer.id) {
+                      setRenamingLayerId(null);
+                      setRenamingLayerValue('');
+                    }
+                  }}
+                  onOpacityChange={(opacity) => {
+                    setLevel((currentLevel) => ({
+                      ...currentLevel,
+                      layers: currentLevel.layers.map((candidate) =>
+                        candidate.id === layer.id ? { ...candidate, opacity } : candidate,
+                      ),
+                    }));
+                  }}
+                  onRename={() => {
+                    setRenamingLayerId(layer.id);
+                    setRenamingLayerValue(layer.id);
+                    setOpenLayerMenuId(null);
+                  }}
                   onToggle={() =>
                     setOpenLayerMenuId(openLayerMenuId === layer.id ? null : layer.id)
                   }
-                  menuClassName="min-w-52 rounded-lg"
-                  trigger={
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 bg-slate-950/70 text-slate-200 transition hover:border-slate-500">
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 20 20"
-                        className="h-4 w-4"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M3 5h14" />
-                        <path d="M3 10h14" />
-                        <path d="M3 15h14" />
-                      </svg>
-                    </span>
-                  }
-                >
-                  <div className="border-b border-slate-800 px-3 py-2">
-                    <label className="block text-xs font-medium text-slate-300">
-                      Opacity {Math.round((layer.opacity ?? 1) * 100)}%
-                    </label>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={Math.round((layer.opacity ?? 1) * 100)}
-                      onChange={(event) => {
-                        const opacity = Number(event.target.value) / 100;
-                        setLevel((currentLevel) => ({
-                          ...currentLevel,
-                          layers: currentLevel.layers.map((candidate) =>
-                            candidate.id === layer.id ? { ...candidate, opacity } : candidate,
-                          ),
-                        }));
-                      }}
-                      className="mt-2 w-full"
-                      aria-label={`${layer.id} opacity`}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRenamingLayerId(layer.id);
-                      setRenamingLayerValue(layer.id);
-                      setOpenLayerMenuId(null);
-                    }}
-                    className="block w-full rounded-md px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-800"
-                  >
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLevel((currentLevel) => ({
-                        ...currentLevel,
-                        layers: currentLevel.layers.map((candidate) =>
-                          candidate.id === layer.id
-                            ? { ...candidate, hasCollision: !candidate.hasCollision }
-                            : candidate,
-                        ),
-                      }));
-                      setOpenLayerMenuId(null);
-                    }}
-                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-800"
-                  >
-                    {layer.hasCollision ? 'Disable collision' : 'Enable collision'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLevel((currentLevel) => ({
-                        ...currentLevel,
-                        layers: currentLevel.layers.map((candidate) =>
-                          candidate.id === layer.id
-                            ? { ...candidate, overhead: !(candidate.overhead ?? false) }
-                            : candidate,
-                        ),
-                      }));
-                      setOpenLayerMenuId(null);
-                    }}
-                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-800"
-                  >
-                    {layer.overhead ? 'Render under entities' : 'Render overhead'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const remainingLayers = level.layers.filter(
-                        (candidate) => candidate.id !== layer.id,
-                      );
-                      setLevel((currentLevel) => ({
-                        ...currentLevel,
-                        layers: currentLevel.layers.filter(
-                          (candidate) => candidate.id !== layer.id,
-                        ),
-                      }));
-                      if (selectedLayerId === layer.id) {
-                        setSelectedLayerId(remainingLayers[0]?.id ?? null);
-                      }
-                      setOpenLayerMenuId(null);
-                      if (renamingLayerId === layer.id) {
-                        setRenamingLayerId(null);
-                        setRenamingLayerValue('');
-                      }
-                    }}
-                    className="block w-full rounded-md px-3 py-2 text-left text-xs text-rose-200 hover:bg-rose-500/15"
-                  >
-                    Delete
-                  </button>
-                </DropdownMenu>
+                  onToggleCollision={() => {
+                    setLevel((currentLevel) => ({
+                      ...currentLevel,
+                      layers: currentLevel.layers.map((candidate) =>
+                        candidate.id === layer.id
+                          ? { ...candidate, hasCollision: !candidate.hasCollision }
+                          : candidate,
+                      ),
+                    }));
+                    setOpenLayerMenuId(null);
+                  }}
+                  onToggleOverhead={() => {
+                    setLevel((currentLevel) => ({
+                      ...currentLevel,
+                      layers: currentLevel.layers.map((candidate) =>
+                        candidate.id === layer.id
+                          ? { ...candidate, overhead: !(candidate.overhead ?? false) }
+                          : candidate,
+                      ),
+                    }));
+                    setOpenLayerMenuId(null);
+                  }}
+                  opacity={layer.opacity ?? 1}
+                />
               </div>
             );
           })}

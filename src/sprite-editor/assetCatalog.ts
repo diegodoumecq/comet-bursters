@@ -76,6 +76,14 @@ export const spriteAssets: SpriteAssetEntry[] = Object.entries(spriteAssetModule
       left.category.localeCompare(right.category) || left.fileName.localeCompare(right.fileName),
   );
 
+export const spriteAssetsByCategory = spriteAssets.reduce(
+  (groups, asset) => {
+    groups[asset.category] = [...(groups[asset.category] ?? []), asset];
+    return groups;
+  },
+  {} as Record<string, SpriteAssetEntry[]>,
+);
+
 export const spriteAssetGridSources: SpriteAssetGridSource[] = Object.entries(tilesetModules)
   .flatMap(([modulePath, value]) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {

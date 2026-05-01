@@ -4,9 +4,9 @@ import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { useSpritesheetEditorStore } from '../state/spritesheetEditorStore';
 
 export function MaterialsSection() {
-  const addMaterial = useSpritesheetEditorStore((state) => state.addMaterial);
-  const deleteMaterial = useSpritesheetEditorStore((state) => state.deleteMaterial);
-  const renameMaterial = useSpritesheetEditorStore((state) => state.renameMaterial);
+  const { addMaterial, deleteMaterial, renameMaterial } = useSpritesheetEditorStore(
+    (state) => state.handlers,
+  );
   const tileEntries = useSpritesheetEditorStore((state) => state.tileEntries);
   const tileset = useSpritesheetEditorStore((state) => state.tileset);
   const [isOpen, setIsOpen] = useState(true);

@@ -17,10 +17,10 @@ export function LevelSection({
   onCanvasZoomChange: (zoom: number) => void;
   zoom: number;
 }) {
-  const importLevelFromText = useEditorStore((state) => state.importLevelFromText);
-  const loadBundledLevel = useEditorStore((state) => state.loadBundledLevel);
+  const { importLevelFromText, loadBundledLevel, setLevel } = useEditorStore(
+    (state) => state.handlers,
+  );
   const selectedLevelAssetPath = useEditorStore((state) => state.selectedLevelAssetPath);
-  const setLevel = useEditorStore((state) => state.setLevel);
   const gridCellHeight = useEditorStore((state) => state.level.grid?.cellHeight);
   const gridCellWidth = useEditorStore((state) => state.level.grid?.cellWidth);
   const height = useEditorStore((state) => state.level.height);

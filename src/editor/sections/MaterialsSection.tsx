@@ -6,11 +6,10 @@ import { useEditorStore } from '../state/editorStore';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 
 export function MaterialsSection() {
+  const { setSelectedLayerId, setSelectedMaterialId } = useEditorStore((state) => state.handlers);
   const level = useEditorStore((state) => state.level);
   const selectedLayerId = useEditorStore((state) => state.selectedLayerId);
   const selectedMaterialId = useEditorStore((state) => state.selectedMaterialId);
-  const setSelectedLayerId = useEditorStore((state) => state.setSelectedLayerId);
-  const setSelectedMaterialId = useEditorStore((state) => state.setSelectedMaterialId);
   const selectedTileset = getTilesetForLayer(level, selectedLayerId);
   const materialNames = getTilesetMaterials(selectedTileset);
   const [isMaterialsOpen, setIsMaterialsOpen] = useState(true);

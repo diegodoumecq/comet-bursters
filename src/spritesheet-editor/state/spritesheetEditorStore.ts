@@ -250,7 +250,8 @@ type SpritesheetEditorActions = {
   updateTilesetImageSrc: (imageSrc: string) => void;
 };
 
-type SpritesheetEditorStore = SpritesheetEditorState & SpritesheetEditorActions;
+type SpritesheetEditorStore = SpritesheetEditorState &
+  SpritesheetEditorActions & { handlers: SpritesheetEditorActions };
 
 const initialEntry = editorBundledTilesets[0] ?? null;
 const initialTileEntries = initialEntry ? makeTileEntries(initialEntry.tileset) : [];
@@ -449,7 +450,7 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
           pastHistory: [nextEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
           tileDeleteIndex: null,
         }));
-        get().syncDerivedState();
+        get().handlers.syncDerivedState();
       },
 
       renameMaterial: (oldName, nextName) =>
@@ -579,7 +580,7 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
           pastHistory: state.pastHistory.slice(1),
           tileDeleteIndex: null,
         }));
-        get().syncDerivedState();
+        get().handlers.syncDerivedState();
       },
 
       updateGrid: (key, value) =>
@@ -700,12 +701,46 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
             tileset: state.tileset ? { ...state.tileset, imageSrc } : state.tileset,
           }),
         ),
+      handlers: {
+        addMaterial: () => get().addMaterial(),
+        addTileEntry: () => get().addTileEntry(),
+        createNewTileset: () => get().createNewTileset(),
+        deleteMaterial: (materialName) => get().deleteMaterial(materialName),
+        deleteTileEntry: (index) => get().deleteTileEntry(index),
+        duplicateSelectedTile: () => get().duplicateSelectedTile(),
+        redo: () => get().redo(),
+        renameMaterial: (oldName, nextName) => get().renameMaterial(oldName, nextName),
+        resetEditor: () => get().resetEditor(),
+        saveTileset: () => get().saveTileset(),
+        selectTileset: (fileName) => get().selectTileset(fileName),
+        setPreviewMode: (previewMode) => get().setPreviewMode(previewMode),
+        setSelectedFileName: (selectedFileName) => get().setSelectedFileName(selectedFileName),
+        setSelectedTileId: (selectedTileId) => get().setSelectedTileId(selectedTileId),
+        setTileDeleteIndex: (tileDeleteIndex) => get().setTileDeleteIndex(tileDeleteIndex),
+        syncDerivedState: () => get().syncDerivedState(),
+        undo: () => get().undo(),
+        updateGrid: (key, value) => get().updateGrid(key, value),
+        updatePreviewZoom: (nextZoom) => get().updatePreviewZoom(nextZoom),
+        updateTileEntry: (index, updates) => get().updateTileEntry(index, updates),
+        updateTileName: (index, nextName) => get().updateTileName(index, nextName),
+        updateTileMaterial: (tileId, materialName) => get().updateTileMaterial(tileId, materialName),
+        updateTileTopologyEnabled: (tileId, enabled) =>
+          get().updateTileTopologyEnabled(tileId, enabled),
+        updateTileTopologyRelation: (tileId, direction, relation) =>
+          get().updateTileTopologyRelation(tileId, direction, relation),
+        updateTileVariantGroup: (tileId, variantGroup) =>
+          get().updateTileVariantGroup(tileId, variantGroup),
+        updateTileVariantWeight: (tileId, variantWeight) =>
+          get().updateTileVariantWeight(tileId, variantWeight),
+        updateTilesetId: (id) => get().updateTilesetId(id),
+        updateTilesetImageSrc: (imageSrc) => get().updateTilesetImageSrc(imageSrc),
+      },
     }),
     {
       name: SPRITESHEET_EDITOR_STORAGE_KEY,
       storage: createJSONStorage(() => localStorage),
       onRehydrateStorage: () => (state) => {
-        state?.syncDerivedState();
+        state?.handlers.syncDerivedState();
       },
       partialize: (state) => ({
         previewMode: state.previewMode,

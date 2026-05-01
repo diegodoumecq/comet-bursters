@@ -4,8 +4,8 @@ import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { readNumber, useSpritesheetEditorStore } from '../state/spritesheetEditorStore';
 
 export function GridSection() {
+  const { updateGrid } = useSpritesheetEditorStore((state) => state.handlers);
   const tileset = useSpritesheetEditorStore((state) => state.tileset);
-  const updateGrid = useSpritesheetEditorStore((state) => state.updateGrid);
   const [isOpen, setIsOpen] = useState(true);
   const grid = tileset?.grid;
   const frameWidth = grid?.frameWidth ?? 32;

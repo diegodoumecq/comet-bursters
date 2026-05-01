@@ -5,11 +5,11 @@ import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { editorBundledTilesets, useSpritesheetEditorStore } from '../state/spritesheetEditorStore';
 
 export function TilesetSection() {
+  const { selectTileset, updateTilesetId, updateTilesetImageSrc } = useSpritesheetEditorStore(
+    (state) => state.handlers,
+  );
   const selectedFileName = useSpritesheetEditorStore((state) => state.selectedFileName);
-  const selectTileset = useSpritesheetEditorStore((state) => state.selectTileset);
   const tileset = useSpritesheetEditorStore((state) => state.tileset);
-  const updateTilesetId = useSpritesheetEditorStore((state) => state.updateTilesetId);
-  const updateTilesetImageSrc = useSpritesheetEditorStore((state) => state.updateTilesetImageSrc);
   const [isOpen, setIsOpen] = useState(true);
 
   if (!tileset) {

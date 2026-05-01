@@ -44,28 +44,20 @@ import { PathsSection } from './sections/PathsSection';
 import { SelectedEntitySection } from './sections/SelectedEntitySection';
 import { TilesSection } from './sections/TilesSection';
 import { ConfirmationDialog } from '@/ui/components/ConfirmationDialog';
-import { DropdownMenu } from '@/ui/components/DropdownMenu';
 import { Switch } from '@/ui/components/Switch';
+import { EditorHeaderMenu } from './components/EditorHeaderMenu';
 import { ToolSwitcher } from './components/ToolSwitcher';
+import {
+  getExpandedRectanglePreviewCells,
+  getGridCell,
+  getRectangleTargetCells,
+  isCellOccupied,
+  type RectangleDragContext,
+  type RectangleDragState,
+} from './utils';
 
 const BACKUP_PREFERENCE_STORAGE_KEY = 'comet-bursters.editor.create-backups';
 const COLUMN_ENTITY_SPRITE = '../columnPixelart.png';
-
-type RectangleDragState = {
-  endX: number;
-  endY: number;
-  mode: 'materials' | 'tiles';
-  startX: number;
-  startY: number;
-};
-
-type RectangleDragContext = {
-  fillRectangleDrag: boolean;
-  onlyPaintUnoccupiedCells: boolean;
-  selectedLayerId: string | null;
-  selectedMaterialId: string | null;
-  selectedTileId: ReturnType<typeof useEditorStore.getState>['selectedTileId'];
-};
 
 function createPlacedEntity(
   currentLevel: ReturnType<typeof useEditorStore.getState>['level'],
@@ -108,86 +100,6 @@ function readBackupPreference(): boolean {
   }
 
   return window.localStorage.getItem(BACKUP_PREFERENCE_STORAGE_KEY) !== 'false';
-}
-
-function getCellKey(x: number, y: number): string {
-  return `${x},${y}`;
-}
-
-function getGridCell(level: ReturnType<typeof useEditorStore.getState>['level'], worldX: number, worldY: number) {
-  const levelGrid = getLevelGrid(level);
-  return {
-    x: Math.floor(worldX / levelGrid.cellWidth),
-    y: Math.floor(worldY / levelGrid.cellHeight),
-  };
-}
-
-function getRectangleBorderCells(startX: number, startY: number, endX: number, endY: number) {
-  const left = Math.min(startX, endX);
-  const right = Math.max(startX, endX);
-  const top = Math.min(startY, endY);
-  const bottom = Math.max(startY, endY);
-  const cells: { x: number; y: number }[] = [];
-
-  for (let x = left; x <= right; x += 1) {
-    cells.push({ x, y: top });
-    if (bottom !== top) {
-      cells.push({ x, y: bottom });
-    }
-  }
-
-  for (let y = top + 1; y < bottom; y += 1) {
-    cells.push({ x: left, y });
-    if (right !== left) {
-      cells.push({ x: right, y });
-    }
-  }
-
-  return cells;
-}
-
-function getRectangleFilledCells(startX: number, startY: number, endX: number, endY: number) {
-  const left = Math.min(startX, endX);
-  const right = Math.max(startX, endX);
-  const top = Math.min(startY, endY);
-  const bottom = Math.max(startY, endY);
-  const cells: { x: number; y: number }[] = [];
-
-  for (let y = top; y <= bottom; y += 1) {
-    for (let x = left; x <= right; x += 1) {
-      cells.push({ x, y });
-    }
-  }
-
-  return cells;
-}
-
-function getRectangleTargetCells(
-  rectangleDrag: RectangleDragState,
-  fillRectangleDrag: boolean,
-) {
-  return fillRectangleDrag
-    ? getRectangleFilledCells(
-        rectangleDrag.startX,
-        rectangleDrag.startY,
-        rectangleDrag.endX,
-        rectangleDrag.endY,
-      )
-    : getRectangleBorderCells(
-        rectangleDrag.startX,
-        rectangleDrag.startY,
-        rectangleDrag.endX,
-        rectangleDrag.endY,
-      );
-}
-
-function isCellOccupied(document: EditorDocument, layerId: string, x: number, y: number): boolean {
-  return (
-    document.level.layers
-      .find((layer) => layer.id === layerId)
-      ?.tiles.some((tile) => tile.x === x && tile.y === y) ||
-    Boolean(document.materialPlacements[layerId]?.[getCellKey(x, y)])
-  );
 }
 
 function applyRectangleDragToDocument(
@@ -240,21 +152,6 @@ function applyRectangleDragToDocument(
   }
 
   return document;
-}
-
-function getExpandedRectanglePreviewCells(cells: Array<{ x: number; y: number }>) {
-  const uniqueCells = new Map<string, { x: number; y: number }>();
-
-  for (const cell of cells) {
-    for (let dy = -1; dy <= 1; dy += 1) {
-      for (let dx = -1; dx <= 1; dx += 1) {
-        const expandedCell = { x: cell.x + dx, y: cell.y + dy };
-        uniqueCells.set(getCellKey(expandedCell.x, expandedCell.y), expandedCell);
-      }
-    }
-  }
-
-  return Array.from(uniqueCells.values());
 }
 
 function buildRectanglePreview(
@@ -370,6 +267,18 @@ function buildRectanglePreview(
 }
 
 export function EditorApp() {
+  const {
+    commitDocumentChange,
+    redo,
+    resetEditor,
+    setDocument,
+    setDocumentWithoutHistory,
+    setFillRectangleDrag,
+    setLevel,
+    setOnlyPaintUnoccupiedCells,
+    setSelectedEntityId,
+    undo,
+  } = useEditorStore((state) => state.handlers);
   const canRedo = useEditorStore((state) => state.futureHistory.length > 0);
   const canUndo = useEditorStore((state) => state.pastHistory.length > 0);
   const fillRectangleDrag = useEditorStore((state) => state.fillRectangleDrag);
@@ -384,17 +293,7 @@ export function EditorApp() {
   const selectedMaterialId = useEditorStore((state) => state.selectedMaterialId);
   const selectedPathId = useEditorStore((state) => state.selectedPathId);
   const selectedTileId = useEditorStore((state) => state.selectedTileId);
-  const commitDocumentChange = useEditorStore((state) => state.commitDocumentChange);
-  const setDocument = useEditorStore((state) => state.setDocument);
-  const setDocumentWithoutHistory = useEditorStore((state) => state.setDocumentWithoutHistory);
-  const setFillRectangleDrag = useEditorStore((state) => state.setFillRectangleDrag);
-  const setLevel = useEditorStore((state) => state.setLevel);
-  const setOnlyPaintUnoccupiedCells = useEditorStore((state) => state.setOnlyPaintUnoccupiedCells);
-  const setSelectedEntityId = useEditorStore((state) => state.setSelectedEntityId);
   const tool = useEditorStore((state) => state.tool);
-  const redo = useEditorStore((state) => state.redo);
-  const resetEditor = useEditorStore((state) => state.resetEditor);
-  const undo = useEditorStore((state) => state.undo);
   const canvasViewportRef = useRef<HTMLDivElement | null>(null);
   const draggedEntityIdRef = useRef<string | null>(null);
   const draggedEntityStartDocumentRef = useRef<EditorDocument | null>(null);
@@ -964,71 +863,21 @@ export function EditorApp() {
                   <path d="M15 10H9a5 5 0 1 0 0 10" />
                 </svg>
               </button>
-              <DropdownMenu
-                align="left"
+              <EditorHeaderMenu
+                createBackupsOnSave={createBackupsOnSave}
                 isOpen={isHeaderMenuOpen}
                 onClose={() => setIsHeaderMenuOpen(false)}
+                onReset={() => {
+                  setIsHeaderMenuOpen(false);
+                  setIsResetModalOpen(true);
+                }}
+                onSave={() => {
+                  setIsHeaderMenuOpen(false);
+                  void handleSave();
+                }}
                 onToggle={() => setIsHeaderMenuOpen((current) => !current)}
-                menuClassName="rounded-xl"
-                trigger={
-                  <span
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 text-slate-300 transition hover:border-slate-500 hover:text-white"
-                    aria-label="More options"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 20 20"
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M3 5h14" />
-                      <path d="M3 10h14" />
-                      <path d="M3 15h14" />
-                    </svg>
-                  </span>
-                }
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsHeaderMenuOpen(false);
-                    void handleSave();
-                  }}
-                  className="block w-full rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  onClick={() => updateCreateBackupsOnSave(!createBackupsOnSave)}
-                  className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-slate-800"
-                >
-                  <span>Create backups</span>
-                  <span
-                    className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${
-                      createBackupsOnSave
-                        ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200'
-                        : 'border-slate-700 bg-slate-900 text-slate-400'
-                    }`}
-                  >
-                    {createBackupsOnSave ? 'On' : 'Off'}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsHeaderMenuOpen(false);
-                    setIsResetModalOpen(true);
-                  }}
-                  className="block w-full rounded-lg px-3 py-2 text-left text-sm text-rose-200 transition hover:bg-rose-500/15"
-                >
-                  Reset
-                </button>
-              </DropdownMenu>
+                onToggleCreateBackups={() => updateCreateBackupsOnSave(!createBackupsOnSave)}
+              />
             </div>
           </div>
           <LevelSection zoom={canvasZoom} onCanvasZoomChange={updateCanvasZoom} />

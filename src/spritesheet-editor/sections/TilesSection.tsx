@@ -4,9 +4,10 @@ import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { useSpritesheetEditorStore } from '../state/spritesheetEditorStore';
 
 export function TilesSection() {
+  const { setSelectedTileId, setTileDeleteIndex } = useSpritesheetEditorStore(
+    (state) => state.handlers,
+  );
   const selectedTileId = useSpritesheetEditorStore((state) => state.selectedTileId);
-  const setSelectedTileId = useSpritesheetEditorStore((state) => state.setSelectedTileId);
-  const setTileDeleteIndex = useSpritesheetEditorStore((state) => state.setTileDeleteIndex);
   const tileEntries = useSpritesheetEditorStore((state) => state.tileEntries);
   const [isOpen, setIsOpen] = useState(true);
 

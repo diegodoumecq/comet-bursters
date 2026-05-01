@@ -1,7 +1,7 @@
 import { useEditorStore } from '../state/editorStore';
 
 export function ToolSwitcher() {
-  const onChange = useEditorStore((state) => state.setTool);
+  const { setTool } = useEditorStore((state) => state.handlers);
   const tool = useEditorStore((state) => state.tool);
 
   return (
@@ -10,7 +10,7 @@ export function ToolSwitcher() {
         <button
           key={option}
           type="button"
-          onClick={() => onChange(option)}
+          onClick={() => setTool(option)}
           className={`rounded-xl border px-3 py-2 text-sm capitalize ${
             tool === option
               ? 'border-cyan-300 bg-cyan-500/15 text-cyan-100'

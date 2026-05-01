@@ -1,9 +1,9 @@
 import { useState } from 'react';
 
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
-import { DropdownMenu } from '@/ui/components/DropdownMenu';
 import { useEditorStore } from '../state/editorStore';
 import type { RawShipInteriorLevel } from '../../scenes/ShipInteriorScene/level';
+import { PathActionsMenu } from './PathActionsMenu';
 
 function makePathId(level: RawShipInteriorLevel): string {
   let nextIndex = level.paths.length + 1;
@@ -22,18 +22,20 @@ export function PathsSection({
 }: {
   onScrollIntoView: (x: number, y: number) => void;
 }) {
-  const deletePath = useEditorStore((state) => state.deletePath);
+  const {
+    deletePath,
+    savePathRename,
+    setLevel,
+    setOpenPathMenuId,
+    setRenamingPathId,
+    setRenamingPathValue,
+    setSelectedPathId,
+  } = useEditorStore((state) => state.handlers);
   const level = useEditorStore((state) => state.level);
   const openPathMenuId = useEditorStore((state) => state.openPathMenuId);
   const renamingPathId = useEditorStore((state) => state.renamingPathId);
   const renamingPathValue = useEditorStore((state) => state.renamingPathValue);
-  const savePathRename = useEditorStore((state) => state.savePathRename);
-  const setOpenPathMenuId = useEditorStore((state) => state.setOpenPathMenuId);
-  const setRenamingPathId = useEditorStore((state) => state.setRenamingPathId);
-  const setRenamingPathValue = useEditorStore((state) => state.setRenamingPathValue);
   const selectedPathId = useEditorStore((state) => state.selectedPathId);
-  const setSelectedPathId = useEditorStore((state) => state.setSelectedPathId);
-  const setLevel = useEditorStore((state) => state.setLevel);
   const [isOpen, setIsOpen] = useState(true);
 
   return (
@@ -169,36 +171,17 @@ export function PathsSection({
                   )}
                 </div>
                 <div className="relative z-20 shrink-0">
-                  <DropdownMenu
+                  <PathActionsMenu
                     isOpen={openPathMenuId === path.id}
                     onClose={() => setOpenPathMenuId(null)}
+                    onDelete={() => deletePath(path.id)}
+                    onRename={() => {
+                      setRenamingPathId(path.id);
+                      setRenamingPathValue(path.id);
+                      setOpenPathMenuId(null);
+                    }}
                     onToggle={() => setOpenPathMenuId(openPathMenuId === path.id ? null : path.id)}
-                    menuClassName="z-10 min-w-28 rounded-lg"
-                    trigger={
-                      <span className="rounded-lg border border-slate-700 bg-slate-950/80 px-2 py-1 text-xs text-slate-200 hover:border-slate-500">
-                        ...
-                      </span>
-                    }
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRenamingPathId(path.id);
-                        setRenamingPathValue(path.id);
-                        setOpenPathMenuId(null);
-                      }}
-                      className="block w-full rounded-md px-3 py-2 text-left text-xs text-slate-200 hover:bg-slate-800"
-                    >
-                      Rename
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deletePath(path.id)}
-                      className="block w-full rounded-md px-3 py-2 text-left text-xs text-rose-200 hover:bg-rose-500/15"
-                    >
-                      Delete
-                    </button>
-                  </DropdownMenu>
+                  />
                 </div>
               </div>
               {selectedPathId === path.id ? (

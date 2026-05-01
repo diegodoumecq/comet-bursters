@@ -1,361 +1,99 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/ui/components/Resizable';
-import { Switch } from '@/ui/components/Switch';
+import { loadSpriteAssetImage } from './assetLoading';
 import {
-  applyHistoryEntry,
-  createDocumentHistorySession,
-  createPatchHistorySession,
-  extendPatchHistorySession,
-  finalizeHistorySession,
-  getBrushStampBounds,
-  getStrokeSegmentBounds,
+  runCopySelection,
+  runPasteSelection,
+  runResizeCanvas,
+  runRevert,
+  runSave,
+  runSelectAsset,
+  runUndoRedo,
+} from './editorOperations';
+import {
+  beginDocumentHistorySession as beginDocumentHistorySessionState,
+  beginPatchHistorySession as beginPatchHistorySessionState,
+  commitMoveOffsetToCanvas,
+  discardCurrentHistorySession as discardCurrentHistorySessionState,
+  extendCurrentPatchHistorySession as extendCurrentPatchHistorySessionState,
+  finalizeCurrentHistorySession as finalizeCurrentHistorySessionState,
   type PendingSpriteHistorySession,
   type SpriteHistoryEntry,
-} from './history';
+} from './documentCommands';
+import {
+  beginMoveInteraction,
+  beginPaintInteraction,
+  beginSelectionInteraction,
+  finalizeSelectionInteraction,
+  pickColorAtPoint,
+  type MoveDragOrigin,
+  updateMoveInteraction,
+  updatePaintInteraction,
+  updateSelectionInteraction,
+} from './interactionCommands';
+import { registerSpriteEditorKeyboardShortcuts } from './keyboardShortcuts';
 import {
   getGridSourcesForSpriteAsset,
   spriteAssets,
+  spriteAssetsByCategory,
   type SpriteAssetGridSource,
 } from './assetCatalog';
+import { BrushColorPanel } from './components/BrushColorPanel';
+import { BrushSettingsPanel } from './components/BrushSettingsPanel';
+import { SpriteEditorActionsMenu } from './components/SpriteEditorActionsMenu';
+import { SpriteToolPicker } from './components/SpriteToolPicker';
+import { StatusBanner } from './components/StatusBanner';
+import { ZoomPanel } from './components/ZoomPanel';
+import { AssetsSection } from './sections/AssetsSection';
+import { GridSection } from './sections/GridSection';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/ui/components/Resizable';
+import { Switch } from '@/ui/components/Switch';
 import {
-  normalizeGridSettings,
   useSpriteEditorStore,
+  normalizeGridSettings,
   type PixelRect,
-  type RgbaColor,
-  type SpriteEditorTool as Tool,
 } from './state/spriteEditorStore';
+import { clampAlpha, clampBrushSize, clampZoom, cloneImageData, cropImageData, getPixelCoordinates, parseHexColor, rgbaToHex } from './utils';
 
-function componentToHex(value: number): string {
-  return Math.max(0, Math.min(255, value)).toString(16).padStart(2, '0');
-}
-
-function rgbaToHex(color: RgbaColor): string {
-  return `#${componentToHex(color.r)}${componentToHex(color.g)}${componentToHex(color.b)}`;
-}
-
-function parseHexColor(value: string): RgbaColor {
-  const normalized = value.replace('#', '');
-  const safeValue = normalized.length === 6 ? normalized : 'ffffff';
-  return {
-    r: Number.parseInt(safeValue.slice(0, 2), 16),
-    g: Number.parseInt(safeValue.slice(2, 4), 16),
-    b: Number.parseInt(safeValue.slice(4, 6), 16),
-    a: 255,
-  };
-}
-
-function clampAlpha(alpha: number): number {
-  return Math.max(0, Math.min(255, alpha));
-}
-
-function clampBrushSize(size: number): number {
-  return Math.max(1, Math.min(12, Math.round(size)));
-}
-
-function clampZoom(value: number): number {
-  return Math.max(2, Math.min(48, Math.round(value)));
-}
-
-function cloneImageData(ctx: CanvasRenderingContext2D): ImageData {
-  return ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
-}
-
-function imageDataToBlob(imageData: ImageData): Promise<Blob | null> {
-  return new Promise((resolve) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = imageData.width;
-    canvas.height = imageData.height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      resolve(null);
-      return;
-    }
-
-    ctx.putImageData(imageData, 0, 0);
-    canvas.toBlob((blob) => resolve(blob), 'image/png');
-  });
-}
-
-function blobToImageData(blob: Blob): Promise<ImageData | null> {
-  return new Promise((resolve) => {
-    const image = new Image();
-    const objectUrl = URL.createObjectURL(blob);
-    image.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = image.width;
-      canvas.height = image.height;
-      const ctx = canvas.getContext('2d');
-      URL.revokeObjectURL(objectUrl);
-      if (!ctx) {
-        resolve(null);
-        return;
-      }
-
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(image, 0, 0);
-      resolve(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(null);
-    };
-    image.src = objectUrl;
-  });
-}
-
-function clipImageData(source: ImageData, width: number, height: number): ImageData {
-  const clippedWidth = Math.max(1, Math.min(width, source.width));
-  const clippedHeight = Math.max(1, Math.min(height, source.height));
-  const sourceCanvas = document.createElement('canvas');
-  sourceCanvas.width = source.width;
-  sourceCanvas.height = source.height;
-  const sourceCtx = sourceCanvas.getContext('2d');
-  if (!sourceCtx) {
-    return new ImageData(clippedWidth, clippedHeight);
-  }
-
-  sourceCtx.putImageData(source, 0, 0);
-  return sourceCtx.getImageData(0, 0, clippedWidth, clippedHeight);
-}
-
-function getPixelCoordinates(
-  canvas: HTMLCanvasElement,
-  event: React.PointerEvent<HTMLElement>,
-): { x: number; y: number } | null {
-  const rect = canvas.getBoundingClientRect();
-  if (rect.width === 0 || rect.height === 0) {
-    return null;
-  }
-
-  const x = Math.floor(((event.clientX - rect.left) / rect.width) * canvas.width);
-  const y = Math.floor(((event.clientY - rect.top) / rect.height) * canvas.height);
-  if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) {
-    return null;
-  }
-
-  return { x, y };
-}
-
-function getPixelColor(ctx: CanvasRenderingContext2D, x: number, y: number): RgbaColor {
-  const pixel = ctx.getImageData(x, y, 1, 1).data;
-  return { r: pixel[0], g: pixel[1], b: pixel[2], a: pixel[3] };
-}
-
-function paintPoint(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  brushSize: number,
-  tool: Tool,
-  color: RgbaColor,
-) {
-  const halfBrush = Math.floor(brushSize / 2);
-  if (tool === 'erase') {
-    ctx.clearRect(x - halfBrush, y - halfBrush, brushSize, brushSize);
-    return;
-  }
-
-  ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a / 255})`;
-  ctx.fillRect(x - halfBrush, y - halfBrush, brushSize, brushSize);
-}
-
-function paintLine(
-  ctx: CanvasRenderingContext2D,
-  start: { x: number; y: number },
-  end: { x: number; y: number },
-  brushSize: number,
-  tool: Tool,
-  color: RgbaColor,
-) {
-  let x = start.x;
-  let y = start.y;
-  const deltaX = Math.abs(end.x - start.x);
-  const deltaY = Math.abs(end.y - start.y);
-  const stepX = start.x < end.x ? 1 : -1;
-  const stepY = start.y < end.y ? 1 : -1;
-  let error = deltaX - deltaY;
-
-  while (true) {
-    paintPoint(ctx, x, y, brushSize, tool, color);
-    if (x === end.x && y === end.y) {
-      break;
-    }
-
-    const doubledError = error * 2;
-    if (doubledError > -deltaY) {
-      error -= deltaY;
-      x += stepX;
-    }
-    if (doubledError < deltaX) {
-      error += deltaX;
-      y += stepY;
-    }
-  }
-}
-
-function drawImageDataAtOffset(
-  ctx: CanvasRenderingContext2D,
-  source: ImageData,
-  offset: { x: number; y: number },
-) {
-  const scratchCanvas = document.createElement('canvas');
-  scratchCanvas.width = source.width;
-  scratchCanvas.height = source.height;
-  const scratchCtx = scratchCanvas.getContext('2d');
-  if (!scratchCtx) {
-    return;
-  }
-
-  scratchCtx.putImageData(source, 0, 0);
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(scratchCanvas, offset.x, offset.y);
-}
-
-function normalizeSelectionRect(
-  start: { x: number; y: number },
-  end: { x: number; y: number },
-): PixelRect {
-  const left = Math.min(start.x, end.x);
-  const top = Math.min(start.y, end.y);
-  return {
-    x: left,
-    y: top,
-    width: Math.abs(end.x - start.x) + 1,
-    height: Math.abs(end.y - start.y) + 1,
-  };
-}
-
-function cropImageData(source: ImageData, rect: PixelRect): ImageData {
-  const scratchCanvas = document.createElement('canvas');
-  scratchCanvas.width = source.width;
-  scratchCanvas.height = source.height;
-  const scratchCtx = scratchCanvas.getContext('2d');
-  if (!scratchCtx) {
-    return new ImageData(rect.width, rect.height);
-  }
-
-  scratchCtx.putImageData(source, 0, 0);
-  return scratchCtx.getImageData(rect.x, rect.y, rect.width, rect.height);
-}
-
-function drawSelectionAtOffset(
-  ctx: CanvasRenderingContext2D,
-  source: ImageData,
-  selectionRect: PixelRect,
-  selectionPixels: ImageData,
-  offset: { x: number; y: number },
-  options?: { clearSourceRect?: boolean },
-) {
-  const scratchCanvas = document.createElement('canvas');
-  scratchCanvas.width = source.width;
-  scratchCanvas.height = source.height;
-  const scratchCtx = scratchCanvas.getContext('2d');
-  if (!scratchCtx) {
-    return;
-  }
-
-  scratchCtx.putImageData(source, 0, 0);
-  if (options?.clearSourceRect ?? true) {
-    scratchCtx.clearRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
-  }
-
-  const selectionCanvas = document.createElement('canvas');
-  selectionCanvas.width = selectionPixels.width;
-  selectionCanvas.height = selectionPixels.height;
-  const selectionCtx = selectionCanvas.getContext('2d');
-  if (!selectionCtx) {
-    return;
-  }
-
-  selectionCtx.putImageData(selectionPixels, 0, 0);
-  scratchCtx.imageSmoothingEnabled = false;
-  scratchCtx.drawImage(selectionCanvas, selectionRect.x + offset.x, selectionRect.y + offset.y);
-
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(scratchCanvas, 0, 0);
-}
-
-function ToolIcon({ tool }: { tool: Tool }) {
-  const className = 'h-4 w-4';
-
-  if (tool === 'draw') {
-    return (
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-        <path d="M4 14.5 13.8 4.7a1.8 1.8 0 0 1 2.5 0l-10 10L3.5 16.5z" />
-        <path d="M12.5 6l1.5 1.5" />
-      </svg>
-    );
-  }
-
-  if (tool === 'move') {
-    return (
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-        <path d="m10 2 2.5 2.5L10 7 7.5 4.5 10 2Z" />
-        <path d="m18 10-2.5 2.5L13 10l2.5-2.5L18 10Z" />
-        <path d="m10 18-2.5-2.5L10 13l2.5 2.5L10 18Z" />
-        <path d="M2 10 4.5 7.5 7 10l-2.5 2.5L2 10Z" />
-        <path d="M10 6v8M6 10h8" />
-      </svg>
-    );
-  }
-
-  if (tool === 'select') {
-    return (
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-        <path d="M4 7V4h3M13 4h3v3M16 13v3h-3M7 16H4v-3" />
-        <path d="M4 10V8M10 4H8M16 10V8M10 16H8M4 12v-2M12 4h-2M16 12v-2M12 16h-2" />
-      </svg>
-    );
-  }
-
-  if (tool === 'erase') {
-    return (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-        <path d="M19 20h-10.5l-4.21 -4.3a1 1 0 0 1 0 -1.41l10 -10a1 1 0 0 1 1.41 0l5 5a1 1 0 0 1 0 1.41l-9.2 9.3" />
-        <path d="M18 13.3l-6.3 -6.3" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
-      <path d="M11 7l6 6" />
-      <path d="M4 16l11.7 -11.7a1 1 0 0 1 1.4 0l2.6 2.6a1 1 0 0 1 0 1.4l-11.7 11.7h-4v-4" />
-    </svg>
-  );
-}
+type PointerOrigin = { x: number; y: number };
+type PanOrigin = {
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  startOffsetX: number;
+  startOffsetY: number;
+};
+type SpriteEditorSession = {
+  isSelectionCopy: boolean;
+  lastPointer: PointerOrigin | null;
+  moveDragOrigin: MoveDragOrigin | null;
+  moveSourceImageData: ImageData | null;
+  originalImageData: ImageData | null;
+  panOrigin: PanOrigin | null;
+  pendingHistorySession: PendingSpriteHistorySession | null;
+  selectionDragOrigin: PointerOrigin | null;
+  selectionPixels: ImageData | null;
+};
 
 export function SpriteEditorApp() {
   const actionsMenuRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const selectionDragOriginRef = useRef<{ x: number; y: number } | null>(null);
-  const moveDragOriginRef = useRef<{
-    startOffsetX: number;
-    startOffsetY: number;
-    startX: number;
-    startY: number;
-  } | null>(null);
-  const moveSourceImageDataRef = useRef<ImageData | null>(null);
-  const selectionPixelsRef = useRef<ImageData | null>(null);
-  const isSelectionCopyRef = useRef(false);
-  const originalImageDataRef = useRef<ImageData | null>(null);
-  const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
-  const panOriginRef = useRef<{
-    pointerId: number;
-    startClientX: number;
-    startClientY: number;
-    startOffsetX: number;
-    startOffsetY: number;
-  } | null>(null);
+  const sessionRef = useRef<SpriteEditorSession>({
+    isSelectionCopy: false,
+    lastPointer: null,
+    moveDragOrigin: null,
+    moveSourceImageData: null,
+    originalImageData: null,
+    panOrigin: null,
+    pendingHistorySession: null,
+    selectionDragOrigin: null,
+    selectionPixels: null,
+  });
   const [dirty, setDirty] = useState(false);
-  const [isAssetsSectionOpen, setIsAssetsSectionOpen] = useState(true);
-  const [isGridSectionOpen, setIsGridSectionOpen] = useState(true);
   const [moveOffset, setMoveOffset] = useState({ x: 0, y: 0 });
+  const [undoStack, setUndoStack] = useState<SpriteHistoryEntry[]>([]);
+  const [redoStack, setRedoStack] = useState<SpriteHistoryEntry[]>([]);
   const activeAssetPath = useSpriteEditorStore((state) => state.activeAssetPath);
   const brushColor = useSpriteEditorStore((state) => state.brushColor);
   const brushSize = useSpriteEditorStore((state) => state.brushSize);
@@ -375,34 +113,10 @@ export function SpriteEditorApp() {
   const selectionRect = useSpriteEditorStore((state) => state.selectionRect);
   const sidebarSize = useSpriteEditorStore((state) => state.sidebarSize);
   const tool = useSpriteEditorStore((state) => state.tool);
-  const pendingHistorySessionRef = useRef<PendingSpriteHistorySession | null>(null);
-  const [undoStack, setUndoStack] = useState<SpriteHistoryEntry[]>([]);
-  const [redoStack, setRedoStack] = useState<SpriteHistoryEntry[]>([]);
   const viewportOffset = useSpriteEditorStore((state) => state.viewportOffset);
   const zoom = useSpriteEditorStore((state) => state.zoom);
-  const applyGridSettings = useSpriteEditorStore((state) => state.applyGridSettings);
-  const resetGridSettings = useSpriteEditorStore((state) => state.resetGridSettings);
-  const setActiveAssetPath = useSpriteEditorStore((state) => state.setActiveAssetPath);
-  const setBrushColor = useSpriteEditorStore((state) => state.setBrushColor);
-  const setBrushSize = useSpriteEditorStore((state) => state.setBrushSize);
-  const setGridColor = useSpriteEditorStore((state) => state.setGridColor);
-  const setGridOpacity = useSpriteEditorStore((state) => state.setGridOpacity);
-  const setHoveredPixel = useSpriteEditorStore((state) => state.setHoveredPixel);
-  const setInteractionMode = useSpriteEditorStore((state) => state.setInteractionMode);
-  const setIsActionsOpen = useSpriteEditorStore((state) => state.setIsActionsOpen);
-  const setIsGridVisible = useSpriteEditorStore((state) => state.setIsGridVisible);
-  const setIsLoading = useSpriteEditorStore((state) => state.setIsLoading);
-  const setIsSidebarResizable = useSpriteEditorStore((state) => state.setIsSidebarResizable);
-  const setIsSaving = useSpriteEditorStore((state) => state.setIsSaving);
-  const setIsSpacePressed = useSpriteEditorStore((state) => state.setIsSpacePressed);
-  const setLoadError = useSpriteEditorStore((state) => state.setLoadError);
-  const setMessage = useSpriteEditorStore((state) => state.setMessage);
-  const setSelectionRect = useSpriteEditorStore((state) => state.setSelectionRect);
-  const setSidebarSize = useSpriteEditorStore((state) => state.setSidebarSize);
-  const setTool = useSpriteEditorStore((state) => state.setTool);
-  const setViewportOffset = useSpriteEditorStore((state) => state.setViewportOffset);
-  const setZoom = useSpriteEditorStore((state) => state.setZoom);
-  const updateGridNumber = useSpriteEditorStore((state) => state.updateGridNumber);
+  const handlers = useSpriteEditorStore((state) => state.handlers);
+  const session = sessionRef.current;
 
   const activeAsset = useMemo(
     () => spriteAssets.find((asset) => asset.assetPath === activeAssetPath) ?? null,
@@ -412,24 +126,36 @@ export function SpriteEditorApp() {
     () => (activeAssetPath ? getGridSourcesForSpriteAsset(activeAssetPath) : []),
     [activeAssetPath],
   );
-  const assetsByCategory = useMemo(() => {
-    return spriteAssets.reduce(
-      (groups, asset) => {
-        groups[asset.category] = [...(groups[asset.category] ?? []), asset];
-        return groups;
-      },
-      {} as Record<string, typeof spriteAssets>,
-    );
-  }, []);
 
-  const centerCanvasInViewport = (nextZoom = zoom) => {
+  const resetInteractionRefs = () => {
+    session.selectionDragOrigin = null;
+    session.moveDragOrigin = null;
+    session.lastPointer = null;
+  };
+
+  const resetSelectionState = () => {
+    session.selectionPixels = null;
+    session.isSelectionCopy = false;
+    resetInteractionRefs();
+    handlers.setSelectionRect(null);
+    setMoveOffset({ x: 0, y: 0 });
+  };
+
+  const syncCanvasSelectionSnapshot = (ctx: CanvasRenderingContext2D, nextSelectionRect: PixelRect | null) => {
+    const snapshot = cloneImageData(ctx);
+    session.moveSourceImageData = snapshot;
+    session.selectionPixels = nextSelectionRect ? cropImageData(snapshot, nextSelectionRect) : null;
+    session.isSelectionCopy = false;
+  };
+
+  const centerCanvas = (nextZoom = zoom) => {
     const canvas = canvasRef.current;
     const viewport = viewportRef.current;
     if (!canvas || !viewport) {
       return;
     }
 
-    setViewportOffset({
+    handlers.setViewportOffset({
       x: Math.round((viewport.clientWidth - canvas.width * nextZoom) / 2),
       y: Math.round((viewport.clientHeight - canvas.height * nextZoom) / 2),
     });
@@ -444,7 +170,7 @@ export function SpriteEditorApp() {
     const canvas = canvasRef.current;
     const viewport = viewportRef.current;
     if (!canvas || !viewport) {
-      setZoom(nextZoom);
+      handlers.setZoom(nextZoom);
       return;
     }
 
@@ -454,25 +180,22 @@ export function SpriteEditorApp() {
     const worldX = (focusX - viewportOffset.x) / zoom;
     const worldY = (focusY - viewportOffset.y) / zoom;
 
-    setZoom(nextZoom);
-    setViewportOffset({
+    handlers.setZoom(nextZoom);
+    handlers.setViewportOffset({
       x: Math.round(focusX - worldX * nextZoom),
       y: Math.round(focusY - worldY * nextZoom),
     });
   };
 
-  const applyGridSource = (
-    source: SpriteAssetGridSource,
-    options?: { announce?: boolean; makeVisible?: boolean },
-  ) => {
-    applyGridSettings(normalizeGridSettings(source.grid));
+  const applyGridSource = (source: SpriteAssetGridSource, options?: { announce?: boolean; makeVisible?: boolean }) => {
+    handlers.applyGridSettings(normalizeGridSettings(source.grid));
     if (options?.makeVisible ?? true) {
-      setIsGridVisible(true);
+      handlers.setIsGridVisible(true);
     }
     if (options?.announce ?? true) {
-      setMessage(`Loaded grid from ${source.id}.`);
+      handlers.setMessage(`Loaded grid from ${source.id}.`);
     }
-    setLoadError(null);
+    handlers.setLoadError(null);
   };
 
   const commitMoveOffset = () => {
@@ -482,44 +205,18 @@ export function SpriteEditorApp() {
       return;
     }
 
-    if (moveOffset.x === 0 && moveOffset.y === 0) {
-      moveSourceImageDataRef.current = cloneImageData(ctx);
-      if (selectionRect) {
-        selectionPixelsRef.current = cropImageData(cloneImageData(ctx), selectionRect);
-      }
-      return;
-    }
-
-    const committedImage = cloneImageData(ctx);
-    if (selectionRect) {
-      const nextSelectionRect = {
-        ...selectionRect,
-        x: selectionRect.x + moveOffset.x,
-        y: selectionRect.y + moveOffset.y,
-      };
-      setSelectionRect(nextSelectionRect);
-      if (isSelectionCopyRef.current && moveSourceImageDataRef.current) {
-        const backgroundPixels = cropImageData(moveSourceImageDataRef.current, nextSelectionRect);
-        const baseCanvas = document.createElement('canvas');
-        baseCanvas.width = committedImage.width;
-        baseCanvas.height = committedImage.height;
-        const baseCtx = baseCanvas.getContext('2d');
-        if (baseCtx) {
-          baseCtx.putImageData(committedImage, 0, 0);
-          baseCtx.putImageData(backgroundPixels, nextSelectionRect.x, nextSelectionRect.y);
-          moveSourceImageDataRef.current = baseCtx.getImageData(0, 0, committedImage.width, committedImage.height);
-        } else {
-          moveSourceImageDataRef.current = committedImage;
-        }
-        selectionPixelsRef.current = selectionPixelsRef.current ?? cropImageData(committedImage, nextSelectionRect);
-      } else {
-        moveSourceImageDataRef.current = committedImage;
-        selectionPixelsRef.current = cropImageData(committedImage, nextSelectionRect);
-      }
-    } else {
-      moveSourceImageDataRef.current = committedImage;
-    }
-    setMoveOffset({ x: 0, y: 0 });
+    const result = commitMoveOffsetToCanvas({
+      ctx,
+      isSelectionCopy: session.isSelectionCopy,
+      moveOffset,
+      moveSourceImage: session.moveSourceImageData,
+      selectionPixels: session.selectionPixels,
+      selectionRect,
+    });
+    session.moveSourceImageData = result.moveSourceImage;
+    session.selectionPixels = result.nextSelectionPixels;
+    handlers.setSelectionRect(result.nextSelectionRect);
+    setMoveOffset(result.nextMoveOffset);
   };
 
   const clearSelection = () => {
@@ -529,81 +226,51 @@ export function SpriteEditorApp() {
       commitMoveOffset();
     }
 
-    selectionPixelsRef.current = null;
-    isSelectionCopyRef.current = false;
-    selectionDragOriginRef.current = null;
-    moveDragOriginRef.current = null;
-    setSelectionRect(null);
-    setMoveOffset({ x: 0, y: 0 });
+    resetSelectionState();
+  };
+
+  const finishLoadingDocument = (ctx: CanvasRenderingContext2D) => {
+    session.originalImageData = cloneImageData(ctx);
+    syncCanvasSelectionSnapshot(ctx, null);
+    discardCurrentHistorySession();
+    setUndoStack([]);
+    setRedoStack([]);
+    setDirty(false);
+    resetSelectionState();
+    handlers.setHoveredPixel(null);
+    handlers.setInteractionMode('idle');
+    handlers.setIsLoading(false);
+  };
+
+  const loadActiveAsset = () => {
+    if (!activeAsset) {
+      return;
+    }
+
+    return loadSpriteAssetImage({
+      asset: activeAsset,
+      canvas: canvasRef.current,
+      onError: (message) => {
+        handlers.setLoadError(message);
+        handlers.setIsLoading(false);
+      },
+      onLoaded: (ctx) => {
+        finishLoadingDocument(ctx);
+        window.requestAnimationFrame(() => {
+          centerCanvas(zoom);
+        });
+      },
+      onStart: () => {
+        handlers.setIsLoading(true);
+        handlers.setLoadError(null);
+        handlers.setMessage(null);
+      },
+    });
   };
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !activeAsset) {
-      return;
-    }
-
-    let cancelled = false;
-    const image = new Image();
-    setIsLoading(true);
-    setLoadError(null);
-    setMessage(null);
-    image.onload = () => {
-      if (cancelled || !canvas) {
-        return;
-      }
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        return;
-      }
-
-      canvas.width = image.width;
-      canvas.height = image.height;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(image, 0, 0);
-      originalImageDataRef.current = cloneImageData(ctx);
-      moveSourceImageDataRef.current = cloneImageData(ctx);
-      selectionPixelsRef.current = null;
-      isSelectionCopyRef.current = false;
-      selectionDragOriginRef.current = null;
-      moveDragOriginRef.current = null;
-      discardCurrentHistorySession();
-      setUndoStack([]);
-      setRedoStack([]);
-      setDirty(false);
-      setMoveOffset({ x: 0, y: 0 });
-      setSelectionRect(null);
-      setHoveredPixel(null);
-      setInteractionMode('idle');
-      setIsLoading(false);
-      window.requestAnimationFrame(() => {
-        centerCanvasInViewport(zoom);
-      });
-    };
-    image.onerror = () => {
-      if (cancelled) {
-        return;
-      }
-      setLoadError(`Failed to load ${activeAsset.fileName}.`);
-      setIsLoading(false);
-    };
-    image.src = activeAsset.url;
-
-    return () => {
-      cancelled = true;
-    };
+    return loadActiveAsset();
   }, [activeAsset]);
-
-  useEffect(() => {
-    if (matchingGridSources.length > 0) {
-      applyGridSource(matchingGridSources[0], { announce: false, makeVisible: false });
-      return;
-    }
-
-    resetGridSettings();
-  }, [matchingGridSources, applyGridSettings, resetGridSettings]);
 
   useEffect(() => {
     if (!isActionsOpen) {
@@ -612,7 +279,7 @@ export function SpriteEditorApp() {
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!actionsMenuRef.current?.contains(event.target as Node)) {
-        setIsActionsOpen(false);
+        handlers.setIsActionsOpen(false);
       }
     };
 
@@ -640,63 +307,42 @@ export function SpriteEditorApp() {
     };
   }, []);
 
-  const pushHistoryEntry = (entry: SpriteHistoryEntry | null) => {
-    if (!entry) {
-      return;
-    }
-
-    setUndoStack((current) => [...current, entry].slice(-50));
-    setRedoStack([]);
-  };
-
   const beginPatchHistorySession = (label: string, bounds: PixelRect) => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) {
-      return;
-    }
-
-    pendingHistorySessionRef.current = createPatchHistorySession(ctx, bounds, label);
+    beginPatchHistorySessionState({
+      bounds,
+      canvas: canvasRef.current,
+      label,
+      session,
+    });
   };
 
   const extendCurrentPatchHistorySession = (bounds: PixelRect) => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) {
-      return;
-    }
-
-    pendingHistorySessionRef.current = extendPatchHistorySession(
-      pendingHistorySessionRef.current,
-      ctx,
+    extendCurrentPatchHistorySessionState({
       bounds,
-    );
+      canvas: canvasRef.current,
+      session,
+    });
   };
 
   const beginDocumentHistorySession = (label: string) => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) {
-      return;
-    }
-
-    pendingHistorySessionRef.current = createDocumentHistorySession(ctx, label);
+    beginDocumentHistorySessionState({
+      canvas: canvasRef.current,
+      label,
+      session,
+    });
   };
 
   const finalizeCurrentHistorySession = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) {
-      pendingHistorySessionRef.current = null;
-      return;
-    }
-
-    pushHistoryEntry(finalizeHistorySession(ctx, pendingHistorySessionRef.current));
-    pendingHistorySessionRef.current = null;
+    finalizeCurrentHistorySessionState({
+      canvas: canvasRef.current,
+      session,
+      setRedoStack,
+      setUndoStack,
+    });
   };
 
   const discardCurrentHistorySession = () => {
-    pendingHistorySessionRef.current = null;
+    discardCurrentHistorySessionState(session);
   };
 
   const getCanvasSelectionImageData = () => {
@@ -718,454 +364,175 @@ export function SpriteEditorApp() {
   };
 
   const handleCopySelection = async () => {
-    const selectionImage = getCanvasSelectionImageData();
-    if (!selectionImage) {
-      return;
-    }
-
-    if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
-      setLoadError('Clipboard image copy is not supported in this browser.');
-      return;
-    }
-
-    const blob = await imageDataToBlob(selectionImage);
-    if (!blob) {
-      setLoadError('Failed to copy the current selection.');
-      return;
-    }
-
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-    setLoadError(null);
-    setMessage('Copied selection to clipboard.');
+    await runCopySelection({
+      getCanvasSelectionImageData,
+      setLoadError: handlers.setLoadError,
+      setMessage: handlers.setMessage,
+    });
   };
 
   const handlePasteSelection = async (blob: Blob) => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) {
-      return;
-    }
-
-    if (moveOffset.x !== 0 || moveOffset.y !== 0) {
-      commitMoveOffset();
-    }
-
-    const pastedImage = await blobToImageData(blob);
-    if (!pastedImage) {
-      setLoadError('Failed to read clipboard image.');
-      return;
-    }
-
-    const clippedImage =
-      pastedImage.width > canvas.width || pastedImage.height > canvas.height
-        ? clipImageData(pastedImage, canvas.width, canvas.height)
-        : pastedImage;
-    const preferredX = selectionRect?.x ?? 0;
-    const preferredY = selectionRect?.y ?? 0;
-    const pasteRect = {
-      x: Math.max(0, Math.min(preferredX, canvas.width - clippedImage.width)),
-      y: Math.max(0, Math.min(preferredY, canvas.height - clippedImage.height)),
-      width: clippedImage.width,
-      height: clippedImage.height,
-    };
-
-    beginDocumentHistorySession('Paste');
-
-    const scratchCanvas = document.createElement('canvas');
-    scratchCanvas.width = clippedImage.width;
-    scratchCanvas.height = clippedImage.height;
-    const scratchCtx = scratchCanvas.getContext('2d');
-    if (!scratchCtx) {
-      setLoadError('Failed to paste clipboard image.');
-      return;
-    }
-
-    scratchCtx.putImageData(clippedImage, 0, 0);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(scratchCanvas, pasteRect.x, pasteRect.y);
-
-    moveSourceImageDataRef.current = cloneImageData(ctx);
-    selectionPixelsRef.current = clippedImage;
-    isSelectionCopyRef.current = true;
-    selectionDragOriginRef.current = null;
-    moveDragOriginRef.current = null;
-    setSelectionRect(pasteRect);
-    setMoveOffset({ x: 0, y: 0 });
-    setTool('move');
-    setDirty(true);
-    setLoadError(null);
-    setMessage('Pasted clipboard image.');
-    finalizeCurrentHistorySession();
+    await runPasteSelection({
+      beginDocumentHistorySession,
+      blob,
+      commitMoveOffset,
+      ctx: canvasRef.current?.getContext('2d'),
+      finalizeCurrentHistorySession,
+      session,
+      preferredPosition: { x: selectionRect?.x ?? 0, y: selectionRect?.y ?? 0 },
+      resetInteractionRefs,
+      setDirty,
+      setLoadError: handlers.setLoadError,
+      setMessage: handlers.setMessage,
+      setMoveOffset,
+      setSelectionRect: handlers.setSelectionRect,
+      setTool: handlers.setTool,
+      syncCanvasSelectionSnapshot,
+    });
   };
 
   const handleSelectAsset = (nextAssetPath: string) => {
-    if (nextAssetPath === activeAssetPath) {
-      return;
-    }
-    if (dirty && !window.confirm('Discard unsaved sprite changes?')) {
-      return;
-    }
+    runSelectAsset({ activeAssetPath, dirty, nextAssetPath, setActiveAssetPath: handlers.setActiveAssetPath });
+  };
 
-    setActiveAssetPath(nextAssetPath);
+  const handleBrushColorChange = (hexColor: string) => {
+    const nextColor = parseHexColor(hexColor);
+    handlers.setBrushColor((current) => ({ ...nextColor, a: current.a }));
+  };
+
+  const handleBrushAlphaChange = (nextPercent: number) => {
+    const clampedPercent = Math.max(0, Math.min(100, nextPercent));
+    handlers.setBrushColor((current) => ({
+      ...current,
+      a: clampAlpha(Math.round((clampedPercent / 100) * 255)),
+    }));
   };
 
   const handleUndo = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx || undoStack.length === 0) {
-      return;
-    }
-
-    discardCurrentHistorySession();
-    const entry = undoStack[undoStack.length - 1];
-    applyHistoryEntry(ctx, entry, 'undo');
-    setUndoStack((current) => current.slice(0, -1));
-    setRedoStack((current) => [...current, entry].slice(-50));
-    moveSourceImageDataRef.current = cloneImageData(ctx);
-    selectionPixelsRef.current = selectionRect
-      ? cropImageData(cloneImageData(ctx), selectionRect)
-      : null;
-    isSelectionCopyRef.current = false;
-    selectionDragOriginRef.current = null;
-    moveDragOriginRef.current = null;
-    setMoveOffset({ x: 0, y: 0 });
-    setSelectionRect(null);
-    setDirty(true);
+    runUndoRedo({
+      ctx: canvasRef.current?.getContext('2d'),
+      direction: 'undo',
+      discardCurrentHistorySession,
+      entry: undoStack[undoStack.length - 1],
+      session,
+      resetSelectionState,
+      setDirty,
+      setRedoStack,
+      setUndoStack,
+    });
   };
 
   const handleRedo = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx || redoStack.length === 0) {
-      return;
-    }
-
-    discardCurrentHistorySession();
-    const entry = redoStack[redoStack.length - 1];
-    applyHistoryEntry(ctx, entry, 'redo');
-    setRedoStack((current) => current.slice(0, -1));
-    setUndoStack((current) => [...current, entry].slice(-50));
-    moveSourceImageDataRef.current = cloneImageData(ctx);
-    selectionPixelsRef.current = selectionRect
-      ? cropImageData(cloneImageData(ctx), selectionRect)
-      : null;
-    isSelectionCopyRef.current = false;
-    selectionDragOriginRef.current = null;
-    moveDragOriginRef.current = null;
-    setMoveOffset({ x: 0, y: 0 });
-    setSelectionRect(null);
-    setDirty(true);
+    runUndoRedo({
+      ctx: canvasRef.current?.getContext('2d'),
+      direction: 'redo',
+      discardCurrentHistorySession,
+      entry: redoStack[redoStack.length - 1],
+      session,
+      resetSelectionState,
+      setDirty,
+      setRedoStack,
+      setUndoStack,
+    });
   };
 
   const handleRevert = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    const originalImageData = originalImageDataRef.current;
-    if (!canvas || !ctx || !originalImageData) {
-      return;
-    }
-
-    if (dirty && !window.confirm('Revert all unsaved changes for this image?')) {
-      return;
-    }
-
-    ctx.putImageData(originalImageData, 0, 0);
-    moveSourceImageDataRef.current = cloneImageData(ctx);
-    selectionPixelsRef.current = null;
-    isSelectionCopyRef.current = false;
-    selectionDragOriginRef.current = null;
-    moveDragOriginRef.current = null;
-    discardCurrentHistorySession();
-    setUndoStack([]);
-    setRedoStack([]);
-    setDirty(false);
-    setMoveOffset({ x: 0, y: 0 });
-    setSelectionRect(null);
-    setMessage('Reverted to the last saved image.');
+    runRevert({
+      ctx: canvasRef.current?.getContext('2d'),
+      dirty,
+      discardCurrentHistorySession,
+      originalImageData: session.originalImageData,
+      session,
+      resetSelectionState,
+      setDirty,
+      setMessage: handlers.setMessage,
+      setRedoStack,
+      setUndoStack,
+    });
   };
 
   const handleSave = async () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !activeAsset || isLoading || isSaving) {
-      return;
-    }
-
-    if (moveOffset.x !== 0 || moveOffset.y !== 0) {
-      commitMoveOffset();
-    }
-
-    setIsSaving(true);
-    setMessage(null);
-    setLoadError(null);
-    try {
-      const pngDataUrl = canvas.toDataURL('image/png');
-      const response = await fetch('/__editor/save-image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          assetPath: activeAsset.assetPath,
-          pngDataUrl,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorPayload = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(errorPayload?.error ?? 'Failed to save image');
-      }
-
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        originalImageDataRef.current = cloneImageData(ctx);
-        moveSourceImageDataRef.current = cloneImageData(ctx);
-        selectionPixelsRef.current = selectionRect
-          ? cropImageData(cloneImageData(ctx), selectionRect)
-          : null;
-        isSelectionCopyRef.current = false;
-      }
-      discardCurrentHistorySession();
-      setDirty(false);
-      selectionDragOriginRef.current = null;
-      moveDragOriginRef.current = null;
-      setMoveOffset({ x: 0, y: 0 });
-      setMessage(`Saved ${activeAsset.fileName}.`);
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : 'Failed to save image.');
-    } finally {
-      setIsSaving(false);
-    }
+    await runSave({
+      activeAsset,
+      canvas: canvasRef.current,
+      cloneCanvasImage: () => {
+        const ctx = canvasRef.current?.getContext('2d');
+        return ctx ? cloneImageData(ctx) : null;
+      },
+      commitMoveOffset,
+      discardCurrentHistorySession,
+      isLoading,
+      isSaving,
+      moveOffset,
+      session,
+      resetInteractionRefs,
+      selectionRect,
+      setDirty,
+      setIsSaving: handlers.setIsSaving,
+      setLoadError: handlers.setLoadError,
+      setMessage: handlers.setMessage,
+      setMoveOffset,
+      syncCanvasSelectionSnapshot,
+    });
   };
 
   const handleResizeCanvas = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) {
-      return;
-    }
-
-    if (moveOffset.x !== 0 || moveOffset.y !== 0) {
-      commitMoveOffset();
-    }
-
-    const widthInput = window.prompt('New canvas width in pixels', String(canvas.width));
-    if (widthInput === null) {
-      return;
-    }
-
-    const nextWidth = Number.parseInt(widthInput, 10);
-    if (!Number.isFinite(nextWidth) || nextWidth < 1) {
-      setLoadError('Canvas width must be a positive integer.');
-      return;
-    }
-
-    const heightInput = window.prompt('New canvas height in pixels', String(canvas.height));
-    if (heightInput === null) {
-      return;
-    }
-
-    const nextHeight = Number.parseInt(heightInput, 10);
-    if (!Number.isFinite(nextHeight) || nextHeight < 1) {
-      setLoadError('Canvas height must be a positive integer.');
-      return;
-    }
-
-    if (nextWidth === canvas.width && nextHeight === canvas.height) {
-      setMessage('Canvas size unchanged.');
-      return;
-    }
-
-    const previousSnapshot = cloneImageData(ctx);
-    const resizeSource = document.createElement('canvas');
-    resizeSource.width = canvas.width;
-    resizeSource.height = canvas.height;
-    resizeSource.getContext('2d')?.putImageData(previousSnapshot, 0, 0);
-
-    beginDocumentHistorySession('Resize');
-    canvas.width = nextWidth;
-    canvas.height = nextHeight;
-    ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, nextWidth, nextHeight);
-    ctx.drawImage(resizeSource, 0, 0);
-    moveSourceImageDataRef.current = cloneImageData(ctx);
-    selectionPixelsRef.current = null;
-    isSelectionCopyRef.current = false;
-    selectionDragOriginRef.current = null;
-    moveDragOriginRef.current = null;
-    setDirty(true);
-    setLoadError(null);
-    setHoveredPixel(null);
-    setMoveOffset({ x: 0, y: 0 });
-    setSelectionRect(null);
-    setMessage(`Resized canvas to ${nextWidth} x ${nextHeight}.`);
-    setIsActionsOpen(false);
-    finalizeCurrentHistorySession();
-    window.requestAnimationFrame(() => {
-      centerCanvasInViewport(zoom);
+    runResizeCanvas({
+      beginDocumentHistorySession,
+      canvas: canvasRef.current,
+      commitMoveOffset,
+      ctx: canvasRef.current?.getContext('2d'),
+      finalizeCurrentHistorySession,
+      moveOffset,
+      resetSelectionState,
+      session,
+      setDirty,
+      setHoveredPixel: handlers.setHoveredPixel,
+      setIsActionsOpen: handlers.setIsActionsOpen,
+      setLoadError: handlers.setLoadError,
+      setMessage: handlers.setMessage,
+      syncCenterCanvas: () => centerCanvas(zoom),
     });
   };
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target;
-      const isEditingField =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        (target instanceof HTMLElement && target.isContentEditable);
-
-      if (event.code === 'Space' && !isEditingField) {
-        event.preventDefault();
-        setIsSpacePressed(true);
-        return;
-      }
-
-      if (isEditingField) {
-        return;
-      }
-
-      const key = event.key.toLowerCase();
-      if ((event.metaKey || event.ctrlKey) && key === 's') {
-        event.preventDefault();
-        void handleSave();
-        return;
-      }
-      if ((event.metaKey || event.ctrlKey) && key === 'c') {
-        if (!selectionRect) {
-          return;
-        }
-        event.preventDefault();
-        void handleCopySelection();
-        return;
-      }
-      if ((event.metaKey || event.ctrlKey) && (key === '+' || key === '=')) {
-        event.preventDefault();
-        applyZoom(zoom + 2);
-        return;
-      }
-      if ((event.metaKey || event.ctrlKey) && key === '-') {
-        event.preventDefault();
-        applyZoom(zoom - 2);
-        return;
-      }
-      if ((event.metaKey || event.ctrlKey) && key === 'z') {
-        event.preventDefault();
-        if (event.shiftKey) {
-          handleRedo();
-          return;
-        }
-        handleUndo();
-        return;
-      }
-      if ((event.metaKey || event.ctrlKey) && key === 'y') {
-        event.preventDefault();
-        handleRedo();
-        return;
-      }
-      if (key === 'b') {
-        setTool('draw');
-        return;
-      }
-      if (key === 'v') {
-        setTool('move');
-        return;
-      }
-      if (key === 'm') {
-        setTool('select');
-        return;
-      }
-      if (key === 'e') {
-        setTool('erase');
-        return;
-      }
-      if (key === 'i') {
-        setTool('picker');
-        return;
-      }
-      if (event.key === '[') {
-        event.preventDefault();
-        setBrushSize((current) => clampBrushSize(current - 1));
-        return;
-      }
-      if (event.key === ']') {
-        event.preventDefault();
-        setBrushSize((current) => clampBrushSize(current + 1));
-        return;
-      }
-      if (key === '0') {
-        event.preventDefault();
-        centerCanvasInViewport(zoom);
-        return;
-      }
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        clearSelection();
-      }
-    };
-
-    const handleKeyUp = (event: KeyboardEvent) => {
-      if (event.code === 'Space') {
-        setIsSpacePressed(false);
-      }
-    };
-
-    const handlePaste = (event: ClipboardEvent) => {
-      const target = event.target;
-      const isEditingField =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        (target instanceof HTMLElement && target.isContentEditable);
-      if (isEditingField) {
-        return;
-      }
-
-      const imageItem = Array.from(event.clipboardData?.items ?? []).find((item) =>
-        item.type.startsWith('image/'),
-      );
-      const file = imageItem?.getAsFile();
-      if (!file) {
-        return;
-      }
-
-      event.preventDefault();
-      void handlePasteSelection(file);
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    window.addEventListener('paste', handlePaste);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-      window.removeEventListener('paste', handlePaste);
-    };
+    return registerSpriteEditorKeyboardShortcuts({
+      centerCanvas: () => centerCanvas(zoom),
+      clearSelection,
+      copySelection: handleCopySelection,
+      handlePasteSelection,
+      hasSelection: selectionRect !== null,
+      handleRedo,
+      handleSave,
+      handleUndo,
+      setBrushSize: (updater) => handlers.setBrushSize((current) => clampBrushSize(updater(current))),
+      setIsSpacePressed: handlers.setIsSpacePressed,
+      setTool: handlers.setTool,
+      zoomIn: () => applyZoom(zoom + 2),
+      zoomOut: () => applyZoom(zoom - 2),
+    });
   }, [handleRedo, handleSave, handleUndo, selectionRect, zoom]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
     const shouldPan = event.button === 1 || (event.button === 0 && isSpacePressed);
     if (shouldPan) {
       event.preventDefault();
-      panOriginRef.current = {
+      session.panOrigin = {
         pointerId: event.pointerId,
         startClientX: event.clientX,
         startClientY: event.clientY,
         startOffsetX: viewportOffset.x,
         startOffsetY: viewportOffset.y,
       };
-      setInteractionMode('pan');
+      handlers.setInteractionMode('pan');
       event.currentTarget.setPointerCapture(event.pointerId);
       return;
     }
 
-    if (event.button !== 0) {
-      return;
-    }
-
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    const activeTool = event.altKey ? 'picker' : tool;
-    if (!canvas || !ctx) {
+    if (event.button !== 0 || !canvas || !ctx) {
+      const activeTool = event.altKey ? 'picker' : tool;
       if (activeTool === 'select' && selectionRect) {
         clearSelection();
       }
@@ -1173,6 +540,7 @@ export function SpriteEditorApp() {
     }
 
     const point = getPixelCoordinates(canvas, event);
+    const activeTool = event.altKey ? 'picker' : tool;
     if (!point) {
       if (activeTool === 'select' && selectionRect) {
         clearSelection();
@@ -1186,9 +554,9 @@ export function SpriteEditorApp() {
       }
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
-      selectionDragOriginRef.current = point;
-      setSelectionRect({ x: point.x, y: point.y, width: 1, height: 1 });
-      setInteractionMode('select');
+      session.selectionDragOrigin = point;
+      handlers.setSelectionRect(beginSelectionInteraction(point));
+      handlers.setInteractionMode('select');
       return;
     }
 
@@ -1196,24 +564,25 @@ export function SpriteEditorApp() {
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
       beginDocumentHistorySession('Move');
-      if (!selectionRect || !isSelectionCopyRef.current) {
-        moveSourceImageDataRef.current = cloneImageData(ctx);
+      const moveStart = beginMoveInteraction({
+        ctx,
+        isSelectionCopy: session.isSelectionCopy,
+        moveOffset,
+        moveSourceImage: session.moveSourceImageData,
+        point,
+        selectionRect,
+      });
+      session.moveDragOrigin = moveStart.moveDragOrigin;
+      session.moveSourceImageData = moveStart.nextMoveSourceImage;
+      if (moveStart.nextSelectionPixels) {
+        session.selectionPixels = moveStart.nextSelectionPixels;
       }
-      if (selectionRect && !isSelectionCopyRef.current && moveSourceImageDataRef.current) {
-        selectionPixelsRef.current = cropImageData(moveSourceImageDataRef.current, selectionRect);
-      }
-      moveDragOriginRef.current = {
-        startOffsetX: moveOffset.x,
-        startOffsetY: moveOffset.y,
-        startX: point.x,
-        startY: point.y,
-      };
-      setInteractionMode('move');
+      handlers.setInteractionMode('move');
       return;
     }
 
     if (activeTool === 'picker') {
-      setBrushColor(getPixelColor(ctx, point.x, point.y));
+      handlers.setBrushColor(pickColorAtPoint(ctx, point));
       return;
     }
 
@@ -1223,29 +592,29 @@ export function SpriteEditorApp() {
 
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    beginPatchHistorySession('Brush', getBrushStampBounds(point.x, point.y, brushSize));
-    paintPoint(ctx, point.x, point.y, brushSize, activeTool, brushColor);
-    lastPointerRef.current = point;
-    setInteractionMode('paint');
+    const paintStart = beginPaintInteraction({ activeTool, brushColor, brushSize, ctx, point });
+    beginPatchHistorySession('Brush', paintStart.historyBounds);
+    session.lastPointer = paintStart.lastPointer;
+    handlers.setInteractionMode('paint');
     setDirty(true);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const ctx = canvasRef.current?.getContext('2d');
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) {
       return;
     }
 
     const point = getPixelCoordinates(canvas, event);
-    setHoveredPixel(point);
+    handlers.setHoveredPixel(point);
 
     if (interactionMode === 'pan') {
-      const panOrigin = panOriginRef.current;
+      const panOrigin = session.panOrigin;
       if (!panOrigin) {
         return;
       }
-      setViewportOffset({
+      handlers.setViewportOffset({
         x: panOrigin.startOffsetX + (event.clientX - panOrigin.startClientX),
         y: panOrigin.startOffsetY + (event.clientY - panOrigin.startClientY),
       });
@@ -1253,38 +622,29 @@ export function SpriteEditorApp() {
     }
 
     if (interactionMode === 'select') {
-      const selectionOrigin = selectionDragOriginRef.current;
+      const selectionOrigin = session.selectionDragOrigin;
       if (!selectionOrigin || !point) {
         return;
       }
-
-      setSelectionRect(normalizeSelectionRect(selectionOrigin, point));
+      handlers.setSelectionRect(updateSelectionInteraction(selectionOrigin, point));
       return;
     }
 
     if (interactionMode === 'move') {
-      const moveOrigin = moveDragOriginRef.current;
-      const moveSource = moveSourceImageDataRef.current;
-      if (!moveOrigin || !moveSource || !point) {
+      const moveOrigin = session.moveDragOrigin;
+      const moveSourceImage = session.moveSourceImageData;
+      if (!moveOrigin || !moveSourceImage || !point) {
         return;
       }
-
-      const nextOffset = {
-        x: moveOrigin.startOffsetX + (point.x - moveOrigin.startX),
-        y: moveOrigin.startOffsetY + (point.y - moveOrigin.startY),
-      };
-      if (selectionRect && selectionPixelsRef.current) {
-        drawSelectionAtOffset(
-          ctx,
-          moveSource,
-          selectionRect,
-          selectionPixelsRef.current,
-          nextOffset,
-          { clearSourceRect: !isSelectionCopyRef.current },
-        );
-      } else {
-        drawImageDataAtOffset(ctx, moveSource, nextOffset);
-      }
+      const nextOffset = updateMoveInteraction({
+        ctx,
+        isSelectionCopy: session.isSelectionCopy,
+        moveOrigin,
+        moveSourceImage,
+        point,
+        selectionPixels: session.selectionPixels,
+        selectionRect,
+      });
       setMoveOffset(nextOffset);
       setDirty(true);
       return;
@@ -1294,39 +654,43 @@ export function SpriteEditorApp() {
       return;
     }
 
-    const previousPoint = lastPointerRef.current;
+    const previousPoint = session.lastPointer;
     if (!point || !previousPoint) {
       return;
     }
-
-    extendCurrentPatchHistorySession(getStrokeSegmentBounds(previousPoint, point, brushSize));
-    paintLine(ctx, previousPoint, point, brushSize, tool, brushColor);
-    lastPointerRef.current = point;
+    const paintUpdate = updatePaintInteraction({
+      brushColor,
+      brushSize,
+      ctx,
+      point,
+      previousPoint,
+      tool,
+    });
+    extendCurrentPatchHistorySession(paintUpdate.historyBounds);
+    session.lastPointer = paintUpdate.lastPointer;
     setDirty(true);
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    const completedSelectionRect = selectionRect;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    panOriginRef.current = null;
-    selectionDragOriginRef.current = null;
-    moveDragOriginRef.current = null;
-    lastPointerRef.current = null;
-    if (interactionMode === 'select' && completedSelectionRect && moveSourceImageDataRef.current) {
-      selectionPixelsRef.current = cropImageData(
-        moveSourceImageDataRef.current,
-        completedSelectionRect,
-      );
-      isSelectionCopyRef.current = false;
+    session.panOrigin = null;
+    resetInteractionRefs();
+    if (interactionMode === 'select') {
+      const selectionResult = finalizeSelectionInteraction({
+        moveSourceImage: session.moveSourceImageData,
+        selectionRect,
+      });
+      session.selectionPixels = selectionResult.selectionPixels;
+      session.isSelectionCopy = selectionResult.isSelectionCopy;
     }
     if (interactionMode === 'paint' || interactionMode === 'move') {
       finalizeCurrentHistorySession();
     } else {
       discardCurrentHistorySession();
     }
-    setInteractionMode('idle');
+    handlers.setInteractionMode('idle');
   };
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
@@ -1338,86 +702,99 @@ export function SpriteEditorApp() {
       return;
     }
 
-    setViewportOffset((current) => ({
+    handlers.setViewportOffset((current) => ({
       x: current.x - Math.round(event.deltaX),
       y: current.y - Math.round(event.deltaY),
     }));
   };
 
-  const activeHexColor = rgbaToHex(brushColor);
-  const canvasSizeLabel = canvasRef.current
-    ? `${canvasRef.current.width} x ${canvasRef.current.height}`
-    : '—';
-  const canvasCursor =
-    interactionMode === 'pan'
-      ? 'grabbing'
-      : isSpacePressed
-        ? 'grab'
-        : tool === 'move'
-          ? 'move'
-          : tool === 'picker'
-            ? 'cell'
-            : 'crosshair';
-  const brushPreviewSize = brushSize * zoom;
-  const brushPreviewLeft =
-    hoveredPixel && activeAsset
-      ? viewportOffset.x + (hoveredPixel.x - Math.floor(brushSize / 2)) * zoom
-      : 0;
-  const brushPreviewTop =
-    hoveredPixel && activeAsset
-      ? viewportOffset.y + (hoveredPixel.y - Math.floor(brushSize / 2)) * zoom
-      : 0;
-  const shouldShowBrushPreview = hoveredPixel && activeAsset && interactionMode !== 'pan';
+  const displayedSelectionRect =
+    selectionRect === null
+      ? null
+      : {
+          ...selectionRect,
+          x: selectionRect.x + moveOffset.x,
+          y: selectionRect.y + moveOffset.y,
+        };
   const gridStepX = gridSettings.frameWidth + (gridSettings.gapX ?? 0);
   const gridStepY = gridSettings.frameHeight + (gridSettings.gapY ?? 0);
-  const gridColorWithAlpha = `${gridColor}${Math.round(gridOpacity * 255)
-    .toString(16)
-    .padStart(2, '0')}`;
+  const scaledCanvasWidth = canvasRef.current ? Math.round(canvasRef.current.width * zoom) : 0;
+  const scaledCanvasHeight = canvasRef.current ? Math.round(canvasRef.current.height * zoom) : 0;
   const scaledGridStepX = Math.round(gridStepX * zoom);
   const scaledGridStepY = Math.round(gridStepY * zoom);
   const scaledGridOffsetX = Math.round((gridSettings.offsetX ?? 0) * zoom);
   const scaledGridOffsetY = Math.round((gridSettings.offsetY ?? 0) * zoom);
-  const scaledCanvasWidth = canvasRef.current ? Math.round(canvasRef.current.width * zoom) : 0;
-  const scaledCanvasHeight = canvasRef.current ? Math.round(canvasRef.current.height * zoom) : 0;
-  const shouldShowGridOverlay =
-    isGridVisible && activeAsset && gridSettings.frameWidth > 0 && gridSettings.frameHeight > 0;
-  const verticalGridLines =
-    shouldShowGridOverlay && scaledGridStepX > 0
-      ? Array.from(
-          {
-            length:
-              Math.floor(Math.max(scaledCanvasWidth - scaledGridOffsetX, 0) / scaledGridStepX) + 1,
+  const gridLines = {
+    horizontal:
+      isGridVisible && activeAsset && gridSettings.frameHeight > 0 && scaledGridStepY > 0
+        ? Array.from(
+            {
+              length:
+                Math.floor(Math.max(scaledCanvasHeight - scaledGridOffsetY, 0) / scaledGridStepY) +
+                1,
+            },
+            (_, index) => scaledGridOffsetY + index * scaledGridStepY,
+          ).filter((position) => position >= 0 && position <= scaledCanvasHeight)
+        : [],
+    vertical:
+      isGridVisible && activeAsset && gridSettings.frameWidth > 0 && scaledGridStepX > 0
+        ? Array.from(
+            {
+              length:
+                Math.floor(Math.max(scaledCanvasWidth - scaledGridOffsetX, 0) / scaledGridStepX) +
+                1,
+            },
+            (_, index) => scaledGridOffsetX + index * scaledGridStepX,
+          ).filter((position) => position >= 0 && position <= scaledCanvasWidth)
+        : [],
+  };
+  const view = {
+    activeHexColor: rgbaToHex(brushColor),
+    brushPreview:
+      hoveredPixel && activeAsset && interactionMode !== 'pan'
+        ? {
+            left: viewportOffset.x + (hoveredPixel.x - Math.floor(brushSize / 2)) * zoom,
+            size: brushSize * zoom,
+            top: viewportOffset.y + (hoveredPixel.y - Math.floor(brushSize / 2)) * zoom,
+          }
+        : null,
+    canvasCursor:
+      interactionMode === 'pan'
+        ? 'grabbing'
+        : isSpacePressed
+          ? 'grab'
+          : tool === 'move'
+            ? 'move'
+            : tool === 'picker'
+              ? 'cell'
+              : 'crosshair',
+    canvasSizeLabel: canvasRef.current
+      ? `${canvasRef.current.width} x ${canvasRef.current.height}`
+      : '—',
+    displayedSelectionRect,
+    gridColorWithAlpha: `${gridColor}${Math.round(gridOpacity * 255)
+      .toString(16)
+      .padStart(2, '0')}`,
+    gridLines,
+    gridOverlay:
+      gridLines.vertical.length > 0 || gridLines.horizontal.length > 0
+        ? {
+            height: `${scaledCanvasHeight}px`,
+            left: `${viewportOffset.x}px`,
+            top: `${viewportOffset.y}px`,
+            width: `${scaledCanvasWidth}px`,
+          }
+        : null,
+    selectionOverlay:
+      displayedSelectionRect === null
+        ? null
+        : {
+            height: `${displayedSelectionRect.height * zoom}px`,
+            left: `${viewportOffset.x + displayedSelectionRect.x * zoom}px`,
+            top: `${viewportOffset.y + displayedSelectionRect.y * zoom}px`,
+            width: `${displayedSelectionRect.width * zoom}px`,
           },
-          (_, index) => scaledGridOffsetX + index * scaledGridStepX,
-        ).filter((position) => position >= 0 && position <= scaledCanvasWidth)
-      : [];
-  const horizontalGridLines =
-    shouldShowGridOverlay && scaledGridStepY > 0
-      ? Array.from(
-          {
-            length:
-              Math.floor(Math.max(scaledCanvasHeight - scaledGridOffsetY, 0) / scaledGridStepY) + 1,
-          },
-          (_, index) => scaledGridOffsetY + index * scaledGridStepY,
-        ).filter((position) => position >= 0 && position <= scaledCanvasHeight)
-      : [];
-  const displayedSelectionRect =
-    selectionRect !== null
-      ? {
-          ...selectionRect,
-          x: selectionRect.x + moveOffset.x,
-          y: selectionRect.y + moveOffset.y,
-        }
-      : null;
-  const selectionOverlayStyle = displayedSelectionRect
-    ? {
-        height: `${displayedSelectionRect.height * zoom}px`,
-        left: `${viewportOffset.x + displayedSelectionRect.x * zoom}px`,
-        top: `${viewportOffset.y + displayedSelectionRect.y * zoom}px`,
-        width: `${displayedSelectionRect.width * zoom}px`,
-      }
-    : null;
-
+  };
   return (
     <ResizablePanelGroup
       orientation="horizontal"
@@ -1425,7 +802,7 @@ export function SpriteEditorApp() {
       onLayoutChanged={(layout) => {
         const nextSidebarSize = layout['sprite-editor-sidebar'];
         if (typeof nextSidebarSize === 'number' && Number.isFinite(nextSidebarSize)) {
-          setSidebarSize(nextSidebarSize);
+          handlers.setSidebarSize(nextSidebarSize);
         }
       }}
       className="h-screen overflow-hidden bg-slate-950 text-slate-100"
@@ -1453,204 +830,31 @@ export function SpriteEditorApp() {
           </p>
           <label className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-900/50 px-3 py-2 text-sm text-slate-300">
             <span>Resizable Sidebar</span>
-            <Switch checked={isSidebarResizable} onCheckedChange={setIsSidebarResizable} />
+            <Switch checked={isSidebarResizable} onCheckedChange={handlers.setIsSidebarResizable} />
           </label>
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 py-4">
           <div className="space-y-4">
-            <CollapsibleSection
-              title={`Grid`}
-              isOpen={isGridSectionOpen}
-              onToggle={() => setIsGridSectionOpen((current) => !current)}
-            >
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm text-slate-300">Overlay and tileset frame settings</div>
-                  <div className="flex items-center gap-2 text-xs text-slate-300">
-                    <span>Show</span>
-                    <Switch checked={isGridVisible} onCheckedChange={setIsGridVisible} />
-                  </div>
-                </div>
+            <GridSection
+              applyGridSource={applyGridSource}
+              gridColor={gridColor}
+              gridOpacity={gridOpacity}
+              gridSettings={gridSettings}
+              isGridVisible={isGridVisible}
+              matchingGridSources={matchingGridSources}
+              setGridColor={handlers.setGridColor}
+              setGridOpacity={handlers.setGridOpacity}
+              setIsGridVisible={handlers.setIsGridVisible}
+              updateGridNumber={handlers.updateGridNumber}
+            />
 
-                <div className="mt-4 grid gap-3">
-                  <label className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-300">
-                    <span className="min-w-16 uppercase tracking-[0.16em] text-slate-500">
-                      Color
-                    </span>
-                    <input
-                      type="color"
-                      value={gridColor}
-                      onChange={(event) => setGridColor(event.currentTarget.value)}
-                      className="h-8 w-8 rounded border-0 bg-transparent p-0"
-                    />
-                    <input
-                      type="range"
-                      min="0.05"
-                      max="1"
-                      step="0.05"
-                      value={gridOpacity}
-                      onChange={(event) => setGridOpacity(Number(event.currentTarget.value))}
-                      className="flex-1"
-                    />
-                    <span className="w-10 text-right text-slate-100">
-                      {Math.round(gridOpacity * 100)}%
-                    </span>
-                  </label>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-300">
-                      <div className="uppercase tracking-[0.16em] text-slate-500">Frame Width</div>
-                      <input
-                        type="number"
-                        min="1"
-                        value={gridSettings.frameWidth}
-                        onChange={(event) =>
-                          updateGridNumber('frameWidth', event.currentTarget.value, true)
-                        }
-                        className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
-                      />
-                    </label>
-                    <label className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-300">
-                      <div className="uppercase tracking-[0.16em] text-slate-500">Frame Height</div>
-                      <input
-                        type="number"
-                        min="1"
-                        value={gridSettings.frameHeight}
-                        onChange={(event) =>
-                          updateGridNumber('frameHeight', event.currentTarget.value, true)
-                        }
-                        className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
-                      />
-                    </label>
-                    <label className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-300">
-                      <div className="uppercase tracking-[0.16em] text-slate-500">Offset X</div>
-                      <input
-                        type="number"
-                        min="0"
-                        value={gridSettings.offsetX ?? ''}
-                        onChange={(event) => updateGridNumber('offsetX', event.currentTarget.value)}
-                        className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
-                      />
-                    </label>
-                    <label className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-300">
-                      <div className="uppercase tracking-[0.16em] text-slate-500">Offset Y</div>
-                      <input
-                        type="number"
-                        min="0"
-                        value={gridSettings.offsetY ?? ''}
-                        onChange={(event) => updateGridNumber('offsetY', event.currentTarget.value)}
-                        className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
-                      />
-                    </label>
-                    <label className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-300">
-                      <div className="uppercase tracking-[0.16em] text-slate-500">Gap X</div>
-                      <input
-                        type="number"
-                        min="0"
-                        value={gridSettings.gapX ?? ''}
-                        onChange={(event) => updateGridNumber('gapX', event.currentTarget.value)}
-                        className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
-                      />
-                    </label>
-                    <label className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-300">
-                      <div className="uppercase tracking-[0.16em] text-slate-500">Gap Y</div>
-                      <input
-                        type="number"
-                        min="0"
-                        value={gridSettings.gapY ?? ''}
-                        onChange={(event) => updateGridNumber('gapY', event.currentTarget.value)}
-                        className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
-                      />
-                    </label>
-                    <label className="col-span-2 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-300">
-                      <div className="uppercase tracking-[0.16em] text-slate-500">Frame Count</div>
-                      <input
-                        type="number"
-                        min="0"
-                        value={gridSettings.frameCount ?? ''}
-                        onChange={(event) =>
-                          updateGridNumber('frameCount', event.currentTarget.value)
-                        }
-                        className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
-                      />
-                    </label>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-3">
-                    <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
-                      Tileset Presets
-                    </div>
-                    {matchingGridSources.length > 0 ? (
-                      <div className="mt-3 space-y-2">
-                        {matchingGridSources.map((source) => (
-                          <button
-                            key={`${source.sourcePath}:${source.id}`}
-                            type="button"
-                            onClick={() => applyGridSource(source)}
-                            className="w-full rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-left transition hover:border-slate-600"
-                          >
-                            <div className="text-sm text-slate-100">{source.id}</div>
-                            <div className="mt-1 text-xs text-slate-500">{source.sourcePath}</div>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="mt-3 text-sm text-slate-500">
-                        No matching `.tileset.json` found for this image.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CollapsibleSection>
-
-            <CollapsibleSection
-              title={`Assets (${spriteAssets.length})`}
-              isOpen={isAssetsSectionOpen}
-              onToggle={() => setIsAssetsSectionOpen((current) => !current)}
-            >
-              <div className="space-y-5">
-                {Object.entries(assetsByCategory).map(([category, assets]) => (
-                  <section key={category}>
-                    <div className="mb-2 px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      {category}
-                    </div>
-                    <div className="space-y-2">
-                      {assets.map((asset) => (
-                        <button
-                          key={asset.assetPath}
-                          type="button"
-                          onClick={() => handleSelectAsset(asset.assetPath)}
-                          className={`grid w-full grid-cols-[3rem_1fr] gap-3 rounded-2xl border p-3 text-left transition ${
-                            asset.assetPath === activeAssetPath
-                              ? 'border-cyan-300 bg-cyan-500/15'
-                              : 'border-slate-800 bg-slate-900/40 hover:border-slate-600'
-                          }`}
-                        >
-                          <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-slate-700 bg-slate-950">
-                            <img
-                              src={asset.url}
-                              alt={asset.fileName}
-                              className="max-h-full max-w-full object-contain"
-                              style={{ imageRendering: 'pixelated' }}
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-medium text-slate-100">
-                              {asset.fileName}
-                            </div>
-                            <div className="mt-1 truncate text-xs text-slate-500">
-                              {asset.assetPath}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-                ))}
-              </div>
-            </CollapsibleSection>
+            <AssetsSection
+              activeAssetPath={activeAssetPath}
+              assetsByCategory={spriteAssetsByCategory}
+              onSelectAsset={handleSelectAsset}
+              totalAssetCount={spriteAssets.length}
+            />
           </div>
         </div>
       </ResizablePanel>
@@ -1681,28 +885,13 @@ export function SpriteEditorApp() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <div ref={actionsMenuRef} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setIsActionsOpen((current) => !current)}
-                    className="rounded-xl border border-slate-700 bg-slate-950/80 px-3 py-2 text-sm text-slate-200 transition hover:border-slate-500"
-                  >
-                    Actions
-                  </button>
-                  {isActionsOpen ? (
-                    <div className="absolute right-0 top-[calc(100%+0.5rem)] z-20 min-w-52 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/95 shadow-2xl shadow-slate-950/60">
-                      <button
-                        type="button"
-                        onClick={handleResizeCanvas}
-                        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-slate-200 transition hover:bg-slate-900/90"
-                      >
-                        <span>Resize canvas…</span>
-                        <span className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
-                          {canvasSizeLabel}
-                        </span>
-                      </button>
-                    </div>
-                  ) : null}
+                <div ref={actionsMenuRef}>
+                  <SpriteEditorActionsMenu
+                    canvasSizeLabel={view.canvasSizeLabel}
+                    isOpen={isActionsOpen}
+                    onResizeCanvas={handleResizeCanvas}
+                    onToggle={() => handlers.setIsActionsOpen((current) => !current)}
+                  />
                 </div>
                 <button
                   type="button"
@@ -1730,7 +919,9 @@ export function SpriteEditorApp() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void handleSave()}
+                  onClick={() => {
+                    void handleSave();
+                  }}
                   disabled={!activeAsset || isLoading || isSaving || !dirty}
                   className="rounded-xl border border-cyan-400/50 bg-cyan-500/15 px-3 py-2 text-sm text-cyan-100 transition hover:border-cyan-300 disabled:opacity-40"
                 >
@@ -1740,131 +931,25 @@ export function SpriteEditorApp() {
             </div>
 
             <div className="mb-4 grid gap-3 rounded-3xl border border-slate-800 bg-slate-950/70 p-4 xl:grid-cols-[auto_auto_auto_auto]">
-              <div className="flex flex-wrap gap-2">
-                {(
-                  [
-                    ['draw', 'Brush', 'B'],
-                    ['move', 'Move', 'V'],
-                    ['select', 'Select', 'M'],
-                    ['erase', 'Erase', 'E'],
-                    ['picker', 'Pick', 'I'],
-                  ] as const
-                ).map(([nextTool, label, shortcut]) => (
-                  <button
-                    key={nextTool}
-                    type="button"
-                    onClick={() => setTool(nextTool)}
-                    aria-label={`${label} (${shortcut})`}
-                    title={`${label} (${shortcut})`}
-                    className={`flex h-10 w-10 items-center justify-center rounded-xl border transition ${
-                      tool === nextTool
-                        ? 'border-cyan-300 bg-cyan-500/15 text-cyan-100'
-                        : 'border-slate-800 bg-slate-900/70 text-slate-300 hover:border-slate-600'
-                    }`}
-                  >
-                    <ToolIcon tool={nextTool} />
-                  </button>
-                ))}
-              </div>
+              <SpriteToolPicker activeTool={tool} onSelectTool={handlers.setTool} />
 
-              <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3">
-                <label className="flex items-center gap-3 text-xs text-slate-300">
-                  <span className="uppercase tracking-[0.18em] text-slate-500">Color</span>
-                  <input
-                    type="color"
-                    value={activeHexColor}
-                    onChange={(event) => {
-                      const nextColor = parseHexColor(event.currentTarget.value);
-                      setBrushColor((current) => ({ ...nextColor, a: current.a }));
-                    }}
-                    className="h-10 w-10 rounded-lg border-0 bg-transparent p-0"
-                  />
-                </label>
-                <div
-                  className="h-10 w-10 rounded-xl border border-white/15"
-                  style={{
-                    backgroundColor: `rgba(${brushColor.r}, ${brushColor.g}, ${brushColor.b}, ${
-                      brushColor.a / 255
-                    })`,
-                  }}
-                />
-                <div className="text-sm text-slate-300">
-                  <div>{rgbaToHex(brushColor).toUpperCase()}</div>
-                  <div className="text-xs text-slate-500">
-                    rgba({brushColor.r}, {brushColor.g}, {brushColor.b},{' '}
-                    {(brushColor.a / 255).toFixed(2)})
-                  </div>
-                </div>
-              </div>
+              <BrushColorPanel
+                activeHexColor={view.activeHexColor}
+                brushColor={brushColor}
+                onColorChange={handleBrushColorChange}
+              />
 
-              <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3">
-                <label className="flex items-center gap-2 text-xs text-slate-300">
-                  <span className="uppercase tracking-[0.18em] text-slate-500">Opacity</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={Math.round((brushColor.a / 255) * 100)}
-                    onChange={(event) => {
-                      const nextPercent = Math.max(
-                        0,
-                        Math.min(100, Number(event.currentTarget.value) || 0),
-                      );
-                      setBrushColor((current) => ({
-                        ...current,
-                        a: clampAlpha(Math.round((nextPercent / 100) * 255)),
-                      }));
-                    }}
-                    className="w-16 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
-                  />
-                  <span className="text-xs text-slate-500">%</span>
-                </label>
+              <BrushSettingsPanel
+                alphaPercent={Math.round((brushColor.a / 255) * 100)}
+                brushSize={brushSize}
+                onAlphaChange={handleBrushAlphaChange}
+                onBrushSizeChange={(nextBrushSize) => handlers.setBrushSize(clampBrushSize(nextBrushSize))}
+              />
 
-                <label className="flex items-center gap-2 text-xs text-slate-300">
-                  <span className="uppercase tracking-[0.18em] text-slate-500">Brush</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max="12"
-                    value={brushSize}
-                    onChange={(event) =>
-                      setBrushSize(clampBrushSize(Number(event.currentTarget.value) || 1))
-                    }
-                    className="w-16 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
-                  />
-                  <span className="text-xs text-slate-500">px</span>
-                </label>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-4 py-3 xl:justify-end">
-                <label className="flex items-center gap-2 text-xs text-slate-300">
-                  <span className="uppercase tracking-[0.18em] text-slate-500">Zoom</span>
-                  <input
-                    type="number"
-                    min="2"
-                    max="48"
-                    value={zoom}
-                    onChange={(event) => applyZoom(Number(event.currentTarget.value) || zoom)}
-                    className="w-16 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
-                  />
-                  <span className="text-xs text-slate-500">x</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => centerCanvasInViewport(zoom)}
-                  className="rounded-lg border border-slate-800 bg-slate-900/70 px-2.5 py-1.5 text-xs text-slate-300 transition hover:border-slate-600"
-                >
-                  Center
-                </button>
-              </div>
+              <ZoomPanel zoom={zoom} onCenter={() => centerCanvas(zoom)} onZoomChange={applyZoom} />
             </div>
 
-            {message || loadError ? (
-              <div className="mb-4 flex flex-wrap items-center gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-sm">
-                {message ? <div className="text-emerald-300">{message}</div> : null}
-                {loadError ? <div className="text-rose-300">{loadError}</div> : null}
-              </div>
-            ) : null}
+            <StatusBanner message={message} loadError={loadError} />
 
             <div
               ref={viewportRef}
@@ -1874,7 +959,7 @@ export function SpriteEditorApp() {
               onPointerCancel={handlePointerUp}
               onPointerLeave={() => {
                 if (interactionMode === 'idle') {
-                  setHoveredPixel(null);
+                  handlers.setHoveredPixel(null);
                 }
               }}
               onWheel={handleWheel}
@@ -1886,7 +971,7 @@ export function SpriteEditorApp() {
                   'linear-gradient(45deg, rgba(148,163,184,0.12) 25%, transparent 25%), linear-gradient(-45deg, rgba(148,163,184,0.12) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(148,163,184,0.12) 75%), linear-gradient(-45deg, transparent 75%, rgba(148,163,184,0.12) 75%)',
                 backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0',
                 backgroundSize: '16px 16px',
-                cursor: canvasCursor,
+                cursor: view.canvasCursor,
                 touchAction: 'none',
               }}
             >
@@ -1903,34 +988,29 @@ export function SpriteEditorApp() {
                       width: canvasRef.current ? `${canvasRef.current.width}px` : undefined,
                     }}
                   />
-                  {shouldShowGridOverlay ? (
+                  {view.gridOverlay ? (
                     <div
                       className="pointer-events-none absolute"
-                      style={{
-                        height: `${scaledCanvasHeight}px`,
-                        left: `${viewportOffset.x}px`,
-                        top: `${viewportOffset.y}px`,
-                        width: `${scaledCanvasWidth}px`,
-                      }}
+                      style={view.gridOverlay ?? undefined}
                     >
-                      {verticalGridLines.map((position) => (
+                      {view.gridLines.vertical.map((position) => (
                         <div
                           key={`grid-v-${position}`}
                           className="absolute top-0"
                           style={{
-                            backgroundColor: gridColorWithAlpha,
+                            backgroundColor: view.gridColorWithAlpha,
                             height: `${scaledCanvasHeight}px`,
                             left: `${position}px`,
                             width: '1px',
                           }}
                         />
                       ))}
-                      {horizontalGridLines.map((position) => (
+                      {view.gridLines.horizontal.map((position) => (
                         <div
                           key={`grid-h-${position}`}
                           className="absolute left-0"
                           style={{
-                            backgroundColor: gridColorWithAlpha,
+                            backgroundColor: view.gridColorWithAlpha,
                             height: '1px',
                             top: `${position}px`,
                             width: `${scaledCanvasWidth}px`,
@@ -1939,18 +1019,18 @@ export function SpriteEditorApp() {
                       ))}
                     </div>
                   ) : null}
-                  {selectionOverlayStyle ? (
+                  {view.selectionOverlay ? (
                     <div
                       className="pointer-events-none absolute border border-cyan-300"
                       style={{
-                        ...selectionOverlayStyle,
+                        ...view.selectionOverlay,
                         boxShadow: '0 0 0 1px rgba(8,145,178,0.45)',
                       }}
                     >
                       <div className="h-full w-full border border-dashed border-white/80" />
                     </div>
                   ) : null}
-                  {shouldShowBrushPreview ? (
+                  {view.brushPreview ? (
                     <div
                       className="pointer-events-none absolute border"
                       style={{
@@ -1966,10 +1046,10 @@ export function SpriteEditorApp() {
                             ? 'rgba(248, 113, 113, 0.9)'
                             : 'rgba(255, 255, 255, 0.9)',
                         boxSizing: 'border-box',
-                        height: `${brushPreviewSize}px`,
-                        left: `${brushPreviewLeft}px`,
-                        top: `${brushPreviewTop}px`,
-                        width: `${brushPreviewSize}px`,
+                        height: `${view.brushPreview.size}px`,
+                        left: `${view.brushPreview.left}px`,
+                        top: `${view.brushPreview.top}px`,
+                        width: `${view.brushPreview.size}px`,
                       }}
                     />
                   ) : null}
@@ -1982,19 +1062,19 @@ export function SpriteEditorApp() {
             </div>
 
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
-            <div className="flex flex-wrap items-center gap-4">
-              <div>Canvas {canvasSizeLabel}</div>
-              <div>Tool {tool}</div>
-              <div>Brush {brushSize}px</div>
-              <div>Zoom {zoom}x</div>
+              <div className="flex flex-wrap items-center gap-4">
+                <div>Canvas {view.canvasSizeLabel}</div>
+                <div>Tool {tool}</div>
+                <div>Brush {brushSize}px</div>
+                <div>Zoom {zoom}x</div>
                 <div>
                   Selection{' '}
-                  {displayedSelectionRect
-                  ? `${displayedSelectionRect.width} x ${displayedSelectionRect.height}`
-                  : '—'}
+                  {view.displayedSelectionRect
+                    ? `${view.displayedSelectionRect.width} x ${view.displayedSelectionRect.height}`
+                    : '—'}
+                </div>
+                <div>Cursor {hoveredPixel ? `${hoveredPixel.x}, ${hoveredPixel.y}` : '—'}</div>
               </div>
-              <div>Cursor {hoveredPixel ? `${hoveredPixel.x}, ${hoveredPixel.y}` : '—'}</div>
-            </div>
               <div className="flex flex-wrap items-center gap-4 text-xs uppercase tracking-[0.16em] text-slate-500">
                 <span>`Alt` pick</span>
                 <span>`Space` drag</span>

@@ -50,7 +50,7 @@ type EditorState = {
   tool: EditorTool;
 };
 
-type EditorActions = {
+type EditorHandlers = {
   applyAssetPath: () => void;
   deletePath: (pathId: string) => void;
   deleteSelectedEntity: () => void;
@@ -93,7 +93,7 @@ type EditorActions = {
   updateSelectedEntityType: (nextType: PlaceableEntityType) => void;
 };
 
-type EditorStore = EditorState & EditorActions;
+type EditorStore = EditorState & EditorHandlers & { handlers: EditorHandlers };
 
 const initialLevel = hydrateLevelTilesets(defaultLevel as unknown as RawShipInteriorLevel);
 const initialMaterialPlacements = getLevelMaterialPlacements(defaultLevel);
@@ -187,7 +187,8 @@ export const useEditorStore = create<EditorStore>()(
   persist(
     (set, get) => ({
       ...buildInitialEditorState(),
-
+      ...(() => {
+        const handlers: EditorHandlers = {
       applyAssetPath: () => {
         const { assetPathInput, level, selectedLayerId } = get();
         const selectedTileset = getTilesetForLayer(level, selectedLayerId);
@@ -247,7 +248,7 @@ export const useEditorStore = create<EditorStore>()(
               getLevelMaterialPlacements(parsed),
             ),
           );
-          get().syncDerivedState();
+          get().handlers.syncDerivedState();
         } catch (error) {
           alert('Failed to import JSON ' + fileName);
         }
@@ -267,7 +268,7 @@ export const useEditorStore = create<EditorStore>()(
             cloneMaterialPlacements(entry.materialPlacements),
           ),
         );
-        get().syncDerivedState();
+        get().handlers.syncDerivedState();
       },
 
       pickTilesetPng: (file) => {
@@ -305,7 +306,7 @@ export const useEditorStore = create<EditorStore>()(
             pastHistory: [nextEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
           };
         });
-        get().syncDerivedState();
+        get().handlers.syncDerivedState();
       },
 
       resetEditor: () => {
@@ -389,7 +390,7 @@ export const useEditorStore = create<EditorStore>()(
             materialPlacements: cloneMaterialPlacements(nextDocument.materialPlacements),
           };
         }),
-      setLevel: (updater) =>
+      setLevel: (updater) => {
         set((state) => {
           const nextLevel = typeof updater === 'function' ? updater(state.level) : updater;
           const currentDocument = getEditorDocument(state);
@@ -406,7 +407,9 @@ export const useEditorStore = create<EditorStore>()(
             level: cloneLevel(nextLevel),
             pastHistory: [historyEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
           };
-        }),
+        });
+        get().handlers.syncDerivedState();
+      },
       commitDocumentChange: (previousDocument) =>
         set((state) => {
           const historyEntry = createEditorHistoryEntry(previousDocument, getEditorDocument(state));
@@ -544,7 +547,7 @@ export const useEditorStore = create<EditorStore>()(
             pastHistory: state.pastHistory.slice(1),
           };
         });
-        get().syncDerivedState();
+        get().handlers.syncDerivedState();
       },
 
       updateSelectedEntity: (updates) => {
@@ -598,12 +601,15 @@ export const useEditorStore = create<EditorStore>()(
           };
         });
       },
+        };
+        return { ...handlers, handlers };
+      })(),
     }),
     {
       name: EDITOR_STORAGE_KEY,
       storage: editorStorage,
       onRehydrateStorage: () => (state) => {
-        state?.syncDerivedState();
+        state?.handlers.syncDerivedState();
       },
       partialize: (state) => ({
         assetPathInput: state.assetPathInput,

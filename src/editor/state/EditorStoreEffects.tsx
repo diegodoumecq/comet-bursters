@@ -6,12 +6,7 @@ import { useEditorStore } from './editorStore';
 export function EditorStoreEffects() {
   const assetUrls = useEditorStore((state) => state.assetUrls);
   const level = useEditorStore((state) => state.level);
-  const setImages = useEditorStore((state) => state.setImages);
-  const syncDerivedState = useEditorStore((state) => state.syncDerivedState);
-
-  useEffect(() => {
-    syncDerivedState();
-  }, [level, syncDerivedState]);
+  const { setImages } = useEditorStore((state) => state.handlers);
 
   useEffect(() => {
     let cancelled = false;

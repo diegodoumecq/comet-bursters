@@ -4,14 +4,14 @@ import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { useEditorStore } from '../state/editorStore';
 
 export function SelectedEntitySection() {
-  const deleteSelectedEntity = useEditorStore((state) => state.deleteSelectedEntity);
+  const { deleteSelectedEntity, updateSelectedEntity, updateSelectedEntityType } = useEditorStore(
+    (state) => state.handlers,
+  );
   const level = useEditorStore((state) => state.level);
   const selectedEntityId = useEditorStore((state) => state.selectedEntityId);
   const selectedEntity = useEditorStore(
     (state) => state.level.entities.find((entity) => entity.id === selectedEntityId) ?? null,
   );
-  const updateSelectedEntity = useEditorStore((state) => state.updateSelectedEntity);
-  const updateSelectedEntityType = useEditorStore((state) => state.updateSelectedEntityType);
   const [isOpen, setIsOpen] = useState(true);
 
   if (!selectedEntity) {
