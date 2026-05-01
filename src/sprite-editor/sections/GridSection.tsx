@@ -3,32 +3,30 @@ import { useState } from 'react';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { Switch } from '@/ui/components/Switch';
 import type { SpriteAssetGridSource } from '../assetCatalog';
-import type { GridSettings } from '../state/spriteEditorStore';
+import { normalizeGridSettings, useSpriteEditorStore } from '../state/spriteEditorStore';
 
 export function GridSection({
-  applyGridSource,
-  gridColor,
-  gridOpacity,
-  gridSettings,
-  isGridVisible,
   matchingGridSources,
-  setGridColor,
-  setGridOpacity,
-  setIsGridVisible,
-  updateGridNumber,
 }: {
-  applyGridSource: (source: SpriteAssetGridSource) => void;
-  gridColor: string;
-  gridOpacity: number;
-  gridSettings: GridSettings;
-  isGridVisible: boolean;
   matchingGridSources: SpriteAssetGridSource[];
-  setGridColor: (gridColor: string) => void;
-  setGridOpacity: (gridOpacity: number) => void;
-  setIsGridVisible: (isGridVisible: boolean) => void;
-  updateGridNumber: (key: keyof GridSettings, value: string, required?: boolean) => void;
 }) {
   const [isOpen, setIsOpen] = useState(true);
+  const gridColor = useSpriteEditorStore((state) => state.gridColor);
+  const gridOpacity = useSpriteEditorStore((state) => state.gridOpacity);
+  const gridSettings = useSpriteEditorStore((state) => state.gridSettings);
+  const isGridVisible = useSpriteEditorStore((state) => state.isGridVisible);
+  const handlers = useSpriteEditorStore((state) => state.handlers);
+
+  const applyGridSource = (source: SpriteAssetGridSource, options?: { announce?: boolean; makeVisible?: boolean }) => {
+    handlers.applyGridSettings(normalizeGridSettings(source.grid));
+    if (options?.makeVisible ?? true) {
+      handlers.setIsGridVisible(true);
+    }
+    if (options?.announce ?? true) {
+      handlers.setMessage(`Loaded grid from ${source.id}.`);
+    }
+    handlers.setLoadError(null);
+  };
 
   return (
     <CollapsibleSection title="Grid" isOpen={isOpen} onToggle={() => setIsOpen((current) => !current)}>
@@ -37,7 +35,7 @@ export function GridSection({
           <div className="text-sm text-slate-300">Overlay and tileset frame settings</div>
           <div className="flex items-center gap-2 text-xs text-slate-300">
             <span>Show</span>
-            <Switch checked={isGridVisible} onCheckedChange={setIsGridVisible} />
+            <Switch checked={isGridVisible} onCheckedChange={handlers.setIsGridVisible} />
           </div>
         </div>
 
@@ -47,7 +45,7 @@ export function GridSection({
             <input
               type="color"
               value={gridColor}
-              onChange={(event) => setGridColor(event.currentTarget.value)}
+              onChange={(event) => handlers.setGridColor(event.currentTarget.value)}
               className="h-8 w-8 rounded border-0 bg-transparent p-0"
             />
             <input
@@ -56,7 +54,7 @@ export function GridSection({
               max="1"
               step="0.05"
               value={gridOpacity}
-              onChange={(event) => setGridOpacity(Number(event.currentTarget.value))}
+              onChange={(event) => handlers.setGridOpacity(Number(event.currentTarget.value))}
               className="flex-1"
             />
             <span className="w-10 text-right text-slate-100">
@@ -71,7 +69,9 @@ export function GridSection({
                 type="number"
                 min="1"
                 value={gridSettings.frameWidth}
-                onChange={(event) => updateGridNumber('frameWidth', event.currentTarget.value, true)}
+                onChange={(event) =>
+                  handlers.updateGridNumber('frameWidth', event.currentTarget.value, true)
+                }
                 className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
               />
             </label>
@@ -82,7 +82,7 @@ export function GridSection({
                 min="1"
                 value={gridSettings.frameHeight}
                 onChange={(event) =>
-                  updateGridNumber('frameHeight', event.currentTarget.value, true)
+                  handlers.updateGridNumber('frameHeight', event.currentTarget.value, true)
                 }
                 className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
               />
@@ -93,7 +93,7 @@ export function GridSection({
                 type="number"
                 min="0"
                 value={gridSettings.offsetX ?? ''}
-                onChange={(event) => updateGridNumber('offsetX', event.currentTarget.value)}
+                onChange={(event) => handlers.updateGridNumber('offsetX', event.currentTarget.value)}
                 className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
               />
             </label>
@@ -103,7 +103,7 @@ export function GridSection({
                 type="number"
                 min="0"
                 value={gridSettings.offsetY ?? ''}
-                onChange={(event) => updateGridNumber('offsetY', event.currentTarget.value)}
+                onChange={(event) => handlers.updateGridNumber('offsetY', event.currentTarget.value)}
                 className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
               />
             </label>
@@ -113,7 +113,7 @@ export function GridSection({
                 type="number"
                 min="0"
                 value={gridSettings.gapX ?? ''}
-                onChange={(event) => updateGridNumber('gapX', event.currentTarget.value)}
+                onChange={(event) => handlers.updateGridNumber('gapX', event.currentTarget.value)}
                 className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
               />
             </label>
@@ -123,7 +123,7 @@ export function GridSection({
                 type="number"
                 min="0"
                 value={gridSettings.gapY ?? ''}
-                onChange={(event) => updateGridNumber('gapY', event.currentTarget.value)}
+                onChange={(event) => handlers.updateGridNumber('gapY', event.currentTarget.value)}
                 className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
               />
             </label>
@@ -133,7 +133,9 @@ export function GridSection({
                 type="number"
                 min="0"
                 value={gridSettings.frameCount ?? ''}
-                onChange={(event) => updateGridNumber('frameCount', event.currentTarget.value)}
+                onChange={(event) =>
+                  handlers.updateGridNumber('frameCount', event.currentTarget.value)
+                }
                 className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
               />
             </label>

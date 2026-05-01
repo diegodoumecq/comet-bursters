@@ -35,7 +35,6 @@ import {
   getGridSourcesForSpriteAsset,
   spriteAssets,
   spriteAssetsByCategory,
-  type SpriteAssetGridSource,
 } from './assetCatalog';
 import { BrushColorPanel } from './components/BrushColorPanel';
 import { SpriteEditorFooter } from './components/SpriteEditorFooter';
@@ -49,11 +48,7 @@ import { AssetsSection } from './sections/AssetsSection';
 import { GridSection } from './sections/GridSection';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/ui/components/Resizable';
 import { Switch } from '@/ui/components/Switch';
-import {
-  useSpriteEditorStore,
-  normalizeGridSettings,
-  type PixelRect,
-} from './state/spriteEditorStore';
+import { useSpriteEditorStore, type PixelRect } from './state/spriteEditorStore';
 import { useSpriteAssetLoader } from './useSpriteAssetLoader';
 import {
   clampAlpha,
@@ -110,11 +105,7 @@ export function SpriteEditorApp() {
   const activeAssetPath = useSpriteEditorStore((state) => state.activeAssetPath);
   const brushColor = useSpriteEditorStore((state) => state.brushColor);
   const brushSize = useSpriteEditorStore((state) => state.brushSize);
-  const gridColor = useSpriteEditorStore((state) => state.gridColor);
-  const gridOpacity = useSpriteEditorStore((state) => state.gridOpacity);
-  const gridSettings = useSpriteEditorStore((state) => state.gridSettings);
   const interactionMode = useSpriteEditorStore((state) => state.interactionMode);
-  const isGridVisible = useSpriteEditorStore((state) => state.isGridVisible);
   const isLoading = useSpriteEditorStore((state) => state.isLoading);
   const isSaving = useSpriteEditorStore((state) => state.isSaving);
   const isSidebarResizable = useSpriteEditorStore((state) => state.isSidebarResizable);
@@ -199,20 +190,6 @@ export function SpriteEditorApp() {
       x: Math.round(focusX - worldX * nextZoom),
       y: Math.round(focusY - worldY * nextZoom),
     });
-  };
-
-  const applyGridSource = (
-    source: SpriteAssetGridSource,
-    options?: { announce?: boolean; makeVisible?: boolean },
-  ) => {
-    handlers.applyGridSettings(normalizeGridSettings(source.grid));
-    if (options?.makeVisible ?? true) {
-      handlers.setIsGridVisible(true);
-    }
-    if (options?.announce ?? true) {
-      handlers.setMessage(`Loaded grid from ${source.id}.`);
-    }
-    handlers.setLoadError(null);
   };
 
   const commitMoveOffset = () => {
@@ -761,16 +738,7 @@ export function SpriteEditorApp() {
         <div className="flex-1 overflow-y-auto px-4 py-4">
           <div className="space-y-4">
             <GridSection
-              applyGridSource={applyGridSource}
-              gridColor={gridColor}
-              gridOpacity={gridOpacity}
-              gridSettings={gridSettings}
-              isGridVisible={isGridVisible}
               matchingGridSources={matchingGridSources}
-              setGridColor={handlers.setGridColor}
-              setGridOpacity={handlers.setGridOpacity}
-              setIsGridVisible={handlers.setIsGridVisible}
-              updateGridNumber={handlers.updateGridNumber}
             />
 
             <AssetsSection
