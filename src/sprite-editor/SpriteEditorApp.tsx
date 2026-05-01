@@ -55,7 +55,16 @@ import {
   type PixelRect,
 } from './state/spriteEditorStore';
 import { useSpriteAssetLoader } from './useSpriteAssetLoader';
-import { clampAlpha, clampBrushSize, clampZoom, cloneImageData, cropImageData, getPixelCoordinates, parseHexColor, rgbaToHex } from './utils';
+import {
+  clampAlpha,
+  clampBrushSize,
+  clampZoom,
+  cloneImageData,
+  cropImageData,
+  getPixelCoordinates,
+  parseHexColor,
+  rgbaToHex,
+} from './utils';
 
 type PointerOrigin = { x: number; y: number };
 type PanOrigin = {
@@ -143,7 +152,10 @@ export function SpriteEditorApp() {
     setMoveOffset({ x: 0, y: 0 });
   };
 
-  const syncCanvasSelectionSnapshot = (ctx: CanvasRenderingContext2D, nextSelectionRect: PixelRect | null) => {
+  const syncCanvasSelectionSnapshot = (
+    ctx: CanvasRenderingContext2D,
+    nextSelectionRect: PixelRect | null,
+  ) => {
     const snapshot = cloneImageData(ctx);
     session.moveSourceImageData = snapshot;
     session.selectionPixels = nextSelectionRect ? cropImageData(snapshot, nextSelectionRect) : null;
@@ -189,7 +201,10 @@ export function SpriteEditorApp() {
     });
   };
 
-  const applyGridSource = (source: SpriteAssetGridSource, options?: { announce?: boolean; makeVisible?: boolean }) => {
+  const applyGridSource = (
+    source: SpriteAssetGridSource,
+    options?: { announce?: boolean; makeVisible?: boolean },
+  ) => {
     handlers.applyGridSettings(normalizeGridSettings(source.grid));
     if (options?.makeVisible ?? true) {
       handlers.setIsGridVisible(true);
@@ -265,23 +280,6 @@ export function SpriteEditorApp() {
       viewport.removeEventListener('wheel', handleNativeWheel);
     };
   }, []);
-
-  const beginPatchHistorySession = (label: string, bounds: PixelRect) => {
-    beginPatchHistorySessionState({
-      bounds,
-      canvas: canvasRef.current,
-      label,
-      session,
-    });
-  };
-
-  const extendCurrentPatchHistorySession = (bounds: PixelRect) => {
-    extendCurrentPatchHistorySessionState({
-      bounds,
-      canvas: canvasRef.current,
-      session,
-    });
-  };
 
   const beginDocumentHistorySession = (label: string) => {
     beginDocumentHistorySessionState({
@@ -383,7 +381,12 @@ export function SpriteEditorApp() {
   };
 
   const handleSelectAsset = (nextAssetPath: string) => {
-    runSelectAsset({ activeAssetPath, dirty, nextAssetPath, setActiveAssetPath: handlers.setActiveAssetPath });
+    runSelectAsset({
+      activeAssetPath,
+      dirty,
+      nextAssetPath,
+      setActiveAssetPath: handlers.setActiveAssetPath,
+    });
   };
 
   const handleBrushColorChange = (hexColor: string) => {
@@ -461,7 +464,8 @@ export function SpriteEditorApp() {
       handleRedo,
       handleSave,
       handleUndo,
-      setBrushSize: (updater) => handlers.setBrushSize((current) => clampBrushSize(updater(current))),
+      setBrushSize: (updater) =>
+        handlers.setBrushSize((current) => clampBrushSize(updater(current))),
       setIsSpacePressed: handlers.setIsSpacePressed,
       setTool: handlers.setTool,
       zoomIn: () => applyZoom(zoom + 2),
@@ -549,7 +553,12 @@ export function SpriteEditorApp() {
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     const paintStart = beginPaintInteraction({ activeTool, brushColor, brushSize, ctx, point });
-    beginPatchHistorySession('Brush', paintStart.historyBounds);
+    beginPatchHistorySessionState({
+      bounds: paintStart.historyBounds,
+      canvas: canvasRef.current,
+      label: 'Brush',
+      session,
+    });
     session.lastPointer = paintStart.lastPointer;
     handlers.setInteractionMode('paint');
     setDirty(true);
@@ -622,7 +631,11 @@ export function SpriteEditorApp() {
       previousPoint,
       tool,
     });
-    extendCurrentPatchHistorySession(paintUpdate.historyBounds);
+    extendCurrentPatchHistorySessionState({
+      bounds: paintUpdate.historyBounds,
+      canvas: canvasRef.current,
+      session,
+    });
     session.lastPointer = paintUpdate.lastPointer;
     setDirty(true);
   };
@@ -854,7 +867,9 @@ export function SpriteEditorApp() {
                 alphaPercent={Math.round((brushColor.a / 255) * 100)}
                 brushSize={brushSize}
                 onAlphaChange={handleBrushAlphaChange}
-                onBrushSizeChange={(nextBrushSize) => handlers.setBrushSize(clampBrushSize(nextBrushSize))}
+                onBrushSizeChange={(nextBrushSize) =>
+                  handlers.setBrushSize(clampBrushSize(nextBrushSize))
+                }
               />
 
               <ZoomPanel zoom={zoom} onCenter={() => centerCanvas(zoom)} onZoomChange={applyZoom} />
