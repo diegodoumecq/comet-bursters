@@ -30,11 +30,7 @@ import {
   updatePaintInteraction,
   updateSelectionInteraction,
 } from './interactionCommands';
-import {
-  getGridSourcesForSpriteAsset,
-  spriteAssets,
-  spriteAssetsByCategory,
-} from './assetCatalog';
+import { getGridSourcesForSpriteAsset, spriteAssets, spriteAssetsByCategory } from './assetCatalog';
 import { BrushColorPanel } from './components/BrushColorPanel';
 import { SpriteEditorBrushPreview } from './components/SpriteEditorBrushPreview';
 import { SpriteEditorFooter } from './components/SpriteEditorFooter';
@@ -227,15 +223,15 @@ export function SpriteEditorApp() {
       return;
     }
 
-    const handlePointerDown = (event: PointerEvent) => {
+    const internalHandlePointerDown = (event: PointerEvent) => {
       if (!actionsMenuRef.current?.contains(event.target as Node)) {
         setIsActionsOpen(false);
       }
     };
 
-    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('pointerdown', internalHandlePointerDown);
     return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('pointerdown', internalHandlePointerDown);
     };
   }, [isActionsOpen]);
 
@@ -402,8 +398,8 @@ export function SpriteEditorApp() {
     });
   };
 
-  const handleSave = async () => {
-    await runSave({
+  const handleSave = () => {
+    return runSave({
       activeAsset,
       controller: documentController,
       isLoading,
@@ -721,9 +717,7 @@ export function SpriteEditorApp() {
 
         <div className="flex-1 overflow-y-auto px-4 py-4">
           <div className="space-y-4">
-            <GridSection
-              matchingGridSources={matchingGridSources}
-            />
+            <GridSection matchingGridSources={matchingGridSources} />
 
             <AssetsSection
               activeAssetPath={activeAssetPath}
