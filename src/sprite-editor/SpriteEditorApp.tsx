@@ -39,6 +39,7 @@ import {
   type SpriteAssetGridSource,
 } from './assetCatalog';
 import { BrushColorPanel } from './components/BrushColorPanel';
+import { SpriteEditorFooter } from './components/SpriteEditorFooter';
 import { BrushSettingsPanel } from './components/BrushSettingsPanel';
 import { SpriteEditorActionsMenu } from './components/SpriteEditorActionsMenu';
 import { SpriteToolPicker } from './components/SpriteToolPicker';
@@ -1044,31 +1045,11 @@ export function SpriteEditorApp() {
               )}
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-300">
-              <div className="flex flex-wrap items-center gap-4">
-                <div>Canvas {view.canvasSizeLabel}</div>
-                <div>Tool {tool}</div>
-                <div>Brush {brushSize}px</div>
-                <div>Zoom {zoom}x</div>
-                <div>
-                  Selection{' '}
-                  {view.displayedSelectionRect
-                    ? `${view.displayedSelectionRect.width} x ${view.displayedSelectionRect.height}`
-                    : '—'}
-                </div>
-                <div>Cursor {hoveredPixel ? `${hoveredPixel.x}, ${hoveredPixel.y}` : '—'}</div>
-              </div>
-              <div className="flex flex-wrap items-center gap-4 text-xs uppercase tracking-[0.16em] text-slate-500">
-                <span>`Alt` pick</span>
-                <span>`Space` drag</span>
-                <span>`V` move</span>
-                <span>`M` select</span>
-                <span>`Wheel` pan</span>
-                <span>`Cmd/Ctrl+Wheel` zoom</span>
-                <span>`[` `]` brush</span>
-                <span>`Cmd/Ctrl+S` save</span>
-              </div>
-            </div>
+            <SpriteEditorFooter
+              canvasSizeLabel={view.canvasSizeLabel}
+              displayedSelectionRect={view.displayedSelectionRect}
+              hoveredPixel={hoveredPixel}
+            />
           </div>
         </main>
       </ResizablePanel>
