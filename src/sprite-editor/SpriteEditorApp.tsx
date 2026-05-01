@@ -30,7 +30,6 @@ import {
   updatePaintInteraction,
   updateSelectionInteraction,
 } from './interactionCommands';
-import { registerSpriteEditorKeyboardShortcuts } from './keyboardShortcuts';
 import {
   getGridSourcesForSpriteAsset,
   spriteAssets,
@@ -50,8 +49,8 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/ui/compo
 import { Switch } from '@/ui/components/Switch';
 import { useSpriteEditorStore, type PixelRect } from './state/spriteEditorStore';
 import { useSpriteAssetLoader } from './useSpriteAssetLoader';
+import { useSpriteEditorKeyboardShortcuts } from './useSpriteEditorKeyboardShortcuts';
 import {
-  clampBrushSize,
   clampZoom,
   cloneImageData,
   cropImageData,
@@ -422,24 +421,17 @@ export function SpriteEditorApp() {
     });
   };
 
-  useEffect(() => {
-    return registerSpriteEditorKeyboardShortcuts({
-      centerCanvas: () => centerCanvas(zoom),
-      clearSelection,
-      copySelection: handleCopySelection,
-      handlePasteSelection,
-      hasSelection: selectionRect !== null,
-      handleRedo,
-      handleSave,
-      handleUndo,
-      setBrushSize: (updater) =>
-        handlers.setBrushSize((current) => clampBrushSize(updater(current))),
-      setIsSpacePressed: handlers.setIsSpacePressed,
-      setTool: handlers.setTool,
-      zoomIn: () => applyZoom(zoom + 2),
-      zoomOut: () => applyZoom(zoom - 2),
-    });
-  }, [handleRedo, handleSave, handleUndo, selectionRect, zoom]);
+  useSpriteEditorKeyboardShortcuts({
+    centerCanvas: () => centerCanvas(zoom),
+    clearSelection,
+    copySelection: handleCopySelection,
+    handlePasteSelection,
+    handleRedo,
+    handleSave,
+    handleUndo,
+    zoomIn: () => applyZoom(zoom + 2),
+    zoomOut: () => applyZoom(zoom - 2),
+  });
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     const canvas = canvasRef.current;
