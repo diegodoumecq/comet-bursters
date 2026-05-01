@@ -36,6 +36,7 @@ import {
   spriteAssetsByCategory,
 } from './assetCatalog';
 import { BrushColorPanel } from './components/BrushColorPanel';
+import { SpriteEditorBrushPreview } from './components/SpriteEditorBrushPreview';
 import { SpriteEditorFooter } from './components/SpriteEditorFooter';
 import { SpriteEditorGridOverlay } from './components/SpriteEditorGridOverlay';
 import { BrushSettingsPanel } from './components/BrushSettingsPanel';
@@ -875,29 +876,7 @@ export function SpriteEditorApp() {
                       <div className="h-full w-full border border-dashed border-white/80" />
                     </div>
                   ) : null}
-                  {view.brushPreview ? (
-                    <div
-                      className="pointer-events-none absolute border"
-                      style={{
-                        backgroundColor:
-                          tool === 'erase'
-                            ? 'rgba(248, 113, 113, 0.18)'
-                            : `rgba(${brushColor.r}, ${brushColor.g}, ${brushColor.b}, ${Math.max(
-                                0.12,
-                                (brushColor.a / 255) * 0.35,
-                              )})`,
-                        borderColor:
-                          tool === 'erase'
-                            ? 'rgba(248, 113, 113, 0.9)'
-                            : 'rgba(255, 255, 255, 0.9)',
-                        boxSizing: 'border-box',
-                        height: `${view.brushPreview.size}px`,
-                        left: `${view.brushPreview.left}px`,
-                        top: `${view.brushPreview.top}px`,
-                        width: `${view.brushPreview.size}px`,
-                      }}
-                    />
-                  ) : null}
+                  <SpriteEditorBrushPreview preview={view.brushPreview} />
                 </>
               ) : (
                 <div className="flex h-full items-center justify-center text-sm text-slate-500">
