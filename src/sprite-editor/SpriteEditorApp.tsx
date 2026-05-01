@@ -40,6 +40,7 @@ import {
 } from './assetCatalog';
 import { BrushColorPanel } from './components/BrushColorPanel';
 import { SpriteEditorFooter } from './components/SpriteEditorFooter';
+import { SpriteEditorGridOverlay } from './components/SpriteEditorGridOverlay';
 import { BrushSettingsPanel } from './components/BrushSettingsPanel';
 import { SpriteEditorActionsMenu } from './components/SpriteEditorActionsMenu';
 import { SpriteToolPicker } from './components/SpriteToolPicker';
@@ -700,38 +701,6 @@ export function SpriteEditorApp() {
           x: selectionRect.x + moveOffset.x,
           y: selectionRect.y + moveOffset.y,
         };
-  const gridStepX = gridSettings.frameWidth + (gridSettings.gapX ?? 0);
-  const gridStepY = gridSettings.frameHeight + (gridSettings.gapY ?? 0);
-  const scaledCanvasWidth = canvasRef.current ? Math.round(canvasRef.current.width * zoom) : 0;
-  const scaledCanvasHeight = canvasRef.current ? Math.round(canvasRef.current.height * zoom) : 0;
-  const scaledGridStepX = Math.round(gridStepX * zoom);
-  const scaledGridStepY = Math.round(gridStepY * zoom);
-  const scaledGridOffsetX = Math.round((gridSettings.offsetX ?? 0) * zoom);
-  const scaledGridOffsetY = Math.round((gridSettings.offsetY ?? 0) * zoom);
-  const gridLines = {
-    horizontal:
-      isGridVisible && activeAsset && gridSettings.frameHeight > 0 && scaledGridStepY > 0
-        ? Array.from(
-            {
-              length:
-                Math.floor(Math.max(scaledCanvasHeight - scaledGridOffsetY, 0) / scaledGridStepY) +
-                1,
-            },
-            (_, index) => scaledGridOffsetY + index * scaledGridStepY,
-          ).filter((position) => position >= 0 && position <= scaledCanvasHeight)
-        : [],
-    vertical:
-      isGridVisible && activeAsset && gridSettings.frameWidth > 0 && scaledGridStepX > 0
-        ? Array.from(
-            {
-              length:
-                Math.floor(Math.max(scaledCanvasWidth - scaledGridOffsetX, 0) / scaledGridStepX) +
-                1,
-            },
-            (_, index) => scaledGridOffsetX + index * scaledGridStepX,
-          ).filter((position) => position >= 0 && position <= scaledCanvasWidth)
-        : [],
-  };
   const view = {
     activeHexColor: rgbaToHex(brushColor),
     brushPreview:
@@ -756,19 +725,6 @@ export function SpriteEditorApp() {
       ? `${canvasRef.current.width} x ${canvasRef.current.height}`
       : '—',
     displayedSelectionRect,
-    gridColorWithAlpha: `${gridColor}${Math.round(gridOpacity * 255)
-      .toString(16)
-      .padStart(2, '0')}`,
-    gridLines,
-    gridOverlay:
-      gridLines.vertical.length > 0 || gridLines.horizontal.length > 0
-        ? {
-            height: `${scaledCanvasHeight}px`,
-            left: `${viewportOffset.x}px`,
-            top: `${viewportOffset.y}px`,
-            width: `${scaledCanvasWidth}px`,
-          }
-        : null,
     selectionOverlay:
       displayedSelectionRect === null
         ? null
@@ -972,37 +928,12 @@ export function SpriteEditorApp() {
                       width: canvasRef.current ? `${canvasRef.current.width}px` : undefined,
                     }}
                   />
-                  {view.gridOverlay ? (
-                    <div
-                      className="pointer-events-none absolute"
-                      style={view.gridOverlay ?? undefined}
-                    >
-                      {view.gridLines.vertical.map((position) => (
-                        <div
-                          key={`grid-v-${position}`}
-                          className="absolute top-0"
-                          style={{
-                            backgroundColor: view.gridColorWithAlpha,
-                            height: `${scaledCanvasHeight}px`,
-                            left: `${position}px`,
-                            width: '1px',
-                          }}
-                        />
-                      ))}
-                      {view.gridLines.horizontal.map((position) => (
-                        <div
-                          key={`grid-h-${position}`}
-                          className="absolute left-0"
-                          style={{
-                            backgroundColor: view.gridColorWithAlpha,
-                            height: '1px',
-                            top: `${position}px`,
-                            width: `${scaledCanvasWidth}px`,
-                          }}
-                        />
-                      ))}
-                    </div>
-                  ) : null}
+                  <SpriteEditorGridOverlay
+                    canvasHeight={canvasRef.current?.height ?? 0}
+                    canvasWidth={canvasRef.current?.width ?? 0}
+                    hasActiveAsset={activeAsset !== null}
+                    viewportOffset={viewportOffset}
+                  />
                   {view.selectionOverlay ? (
                     <div
                       className="pointer-events-none absolute border border-cyan-300"
