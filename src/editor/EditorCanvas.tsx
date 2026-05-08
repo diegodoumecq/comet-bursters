@@ -2,9 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 
 import columnPixelartUrl from '../assets/columnPixelart.png';
 import type { ShipInteriorTileId } from '../scenes/ShipInteriorScene/level';
-import { getLevelGrid, getTilesetTilePositionMap } from '../scenes/ShipInteriorScene/level';
-import { getMaterialColor } from './shared/materials';
 import { useEditorStore } from './state/editorStore';
+import {
+  buildMaterialOverlayCanvas,
+  buildTileLayerCanvas,
+  drawEditorCanvas,
+  getCanvasWorldCoordinates,
+} from './canvasDrawing';
 
 export type EditorCanvasPointerInfo = {
   button: number;
@@ -86,141 +90,32 @@ export function EditorCanvas({
       return;
     }
 
-    const overlayCanvas = document.createElement('canvas');
-    overlayCanvas.width = level.width;
-    overlayCanvas.height = level.height;
-    const overlayCtx = overlayCanvas.getContext('2d');
-    if (!overlayCtx) {
-      materialOverlayCanvasRef.current = null;
-      return;
-    }
-
-    const levelGrid = getLevelGrid(level);
-    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-    overlayCtx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    overlayCtx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-
-    for (const layer of level.layers) {
-      if (layerVisibility[layer.id] === false) {
-        continue;
-      }
-
-      const layerMaterialPlacements = materialPlacements[layer.id];
-      if (!layerMaterialPlacements) {
-        continue;
-      }
-
-      for (const [key, material] of Object.entries(layerMaterialPlacements)) {
-        const [x, y] = key.split(',').map((value) => Number.parseInt(value, 10));
-        if (!Number.isFinite(x) || !Number.isFinite(y)) {
-          continue;
-        }
-
-        const tileX = x * levelGrid.cellWidth;
-        const tileY = y * levelGrid.cellHeight;
-        overlayCtx.globalAlpha = layer.id === selectedLayerId ? 0.88 : 0.62;
-        overlayCtx.fillStyle = getMaterialColor(material);
-        overlayCtx.fillRect(tileX, tileY, levelGrid.cellWidth, levelGrid.cellHeight);
-        overlayCtx.globalAlpha = 1;
-        overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-        overlayCtx.lineWidth = 1;
-        overlayCtx.strokeRect(
-          tileX + 0.5,
-          tileY + 0.5,
-          levelGrid.cellWidth - 1,
-          levelGrid.cellHeight - 1,
-        );
-      }
-    }
-
-    materialOverlayCanvasRef.current = overlayCanvas;
+    materialOverlayCanvasRef.current = buildMaterialOverlayCanvas({
+      layerVisibility,
+      level,
+      materialPlacements,
+      selectedLayerId,
+    });
   }, [layerVisibility, level, materialPlacements, selectedLayerId, tool]);
 
   useEffect(() => {
-    const levelGrid = getLevelGrid(level);
-
-    const buildLayerCanvas = (overhead: boolean) => {
-      const layerCanvas = document.createElement('canvas');
-      layerCanvas.width = level.width;
-      layerCanvas.height = level.height;
-      const layerCtx = layerCanvas.getContext('2d');
-      if (!layerCtx) {
-        return null;
-      }
-
-      for (const layer of level.layers) {
-        if ((layer.overhead ?? false) !== overhead) {
-          continue;
-        }
-        if (layerVisibility[layer.id] === false) {
-          continue;
-        }
-
-        const tileset = level.tilesets.find((candidate) => candidate.id === layer.tilesetId);
-        if (!tileset) {
-          continue;
-        }
-
-        const image = images[tileset.id];
-        if (!image) {
-          continue;
-        }
-
-        const tilePositions = getTilesetTilePositionMap(tileset);
-        layerCtx.save();
-        const layerOpacity = layer.opacity ?? 1;
-        const editableLayerOpacity =
-          layer.id === selectedLayerId ? Math.max(layerOpacity, 0.25) : layerOpacity;
-        layerCtx.globalAlpha =
-          editableLayerOpacity * (layer.id === selectedLayerId ? 1 : inactiveLayerOpacity);
-        for (const tile of layer.tiles) {
-          const tileX = tile.x * levelGrid.cellWidth;
-          const tileY = tile.y * levelGrid.cellHeight;
-          const frame = tilePositions[String(tile.tile)];
-          if (!frame) {
-            const markerSize = Math.min(levelGrid.cellWidth, levelGrid.cellHeight);
-            layerCtx.save();
-            layerCtx.globalAlpha = 1;
-            layerCtx.fillStyle = 'rgba(244, 63, 94, 0.24)';
-            layerCtx.fillRect(tileX, tileY, levelGrid.cellWidth, levelGrid.cellHeight);
-            layerCtx.strokeStyle = '#fb7185';
-            layerCtx.lineWidth = 2;
-            layerCtx.strokeRect(
-              tileX + 1,
-              tileY + 1,
-              levelGrid.cellWidth - 2,
-              levelGrid.cellHeight - 2,
-            );
-            layerCtx.fillStyle = '#fecdd3';
-            layerCtx.font = `${Math.max(12, Math.floor(markerSize * 0.75))}px monospace`;
-            layerCtx.textAlign = 'center';
-            layerCtx.textBaseline = 'middle';
-            layerCtx.fillText('?', tileX + levelGrid.cellWidth / 2, tileY + levelGrid.cellHeight / 2);
-            layerCtx.restore();
-            continue;
-          }
-
-          layerCtx.drawImage(
-            image,
-            frame[0] * tileset.grid.frameWidth,
-            frame[1] * tileset.grid.frameHeight,
-            tileset.grid.frameWidth,
-            tileset.grid.frameHeight,
-            tileX,
-            tileY,
-            layer.scaleToGrid ? levelGrid.cellWidth : tileset.grid.frameWidth,
-            layer.scaleToGrid ? levelGrid.cellHeight : tileset.grid.frameHeight,
-          );
-        }
-        layerCtx.restore();
-      }
-
-      return layerCanvas;
-    };
-
     tileLayerCanvasesRef.current = {
-      overhead: buildLayerCanvas(true),
-      underlay: buildLayerCanvas(false),
+      overhead: buildTileLayerCanvas({
+        images,
+        inactiveLayerOpacity,
+        layerVisibility,
+        level,
+        overhead: true,
+        selectedLayerId,
+      }),
+      underlay: buildTileLayerCanvas({
+        images,
+        inactiveLayerOpacity,
+        layerVisibility,
+        level,
+        overhead: false,
+        selectedLayerId,
+      }),
     };
   }, [images, inactiveLayerOpacity, layerVisibility, level, selectedLayerId]);
 
@@ -237,223 +132,27 @@ export function EditorCanvas({
       return;
     }
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#08111d';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.12)';
-    ctx.lineWidth = 1;
-    const levelGrid = getLevelGrid(level);
-    for (let x = 0; x <= level.width; x += levelGrid.cellWidth) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, level.height);
-      ctx.stroke();
-    }
-    for (let y = 0; y <= level.height; y += levelGrid.cellHeight) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(level.width, y);
-      ctx.stroke();
-    }
-
-    const underlayCanvas = tileLayerCanvasesRef.current.underlay;
-    if (underlayCanvas) {
-      ctx.drawImage(underlayCanvas, 0, 0);
-    }
-
-    for (const entity of level.entities) {
-      const isPlayer = entity.type === 'player';
-      const isColumn = entity.type === 'column';
-      const isSelected = entity.id === selectedEntityId;
-      if (isColumn && columnImageRef.current) {
-        const image = columnImageRef.current;
-        const drawX = Math.round(entity.x - image.width / 2);
-        const drawY = Math.round(entity.y - image.height);
-        ctx.drawImage(image, drawX, drawY);
-        ctx.lineWidth = isSelected ? 3 : 2;
-        ctx.strokeStyle = isSelected ? '#facc15' : 'rgba(8, 15, 28, 0.95)';
-        ctx.strokeRect(drawX - 1, drawY - 1, image.width + 2, image.height + 2);
-        continue;
-      }
-
-      ctx.beginPath();
-      ctx.arc(entity.x, entity.y, isPlayer ? 14 : 11, 0, Math.PI * 2);
-      ctx.fillStyle = isPlayer ? '#38bdf8' : '#f87171';
-      ctx.fill();
-      ctx.lineWidth = isSelected ? 4 : 2;
-      ctx.strokeStyle = isSelected ? '#facc15' : '#020617';
-      ctx.stroke();
-
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = '10px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(isPlayer ? 'P' : 'E', entity.x, entity.y + 3);
-    }
-
-    const overheadCanvas = tileLayerCanvasesRef.current.overhead;
-    if (overheadCanvas) {
-      ctx.drawImage(overheadCanvas, 0, 0);
-    }
-
-    const selectedEntity = level.entities.find((entity) => entity.id === selectedEntityId) ?? null;
-    const inspectedEntityPath =
-      selectedEntity?.type === 'enemy-patroller' && selectedEntity.pathId
-        ? (level.paths.find((path) => path.id === selectedEntity.pathId) ?? null)
-        : null;
-    const selectedPath =
-      tool === 'paths' && selectedPathId
-        ? (level.paths.find((path) => path.id === selectedPathId) ?? null)
-        : null;
-
-    const drawPath = (
-      path: (typeof level.paths)[number],
-      colors: { fill: string; label: string; stroke: string; pointStroke: string },
-    ) => {
-      if (path.patrol.length === 0) {
-        return;
-      }
-
-      ctx.save();
-      ctx.strokeStyle = colors.stroke;
-      ctx.fillStyle = colors.fill;
-      ctx.lineWidth = 3;
-
-      if (path.patrol.length > 1) {
-        ctx.beginPath();
-        ctx.moveTo(path.patrol[0].x, path.patrol[0].y);
-        for (const point of path.patrol.slice(1)) {
-          ctx.lineTo(point.x, point.y);
-        }
-        if (path.closed) {
-          ctx.lineTo(path.patrol[0].x, path.patrol[0].y);
-        }
-        ctx.stroke();
-      }
-
-      path.patrol.forEach((point, index) => {
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, index === 0 ? 10 : 8, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = colors.pointStroke;
-        ctx.stroke();
-
-        ctx.fillStyle = colors.label;
-        ctx.font = '10px monospace';
-        ctx.textAlign = 'center';
-        ctx.fillText(String(index + 1), point.x, point.y + 3);
-        ctx.fillStyle = colors.fill;
-      });
-
-      ctx.restore();
-    };
-
-    const drawMaterialOverlay = () => {
-      const overlayCanvas = materialOverlayCanvasRef.current;
-      if (!overlayCanvas) {
-        return;
-      }
-
-      ctx.drawImage(overlayCanvas, 0, 0);
-    };
-
-    if (inspectedEntityPath && inspectedEntityPath !== selectedPath) {
-      drawPath(inspectedEntityPath, {
-        fill: '#facc15',
-        label: '#1f2937',
-        pointStroke: '#713f12',
-        stroke: '#facc15',
-      });
-    }
-
-    if (selectedPath) {
-      drawPath(selectedPath, {
-        fill: '#22d3ee',
-        label: '#ecfeff',
-        pointStroke: '#082f49',
-        stroke: '#22d3ee',
-      });
-    }
-
-    if (tool === 'materials') {
-      drawMaterialOverlay();
-    }
-
-    if (rectanglePreview) {
-      for (const materialCell of rectanglePreview.materialCells) {
-        const tileX = materialCell.x * levelGrid.cellWidth;
-        const tileY = materialCell.y * levelGrid.cellHeight;
-        ctx.save();
-        ctx.globalAlpha = 0.92;
-        ctx.fillStyle = getMaterialColor(materialCell.material);
-        ctx.fillRect(tileX, tileY, levelGrid.cellWidth, levelGrid.cellHeight);
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(tileX + 0.5, tileY + 0.5, levelGrid.cellWidth - 1, levelGrid.cellHeight - 1);
-        ctx.restore();
-      }
-
-      for (const previewTile of rectanglePreview.tileOverrides) {
-        const layer = level.layers.find((candidate) => candidate.id === previewTile.layerId);
-        if (!layer || layerVisibility[layer.id] === false) {
-          continue;
-        }
-
-        const tileset = level.tilesets.find((candidate) => candidate.id === layer.tilesetId);
-        if (!tileset) {
-          continue;
-        }
-
-        const image = images[tileset.id];
-        if (!image) {
-          continue;
-        }
-
-        const frame = getTilesetTilePositionMap(tileset)[String(previewTile.tileId)];
-        if (!frame) {
-          continue;
-        }
-
-        const tileX = previewTile.x * levelGrid.cellWidth;
-        const tileY = previewTile.y * levelGrid.cellHeight;
-        ctx.save();
-        ctx.globalAlpha = layer.id === selectedLayerId ? 0.95 : 0.85;
-        ctx.drawImage(
-          image,
-          frame[0] * tileset.grid.frameWidth,
-          frame[1] * tileset.grid.frameHeight,
-          tileset.grid.frameWidth,
-          tileset.grid.frameHeight,
-          tileX,
-          tileY,
-          layer.scaleToGrid ? levelGrid.cellWidth : tileset.grid.frameWidth,
-          layer.scaleToGrid ? levelGrid.cellHeight : tileset.grid.frameHeight,
-        );
-        ctx.restore();
-      }
-    }
-
-    if (rectanglePreview) {
-      const left = Math.min(rectanglePreview.startX, rectanglePreview.endX) * levelGrid.cellWidth;
-      const top = Math.min(rectanglePreview.startY, rectanglePreview.endY) * levelGrid.cellHeight;
-      const width =
-        (Math.abs(rectanglePreview.endX - rectanglePreview.startX) + 1) * levelGrid.cellWidth;
-      const height =
-        (Math.abs(rectanglePreview.endY - rectanglePreview.startY) + 1) * levelGrid.cellHeight;
-
-      ctx.save();
-      ctx.strokeStyle = rectanglePreview.color;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([8, 6]);
-      ctx.strokeRect(left + 1, top + 1, Math.max(0, width - 2), Math.max(0, height - 2));
-      ctx.restore();
-    }
+    drawEditorCanvas({
+      columnImage: columnImageRef.current,
+      ctx,
+      images,
+      layerVisibility,
+      level,
+      materialOverlayCanvas: materialOverlayCanvasRef.current,
+      rectanglePreview,
+      selectedEntityId,
+      selectedLayerId,
+      selectedPathId,
+      tileLayerCanvases: tileLayerCanvasesRef.current,
+      tool,
+    });
   }, [
+    images,
+    layerVisibility,
     level,
     rectanglePreview,
     selectedEntityId,
+    selectedLayerId,
     selectedPathId,
     tool,
   ]);
@@ -461,13 +160,7 @@ export function EditorCanvas({
   const getWorldCoordinates = (
     event: React.MouseEvent<HTMLCanvasElement> | React.PointerEvent<HTMLCanvasElement>,
   ) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const scaleX = event.currentTarget.width / rect.width;
-    const scaleY = event.currentTarget.height / rect.height;
-    return {
-      worldX: Math.round((event.clientX - rect.left) * scaleX),
-      worldY: Math.round((event.clientY - rect.top) * scaleY),
-    };
+    return getCanvasWorldCoordinates(event.currentTarget, event.clientX, event.clientY);
   };
 
   const handlePointerEvent = (

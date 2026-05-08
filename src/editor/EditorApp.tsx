@@ -2,8 +2,6 @@ import { useRef, useState } from 'react';
 
 import {
   EditorCanvas,
-  type EditorCanvasPreviewMaterialCell,
-  type EditorCanvasPreviewTile,
   type EditorCanvasPointerInfo,
   type EditorCanvasRectanglePreview,
 } from './EditorCanvas';
@@ -15,12 +13,10 @@ import {
   appendPointToPath,
   cloneLevel,
   eraseTile,
-  findPathPointAtPosition,
   findNearestEntity,
+  findPathPointAtPosition,
   getTilesetForLayer,
-  makeEntityId,
   placeTile,
-  placeTiles,
   removeEntity,
   removePathPoint,
   updatePathPoint,
@@ -28,14 +24,8 @@ import {
 } from './shared/levelEditing';
 import {
   applyMaterialPlacement,
-  applyMaterialPlacements,
   clearMaterialPlacement,
-  clearMaterialPlacements,
-  getMaterialPlacementKey,
-  getMaterialColor,
   refreshMaterialPlacementTilesAround,
-  refreshMaterialPlacementTilesForCells,
-  resolveMaterialTilesForCells,
 } from './shared/materials';
 import { EntitiesSection } from './sections/EntitiesSection';
 import { LevelSection } from './sections/LevelSection';
@@ -47,224 +37,14 @@ import { ConfirmationDialog } from '@/ui/components/ConfirmationDialog';
 import { Switch } from '@/ui/components/Switch';
 import { EditorHeaderMenu } from './components/EditorHeaderMenu';
 import { ToolSwitcher } from './components/ToolSwitcher';
+import { getGridCell, type RectangleDragContext, type RectangleDragState } from './utils';
 import {
-  getExpandedRectanglePreviewCells,
-  getGridCell,
-  getRectangleTargetCells,
-  isCellOccupied,
-  type RectangleDragContext,
-  type RectangleDragState,
-} from './utils';
-
-const BACKUP_PREFERENCE_STORAGE_KEY = 'comet-bursters.editor.create-backups';
-const COLUMN_ENTITY_SPRITE = '../columnPixelart.png';
-
-function createPlacedEntity(
-  currentLevel: ReturnType<typeof useEditorStore.getState>['level'],
-  selectedEntityType: ReturnType<typeof useEditorStore.getState>['selectedEntityType'],
-  selectedEntityPathId: string | null,
-  worldX: number,
-  worldY: number,
-) {
-  if (selectedEntityType === 'player') {
-    return {
-      id: 'player',
-      type: 'player',
-      x: worldX,
-      y: worldY,
-    } as const;
-  }
-
-  if (selectedEntityType === 'column') {
-    return {
-      id: makeEntityId(currentLevel, 'column'),
-      type: 'column',
-      x: worldX,
-      y: worldY,
-      sprite: COLUMN_ENTITY_SPRITE,
-    } as const;
-  }
-
-  return {
-    id: makeEntityId(currentLevel, 'enemy'),
-    type: 'enemy-patroller',
-    x: worldX,
-    y: worldY,
-    pathId: selectedEntityPathId ?? undefined,
-  } as const;
-}
-
-function readBackupPreference(): boolean {
-  if (typeof window === 'undefined') {
-    return true;
-  }
-
-  return window.localStorage.getItem(BACKUP_PREFERENCE_STORAGE_KEY) !== 'false';
-}
-
-function applyRectangleDragToDocument(
-  document: EditorDocument,
-  rectangleDrag: RectangleDragState,
-  context: RectangleDragContext,
-): EditorDocument {
-  const targetCells = getRectangleTargetCells(rectangleDrag, context.fillRectangleDrag);
-  const selectedLayerId = context.selectedLayerId;
-  const filteredTargetCells =
-    selectedLayerId && context.onlyPaintUnoccupiedCells
-      ? targetCells.filter((cell) => !isCellOccupied(document, selectedLayerId, cell.x, cell.y))
-      : targetCells;
-
-  if (rectangleDrag.mode === 'tiles') {
-    if (!selectedLayerId || !context.selectedTileId || filteredTargetCells.length === 0) {
-      return document;
-    }
-
-    const nextMaterialPlacements = clearMaterialPlacements(
-      document.materialPlacements,
-      selectedLayerId,
-      filteredTargetCells,
-    );
-    const refreshedLevel = refreshMaterialPlacementTilesForCells(
-      document.level,
-      nextMaterialPlacements,
-      selectedLayerId,
-      filteredTargetCells,
-    );
-
-    return {
-      level: placeTiles(refreshedLevel, selectedLayerId, context.selectedTileId, filteredTargetCells),
-      materialPlacements: nextMaterialPlacements,
-    };
-  }
-
-  if (rectangleDrag.mode === 'materials') {
-    if (!selectedLayerId || !context.selectedMaterialId || filteredTargetCells.length === 0) {
-      return document;
-    }
-
-    return applyMaterialPlacements(
-      document.level,
-      document.materialPlacements,
-      selectedLayerId,
-      context.selectedMaterialId,
-      filteredTargetCells,
-    );
-  }
-
-  return document;
-}
-
-function buildRectanglePreview(
-  level: ReturnType<typeof useEditorStore.getState>['level'],
-  materialPlacements: ReturnType<typeof useEditorStore.getState>['materialPlacements'],
-  rectangleDrag: RectangleDragState,
-  context: RectangleDragContext,
-): EditorCanvasRectanglePreview {
-  const targetCells = getRectangleTargetCells(rectangleDrag, context.fillRectangleDrag);
-  const tileOverrides: EditorCanvasPreviewTile[] = [];
-  const materialCells: EditorCanvasPreviewMaterialCell[] = [];
-  const selectedLayerId = context.selectedLayerId;
-
-  if (selectedLayerId) {
-    const previewTargetCells = targetCells.filter(
-      (cell) =>
-        !context.onlyPaintUnoccupiedCells ||
-        !isCellOccupied({ level, materialPlacements }, selectedLayerId, cell.x, cell.y),
-    );
-
-    if (rectangleDrag.mode === 'tiles' && context.selectedTileId) {
-      for (const cell of previewTargetCells) {
-        tileOverrides.push({
-          layerId: selectedLayerId,
-          tileId: context.selectedTileId,
-          x: cell.x,
-          y: cell.y,
-        });
-      }
-
-      const layerPlacements = materialPlacements[selectedLayerId] ?? {};
-      const nextLayerPlacements = { ...layerPlacements };
-      let hadMaterialClears = false;
-      for (const cell of previewTargetCells) {
-        const key = getMaterialPlacementKey(cell.x, cell.y);
-        if (key in nextLayerPlacements) {
-          delete nextLayerPlacements[key];
-          hadMaterialClears = true;
-        }
-      }
-
-      if (hadMaterialClears) {
-        const nextMaterialPlacements = {
-          ...materialPlacements,
-          [selectedLayerId]: nextLayerPlacements,
-        };
-        const affectedCells = getExpandedRectanglePreviewCells(previewTargetCells);
-        tileOverrides.push(
-          ...resolveMaterialTilesForCells(
-            level,
-            selectedLayerId,
-            nextMaterialPlacements,
-            affectedCells,
-          ).map((tile) => ({
-            layerId: selectedLayerId,
-            tileId: tile.tileId,
-            x: tile.x,
-            y: tile.y,
-          })),
-        );
-      }
-    }
-
-    if (rectangleDrag.mode === 'materials' && context.selectedMaterialId) {
-      const selectedMaterialId = context.selectedMaterialId;
-      const layerPlacements = materialPlacements[selectedLayerId] ?? {};
-      const nextMaterialPlacements = {
-        ...materialPlacements,
-        [selectedLayerId]: {
-          ...layerPlacements,
-          ...Object.fromEntries(
-            previewTargetCells.map((cell) => [
-              getMaterialPlacementKey(cell.x, cell.y),
-              selectedMaterialId,
-            ]),
-          ),
-        },
-      };
-
-      materialCells.push(
-        ...previewTargetCells.map((cell) => ({
-          material: selectedMaterialId,
-          x: cell.x,
-          y: cell.y,
-        })),
-      );
-      tileOverrides.push(
-        ...resolveMaterialTilesForCells(
-          level,
-          selectedLayerId,
-          nextMaterialPlacements,
-          getExpandedRectanglePreviewCells(previewTargetCells),
-        ).map((tile) => ({
-          layerId: selectedLayerId,
-          tileId: tile.tileId,
-          x: tile.x,
-          y: tile.y,
-        })),
-      );
-    }
-  }
-
-  return {
-    color:
-      rectangleDrag.mode === 'materials' ? getMaterialColor(context.selectedMaterialId ?? 'wall') : '#facc15',
-    startX: rectangleDrag.startX,
-    startY: rectangleDrag.startY,
-    endX: rectangleDrag.endX,
-    endY: rectangleDrag.endY,
-    materialCells,
-    tileOverrides,
-  };
-}
+  applyRectangleDragToDocument,
+  BACKUP_PREFERENCE_STORAGE_KEY,
+  buildRectanglePreview,
+  createPlacedEntity,
+  readBackupPreference,
+} from './editorOperations';
 
 export function EditorApp() {
   const {
@@ -504,7 +284,11 @@ export function EditorApp() {
     });
   };
 
-  const handleRectanglePreviewStart = (mode: RectangleDragState['mode'], worldX: number, worldY: number) => {
+  const handleRectanglePreviewStart = (
+    mode: RectangleDragState['mode'],
+    worldX: number,
+    worldY: number,
+  ) => {
     const { x, y } = getGridCell(level, worldX, worldY);
     const nextRectangleDrag = {
       mode,
