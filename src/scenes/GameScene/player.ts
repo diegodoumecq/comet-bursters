@@ -3,19 +3,30 @@ import { createQueryModule } from 'joymap';
 import { scaleMask } from '@/assets';
 import {
   BULLET_CONFIGS,
+  FUEL_THRUST_PER_SECOND,
   INVULNERABILITY_DURATION,
+  LOW_FUEL_RATIO,
   PLAYER_ACCELERATION,
   PLAYER_COLORS,
+  PLAYER_MAX_FUEL,
   PLAYER_MAX_SPEED,
   PLAYER_SIZE,
   SHIELD_COLOR,
   SHIELD_MAX_HITS,
   SHIELD_RADIUS,
+  STARTING_INSPECTION_PROBES,
   STARTING_LIVES,
   THRUSTER_PARTICLE_SPAWN_INTERVAL,
   type Player,
 } from '@/constants';
 import { InputManager } from '@/input';
+import {
+  drainFuel,
+  getFuelRatio,
+  getWeaponFireMode,
+  type BulletMode,
+  type WeaponType,
+} from '@/playerFuel';
 import { bullets, gameState, getGameHeight, getGameWidth } from '@/state';
 import { createThrusterParticle } from './particle';
 
@@ -41,6 +52,9 @@ export function createPlayer(padId: string): Player {
     shieldHits: SHIELD_MAX_HITS,
     shieldActive: false,
     shieldHitUntil: 0,
+    fuel: PLAYER_MAX_FUEL,
+    maxFuel: PLAYER_MAX_FUEL,
+    inspectionProbes: STARTING_INSPECTION_PROBES,
     module: createQueryModule({
       padId: padId === 'keyboard' ? undefined : padId,
       autoConnect: padId === 'keyboard',
@@ -58,7 +72,7 @@ export function createPlayer(padId: string): Player {
   };
 }
 
-export function updatePlayer(player: Player) {
+export function updatePlayer(player: Player, deltaTime: number) {
   const now = Date.now();
 
   if (player.waitingToRespawn) {
@@ -69,8 +83,17 @@ export function updatePlayer(player: Player) {
 
   player.shieldActive = input.shield.pressed && player.shieldHits > 0;
 
-  if (input.move.value[0] !== 0 || input.move.value[1] !== 0) {
+  const moveMagnitude = Math.sqrt(
+    input.move.value[0] * input.move.value[0] + input.move.value[1] * input.move.value[1],
+  );
+  const accelerationApplied = moveMagnitude > 0.1 && player.fuel > 0;
+
+  if (moveMagnitude > 0.1) {
     player.angle = Math.atan2(input.move.value[1], input.move.value[0]) + Math.PI * 0.5;
+  }
+
+  if (accelerationApplied) {
+    drainFuel(player, FUEL_THRUST_PER_SECOND * (deltaTime / 1000));
     player.vx += input.move.value[0] * PLAYER_ACCELERATION;
     player.vy += input.move.value[1] * PLAYER_ACCELERATION;
   }
@@ -101,13 +124,10 @@ export function updatePlayer(player: Player) {
   if (player.y < 0) player.y = height;
   if (player.y > height) player.y = 0;
 
-  const lSpeed = Math.sqrt(
-    input.move.value[0] * input.move.value[0] + input.move.value[1] * input.move.value[1],
-  );
-  player.isThrusting = lSpeed > 0.1;
-  if (lSpeed > 0.1) {
-    player.thrustDirX = -input.move.value[0] / lSpeed;
-    player.thrustDirY = -input.move.value[1] / lSpeed;
+  player.isThrusting = accelerationApplied;
+  if (accelerationApplied) {
+    player.thrustDirX = -input.move.value[0] / moveMagnitude;
+    player.thrustDirY = -input.move.value[1] / moveMagnitude;
     if (now - player.lastThrusterSpawn >= THRUSTER_PARTICLE_SPAWN_INTERVAL) {
       player.lastThrusterSpawn = now;
       const thrusterX = player.x + player.thrustDirX * PLAYER_SIZE;
@@ -121,12 +141,15 @@ export function updatePlayer(player: Player) {
     input.fire.pressed &&
     now - player.timeoutSmall >= BULLET_CONFIGS.small.fireRate
   ) {
-    player.timeoutSmall = now;
-    createBullet(player, 'small');
-    const recoil = BULLET_CONFIGS.small.recoil;
-    const recoilAngle = player.turretAngle + Math.PI * 0.5;
-    player.vx += Math.cos(recoilAngle) * recoil;
-    player.vy += Math.sin(recoilAngle) * recoil;
+    const mode = getWeaponFireMode(player, 'small');
+    if (mode) {
+      player.timeoutSmall = now;
+      createBullet(player, 'small', mode);
+      const recoil = BULLET_CONFIGS.small.recoil;
+      const recoilAngle = player.turretAngle + Math.PI * 0.5;
+      player.vx += Math.cos(recoilAngle) * recoil;
+      player.vy += Math.sin(recoilAngle) * recoil;
+    }
   }
 
   if (
@@ -134,13 +157,16 @@ export function updatePlayer(player: Player) {
     input.chaosFire.pressed &&
     now - player.timeoutShotgun >= BULLET_CONFIGS.shotgun.fireRate
   ) {
-    player.timeoutShotgun = now;
-    createBullet(player, 'shotgun');
-    const recoil = BULLET_CONFIGS.shotgun.recoil;
-    const recoilAngle = player.turretAngle + Math.PI * 0.5;
-    player.vx += Math.cos(recoilAngle) * recoil;
-    player.vy += Math.sin(recoilAngle) * recoil;
-    createBullet(player, 'shotgun');
+    const mode = getWeaponFireMode(player, 'shotgun');
+    if (mode) {
+      player.timeoutShotgun = now;
+      createBullet(player, 'shotgun', mode);
+      const recoil = BULLET_CONFIGS.shotgun.recoil;
+      const recoilAngle = player.turretAngle + Math.PI * 0.5;
+      player.vx += Math.cos(recoilAngle) * recoil;
+      player.vy += Math.sin(recoilAngle) * recoil;
+      createBullet(player, 'shotgun', mode);
+    }
   }
 
   if (
@@ -148,12 +174,15 @@ export function updatePlayer(player: Player) {
     input.fireSpecial.pressed &&
     now - player.timeoutPusher >= BULLET_CONFIGS.pusher.fireRate
   ) {
-    player.timeoutPusher = now;
-    createBullet(player, 'pusher');
-    const recoil = BULLET_CONFIGS.pusher.recoil;
-    const recoilAngle = player.turretAngle + Math.PI * 0.5;
-    player.vx += Math.cos(recoilAngle) * recoil;
-    player.vy += Math.sin(recoilAngle) * recoil;
+    const mode = getWeaponFireMode(player, 'pusher');
+    if (mode) {
+      player.timeoutPusher = now;
+      createBullet(player, 'pusher', mode);
+      const recoil = BULLET_CONFIGS.pusher.recoil;
+      const recoilAngle = player.turretAngle + Math.PI * 0.5;
+      player.vx += Math.cos(recoilAngle) * recoil;
+      player.vy += Math.sin(recoilAngle) * recoil;
+    }
   }
 
   if (
@@ -161,12 +190,15 @@ export function updatePlayer(player: Player) {
     input.fireReallyHard.pressed &&
     now - player.timeoutBlackHole >= BULLET_CONFIGS.blackHole.fireRate
   ) {
-    player.timeoutBlackHole = now;
-    createBullet(player, 'blackHole');
-    const recoil = BULLET_CONFIGS.blackHole.recoil;
-    const recoilAngle = player.turretAngle + Math.PI * 0.5;
-    player.vx += Math.cos(recoilAngle) * recoil;
-    player.vy += Math.sin(recoilAngle) * recoil;
+    const mode = getWeaponFireMode(player, 'blackHole');
+    if (mode) {
+      player.timeoutBlackHole = now;
+      createBullet(player, 'blackHole', mode);
+      const recoil = BULLET_CONFIGS.blackHole.recoil;
+      const recoilAngle = player.turretAngle + Math.PI * 0.5;
+      player.vx += Math.cos(recoilAngle) * recoil;
+      player.vy += Math.sin(recoilAngle) * recoil;
+    }
   }
 
   if (player.invulnerable && now >= player.invulnerableUntil) {
@@ -174,8 +206,9 @@ export function updatePlayer(player: Player) {
   }
 }
 
-function createBullet(player: Player, type: 'small' | 'blackHole' | 'pusher' | 'shotgun') {
+function createBullet(player: Player, type: WeaponType, mode: BulletMode = 'normal') {
   const config = BULLET_CONFIGS[type];
+  const isDegradedSmall = mode === 'degraded' && type === 'small';
   const bulletAngle = player.turretAngle - Math.PI * 0.5;
   const now = Date.now();
 
@@ -186,8 +219,9 @@ function createBullet(player: Player, type: 'small' | 'blackHole' | 'pusher' | '
       config.speed * (1 - config.speedVariance + Math.random() * config.speedVariance * 2);
     const angle = bulletAngle + spreadOffset;
 
-    const lifetime =
+    const baseLifetime =
       config.speedVariance > 0 ? config.lifetime * (0.7 + Math.random() * 0.3) : config.lifetime;
+    const lifetime = isDegradedSmall ? baseLifetime * 0.5 : baseLifetime;
 
     bullets.push({
       x: player.x + Math.cos(bulletAngle) * PLAYER_SIZE,
@@ -200,12 +234,72 @@ function createBullet(player: Player, type: 'small' | 'blackHole' | 'pusher' | '
       lifetime,
       spawnTime: now,
       playerId: player.id,
-      damage: config.damage,
-      impact: config.impact,
+      damage: isDegradedSmall ? config.damage * 0.5 : config.damage,
+      impact: isDegradedSmall ? config.impact * 0.5 : config.impact,
       recoil: config.recoil,
       type,
     });
   }
+}
+
+function tracePlayerHullPath(ctx: CanvasRenderingContext2D): void {
+  ctx.moveTo(PLAYER_SIZE, 0);
+  ctx.lineTo(PLAYER_SIZE * 0.46, -PLAYER_SIZE * 0.14);
+  ctx.lineTo(PLAYER_SIZE * 0.18, -PLAYER_SIZE * 0.2);
+  ctx.lineTo(-PLAYER_SIZE * 0.08, -PLAYER_SIZE * 0.54);
+  ctx.lineTo(-PLAYER_SIZE * 0.36, -PLAYER_SIZE * 0.46);
+  ctx.lineTo(-PLAYER_SIZE * 0.84, -PLAYER_SIZE * 0.22);
+  ctx.lineTo(-PLAYER_SIZE * 0.58, -PLAYER_SIZE * 0.08);
+  ctx.lineTo(-PLAYER_SIZE * 0.72, 0);
+  ctx.lineTo(-PLAYER_SIZE * 0.58, PLAYER_SIZE * 0.08);
+  ctx.lineTo(-PLAYER_SIZE * 0.84, PLAYER_SIZE * 0.22);
+  ctx.lineTo(-PLAYER_SIZE * 0.36, PLAYER_SIZE * 0.46);
+  ctx.lineTo(-PLAYER_SIZE * 0.08, PLAYER_SIZE * 0.54);
+  ctx.lineTo(PLAYER_SIZE * 0.18, PLAYER_SIZE * 0.2);
+  ctx.lineTo(PLAYER_SIZE * 0.46, PLAYER_SIZE * 0.14);
+  ctx.closePath();
+}
+
+function strokePlayerHullPath(ctx: CanvasRenderingContext2D): void {
+  ctx.beginPath();
+  tracePlayerHullPath(ctx);
+  ctx.stroke();
+}
+
+export function drawFuelContour(ctx: CanvasRenderingContext2D, player: Player, now: number): void {
+  const fuelRatio = Math.max(0, Math.min(1, getFuelRatio(player)));
+  const lowFuel = fuelRatio <= LOW_FUEL_RATIO;
+
+  ctx.save();
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  if (lowFuel) {
+    const pulse = 0.45 + Math.sin(now / 120) * 0.35;
+    ctx.strokeStyle = `rgba(255, 35, 45, ${0.45 + pulse * 0.3})`;
+    strokePlayerHullPath(ctx);
+    ctx.restore();
+    return;
+  }
+
+  ctx.strokeStyle = 'rgba(45, 62, 85, 0.58)';
+  strokePlayerHullPath(ctx);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(
+    -PLAYER_SIZE * 0.92,
+    -PLAYER_SIZE * 0.68,
+    PLAYER_SIZE * 1.92 * fuelRatio,
+    PLAYER_SIZE * 1.36,
+  );
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(85, 245, 255, 0.82)';
+  strokePlayerHullPath(ctx);
+  ctx.restore();
+
+  ctx.restore();
 }
 
 function drawOnePlayer(player: Player, ctx: CanvasRenderingContext2D) {
@@ -253,23 +347,10 @@ function drawOnePlayer(player: Player, ctx: CanvasRenderingContext2D) {
   ctx.lineWidth = 2;
 
   ctx.beginPath();
-  ctx.moveTo(PLAYER_SIZE, 0);
-  ctx.lineTo(PLAYER_SIZE * 0.46, -PLAYER_SIZE * 0.14);
-  ctx.lineTo(PLAYER_SIZE * 0.18, -PLAYER_SIZE * 0.2);
-  ctx.lineTo(-PLAYER_SIZE * 0.08, -PLAYER_SIZE * 0.54);
-  ctx.lineTo(-PLAYER_SIZE * 0.36, -PLAYER_SIZE * 0.46);
-  ctx.lineTo(-PLAYER_SIZE * 0.84, -PLAYER_SIZE * 0.22);
-  ctx.lineTo(-PLAYER_SIZE * 0.58, -PLAYER_SIZE * 0.08);
-  ctx.lineTo(-PLAYER_SIZE * 0.72, 0);
-  ctx.lineTo(-PLAYER_SIZE * 0.58, PLAYER_SIZE * 0.08);
-  ctx.lineTo(-PLAYER_SIZE * 0.84, PLAYER_SIZE * 0.22);
-  ctx.lineTo(-PLAYER_SIZE * 0.36, PLAYER_SIZE * 0.46);
-  ctx.lineTo(-PLAYER_SIZE * 0.08, PLAYER_SIZE * 0.54);
-  ctx.lineTo(PLAYER_SIZE * 0.18, PLAYER_SIZE * 0.2);
-  ctx.lineTo(PLAYER_SIZE * 0.46, PLAYER_SIZE * 0.14);
-  ctx.closePath();
+  tracePlayerHullPath(ctx);
   ctx.fill();
   ctx.stroke();
+  drawFuelContour(ctx, player, now);
 
   ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
   ctx.beginPath();

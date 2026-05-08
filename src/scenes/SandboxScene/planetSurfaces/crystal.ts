@@ -1,5 +1,4 @@
 import type { Planet } from '@/constants';
-
 import { drawFlatTextureOnSphere, getFlatPlanetTexture } from '../planetTextureEngine';
 import { alphaColor } from './shared';
 
@@ -15,21 +14,156 @@ type CrystalFacet = {
 };
 
 const CRYSTAL_FACETS: readonly CrystalFacet[] = [
-  { u: 0.08, v: 0.34, width: 0.08, height: 0.12, lean: -0.34, rotation: -0.42, fillAlpha: 0.18, strokeAlpha: 0.16 },
-  { u: 0.14, v: 0.58, width: 0.09, height: 0.13, lean: 0.28, rotation: 0.2, fillAlpha: 0.16, strokeAlpha: 0.14 },
-  { u: 0.22, v: 0.76, width: 0.07, height: 0.1, lean: -0.16, rotation: 0.52, fillAlpha: 0.14, strokeAlpha: 0.12 },
-  { u: 0.3, v: 0.86, width: 0.08, height: 0.11, lean: 0.36, rotation: -0.24, fillAlpha: 0.12, strokeAlpha: 0.11 },
-  { u: 0.38, v: 0.68, width: 0.08, height: 0.12, lean: -0.3, rotation: 0.34, fillAlpha: 0.16, strokeAlpha: 0.14 },
-  { u: 0.46, v: 0.9, width: 0.07, height: 0.09, lean: 0.18, rotation: -0.48, fillAlpha: 0.11, strokeAlpha: 0.1 },
-  { u: 0.54, v: 0.82, width: 0.08, height: 0.11, lean: -0.22, rotation: 0.18, fillAlpha: 0.12, strokeAlpha: 0.11 },
-  { u: 0.62, v: 0.52, width: 0.07, height: 0.09, lean: 0.26, rotation: -0.36, fillAlpha: 0.1, strokeAlpha: 0.09 },
-  { u: 0.7, v: 0.88, width: 0.08, height: 0.12, lean: 0.12, rotation: 0.44, fillAlpha: 0.12, strokeAlpha: 0.11 },
-  { u: 0.78, v: 0.72, width: 0.07, height: 0.1, lean: -0.28, rotation: -0.14, fillAlpha: 0.11, strokeAlpha: 0.1 },
-  { u: 0.84, v: 0.94, width: 0.06, height: 0.08, lean: 0.2, rotation: -0.12, fillAlpha: 0.08, strokeAlpha: 0.08 },
-  { u: 0.9, v: 0.24, width: 0.06, height: 0.09, lean: -0.12, rotation: 0.3, fillAlpha: 0.09, strokeAlpha: 0.08 },
-  { u: 0.94, v: 0.84, width: 0.06, height: 0.08, lean: 0.3, rotation: -0.38, fillAlpha: 0.08, strokeAlpha: 0.07 },
-  { u: 0.98, v: 0.16, width: 0.06, height: 0.09, lean: -0.18, rotation: 0.12, fillAlpha: 0.08, strokeAlpha: 0.07 },
-  { u: 0.04, v: 0.62, width: 0.05, height: 0.08, lean: 0.16, rotation: -0.3, fillAlpha: 0.08, strokeAlpha: 0.07 },
+  {
+    u: 0.08,
+    v: 0.34,
+    width: 0.08,
+    height: 0.12,
+    lean: -0.34,
+    rotation: -0.42,
+    fillAlpha: 0.18,
+    strokeAlpha: 0.16,
+  },
+  {
+    u: 0.14,
+    v: 0.58,
+    width: 0.09,
+    height: 0.13,
+    lean: 0.28,
+    rotation: 0.2,
+    fillAlpha: 0.16,
+    strokeAlpha: 0.14,
+  },
+  {
+    u: 0.22,
+    v: 0.76,
+    width: 0.07,
+    height: 0.1,
+    lean: -0.16,
+    rotation: 0.52,
+    fillAlpha: 0.14,
+    strokeAlpha: 0.12,
+  },
+  {
+    u: 0.3,
+    v: 0.86,
+    width: 0.08,
+    height: 0.11,
+    lean: 0.36,
+    rotation: -0.24,
+    fillAlpha: 0.12,
+    strokeAlpha: 0.11,
+  },
+  {
+    u: 0.38,
+    v: 0.68,
+    width: 0.08,
+    height: 0.12,
+    lean: -0.3,
+    rotation: 0.34,
+    fillAlpha: 0.16,
+    strokeAlpha: 0.14,
+  },
+  {
+    u: 0.46,
+    v: 0.9,
+    width: 0.07,
+    height: 0.09,
+    lean: 0.18,
+    rotation: -0.48,
+    fillAlpha: 0.11,
+    strokeAlpha: 0.1,
+  },
+  {
+    u: 0.54,
+    v: 0.82,
+    width: 0.08,
+    height: 0.11,
+    lean: -0.22,
+    rotation: 0.18,
+    fillAlpha: 0.12,
+    strokeAlpha: 0.11,
+  },
+  {
+    u: 0.62,
+    v: 0.52,
+    width: 0.07,
+    height: 0.09,
+    lean: 0.26,
+    rotation: -0.36,
+    fillAlpha: 0.1,
+    strokeAlpha: 0.09,
+  },
+  {
+    u: 0.7,
+    v: 0.88,
+    width: 0.08,
+    height: 0.12,
+    lean: 0.12,
+    rotation: 0.44,
+    fillAlpha: 0.12,
+    strokeAlpha: 0.11,
+  },
+  {
+    u: 0.78,
+    v: 0.72,
+    width: 0.07,
+    height: 0.1,
+    lean: -0.28,
+    rotation: -0.14,
+    fillAlpha: 0.11,
+    strokeAlpha: 0.1,
+  },
+  {
+    u: 0.84,
+    v: 0.94,
+    width: 0.06,
+    height: 0.08,
+    lean: 0.2,
+    rotation: -0.12,
+    fillAlpha: 0.08,
+    strokeAlpha: 0.08,
+  },
+  {
+    u: 0.9,
+    v: 0.24,
+    width: 0.06,
+    height: 0.09,
+    lean: -0.12,
+    rotation: 0.3,
+    fillAlpha: 0.09,
+    strokeAlpha: 0.08,
+  },
+  {
+    u: 0.94,
+    v: 0.84,
+    width: 0.06,
+    height: 0.08,
+    lean: 0.3,
+    rotation: -0.38,
+    fillAlpha: 0.08,
+    strokeAlpha: 0.07,
+  },
+  {
+    u: 0.98,
+    v: 0.16,
+    width: 0.06,
+    height: 0.09,
+    lean: -0.18,
+    rotation: 0.12,
+    fillAlpha: 0.08,
+    strokeAlpha: 0.07,
+  },
+  {
+    u: 0.04,
+    v: 0.62,
+    width: 0.05,
+    height: 0.08,
+    lean: 0.16,
+    rotation: -0.3,
+    fillAlpha: 0.08,
+    strokeAlpha: 0.07,
+  },
 ];
 
 const CRYSTAL_ARC_BANDS: readonly [number, number, number, number, number][] = [
@@ -112,7 +246,9 @@ function paintFlatCrystalTexture(
     for (let x = 0; x <= width; x += width / 12) {
       const wave =
         Math.sin((x / width) * Math.PI * 2 + phase * Math.PI * 2 + planet.rotation * speed) *
-          height * arc * 0.14 +
+          height *
+          arc *
+          0.14 +
         Math.cos((x / width) * Math.PI * 4 + phase * 1.4) * height * 0.01;
       ctx.lineTo(x, y + wave);
     }
@@ -172,7 +308,10 @@ function paintFlatCrystalTexture(
         facetHeight * 0.52,
       );
       facetGradient.addColorStop(0, alphaColor('#ffffff', Math.max(0.16, facet.fillAlpha * 1.2)));
-      facetGradient.addColorStop(0.34, alphaColor('#d8f6ff', Math.max(0.08, facet.fillAlpha * 0.62)));
+      facetGradient.addColorStop(
+        0.34,
+        alphaColor('#d8f6ff', Math.max(0.08, facet.fillAlpha * 0.62)),
+      );
       facetGradient.addColorStop(1, alphaColor('#7ee7ff', 0));
 
       drawFlatFacet(ctx, 0, 0, facetWidth, facetHeight, facet.lean);
@@ -256,7 +395,7 @@ export function drawCrystalSurface(
     planet,
     paintFlatCrystalTexture,
   );
-  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation * 0.08);
+  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation);
 }
 
 export function drawCrystalCrescent(ctx: CanvasRenderingContext2D, radius: number): void {

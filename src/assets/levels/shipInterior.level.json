@@ -4249,6 +4249,12 @@
       "y": 1176
     },
     {
+      "id": "refuel-station-1",
+      "type": "refuel-station",
+      "x": 360,
+      "y": 1176
+    },
+    {
       "id": "enemy-bridge-1",
       "type": "enemy-patroller",
       "x": 760,

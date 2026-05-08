@@ -1,5 +1,4 @@
 import type { Planet } from '@/constants';
-
 import { drawFlatTextureOnSphere, getFlatPlanetTexture } from '../planetTextureEngine';
 import { alphaColor } from './shared';
 
@@ -46,7 +45,8 @@ function paintFlatLushTexture(
     for (let x = 0; x <= width; x += width / 16) {
       const wave =
         Math.sin((x / width) * Math.PI * 2 + planet.rotation * ribbon.speed + ribbon.y * 8) *
-          height * ribbon.amp +
+          height *
+          ribbon.amp +
         Math.cos((x / width) * Math.PI * 6 + ribbon.y * 5) * height * 0.016;
       ctx.lineTo(x, centerY + wave - height * ribbon.thick * 0.5);
     }
@@ -54,7 +54,8 @@ function paintFlatLushTexture(
     for (let x = width; x >= 0; x -= width / 16) {
       const wave =
         Math.sin((x / width) * Math.PI * 2 + planet.rotation * ribbon.speed + ribbon.y * 8) *
-          height * ribbon.amp +
+          height *
+          ribbon.amp +
         Math.cos((x / width) * Math.PI * 6 + ribbon.y * 5) * height * 0.016;
       ctx.lineTo(x, centerY + wave + height * ribbon.thick * 0.5);
     }
@@ -68,7 +69,8 @@ function paintFlatLushTexture(
     for (let x = 0; x <= width; x += width / 16) {
       const wave =
         Math.sin((x / width) * Math.PI * 2 + planet.rotation * ribbon.speed + ribbon.y * 8) *
-          height * ribbon.amp +
+          height *
+          ribbon.amp +
         Math.cos((x / width) * Math.PI * 6 + ribbon.y * 5) * height * 0.016;
       if (x === 0) {
         ctx.moveTo(x, centerY + wave - height * ribbon.thick * 0.18);
@@ -113,8 +115,11 @@ function paintFlatLushTexture(
 
     for (let x = 0; x <= width; x += width / 20) {
       const wave =
-        Math.sin((x / width) * Math.PI * 2 * band.freq + planet.rotation * band.speed + band.y * 11) *
-          height * band.amp +
+        Math.sin(
+          (x / width) * Math.PI * 2 * band.freq + planet.rotation * band.speed + band.y * 11,
+        ) *
+          height *
+          band.amp +
         Math.cos((x / width) * Math.PI * (band.freq + 2) + band.y * 7) * height * 0.008;
 
       if (x === 0) {
@@ -150,28 +155,81 @@ function paintFlatLushTexture(
   }
 
   const tendrils = [
-    { y: 0.18, amp: 0.034, width: 3.4, alpha: 0.12, tint: '#dfffc3', freq: 3, speed: 0.05, phase: 0.2 },
-    { y: 0.29, amp: 0.028, width: 2.9, alpha: 0.14, tint: '#b9ff97', freq: 4, speed: 0.065, phase: 0.48 },
-    { y: 0.43, amp: 0.03, width: 3.1, alpha: 0.12, tint: '#eaffd2', freq: 5, speed: 0.06, phase: 0.76 },
-    { y: 0.59, amp: 0.036, width: 3.7, alpha: 0.1, tint: '#9df27f', freq: 3, speed: 0.05, phase: 1.04 },
-    { y: 0.73, amp: 0.032, width: 2.8, alpha: 0.13, tint: '#d6ffc3', freq: 4, speed: 0.07, phase: 1.32 },
-    { y: 0.86, amp: 0.026, width: 2.6, alpha: 0.11, tint: '#f4ffd6', freq: 6, speed: 0.08, phase: 1.66 },
+    {
+      y: 0.18,
+      amp: 0.034,
+      width: 3.4,
+      alpha: 0.12,
+      tint: '#dfffc3',
+      freq: 3,
+      speed: 0.05,
+      phase: 0.2,
+    },
+    {
+      y: 0.29,
+      amp: 0.028,
+      width: 2.9,
+      alpha: 0.14,
+      tint: '#b9ff97',
+      freq: 4,
+      speed: 0.065,
+      phase: 0.48,
+    },
+    {
+      y: 0.43,
+      amp: 0.03,
+      width: 3.1,
+      alpha: 0.12,
+      tint: '#eaffd2',
+      freq: 5,
+      speed: 0.06,
+      phase: 0.76,
+    },
+    {
+      y: 0.59,
+      amp: 0.036,
+      width: 3.7,
+      alpha: 0.1,
+      tint: '#9df27f',
+      freq: 3,
+      speed: 0.05,
+      phase: 1.04,
+    },
+    {
+      y: 0.73,
+      amp: 0.032,
+      width: 2.8,
+      alpha: 0.13,
+      tint: '#d6ffc3',
+      freq: 4,
+      speed: 0.07,
+      phase: 1.32,
+    },
+    {
+      y: 0.86,
+      amp: 0.026,
+      width: 2.6,
+      alpha: 0.11,
+      tint: '#f4ffd6',
+      freq: 6,
+      speed: 0.08,
+      phase: 1.66,
+    },
   ] as const;
 
   for (let tendrilIndex = 0; tendrilIndex < tendrils.length; tendrilIndex++) {
     const tendril = tendrils[tendrilIndex];
-    const tendrilWidth =
-      Math.max(
-        2.2,
-        tendril.width *
-          dramaticThicknessVariance(
-            100 +
-              tendrilIndex +
-              planet.altitudeVariations[tendrilIndex % planet.altitudeVariations.length] * 12,
-            0.7,
-            5.6,
-          ),
-      );
+    const tendrilWidth = Math.max(
+      2.2,
+      tendril.width *
+        dramaticThicknessVariance(
+          100 +
+            tendrilIndex +
+            planet.altitudeVariations[tendrilIndex % planet.altitudeVariations.length] * 12,
+          0.7,
+          5.6,
+        ),
+    );
     ctx.strokeStyle = alphaColor(tendril.tint, tendril.alpha);
     ctx.lineWidth = tendrilWidth;
     ctx.lineCap = 'round';
@@ -183,10 +241,16 @@ function paintFlatLushTexture(
 
       for (let x = start; x <= end; x += width / 24) {
         const branch =
-          Math.sin((x / width) * Math.PI * 2 * tendril.freq + tendril.phase + planet.rotation * tendril.speed) *
+          Math.sin(
+            (x / width) * Math.PI * 2 * tendril.freq +
+              tendril.phase +
+              planet.rotation * tendril.speed,
+          ) *
             height *
             tendril.amp +
-          Math.cos((x / width) * Math.PI * (tendril.freq + 3) + tendril.phase * 1.8) * height * 0.01;
+          Math.cos((x / width) * Math.PI * (tendril.freq + 3) + tendril.phase * 1.8) *
+            height *
+            0.01;
         const y = tendril.y * height + branch + Math.sin(x * 0.021 + segment) * height * 0.008;
 
         if (x === start) {
@@ -219,7 +283,6 @@ function paintFlatLushTexture(
     ctx.quadraticCurveTo(x + length * 0.42, y + swing * 0.7, x + length * 0.56, y - swing * 0.25);
     ctx.stroke();
   }
-
 }
 
 export function drawLushSurface(
@@ -234,5 +297,5 @@ export function drawLushSurface(
     planet,
     paintFlatLushTexture,
   );
-  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation * 0.08);
+  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation);
 }

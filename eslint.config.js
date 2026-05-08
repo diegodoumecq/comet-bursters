@@ -7,11 +7,12 @@ import globals from 'globals';
 
 export default defineConfig([
   {
-    ignores: ['bin/**', 'docs/**', 'node_modules/**'],
+    ignores: ['bin/**', 'devBundle/**', 'docs/**', 'node_modules/**'],
   },
   {
     files: ['**/*.config.{js,ts}', 'vite.config.*.ts'],
     languageOptions: {
+      parser: tsparser,
       globals: { ...globals.node },
     },
   },
@@ -59,7 +60,6 @@ export default defineConfig([
       globals: { ...globals.browser },
     },
     plugins: {
-      react,
       prettier,
     },
     rules: {

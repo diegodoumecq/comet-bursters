@@ -79,6 +79,10 @@ function createDemoPlanet(kind: PlanetKind, x: number, y: number, colorIndex: nu
     color: palette[colorIndex % palette.length],
     altitudeVariations,
     rotation: colorIndex * 0.7,
+    rotationSpeed: 0,
+    fuelReserve: 0,
+    fuelExtractors: [],
+    inspectedUntil: 0,
     getRadius: () => PLANET_CONFIG.radius,
     mask: null,
   };
@@ -312,11 +316,7 @@ export class DemoScene implements Scene {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
         ctx.font = '26px Audiowide, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(
-          planet.kind,
-          planet.x,
-          planet.y + planet.getRadius() + 70,
-        );
+        ctx.fillText(planet.kind, planet.x, planet.y + planet.getRadius() + 70);
       }
     }
 

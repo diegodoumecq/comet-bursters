@@ -1,13 +1,12 @@
 import { PLANET_CONFIG, type Planet } from '@/constants';
-
 import { tracePlanetShape } from './planetShapes';
 import { PLANET_SHELL_STYLES } from './planetStyles';
 import { drawPlanetSurface } from './planetSurfaces';
 import { polarPoint, tintColor } from './planetSurfaces/shared';
 
 const PLANET_CACHE_PADDING = 40;
-const PLANET_ROTATION_BUCKETS = 24;
-const PLANET_RENDER_VERSION = 'v2';
+const PLANET_ROTATION_BUCKETS = 240;
+const PLANET_RENDER_VERSION = 'v3';
 const planetSpriteCache = new Map<string, HTMLCanvasElement>();
 
 function withAlpha(color: string, alpha: number): string {
@@ -100,13 +99,19 @@ function drawStyledPlanetToContext(planet: Planet, ctx: CanvasRenderingContext2D
       0,
       radius * 1.08,
     );
-    shellLightOverlay.addColorStop(0, withAlpha(tintColor(planet.color, style.shellInnerTint), 0.06));
+    shellLightOverlay.addColorStop(
+      0,
+      withAlpha(tintColor(planet.color, style.shellInnerTint), 0.06),
+    );
     shellLightOverlay.addColorStop(
       Math.max(0.18, style.shellMidStop - 0.08),
       withAlpha(tintColor(planet.color, style.shellMidTint), 0.025),
     );
     shellLightOverlay.addColorStop(style.shellBaseStop, withAlpha(planet.color, 0.008));
-    shellLightOverlay.addColorStop(1, withAlpha(tintColor(planet.color, style.shellOuterTint), 0.015));
+    shellLightOverlay.addColorStop(
+      1,
+      withAlpha(tintColor(planet.color, style.shellOuterTint), 0.015),
+    );
     ctx.fillStyle = shellLightOverlay;
     ctx.fillRect(-radius * 1.3, -radius * 1.3, radius * 2.6, radius * 2.6);
   }

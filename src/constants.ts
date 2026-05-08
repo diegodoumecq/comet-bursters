@@ -33,6 +33,9 @@ export interface Player extends Collidable {
   shieldHits: number;
   shieldActive: boolean;
   shieldHitUntil: number;
+  fuel: number;
+  maxFuel: number;
+  inspectionProbes: number;
   module: QueryModule;
   timeoutSmall: number;
   timeoutBlackHole: number;
@@ -65,8 +68,28 @@ export interface Planet {
   color: string;
   altitudeVariations: number[];
   rotation: number;
+  rotationSpeed: number;
+  fuelReserve: number;
+  fuelExtractors: FuelExtractor[];
+  inspectedUntil: number;
   getRadius: () => number;
   mask: AlphaMask | null;
+}
+
+export interface FuelBlob {
+  id: string;
+  localOffsetX: number;
+  localOffsetY: number;
+  wobbleSeed: number;
+}
+
+export interface FuelExtractor {
+  id: string;
+  anchorAngle: number;
+  extractIntervalMs: number;
+  nextExtractAt: number;
+  maxBlobs: number;
+  blobs: FuelBlob[];
 }
 
 export interface Bullet {
@@ -155,6 +178,56 @@ export const SHIELD_MAX_HITS = 3;
 export const SHIELD_HIT_COOLDOWN = 50;
 export const SHIELD_RADIUS = PLAYER_SIZE * 1.5;
 export const SHIELD_COLOR = 'rgba(100, 200, 255, 0.6)';
+export const PLAYER_MAX_FUEL = 100;
+export const LOW_FUEL_RATIO = 0.1;
+export const FUEL_THRUST_PER_SECOND = 5;
+
+export const FUEL_WEAPON_COSTS = {
+  small: 0.75,
+  pusher: 0.2,
+  shotgun: 3,
+  blackHole: 12,
+} as const;
+
+export const SHIELD_COLLISION_FUEL_COSTS = {
+  small: 4,
+  medium: 8,
+  big: 14,
+  mega: 22,
+} as const;
+
+export const SHIP_INTERIOR_REFUEL_STATION_RADIUS = 120;
+export const SHIP_INTERIOR_REFUEL_PER_SECOND = 18;
+
+export const FUEL_BLOB_AMOUNT = 5;
+export const FUEL_BLOB_RADIUS = 10;
+export const PLANET_FUEL_EXTRACT_INTERVAL_MS = 2000;
+export const PLANET_FUEL_EXTRACTOR_MAX_BLOBS = 8;
+export const PLANET_MIN_ROTATION_SPEED = 0.00002;
+export const PLANET_MAX_ROTATION_SPEED = 0.00008;
+export const PLANET_MIN_FUEL_RESERVE = 150;
+export const PLANET_MAX_FUEL_RESERVE = 300;
+
+export const ASTEROID_FUEL_DROP_CHANCES = {
+  medium: 0.4,
+  big: 0.7,
+  mega: 1,
+} as const;
+
+export const ASTEROID_FUEL_DROP_MAX_BLOBS = {
+  medium: 1,
+  big: 1,
+  mega: 3,
+} as const;
+
+export const ASTEROID_FUEL_BLOB_LIFETIME_MS = 20000;
+
+export const STARTING_INSPECTION_PROBES = 3;
+export const INSPECTION_PROBE_DURATION_MS = 15000;
+export const INSPECTION_PROBE_SPEED = 18;
+export const INSPECTION_PROBE_LIFETIME_MS = 1500;
+export const INSPECTION_PROBE_RADIUS = 5;
+export const FUEL_INSPECTION_BLOB_AMOUNT = FUEL_BLOB_AMOUNT * 10;
 
 export const BLACK_HOLE_RADIUS = 6;
 export const DISTORTION_RADIUS = 200;

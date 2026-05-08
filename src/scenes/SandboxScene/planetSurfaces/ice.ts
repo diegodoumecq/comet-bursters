@@ -1,5 +1,4 @@
 import type { Planet } from '@/constants';
-
 import { drawFlatTextureOnSphere, getFlatPlanetTexture } from '../planetTextureEngine';
 import { alphaColor } from './shared';
 
@@ -70,5 +69,5 @@ export function drawIceSurface(
     planet,
     paintFlatIceTexture,
   );
-  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation * 0.2);
+  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation);
 }

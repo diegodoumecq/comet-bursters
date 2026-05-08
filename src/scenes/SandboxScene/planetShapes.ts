@@ -65,7 +65,7 @@ export function tracePlanetShape(
   const style = PLANET_SHAPE_STYLES[planet.kind];
   const xRadius = radius * style.xScale * scale;
   const yRadius = radius * style.yScale * scale;
-  const rotation = planet.rotation * 0.05 + (style.rotationOffset ?? 0);
+  const rotation = planet.rotation + (style.rotationOffset ?? 0);
 
   ctx.beginPath();
 

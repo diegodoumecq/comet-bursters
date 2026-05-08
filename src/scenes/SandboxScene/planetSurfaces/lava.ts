@@ -81,7 +81,7 @@ function paintFlatLavaTexture(
 
     for (let x = 0; x <= width; x += width / 10) {
       const wave =
-        Math.sin((x / width) * Math.PI * 2 + i * 0.62 + planet.rotation * 0.08) * height * 0.012 +
+        Math.sin((x / width) * Math.PI * 2 + i * 0.62 + planet.rotation) * height * 0.012 +
         Math.cos((x / width) * Math.PI * 6 + i * 0.18) * height * 0.005;
       ctx.lineTo(x, y + wave);
     }
@@ -192,7 +192,7 @@ export function drawLavaSurface(
   radius: number,
 ): void {
   const texture = getLavaTexture(planet);
-  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation * 0.12);
+  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation);
 }
 
 export function getLavaTexture(planet: Planet): HTMLCanvasElement {

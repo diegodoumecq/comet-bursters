@@ -1,4 +1,10 @@
-import { SHIELD_HIT_COOLDOWN, SHIELD_RADIUS, type Player } from '@/constants';
+import {
+  SHIELD_COLLISION_FUEL_COSTS,
+  SHIELD_HIT_COOLDOWN,
+  SHIELD_RADIUS,
+  type Player,
+} from '@/constants';
+import { drainFuel } from '@/playerFuel';
 import { asteroids, bullets, getGameHeight, getGameWidth, player } from '@/state';
 
 export function checkCircleCollision(
@@ -140,9 +146,11 @@ export function processPlayerAsteroidCollisions(onHit: (player: Player) => void)
       if (now < currentPlayer.shieldHitUntil) continue;
 
       currentPlayer.shieldHitUntil = now + SHIELD_HIT_COOLDOWN;
+      drainFuel(currentPlayer, SHIELD_COLLISION_FUEL_COSTS[asteroid.size]);
 
-      const nx = actualDx / actualDist;
-      const ny = actualDy / actualDist;
+      const safeDist = actualDist || 1;
+      const nx = actualDx / safeDist;
+      const ny = actualDy / safeDist;
 
       const bounceForce = 8;
       const shipInfluence = asteroid.mass / (1 + asteroid.mass);

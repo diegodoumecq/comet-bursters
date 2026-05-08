@@ -1,12 +1,25 @@
 import { getAsteroidMask, getRandomAsteroidColor } from '@/assets';
 import {
   ASTEROID_CONFIGS,
+  ASTEROID_FUEL_BLOB_LIFETIME_MS,
+  ASTEROID_FUEL_DROP_CHANCES,
+  ASTEROID_FUEL_DROP_MAX_BLOBS,
+  BULLET_CONFIGS,
+  FUEL_BLOB_AMOUNT,
+  FUEL_BLOB_RADIUS,
+  FUEL_INSPECTION_BLOB_AMOUNT,
+  FUEL_THRUST_PER_SECOND,
   GRID_COLOR,
   GRID_SPACING,
+  INSPECTION_PROBE_DURATION_MS,
+  INSPECTION_PROBE_LIFETIME_MS,
+  INSPECTION_PROBE_RADIUS,
+  INSPECTION_PROBE_SPEED,
   PLANET_CONFIG,
   PLAYER_ACCELERATION,
   PLAYER_MAX_SPEED,
   PLAYER_SIZE,
+  SHIELD_COLLISION_FUEL_COSTS,
   SHIELD_COLOR,
   SHIELD_HIT_COOLDOWN,
   SHIELD_MAX_HITS,
@@ -16,12 +29,21 @@ import {
   STARTING_LIVES,
   type Asteroid,
   type Bullet,
+  type FuelBlob,
+  type FuelExtractor,
   type Particle,
   type Planet,
   type Player,
 } from '@/constants';
 import { InputManager } from '@/input';
 import { joymap } from '@/joymap';
+import {
+  drainFuel,
+  getWeaponFireMode,
+  refillRespawnResources,
+  type BulletMode,
+  type WeaponType,
+} from '@/playerFuel';
 import { sceneManager } from '@/sceneManager';
 import {
   asteroids,
@@ -49,10 +71,22 @@ import {
   drawThrusterParticle,
   updateThrusterParticle,
 } from '../GameScene/particle';
-import { createPlayer } from '../GameScene/player';
+import { createPlayer, drawFuelContour } from '../GameScene/player';
 import { rumbleDeath } from '../GameScene/rumble';
-import { dispose, initShader, renderWithShaders, updateBlackHoles } from '../GameScene/shader';
+import {
+  dispose as disposeBlackHoleShader,
+  initShader,
+  renderWithShaders,
+  updateBlackHoles,
+} from '../GameScene/shader';
 import type { Scene } from '../scene';
+import {
+  disposeFuelMetaballs,
+  initFuelMetaballs,
+  renderFuelMetaballs,
+  resizeFuelMetaballs,
+  type FuelMetaball,
+} from './fuelMetaballs';
 import { createPlanet, drawPlanet } from './planets';
 
 const SANDBOX_WORLD_WIDTH = 12000;
@@ -69,6 +103,23 @@ const MINIMAP_PADDING = 20;
 
 type Camera = { x: number; y: number };
 
+type DroppedFuelBlob = {
+  id: string;
+  x: number;
+  y: number;
+  wobbleSeed: number;
+  expiresAt: number;
+};
+
+type InspectionProbe = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  angle: number;
+  spawnTime: number;
+};
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -77,6 +128,66 @@ function distance(aX: number, aY: number, bX: number, bY: number): number {
   const dx = aX - bX;
   const dy = aY - bY;
   return Math.sqrt(dx * dx + dy * dy);
+}
+
+function makeFuelBlob(id: string): FuelBlob {
+  return {
+    id,
+    localOffsetX: (Math.random() - 0.5) * 54,
+    localOffsetY: (Math.random() - 0.5) * 24,
+    wobbleSeed: Math.random(),
+  };
+}
+
+function getExtractorFrame(planet: Planet, extractor: FuelExtractor) {
+  const surfaceAngle = planet.rotation + extractor.anchorAngle;
+  const normalX = Math.cos(surfaceAngle);
+  const normalY = Math.sin(surfaceAngle);
+  const tangentX = -normalY;
+  const tangentY = normalX;
+  const buildingHeight = 34;
+  const cloudOffset = 34;
+  const buildingX = planet.x + normalX * planet.getRadius();
+  const buildingY = planet.y + normalY * planet.getRadius();
+  const cloudCenterX = planet.x + normalX * (planet.getRadius() + buildingHeight + cloudOffset);
+  const cloudCenterY = planet.y + normalY * (planet.getRadius() + buildingHeight + cloudOffset);
+
+  return {
+    surfaceAngle,
+    normalX,
+    normalY,
+    tangentX,
+    tangentY,
+    buildingHeight,
+    buildingX,
+    buildingY,
+    cloudCenterX,
+    cloudCenterY,
+  };
+}
+
+function getExtractorBlobWorldPosition(
+  planet: Planet,
+  extractor: FuelExtractor,
+  blob: FuelBlob,
+  now: number,
+): { x: number; y: number } {
+  const frame = getExtractorFrame(planet, extractor);
+  const wobble = Math.sin(now * 0.003 + blob.wobbleSeed * Math.PI * 2) * 4;
+  return {
+    x:
+      frame.cloudCenterX +
+      frame.tangentX * blob.localOffsetX +
+      frame.normalX * (blob.localOffsetY + wobble),
+    y:
+      frame.cloudCenterY +
+      frame.tangentY * blob.localOffsetX +
+      frame.normalY * (blob.localOffsetY + wobble),
+  };
+}
+
+function addFuel(player: Player, amount: number): void {
+  player.fuel = Math.min(player.maxFuel, player.fuel + amount);
 }
 
 function isOutOfWorld(x: number, y: number, radius = 0): boolean {
@@ -290,6 +401,72 @@ function drawBullet(
   ctx.restore();
 }
 
+function drawInspectionProbe(probe: InspectionProbe, ctx: CanvasRenderingContext2D): void {
+  ctx.save();
+  ctx.translate(probe.x, probe.y);
+  ctx.rotate(probe.angle);
+  ctx.fillStyle = '#67e8f9';
+  ctx.strokeStyle = '#ecfeff';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(10, 0);
+  ctx.lineTo(-6, -4);
+  ctx.lineTo(-3, 0);
+  ctx.lineTo(-6, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawFuelExtractorBuilding(
+  ctx: CanvasRenderingContext2D,
+  planet: Planet,
+  extractor: FuelExtractor,
+): void {
+  const frame = getExtractorFrame(planet, extractor);
+  ctx.save();
+  ctx.translate(frame.buildingX, frame.buildingY);
+  ctx.rotate(frame.surfaceAngle + Math.PI / 2);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.strokeStyle = '#7dd3fc';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.rect(-12, -frame.buildingHeight, 24, frame.buildingHeight);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = '#22d3ee';
+  ctx.beginPath();
+  ctx.moveTo(-16, -frame.buildingHeight);
+  ctx.lineTo(16, -frame.buildingHeight);
+  ctx.lineTo(10, -frame.buildingHeight - 10);
+  ctx.lineTo(-10, -frame.buildingHeight - 10);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(125, 211, 252, 0.45)';
+  ctx.beginPath();
+  ctx.moveTo(0, -frame.buildingHeight - 8);
+  ctx.lineTo(0, -frame.buildingHeight - 24);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawInspectedPlanetOverlay(ctx: CanvasRenderingContext2D, planet: Planet): void {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(planet.x, planet.y, planet.getRadius() * 0.96, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(125, 211, 252, 0.8)';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.restore();
+}
+
 function updateParticleNoWrap(particle: Particle, deltaTime: number): void {
   particle.x += particle.vx * 0.6;
   particle.y += particle.vy * 0.6;
@@ -361,6 +538,7 @@ function drawPlayer(player: Player, ctx: CanvasRenderingContext2D): void {
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+  drawFuelContour(ctx, player, now);
 
   ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
   ctx.beginPath();
@@ -485,50 +663,9 @@ function drawPlayer(player: Player, ctx: CanvasRenderingContext2D): void {
   ctx.globalAlpha = 1;
 }
 
-function createBullet(player: Player, type: 'small' | 'blackHole' | 'pusher' | 'shotgun'): void {
-  const config = {
-    small: {
-      speed: 15,
-      lifetime: 500,
-      damage: 2,
-      impact: 0.2,
-      recoil: 0.5,
-      bulletCount: 1,
-      spreadAngle: 0,
-      speedVariance: 0,
-    },
-    blackHole: {
-      speed: 1,
-      lifetime: 10000,
-      damage: 400,
-      impact: 0.5,
-      recoil: 4,
-      bulletCount: 1,
-      spreadAngle: 0,
-      speedVariance: 0,
-    },
-    pusher: {
-      speed: 8,
-      lifetime: 1000,
-      damage: 0.2,
-      impact: 0.5,
-      recoil: 0.1,
-      bulletCount: 1,
-      spreadAngle: 0,
-      speedVariance: 0,
-    },
-    shotgun: {
-      speed: 12,
-      lifetime: 250,
-      damage: 1,
-      impact: 0.02,
-      recoil: 2,
-      bulletCount: 12,
-      spreadAngle: Math.PI / 4,
-      speedVariance: 0.3,
-    },
-  }[type];
-
+function createBullet(player: Player, type: WeaponType, mode: BulletMode = 'normal'): void {
+  const config = BULLET_CONFIGS[type];
+  const isDegradedSmall = mode === 'degraded' && type === 'small';
   const bulletAngle = player.turretAngle - Math.PI * 0.5;
   const now = Date.now();
 
@@ -538,8 +675,9 @@ function createBullet(player: Player, type: 'small' | 'blackHole' | 'pusher' | '
     const speed =
       config.speed * (1 - config.speedVariance + Math.random() * config.speedVariance * 2);
     const angle = bulletAngle + spreadOffset;
-    const lifetime =
+    const baseLifetime =
       config.speedVariance > 0 ? config.lifetime * (0.7 + Math.random() * 0.3) : config.lifetime;
+    const lifetime = isDegradedSmall ? baseLifetime * 0.5 : baseLifetime;
 
     bullets.push({
       x: player.x + Math.cos(bulletAngle) * PLAYER_SIZE,
@@ -552,15 +690,20 @@ function createBullet(player: Player, type: 'small' | 'blackHole' | 'pusher' | '
       lifetime,
       spawnTime: now,
       playerId: player.id,
-      damage: config.damage,
-      impact: config.impact,
+      damage: isDegradedSmall ? config.damage * 0.5 : config.damage,
+      impact: isDegradedSmall ? config.impact * 0.5 : config.impact,
       recoil: config.recoil,
       type,
     });
   }
 }
 
-function updatePlayer(player: Player, camera: Camera): void {
+function updatePlayer(
+  player: Player,
+  camera: Camera,
+  deltaTime: number,
+  onProbeFire: () => boolean,
+): void {
   const screenPlayerX = player.x - camera.x;
   const screenPlayerY = player.y - camera.y;
   const input = InputManager.getInputState(player.module, screenPlayerX, screenPlayerY);
@@ -572,8 +715,17 @@ function updatePlayer(player: Player, camera: Camera): void {
 
   player.shieldActive = input.shield.pressed && player.shieldHits > 0;
 
-  if (input.move.value[0] !== 0 || input.move.value[1] !== 0) {
+  const moveMagnitude = Math.sqrt(
+    input.move.value[0] * input.move.value[0] + input.move.value[1] * input.move.value[1],
+  );
+  const accelerationApplied = moveMagnitude > 0.1 && player.fuel > 0;
+
+  if (moveMagnitude > 0.1) {
     player.angle = Math.atan2(input.move.value[1], input.move.value[0]) + Math.PI * 0.5;
+  }
+
+  if (accelerationApplied) {
+    drainFuel(player, FUEL_THRUST_PER_SECOND * (deltaTime / 1000));
     player.vx += input.move.value[0] * PLAYER_ACCELERATION;
     player.vy += input.move.value[1] * PLAYER_ACCELERATION;
   }
@@ -597,11 +749,8 @@ function updatePlayer(player: Player, camera: Camera): void {
   player.x += player.vx;
   player.y += player.vy;
 
-  const moveMagnitude = Math.sqrt(
-    input.move.value[0] * input.move.value[0] + input.move.value[1] * input.move.value[1],
-  );
-  player.isThrusting = moveMagnitude > 0.1;
-  if (moveMagnitude > 0.1) {
+  player.isThrusting = accelerationApplied;
+  if (accelerationApplied) {
     player.thrustDirX = -input.move.value[0] / moveMagnitude;
     player.thrustDirY = -input.move.value[1] / moveMagnitude;
     if (now - player.lastThrusterSpawn >= 10) {
@@ -615,41 +764,60 @@ function updatePlayer(player: Player, camera: Camera): void {
     }
   }
 
-  if (!player.shieldActive && input.fire.pressed && now - player.timeoutSmall >= 200) {
-    player.timeoutSmall = now;
-    createBullet(player, 'small');
-    const recoilAngle = player.turretAngle + Math.PI * 0.5;
-    player.vx += Math.cos(recoilAngle) * 0.5;
-    player.vy += Math.sin(recoilAngle) * 0.5;
+  if (
+    !player.shieldActive &&
+    input.fire.pressed &&
+    now - player.timeoutSmall >= BULLET_CONFIGS.small.fireRate
+  ) {
+    const mode = getWeaponFireMode(player, 'small');
+    if (mode) {
+      player.timeoutSmall = now;
+      createBullet(player, 'small', mode);
+      const recoilAngle = player.turretAngle + Math.PI * 0.5;
+      player.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.small.recoil;
+      player.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.small.recoil;
+    }
   }
 
-  if (!player.shieldActive && input.chaosFire.pressed && now - player.timeoutShotgun >= 600) {
-    player.timeoutShotgun = now;
-    createBullet(player, 'shotgun');
-    createBullet(player, 'shotgun');
-    const recoilAngle = player.turretAngle + Math.PI * 0.5;
-    player.vx += Math.cos(recoilAngle) * 2;
-    player.vy += Math.sin(recoilAngle) * 2;
+  if (
+    !player.shieldActive &&
+    input.chaosFire.pressed &&
+    now - player.timeoutShotgun >= BULLET_CONFIGS.shotgun.fireRate
+  ) {
+    const mode = getWeaponFireMode(player, 'shotgun');
+    if (mode) {
+      player.timeoutShotgun = now;
+      createBullet(player, 'shotgun', mode);
+      createBullet(player, 'shotgun', mode);
+      const recoilAngle = player.turretAngle + Math.PI * 0.5;
+      player.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.shotgun.recoil;
+      player.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.shotgun.recoil;
+    }
   }
 
-  if (!player.shieldActive && input.fireSpecial.pressed && now - player.timeoutPusher >= 40) {
-    player.timeoutPusher = now;
-    createBullet(player, 'pusher');
-    const recoilAngle = player.turretAngle + Math.PI * 0.5;
-    player.vx += Math.cos(recoilAngle) * 0.1;
-    player.vy += Math.sin(recoilAngle) * 0.1;
+  if (
+    !player.shieldActive &&
+    input.fireSpecial.pressed &&
+    now - player.timeoutPusher >= BULLET_CONFIGS.pusher.fireRate
+  ) {
+    const mode = getWeaponFireMode(player, 'pusher');
+    if (mode) {
+      player.timeoutPusher = now;
+      createBullet(player, 'pusher', mode);
+      const recoilAngle = player.turretAngle + Math.PI * 0.5;
+      player.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.pusher.recoil;
+      player.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.pusher.recoil;
+    }
   }
 
   if (
     !player.shieldActive &&
     input.fireReallyHard.pressed &&
-    now - player.timeoutBlackHole >= 2000
+    now - player.timeoutBlackHole >= BULLET_CONFIGS.blackHole.fireRate
   ) {
-    player.timeoutBlackHole = now;
-    createBullet(player, 'blackHole');
-    const recoilAngle = player.turretAngle + Math.PI * 0.5;
-    player.vx += Math.cos(recoilAngle) * 4;
-    player.vy += Math.sin(recoilAngle) * 4;
+    if (onProbeFire()) {
+      player.timeoutBlackHole = now;
+    }
   }
 
   if (player.invulnerable && now >= player.invulnerableUntil) {
@@ -802,6 +970,8 @@ export class SandboxScene implements Scene {
   private canvas: HTMLCanvasElement | null = null;
   private camera: Camera = { x: 0, y: 0 };
   private previousCamera: Camera = { x: 0, y: 0 };
+  private droppedFuelBlobs: DroppedFuelBlob[] = [];
+  private inspectionProbes: InspectionProbe[] = [];
 
   setCanvas(canvas: HTMLCanvasElement): void {
     this.canvas = canvas;
@@ -809,8 +979,9 @@ export class SandboxScene implements Scene {
 
   resize(): void {
     if (gameState.gameSize && this.canvas) {
-      dispose();
+      disposeBlackHoleShader();
       initShader(this.canvas);
+      resizeFuelMetaballs(gameState.gameSize.width, gameState.gameSize.height);
     }
   }
 
@@ -905,6 +1076,214 @@ export class SandboxScene implements Scene {
     }
   }
 
+  private spawnAsteroidFuelDrops(asteroid: Asteroid, now: number): void {
+    if (asteroid.size !== 'big' && asteroid.size !== 'mega') {
+      return;
+    }
+
+    if (Math.random() > ASTEROID_FUEL_DROP_CHANCES[asteroid.size]) {
+      return;
+    }
+
+    const maxBlobs = ASTEROID_FUEL_DROP_MAX_BLOBS[asteroid.size];
+    const count = 1 + Math.floor(Math.random() * maxBlobs);
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const scatter = 12 + Math.random() * 38;
+      this.droppedFuelBlobs.push({
+        id: `drop-${now}-${asteroid.x}-${asteroid.y}-${i}`,
+        x: asteroid.x + Math.cos(angle) * scatter,
+        y: asteroid.y + Math.sin(angle) * scatter,
+        wobbleSeed: Math.random(),
+        expiresAt: now + ASTEROID_FUEL_BLOB_LIFETIME_MS,
+      });
+    }
+  }
+
+  private updatePlanetFuel(deltaTime: number, now: number, currentPlayer: Player): void {
+    for (const planet of planets) {
+      planet.rotation += planet.rotationSpeed * deltaTime;
+
+      for (const extractor of planet.fuelExtractors) {
+        if (now >= extractor.nextExtractAt) {
+          extractor.nextExtractAt = now + extractor.extractIntervalMs;
+          if (
+            planet.fuelReserve >= FUEL_BLOB_AMOUNT &&
+            extractor.blobs.length < extractor.maxBlobs
+          ) {
+            planet.fuelReserve -= FUEL_BLOB_AMOUNT;
+            extractor.blobs.push(makeFuelBlob(`${extractor.id}-blob-${now}`));
+          }
+        }
+
+        for (let i = extractor.blobs.length - 1; i >= 0; i--) {
+          if (currentPlayer.fuel >= currentPlayer.maxFuel) {
+            continue;
+          }
+
+          const position = getExtractorBlobWorldPosition(
+            planet,
+            extractor,
+            extractor.blobs[i],
+            now,
+          );
+          if (
+            distance(currentPlayer.x, currentPlayer.y, position.x, position.y) <=
+            currentPlayer.getRadius() + FUEL_BLOB_RADIUS
+          ) {
+            addFuel(currentPlayer, FUEL_BLOB_AMOUNT);
+            extractor.blobs.splice(i, 1);
+          }
+        }
+      }
+    }
+
+    for (let i = this.droppedFuelBlobs.length - 1; i >= 0; i--) {
+      const blob = this.droppedFuelBlobs[i];
+      if (now >= blob.expiresAt || isOutOfWorld(blob.x, blob.y, FUEL_BLOB_RADIUS)) {
+        this.droppedFuelBlobs.splice(i, 1);
+        continue;
+      }
+
+      if (
+        currentPlayer.fuel < currentPlayer.maxFuel &&
+        distance(currentPlayer.x, currentPlayer.y, blob.x, blob.y) <=
+          currentPlayer.getRadius() + FUEL_BLOB_RADIUS
+      ) {
+        addFuel(currentPlayer, FUEL_BLOB_AMOUNT);
+        this.droppedFuelBlobs.splice(i, 1);
+      }
+    }
+  }
+
+  private fireInspectionProbe(currentPlayer: Player): boolean {
+    if (currentPlayer.inspectionProbes <= 0) {
+      return false;
+    }
+
+    currentPlayer.inspectionProbes--;
+    const angle = currentPlayer.turretAngle - Math.PI * 0.5;
+    this.inspectionProbes.push({
+      x: currentPlayer.x + Math.cos(angle) * PLAYER_SIZE,
+      y: currentPlayer.y + Math.sin(angle) * PLAYER_SIZE,
+      vx: currentPlayer.vx + Math.cos(angle) * INSPECTION_PROBE_SPEED,
+      vy: currentPlayer.vy + Math.sin(angle) * INSPECTION_PROBE_SPEED,
+      angle,
+      spawnTime: Date.now(),
+    });
+    return true;
+  }
+
+  private updateInspectionProbes(now: number): void {
+    for (let i = this.inspectionProbes.length - 1; i >= 0; i--) {
+      const probe = this.inspectionProbes[i];
+      probe.x += probe.vx;
+      probe.y += probe.vy;
+
+      if (
+        now - probe.spawnTime >= INSPECTION_PROBE_LIFETIME_MS ||
+        isOutOfWorld(probe.x, probe.y, INSPECTION_PROBE_RADIUS)
+      ) {
+        this.inspectionProbes.splice(i, 1);
+        continue;
+      }
+
+      const hitPlanet = planets.find(
+        (planet) =>
+          distance(probe.x, probe.y, planet.x, planet.y) <=
+          planet.getRadius() + INSPECTION_PROBE_RADIUS,
+      );
+      if (hitPlanet) {
+        hitPlanet.inspectedUntil = now + INSPECTION_PROBE_DURATION_MS;
+        this.inspectionProbes.splice(i, 1);
+      }
+    }
+  }
+
+  private collectFuelMetaballs(now: number): FuelMetaball[] {
+    const metaballs: FuelMetaball[] = [];
+    const viewportWidth = getGameWidth();
+    const viewportHeight = getGameHeight();
+    const isScreenMetaballVisible = (x: number, y: number, radius: number): boolean =>
+      x + radius >= 0 &&
+      x - radius <= viewportWidth &&
+      y + radius >= 0 &&
+      y - radius <= viewportHeight;
+
+    for (const planet of planets) {
+      for (const extractor of planet.fuelExtractors) {
+        for (const blob of extractor.blobs) {
+          const position = getExtractorBlobWorldPosition(planet, extractor, blob, now);
+          const screenX = position.x - this.camera.x;
+          const screenY = position.y - this.camera.y;
+          if (!isScreenMetaballVisible(screenX, screenY, FUEL_BLOB_RADIUS * 3)) {
+            continue;
+          }
+
+          metaballs.push({
+            x: screenX,
+            y: screenY,
+            radius: FUEL_BLOB_RADIUS,
+            seed: blob.wobbleSeed,
+          });
+        }
+      }
+
+      if (now < planet.inspectedUntil) {
+        if (
+          !isVisible(
+            planet.x,
+            planet.y,
+            planet.getRadius(),
+            this.camera,
+            viewportWidth,
+            viewportHeight,
+          )
+        ) {
+          continue;
+        }
+
+        const internalBlobCount = Math.ceil(planet.fuelReserve / FUEL_INSPECTION_BLOB_AMOUNT);
+        for (let i = 0; i < internalBlobCount; i++) {
+          const seed = (i + 1) * 12.9898 + planet.x * 0.001 + planet.y * 0.002;
+          const orbit = now * 0.00035 * Math.max(0.25, internalBlobCount / 4) + seed;
+          const radius = planet.getRadius() * (0.12 + ((i * 37) % 58) / 100);
+          const metaballRadius = 12 + Math.min(10, internalBlobCount * 0.6);
+          const screenX = planet.x - this.camera.x + Math.cos(orbit) * radius;
+          const screenY = planet.y - this.camera.y + Math.sin(orbit * 1.17) * radius;
+          if (!isScreenMetaballVisible(screenX, screenY, metaballRadius * 3)) {
+            continue;
+          }
+
+          metaballs.push({
+            x: screenX,
+            y: screenY,
+            radius: metaballRadius,
+            seed,
+          });
+        }
+      }
+    }
+
+    for (const blob of this.droppedFuelBlobs) {
+      const wobble = Math.sin(now * 0.004 + blob.wobbleSeed * Math.PI * 2) * 3;
+      const screenX = blob.x - this.camera.x;
+      const screenY = blob.y - this.camera.y + wobble;
+      if (!isScreenMetaballVisible(screenX, screenY, FUEL_BLOB_RADIUS * 3)) {
+        continue;
+      }
+
+      metaballs.push({
+        x: screenX,
+        y: screenY,
+        radius: FUEL_BLOB_RADIUS,
+        seed: blob.wobbleSeed,
+      });
+    }
+
+    return metaballs;
+  }
+
   private killPlayer(currentPlayer: Player, now: number, explosionIntensity: number): void {
     if (currentPlayer.waitingToRespawn) {
       return;
@@ -939,6 +1318,8 @@ export class SandboxScene implements Scene {
   enter(): void {
     resetState();
     gameState.restartScene = 'sandbox';
+    this.droppedFuelBlobs = [];
+    this.inspectionProbes = [];
     this.populateWorld();
 
     if (!player) {
@@ -957,6 +1338,7 @@ export class SandboxScene implements Scene {
     currentPlayer.score = 0;
     currentPlayer.shieldHits = SHIELD_MAX_HITS;
     currentPlayer.shieldActive = false;
+    refillRespawnResources(currentPlayer);
     currentPlayer.waitingToRespawn = false;
     currentPlayer.angle = 0;
     currentPlayer.turretAngle = 0;
@@ -973,12 +1355,12 @@ export class SandboxScene implements Scene {
 
     if (this.canvas) {
       initShader(this.canvas);
+      initFuelMetaballs();
     }
   }
 
-  update(_deltaTime: number): void {
+  update(deltaTime: number): void {
     const now = Date.now();
-    const deltaTime = 16;
     updateBackground(deltaTime);
 
     if (screenShake.intensity > 0) {
@@ -992,6 +1374,9 @@ export class SandboxScene implements Scene {
     if (!gameState.baseAlphaMask || !currentPlayer) {
       return;
     }
+
+    this.updatePlanetFuel(deltaTime, now, currentPlayer);
+    this.updateInspectionProbes(now);
 
     for (const planet of planets) {
       if (currentPlayer.lives > 0 && !currentPlayer.waitingToRespawn) {
@@ -1040,6 +1425,7 @@ export class SandboxScene implements Scene {
         const asteroid = asteroids[i];
         const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
         createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
+        this.spawnAsteroidFuelDrops(asteroid, now);
         asteroids.splice(i, 1);
       }
     }
@@ -1095,6 +1481,7 @@ export class SandboxScene implements Scene {
 
           const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
           createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
+          this.spawnAsteroidFuelDrops(asteroid, now);
           asteroids.push(...splitAsteroid(asteroid));
           asteroids.splice(j, 1);
         }
@@ -1109,7 +1496,9 @@ export class SandboxScene implements Scene {
     }
 
     this.updateCamera();
-    updatePlayer(currentPlayer, this.camera);
+    updatePlayer(currentPlayer, this.camera, deltaTime, () =>
+      this.fireInspectionProbe(currentPlayer),
+    );
 
     for (const asteroid of asteroids) {
       updateAsteroid(asteroid);
@@ -1128,9 +1517,11 @@ export class SandboxScene implements Scene {
             continue;
           }
           currentPlayer.shieldHitUntil = hitNow + SHIELD_HIT_COOLDOWN;
+          drainFuel(currentPlayer, SHIELD_COLLISION_FUEL_COSTS[asteroid.size]);
 
-          const nx = (currentPlayer.x - asteroid.x) / actualDist;
-          const ny = (currentPlayer.y - asteroid.y) / actualDist;
+          const safeDist = actualDist || 1;
+          const nx = (currentPlayer.x - asteroid.x) / safeDist;
+          const ny = (currentPlayer.y - asteroid.y) / safeDist;
           const bounceForce = 8;
           const shipInfluence = asteroid.mass / (1 + asteroid.mass);
           asteroid.vx -= nx * bounceForce * (1 - shipInfluence);
@@ -1174,6 +1565,7 @@ export class SandboxScene implements Scene {
       currentPlayer.vx = 0;
       currentPlayer.vy = 0;
       currentPlayer.shieldHits = SHIELD_MAX_HITS;
+      refillRespawnResources(currentPlayer);
       currentPlayer.waitingToRespawn = false;
       this.placePlayerSafely(currentPlayer);
     }
@@ -1189,6 +1581,7 @@ export class SandboxScene implements Scene {
             asteroid.vx,
             asteroid.vy,
           );
+          this.spawnAsteroidFuelDrops(asteroid, now);
           asteroids.push(...splitAsteroid(asteroid));
         }
         asteroids.splice(i, 1);
@@ -1258,6 +1651,12 @@ export class SandboxScene implements Scene {
         )
       ) {
         drawPlanet(planet, ctx);
+        if (now < planet.inspectedUntil) {
+          drawInspectedPlanetOverlay(ctx, planet);
+        }
+        for (const extractor of planet.fuelExtractors) {
+          drawFuelExtractorBuilding(ctx, planet, extractor);
+        }
       }
     }
 
@@ -1273,6 +1672,21 @@ export class SandboxScene implements Scene {
           this.previousCamera.x,
           this.previousCamera.y,
         );
+      }
+    }
+
+    for (const probe of this.inspectionProbes) {
+      if (
+        isVisible(
+          probe.x,
+          probe.y,
+          INSPECTION_PROBE_RADIUS,
+          this.camera,
+          viewportWidth,
+          viewportHeight,
+        )
+      ) {
+        drawInspectionProbe(probe, ctx);
       }
     }
 
@@ -1320,6 +1734,8 @@ export class SandboxScene implements Scene {
 
     ctx.restore();
 
+    renderFuelMetaballs(ctx, this.collectFuelMetaballs(now), now);
+
     if (player) {
       ctx.font = '20px monospace';
       ctx.textAlign = 'left';
@@ -1336,6 +1752,7 @@ export class SandboxScene implements Scene {
       }
       ctx.fillText(`Score: ${player.score}`, 110, 45);
       ctx.fillText(`Wave ${gameState.currentWave}`, 110, 70);
+      ctx.fillText(`Probes: ${player.inspectionProbes}`, 110, 95);
       ctx.fillStyle = '#888';
       ctx.fillText(
         `${Math.round(player.x)}, ${Math.round(player.y)} / ${SANDBOX_WORLD_WIDTH} x ${SANDBOX_WORLD_HEIGHT}`,
@@ -1357,6 +1774,7 @@ export class SandboxScene implements Scene {
   }
 
   exit(): void {
-    dispose();
+    disposeFuelMetaballs();
+    disposeBlackHoleShader();
   }
 }

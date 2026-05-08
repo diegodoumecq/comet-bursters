@@ -1,10 +1,15 @@
 import {
   BULLET_CONFIGS,
+  FUEL_THRUST_PER_SECOND,
   PLAYER_ACCELERATION,
   PLAYER_MAX_SPEED,
   PLAYER_SIZE,
+  SHIELD_COLLISION_FUEL_COSTS,
+  SHIELD_HIT_COOLDOWN,
   SHIELD_MAX_HITS,
   SHIELD_RADIUS,
+  SHIP_INTERIOR_REFUEL_PER_SECOND,
+  SHIP_INTERIOR_REFUEL_STATION_RADIUS,
   STARTING_LIVES,
   type Bullet,
   type Particle,
@@ -12,6 +17,13 @@ import {
 } from '@/constants';
 import { InputManager } from '@/input';
 import { joymap } from '@/joymap';
+import {
+  drainFuel,
+  getWeaponFireMode,
+  refillRespawnResources,
+  type BulletMode,
+  type WeaponType,
+} from '@/playerFuel';
 import {
   bullets,
   gameState,
@@ -83,6 +95,14 @@ type SceneColumn = {
   sprite: string;
   x: number;
   y: number;
+};
+
+type RefuelStation = {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+  refillPerSecond: number;
 };
 
 type CollisionRef =
@@ -259,12 +279,7 @@ function isPointInsideOpaqueTilePixel(
   const frame = layer.sheet.getFrame(tile.frame);
   const localX = Math.floor(((x - tileRect.x) / tileRect.width) * frame.width);
   const localY = Math.floor(((y - tileRect.y) / tileRect.height) * frame.height);
-  if (
-    localX < 0 ||
-    localY < 0 ||
-    localX >= frame.width ||
-    localY >= frame.height
-  ) {
+  if (localX < 0 || localY < 0 || localX >= frame.width || localY >= frame.height) {
     return false;
   }
 
@@ -503,9 +518,11 @@ function raycastToWallDistance(
 
 function createSceneBullet(
   currentPlayer: Player,
-  type: 'small' | 'blackHole' | 'pusher' | 'shotgun',
+  type: WeaponType,
+  mode: BulletMode = 'normal',
 ): void {
   const config = BULLET_CONFIGS[type];
+  const isDegradedSmall = mode === 'degraded' && type === 'small';
   const bulletAngle = currentPlayer.turretAngle - Math.PI * 0.5;
   const now = Date.now();
 
@@ -515,8 +532,9 @@ function createSceneBullet(
     const speed =
       config.speed * (1 - config.speedVariance + Math.random() * config.speedVariance * 2);
     const angle = bulletAngle + spreadOffset;
-    const lifetime =
+    const baseLifetime =
       config.speedVariance > 0 ? config.lifetime * (0.7 + Math.random() * 0.3) : config.lifetime;
+    const lifetime = isDegradedSmall ? baseLifetime * 0.5 : baseLifetime;
 
     bullets.push({
       x: currentPlayer.x + Math.cos(bulletAngle) * PLAYER_SIZE,
@@ -529,15 +547,15 @@ function createSceneBullet(
       lifetime,
       spawnTime: now,
       playerId: currentPlayer.id,
-      damage: config.damage,
-      impact: config.impact,
+      damage: isDegradedSmall ? config.damage * 0.5 : config.damage,
+      impact: isDegradedSmall ? config.impact * 0.5 : config.impact,
       recoil: config.recoil,
       type,
     });
   }
 }
 
-function updateScenePlayer(currentPlayer: Player, camera: Camera): void {
+function updateScenePlayer(currentPlayer: Player, camera: Camera, deltaTime: number): void {
   if (currentPlayer.waitingToRespawn) {
     return;
   }
@@ -549,8 +567,17 @@ function updateScenePlayer(currentPlayer: Player, camera: Camera): void {
 
   currentPlayer.shieldActive = input.shield.pressed && currentPlayer.shieldHits > 0;
 
-  if (input.move.value[0] !== 0 || input.move.value[1] !== 0) {
+  const moveMagnitude = Math.sqrt(
+    input.move.value[0] * input.move.value[0] + input.move.value[1] * input.move.value[1],
+  );
+  const accelerationApplied = moveMagnitude > 0.1 && currentPlayer.fuel > 0;
+
+  if (moveMagnitude > 0.1) {
     currentPlayer.angle = Math.atan2(input.move.value[1], input.move.value[0]) + Math.PI * 0.5;
+  }
+
+  if (accelerationApplied) {
+    drainFuel(currentPlayer, FUEL_THRUST_PER_SECOND * (deltaTime / 1000));
     currentPlayer.vx += input.move.value[0] * PLAYER_ACCELERATION * PLAYER_VELOCITY_MULTIPLIER;
     currentPlayer.vy += input.move.value[1] * PLAYER_ACCELERATION * PLAYER_VELOCITY_MULTIPLIER;
   }
@@ -577,11 +604,8 @@ function updateScenePlayer(currentPlayer: Player, camera: Camera): void {
   currentPlayer.x += currentPlayer.vx;
   currentPlayer.y += currentPlayer.vy;
 
-  const moveMagnitude = Math.sqrt(
-    input.move.value[0] * input.move.value[0] + input.move.value[1] * input.move.value[1],
-  );
-  currentPlayer.isThrusting = moveMagnitude > 0.1;
-  if (moveMagnitude > 0.1) {
+  currentPlayer.isThrusting = accelerationApplied;
+  if (accelerationApplied) {
     currentPlayer.thrustDirX = -input.move.value[0] / moveMagnitude;
     currentPlayer.thrustDirY = -input.move.value[1] / moveMagnitude;
     if (now - currentPlayer.lastThrusterSpawn >= 10) {
@@ -600,11 +624,14 @@ function updateScenePlayer(currentPlayer: Player, camera: Camera): void {
     input.fire.pressed &&
     now - currentPlayer.timeoutSmall >= BULLET_CONFIGS.small.fireRate
   ) {
-    currentPlayer.timeoutSmall = now;
-    createSceneBullet(currentPlayer, 'small');
-    const recoilAngle = currentPlayer.turretAngle + Math.PI * 0.5;
-    currentPlayer.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.small.recoil;
-    currentPlayer.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.small.recoil;
+    const mode = getWeaponFireMode(currentPlayer, 'small');
+    if (mode) {
+      currentPlayer.timeoutSmall = now;
+      createSceneBullet(currentPlayer, 'small', mode);
+      const recoilAngle = currentPlayer.turretAngle + Math.PI * 0.5;
+      currentPlayer.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.small.recoil;
+      currentPlayer.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.small.recoil;
+    }
   }
 
   if (
@@ -612,12 +639,15 @@ function updateScenePlayer(currentPlayer: Player, camera: Camera): void {
     input.chaosFire.pressed &&
     now - currentPlayer.timeoutShotgun >= BULLET_CONFIGS.shotgun.fireRate
   ) {
-    currentPlayer.timeoutShotgun = now;
-    createSceneBullet(currentPlayer, 'shotgun');
-    createSceneBullet(currentPlayer, 'shotgun');
-    const recoilAngle = currentPlayer.turretAngle + Math.PI * 0.5;
-    currentPlayer.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.shotgun.recoil;
-    currentPlayer.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.shotgun.recoil;
+    const mode = getWeaponFireMode(currentPlayer, 'shotgun');
+    if (mode) {
+      currentPlayer.timeoutShotgun = now;
+      createSceneBullet(currentPlayer, 'shotgun', mode);
+      createSceneBullet(currentPlayer, 'shotgun', mode);
+      const recoilAngle = currentPlayer.turretAngle + Math.PI * 0.5;
+      currentPlayer.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.shotgun.recoil;
+      currentPlayer.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.shotgun.recoil;
+    }
   }
 
   if (
@@ -625,11 +655,14 @@ function updateScenePlayer(currentPlayer: Player, camera: Camera): void {
     input.fireSpecial.pressed &&
     now - currentPlayer.timeoutPusher >= BULLET_CONFIGS.pusher.fireRate
   ) {
-    currentPlayer.timeoutPusher = now;
-    createSceneBullet(currentPlayer, 'pusher');
-    const recoilAngle = currentPlayer.turretAngle + Math.PI * 0.5;
-    currentPlayer.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.pusher.recoil;
-    currentPlayer.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.pusher.recoil;
+    const mode = getWeaponFireMode(currentPlayer, 'pusher');
+    if (mode) {
+      currentPlayer.timeoutPusher = now;
+      createSceneBullet(currentPlayer, 'pusher', mode);
+      const recoilAngle = currentPlayer.turretAngle + Math.PI * 0.5;
+      currentPlayer.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.pusher.recoil;
+      currentPlayer.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.pusher.recoil;
+    }
   }
 
   if (
@@ -637,11 +670,14 @@ function updateScenePlayer(currentPlayer: Player, camera: Camera): void {
     input.fireReallyHard.pressed &&
     now - currentPlayer.timeoutBlackHole >= BULLET_CONFIGS.blackHole.fireRate
   ) {
-    currentPlayer.timeoutBlackHole = now;
-    createSceneBullet(currentPlayer, 'blackHole');
-    const recoilAngle = currentPlayer.turretAngle + Math.PI * 0.5;
-    currentPlayer.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.blackHole.recoil;
-    currentPlayer.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.blackHole.recoil;
+    const mode = getWeaponFireMode(currentPlayer, 'blackHole');
+    if (mode) {
+      currentPlayer.timeoutBlackHole = now;
+      createSceneBullet(currentPlayer, 'blackHole', mode);
+      const recoilAngle = currentPlayer.turretAngle + Math.PI * 0.5;
+      currentPlayer.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.blackHole.recoil;
+      currentPlayer.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.blackHole.recoil;
+    }
   }
 
   if (currentPlayer.invulnerable && now >= currentPlayer.invulnerableUntil) {
@@ -856,6 +892,7 @@ export class ShipInteriorScene implements Scene {
   private camera: Camera = { x: 0, y: 0 };
   private enemies: Enemy[] = [];
   private columns: SceneColumn[] = [];
+  private refuelStations: RefuelStation[] = [];
   private alarmActive = false;
   private alarmLastSeenAt = 0;
   private audioContext: AudioContext | null = null;
@@ -932,6 +969,88 @@ export class ShipInteriorScene implements Scene {
     );
   }
 
+  private collectRefuelStations(): void {
+    const authoredStations = activeLevel.entities.flatMap((entity) =>
+      entity.type === 'refuel-station'
+        ? [
+            {
+              id: entity.id,
+              x: entity.x,
+              y: entity.y,
+              radius: SHIP_INTERIOR_REFUEL_STATION_RADIUS,
+              refillPerSecond: SHIP_INTERIOR_REFUEL_PER_SECOND,
+            },
+          ]
+        : [],
+    );
+
+    if (authoredStations.length > 0) {
+      this.refuelStations = authoredStations;
+      return;
+    }
+
+    const spawn = activeLevel.playerSpawn ?? { x: 210, y: 210 };
+    this.refuelStations = [
+      {
+        id: 'default-refuel-station',
+        x: spawn.x + 150,
+        y: spawn.y,
+        radius: SHIP_INTERIOR_REFUEL_STATION_RADIUS,
+        refillPerSecond: SHIP_INTERIOR_REFUEL_PER_SECOND,
+      },
+    ];
+  }
+
+  private updateRefuelStations(currentPlayer: Player, deltaTime: number): void {
+    if (currentPlayer.waitingToRespawn || currentPlayer.fuel >= currentPlayer.maxFuel) {
+      return;
+    }
+
+    for (const station of this.refuelStations) {
+      const dx = currentPlayer.x - station.x;
+      const dy = currentPlayer.y - station.y;
+      if (dx * dx + dy * dy <= station.radius * station.radius) {
+        currentPlayer.fuel = Math.min(
+          currentPlayer.maxFuel,
+          currentPlayer.fuel + station.refillPerSecond * (deltaTime / 1000),
+        );
+      }
+    }
+  }
+
+  private drawRefuelStation(
+    ctx: CanvasRenderingContext2D,
+    station: RefuelStation,
+    currentPlayer: Player | null,
+    now: number,
+  ): void {
+    const inRange = currentPlayer
+      ? distance(currentPlayer.x, currentPlayer.y, station.x, station.y) <= station.radius
+      : false;
+    const pulse = 0.5 + Math.sin(now * 0.006 + station.x * 0.01) * 0.5;
+
+    ctx.save();
+    ctx.translate(station.x, station.y);
+    ctx.fillStyle = inRange
+      ? `rgba(34, 211, 238, ${0.18 + pulse * 0.08})`
+      : 'rgba(34, 211, 238, 0.08)';
+    ctx.strokeStyle = inRange ? 'rgba(165, 243, 252, 0.8)' : 'rgba(103, 232, 249, 0.35)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, station.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#67e8f9';
+    ctx.lineWidth = 3;
+    ctx.fillRect(-18, -24, 36, 48);
+    ctx.strokeRect(-18, -24, 36, 48);
+    ctx.fillStyle = '#22d3ee';
+    ctx.fillRect(-8, -14, 16, 28);
+    ctx.restore();
+  }
+
   private async ensureImageLoaded(spritePath: string): Promise<void> {
     if (this.loadedImages.has(spritePath)) {
       return;
@@ -957,7 +1076,11 @@ export class ShipInteriorScene implements Scene {
       return;
     }
 
-    ctx.drawImage(image, Math.round(column.x - image.width / 2), Math.round(column.y - image.height));
+    ctx.drawImage(
+      image,
+      Math.round(column.x - image.width / 2),
+      Math.round(column.y - image.height),
+    );
   }
 
   private advanceEnemyPatrolTarget(enemy: Enemy): void {
@@ -1064,7 +1187,10 @@ export class ShipInteriorScene implements Scene {
         collided = true;
       }
 
-      if (!resolvedByAxis && intersectsCollidableTilePixels(currentPlayer.x, currentPlayer.y, radius)) {
+      if (
+        !resolvedByAxis &&
+        intersectsCollidableTilePixels(currentPlayer.x, currentPlayer.y, radius)
+      ) {
         currentPlayer.x = previousX;
         currentPlayer.y = previousY;
         currentPlayer.vx *= -PLAYER_WALL_BOUNCE;
@@ -1074,6 +1200,13 @@ export class ShipInteriorScene implements Scene {
     }
 
     if (collided) {
+      if (currentPlayer.shieldActive) {
+        const now = Date.now();
+        if (now >= currentPlayer.shieldHitUntil) {
+          currentPlayer.shieldHitUntil = now + SHIELD_HIT_COOLDOWN;
+          drainFuel(currentPlayer, SHIELD_COLLISION_FUEL_COSTS.small);
+        }
+      }
       currentPlayer.vx *= PLAYER_WALL_DAMPING;
       currentPlayer.vy *= PLAYER_WALL_DAMPING;
     }
@@ -1227,6 +1360,7 @@ export class ShipInteriorScene implements Scene {
       rebuildCollisionTileBuckets();
       this.spawnEnemies();
       this.collectColumns();
+      this.collectRefuelStations();
 
       const currentPlayer = player;
       if (currentPlayer) {
@@ -1240,6 +1374,7 @@ export class ShipInteriorScene implements Scene {
       rebuildCollisionTileBuckets();
       this.enemies = [];
       this.columns = [];
+      this.refuelStations = [];
       this.levelStatus = 'error';
       this.levelLoadError = error instanceof Error ? error.message : 'Unknown level load error.';
     }
@@ -1255,6 +1390,7 @@ export class ShipInteriorScene implements Scene {
     this.levelLoadError = null;
     this.enemies = [];
     this.columns = [];
+    this.refuelStations = [];
     activeLevel = EMPTY_LEVEL;
     rebuildCollisionTileBuckets();
 
@@ -1274,6 +1410,7 @@ export class ShipInteriorScene implements Scene {
     currentPlayer.score = 0;
     currentPlayer.shieldHits = SHIELD_MAX_HITS;
     currentPlayer.shieldActive = false;
+    refillRespawnResources(currentPlayer);
     currentPlayer.waitingToRespawn = false;
     currentPlayer.invulnerable = true;
     currentPlayer.invulnerableUntil = Date.now() + 2500;
@@ -1281,9 +1418,8 @@ export class ShipInteriorScene implements Scene {
     void this.loadLevel();
   }
 
-  update(_deltaTime: number): void {
+  update(deltaTime: number): void {
     const now = Date.now();
-    const deltaTime = 16;
     const currentPlayer = player;
     if (!gameState.baseAlphaMask || !currentPlayer) {
       return;
@@ -1295,8 +1431,9 @@ export class ShipInteriorScene implements Scene {
 
     updateBackground(deltaTime);
     this.updateCamera();
-    updateScenePlayer(currentPlayer, this.camera);
+    updateScenePlayer(currentPlayer, this.camera, deltaTime);
     this.resolvePlayerWallCollision(currentPlayer);
+    this.updateRefuelStations(currentPlayer, deltaTime);
     this.updateEnemies(currentPlayer, now);
     if (this.alarmActive && now >= this.nextAlarmBeepAt) {
       this.playAlarmBeep(now);
@@ -1386,6 +1523,10 @@ export class ShipInteriorScene implements Scene {
       for (const wall of getAllWalls()) {
         drawWall(ctx, wall);
       }
+    }
+
+    for (const station of this.refuelStations) {
+      this.drawRefuelStation(ctx, station, player, now);
     }
 
     for (const bullet of bullets) {

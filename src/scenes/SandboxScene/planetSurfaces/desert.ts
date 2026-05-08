@@ -1,5 +1,4 @@
 import type { Planet } from '@/constants';
-
 import { drawFlatTextureOnSphere, getFlatPlanetTexture } from '../planetTextureEngine';
 import { alphaColor } from './shared';
 
@@ -134,7 +133,7 @@ function paintFlatDesertTexture(
       const isBright = (i + pass) % 2 === 0;
       ctx.strokeStyle = alphaColor(
         isBright ? '#fff0b8' : '#c88832',
-        pass === 0 ? (i === 4 ? 0.16 : 0.12) : (isBright ? 0.09 : 0.075),
+        pass === 0 ? (i === 4 ? 0.16 : 0.12) : isBright ? 0.09 : 0.075,
       );
       ctx.lineWidth = pass === 0 ? 3 + (i % 3) : 2 + (i % 2);
       ctx.beginPath();
@@ -171,8 +170,22 @@ function paintFlatDesertTexture(
     ctx.beginPath();
     ctx.moveTo(x - w * 0.58, y - h * 0.1);
     ctx.bezierCurveTo(x - w * 0.4, y - h, x - w * 0.08, y - h * 0.94, x + w * 0.14, y - h * 0.22);
-    ctx.bezierCurveTo(x + w * 0.46, y + h * 0.18, x + w * 0.32, y + h * 0.92, x - w * 0.06, y + h * 0.7);
-    ctx.bezierCurveTo(x - w * 0.44, y + h * 0.48, x - w * 0.7, y + h * 0.12, x - w * 0.58, y - h * 0.1);
+    ctx.bezierCurveTo(
+      x + w * 0.46,
+      y + h * 0.18,
+      x + w * 0.32,
+      y + h * 0.92,
+      x - w * 0.06,
+      y + h * 0.7,
+    );
+    ctx.bezierCurveTo(
+      x - w * 0.44,
+      y + h * 0.48,
+      x - w * 0.7,
+      y + h * 0.12,
+      x - w * 0.58,
+      y - h * 0.1,
+    );
     ctx.closePath();
     ctx.fill();
   }
@@ -249,5 +262,5 @@ export function drawDesertSurface(
     planet,
     paintFlatDesertTexture,
   );
-  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation * 0.12);
+  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation);
 }

@@ -1,5 +1,16 @@
-import { ASTEROID_CONFIGS, SHIELD_MAX_HITS, STARTING_LIVES } from '@/constants';
+import {
+  ASTEROID_CONFIGS,
+  ASTEROID_FUEL_BLOB_LIFETIME_MS,
+  ASTEROID_FUEL_DROP_CHANCES,
+  ASTEROID_FUEL_DROP_MAX_BLOBS,
+  FUEL_BLOB_AMOUNT,
+  FUEL_BLOB_RADIUS,
+  SHIELD_MAX_HITS,
+  STARTING_LIVES,
+  type Asteroid,
+} from '@/constants';
 import { joymap } from '@/joymap';
+import { refillRespawnResources } from '@/playerFuel';
 import { sceneManager } from '@/sceneManager';
 import {
   asteroids,
@@ -16,6 +27,13 @@ import {
   setPlayer,
   thrusterParticles,
 } from '@/state';
+import {
+  disposeFuelMetaballs,
+  initFuelMetaballs,
+  renderFuelMetaballs,
+  resizeFuelMetaballs,
+  type FuelMetaball,
+} from '../SandboxScene/fuelMetaballs';
 import type { Scene } from '../scene';
 import { drawAsteroid, spawnWave, splitAsteroid, updateAsteroid } from './asteroid';
 import { drawBackground, updateBackground } from './background';
@@ -34,8 +52,17 @@ import { createPlayer, drawPlayer, updatePlayer } from './player';
 import { rumbleDeath } from './rumble';
 import { dispose, initShader, renderWithShaders, updateBlackHoles } from './shader';
 
+type DroppedFuelBlob = {
+  id: string;
+  x: number;
+  y: number;
+  wobbleSeed: number;
+  expiresAt: number;
+};
+
 export class GameScene implements Scene {
   private canvas: HTMLCanvasElement | null = null;
+  private droppedFuelBlobs: DroppedFuelBlob[] = [];
 
   private placePlayerSafely(currentPlayer: NonNullable<typeof player>): void {
     currentPlayer.x = Math.random() * getGameWidth();
@@ -50,12 +77,99 @@ export class GameScene implements Scene {
     if (gameState.gameSize && this.canvas) {
       dispose();
       initShader(this.canvas);
+      resizeFuelMetaballs(gameState.gameSize.width, gameState.gameSize.height);
     }
+  }
+
+  private spawnAsteroidFuelDrops(asteroid: Asteroid, now: number): void {
+    if (asteroid.size === 'small') {
+      return;
+    }
+
+    if (Math.random() > ASTEROID_FUEL_DROP_CHANCES[asteroid.size]) {
+      return;
+    }
+
+    const maxBlobs = ASTEROID_FUEL_DROP_MAX_BLOBS[asteroid.size];
+    const count = 1 + Math.floor(Math.random() * maxBlobs);
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const scatter = 10 + Math.random() * Math.max(18, asteroid.getRadius() * 0.35);
+      this.droppedFuelBlobs.push({
+        id: `game-drop-${now}-${asteroid.x}-${asteroid.y}-${i}`,
+        x: asteroid.x + Math.cos(angle) * scatter,
+        y: asteroid.y + Math.sin(angle) * scatter,
+        wobbleSeed: Math.random(),
+        expiresAt: now + ASTEROID_FUEL_BLOB_LIFETIME_MS,
+      });
+    }
+  }
+
+  private updateDroppedFuel(now: number): void {
+    const currentPlayer = player;
+    const width = getGameWidth();
+    const height = getGameHeight();
+
+    for (let i = this.droppedFuelBlobs.length - 1; i >= 0; i--) {
+      const blob = this.droppedFuelBlobs[i];
+      if (now >= blob.expiresAt) {
+        this.droppedFuelBlobs.splice(i, 1);
+        continue;
+      }
+
+      if (blob.x < 0) blob.x = width;
+      if (blob.x > width) blob.x = 0;
+      if (blob.y < 0) blob.y = height;
+      if (blob.y > height) blob.y = 0;
+
+      if (
+        currentPlayer &&
+        !currentPlayer.waitingToRespawn &&
+        currentPlayer.fuel < currentPlayer.maxFuel
+      ) {
+        const dx = currentPlayer.x - blob.x;
+        const dy = currentPlayer.y - blob.y;
+        if (Math.sqrt(dx * dx + dy * dy) <= currentPlayer.getRadius() + FUEL_BLOB_RADIUS) {
+          currentPlayer.fuel = Math.min(
+            currentPlayer.maxFuel,
+            currentPlayer.fuel + FUEL_BLOB_AMOUNT,
+          );
+          this.droppedFuelBlobs.splice(i, 1);
+        }
+      }
+    }
+  }
+
+  private collectFuelMetaballs(now: number): FuelMetaball[] {
+    const width = getGameWidth();
+    const height = getGameHeight();
+    return this.droppedFuelBlobs.flatMap((blob) => {
+      const wobble = Math.sin(now * 0.004 + blob.wobbleSeed * Math.PI * 2) * 3;
+      const y = blob.y + wobble;
+      if (
+        blob.x + FUEL_BLOB_RADIUS * 3 < 0 ||
+        blob.x - FUEL_BLOB_RADIUS * 3 > width ||
+        y + FUEL_BLOB_RADIUS * 3 < 0 ||
+        y - FUEL_BLOB_RADIUS * 3 > height
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          x: blob.x,
+          y,
+          radius: FUEL_BLOB_RADIUS,
+          seed: blob.wobbleSeed,
+        },
+      ];
+    });
   }
 
   enter(): void {
     resetState();
     gameState.restartScene = 'game';
+    this.droppedFuelBlobs = [];
 
     spawnWave(1);
 
@@ -75,6 +189,7 @@ export class GameScene implements Scene {
     currentPlayer.score = 0;
     currentPlayer.shieldHits = SHIELD_MAX_HITS;
     currentPlayer.shieldActive = false;
+    refillRespawnResources(currentPlayer);
     currentPlayer.waitingToRespawn = false;
     currentPlayer.angle = 0;
     currentPlayer.turretAngle = 0;
@@ -89,12 +204,12 @@ export class GameScene implements Scene {
 
     if (this.canvas) {
       initShader(this.canvas);
+      initFuelMetaballs();
     }
   }
 
-  update(_deltaTime: number): void {
+  update(deltaTime: number): void {
     const now = Date.now();
-    const deltaTime = 16;
 
     updateBackground(deltaTime);
 
@@ -154,6 +269,7 @@ export class GameScene implements Scene {
 
         const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
         createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
+        this.spawnAsteroidFuelDrops(asteroid, now);
 
         const children = splitAsteroid(asteroid);
         asteroids.push(...children);
@@ -169,8 +285,9 @@ export class GameScene implements Scene {
     }
 
     if (player) {
-      updatePlayer(player);
+      updatePlayer(player, deltaTime);
     }
+    this.updateDroppedFuel(now);
 
     for (const asteroid of asteroids) {
       updateAsteroid(asteroid);
@@ -207,6 +324,7 @@ export class GameScene implements Scene {
         currentPlayer.vx = 0;
         currentPlayer.vy = 0;
         currentPlayer.shieldHits = SHIELD_MAX_HITS;
+        refillRespawnResources(currentPlayer);
         currentPlayer.waitingToRespawn = false;
       }
     }
@@ -216,6 +334,7 @@ export class GameScene implements Scene {
       if (asteroid.hits <= 0) {
         const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
         createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
+        this.spawnAsteroidFuelDrops(asteroid, now);
         const children = splitAsteroid(asteroid);
         asteroids.push(...children);
         asteroids.splice(i, 1);
@@ -293,6 +412,8 @@ export class GameScene implements Scene {
       drawParticle(particles[i], ctx);
     }
 
+    renderFuelMetaballs(ctx, this.collectFuelMetaballs(now), now);
+
     ctx.font = '20px monospace';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
@@ -332,6 +453,7 @@ export class GameScene implements Scene {
   }
 
   exit(): void {
+    disposeFuelMetaballs();
     dispose();
   }
 }

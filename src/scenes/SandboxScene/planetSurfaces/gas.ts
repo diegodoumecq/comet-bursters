@@ -1,5 +1,4 @@
 import type { Planet } from '@/constants';
-
 import { drawFlatTextureOnSphere, getFlatPlanetTexture } from '../planetTextureEngine';
 import { alphaColor } from './shared';
 
@@ -27,7 +26,7 @@ function paintFlatGasTexture(
     ctx.beginPath();
     for (let x = 0; x <= width; x += width / 14) {
       const wave =
-        Math.sin((x / width) * Math.PI * 2 + planet.rotation * 0.08 + i) * height * 0.032 +
+        Math.sin((x / width) * Math.PI * 2 + planet.rotation + i) * height * 0.032 +
         Math.cos((x / width) * Math.PI * 5 + i * 0.24) * height * 0.012;
       if (x === 0) {
         ctx.moveTo(x, y + wave);
@@ -61,5 +60,5 @@ export function drawGasSurface(
     planet,
     paintFlatGasTexture,
   );
-  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation * 0.22);
+  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation);
 }

@@ -1,5 +1,4 @@
 import type { Planet } from '@/constants';
-
 import { drawFlatTextureOnSphere, getFlatPlanetTexture } from '../planetTextureEngine';
 import { alphaColor } from './shared';
 
@@ -71,7 +70,7 @@ function paintFlatToxicTexture(
     const y = (((i * 0.211 + 0.09) % 1) * 0.72 + 0.12) * height;
     const w = width * (0.12 + (i % 3) * 0.028);
     const h = height * (0.06 + (i % 2) * 0.022);
-    const phase = i * 0.83 + planet.rotation * 0.2;
+    const phase = i * 0.83 + planet.rotation;
 
     withWrappedX(width, x, (wrappedX) => {
       const poolGlow = ctx.createRadialGradient(
@@ -208,5 +207,5 @@ export function drawToxicSurface(
     planet,
     paintFlatToxicTexture,
   );
-  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation * 0.18);
+  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation);
 }

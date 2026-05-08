@@ -53,6 +53,15 @@ export function createPlacedEntity(
     } as const;
   }
 
+  if (selectedEntityType === 'refuel-station') {
+    return {
+      id: makeEntityId(currentLevel, 'refuel-station'),
+      type: 'refuel-station',
+      x: worldX,
+      y: worldY,
+    } as const;
+  }
+
   return {
     id: makeEntityId(currentLevel, 'enemy'),
     type: 'enemy-patroller',

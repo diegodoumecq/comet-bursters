@@ -300,6 +300,7 @@ function drawEntities(
   for (const entity of level.entities) {
     const isPlayer = entity.type === 'player';
     const isColumn = entity.type === 'column';
+    const isRefuelStation = entity.type === 'refuel-station';
     const isSelected = entity.id === selectedEntityId;
     if (isColumn && columnImage) {
       const drawX = Math.round(entity.x - columnImage.width / 2);
@@ -312,8 +313,8 @@ function drawEntities(
     }
 
     ctx.beginPath();
-    ctx.arc(entity.x, entity.y, isPlayer ? 14 : 11, 0, Math.PI * 2);
-    ctx.fillStyle = isPlayer ? '#38bdf8' : '#f87171';
+    ctx.arc(entity.x, entity.y, isPlayer ? 14 : isRefuelStation ? 13 : 11, 0, Math.PI * 2);
+    ctx.fillStyle = isPlayer ? '#38bdf8' : isRefuelStation ? '#22d3ee' : '#f87171';
     ctx.fill();
     ctx.lineWidth = isSelected ? 4 : 2;
     ctx.strokeStyle = isSelected ? '#facc15' : '#020617';
@@ -322,7 +323,7 @@ function drawEntities(
     ctx.fillStyle = '#f8fafc';
     ctx.font = '10px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(isPlayer ? 'P' : 'E', entity.x, entity.y + 3);
+    ctx.fillText(isPlayer ? 'P' : isRefuelStation ? 'F' : 'E', entity.x, entity.y + 3);
   }
 }
 
