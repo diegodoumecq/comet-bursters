@@ -3,6 +3,7 @@ import { createQueryModule } from 'joymap';
 import { scaleMask } from '@/assets';
 import {
   BULLET_CONFIGS,
+  FUELLESS_THRUST_POWER_SCALE,
   FUEL_THRUST_PER_SECOND,
   INVULNERABILITY_DURATION,
   LOW_FUEL_RATIO,
@@ -12,7 +13,6 @@ import {
   PLAYER_MAX_SPEED,
   PLAYER_SIZE,
   SHIELD_COLOR,
-  SHIELD_MAX_HITS,
   SHIELD_RADIUS,
   STARTING_INSPECTION_PROBES,
   STARTING_LIVES,
@@ -29,6 +29,23 @@ import {
 } from '@/playerFuel';
 import { bullets, gameState, getGameHeight, getGameWidth } from '@/state';
 import { createThrusterParticle } from './particle';
+
+const RESPAWN_COUNT_STORAGE_KEY = 'comet-bursters-respawn-count';
+
+function loadRespawnCount(): number {
+  const stored = window.localStorage.getItem(RESPAWN_COUNT_STORAGE_KEY);
+  const parsed = stored ? Number.parseInt(stored, 10) : 0;
+  return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+}
+
+export function saveRespawnCount(player: Player): void {
+  window.localStorage.setItem(RESPAWN_COUNT_STORAGE_KEY, String(Math.max(0, player.respawnCount)));
+}
+
+export function incrementRespawnCount(player: Player): void {
+  player.respawnCount += 1;
+  saveRespawnCount(player);
+}
 
 export function createPlayer(padId: string): Player {
   const color = PLAYER_COLORS[0];
@@ -49,7 +66,8 @@ export function createPlayer(padId: string): Player {
     invulnerableUntil: Date.now() + INVULNERABILITY_DURATION,
     respawnTime: 0,
     waitingToRespawn: false,
-    shieldHits: SHIELD_MAX_HITS,
+    respawnCount: loadRespawnCount(),
+    shieldHits: 1,
     shieldActive: false,
     shieldHitUntil: 0,
     fuel: PLAYER_MAX_FUEL,
@@ -81,21 +99,24 @@ export function updatePlayer(player: Player, deltaTime: number) {
 
   const input = InputManager.getInputState(player.module, player.x, player.y);
 
-  player.shieldActive = input.shield.pressed && player.shieldHits > 0;
+  player.shieldActive = input.shield.pressed && player.fuel > 0;
 
   const moveMagnitude = Math.sqrt(
     input.move.value[0] * input.move.value[0] + input.move.value[1] * input.move.value[1],
   );
-  const accelerationApplied = moveMagnitude > 0.1 && player.fuel > 0;
+  const accelerationApplied = moveMagnitude > 0.1;
+  const thrustPower = player.fuel > 0 ? 1 : FUELLESS_THRUST_POWER_SCALE;
 
   if (moveMagnitude > 0.1) {
     player.angle = Math.atan2(input.move.value[1], input.move.value[0]) + Math.PI * 0.5;
   }
 
   if (accelerationApplied) {
-    drainFuel(player, FUEL_THRUST_PER_SECOND * (deltaTime / 1000));
-    player.vx += input.move.value[0] * PLAYER_ACCELERATION;
-    player.vy += input.move.value[1] * PLAYER_ACCELERATION;
+    if (player.fuel > 0) {
+      drainFuel(player, FUEL_THRUST_PER_SECOND * (deltaTime / 1000));
+    }
+    player.vx += input.move.value[0] * PLAYER_ACCELERATION * thrustPower;
+    player.vy += input.move.value[1] * PLAYER_ACCELERATION * thrustPower;
   }
 
   const currentSpeed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
@@ -128,11 +149,13 @@ export function updatePlayer(player: Player, deltaTime: number) {
   if (accelerationApplied) {
     player.thrustDirX = -input.move.value[0] / moveMagnitude;
     player.thrustDirY = -input.move.value[1] / moveMagnitude;
-    if (now - player.lastThrusterSpawn >= THRUSTER_PARTICLE_SPAWN_INTERVAL) {
+    const thrusterInterval =
+      player.fuel > 0 ? THRUSTER_PARTICLE_SPAWN_INTERVAL : THRUSTER_PARTICLE_SPAWN_INTERVAL * 3;
+    if (now - player.lastThrusterSpawn >= thrusterInterval) {
       player.lastThrusterSpawn = now;
       const thrusterX = player.x + player.thrustDirX * PLAYER_SIZE;
       const thrusterY = player.y + player.thrustDirY * PLAYER_SIZE;
-      createThrusterParticle(thrusterX, thrusterY, player.thrustDirX, player.thrustDirY);
+      createThrusterParticle(thrusterX, thrusterY, player.thrustDirX, player.thrustDirY, thrustPower);
     }
   }
 
@@ -315,18 +338,22 @@ function drawOnePlayer(player: Player, ctx: CanvasRenderingContext2D) {
     ctx.save();
 
     ctx.rotate(Math.atan2(player.thrustDirY, player.thrustDirX));
+    const fuelEmpty = player.fuel <= 0;
+    const flameLength = fuelEmpty
+      ? PLAYER_SIZE * (0.58 + Math.random() * 0.16)
+      : PLAYER_SIZE * (1.2 + Math.random() * 0.3);
 
     ctx.beginPath();
     ctx.moveTo(PLAYER_SIZE * 0.5, -PLAYER_SIZE * 0.25);
-    ctx.lineTo(PLAYER_SIZE * 1.2 + Math.random() * PLAYER_SIZE * 0.3, 0);
+    ctx.lineTo(flameLength, 0);
     ctx.lineTo(PLAYER_SIZE * 0.5, PLAYER_SIZE * 0.25);
     ctx.closePath();
 
-    const gradient = ctx.createLinearGradient(PLAYER_SIZE * 0.7, 0, PLAYER_SIZE * 1.5, 0);
-    gradient.addColorStop(0, '#fff');
-    gradient.addColorStop(0.2, '#ffff00');
-    gradient.addColorStop(0.5, '#ff8800');
-    gradient.addColorStop(1, 'rgba(255, 68, 0, 0)');
+    const gradient = ctx.createLinearGradient(PLAYER_SIZE * 0.7, 0, flameLength, 0);
+    gradient.addColorStop(0, fuelEmpty ? 'rgba(220, 250, 255, 0.8)' : '#fff');
+    gradient.addColorStop(0.2, fuelEmpty ? 'rgba(103, 232, 249, 0.55)' : '#ffff00');
+    gradient.addColorStop(0.5, fuelEmpty ? 'rgba(59, 130, 246, 0.28)' : '#ff8800');
+    gradient.addColorStop(1, fuelEmpty ? 'rgba(59, 130, 246, 0)' : 'rgba(255, 68, 0, 0)');
     ctx.fillStyle = gradient;
     ctx.fill();
 
@@ -421,6 +448,17 @@ function drawOnePlayer(player: Player, ctx: CanvasRenderingContext2D) {
   ctx.arc(-PLAYER_SIZE * 0.56, PLAYER_SIZE * 0.14, PLAYER_SIZE * 0.05, 0, Math.PI * 2);
   ctx.fill();
 
+  ctx.save();
+  ctx.translate(-PLAYER_SIZE * 0.5, -PLAYER_SIZE * 0.22);
+  ctx.rotate(-0.3);
+  ctx.fillStyle = '#000';
+  ctx.font = `5px Audiowide, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const respawnMark = String(player.respawnCount);
+  ctx.fillText(respawnMark, 0, 0);
+  ctx.restore();
+
   ctx.restore();
 
   ctx.save();
@@ -470,7 +508,7 @@ function drawOnePlayer(player: Player, ctx: CanvasRenderingContext2D) {
     ctx.arc(0, 0, SHIELD_RADIUS, 0, Math.PI * 2);
     ctx.strokeStyle = SHIELD_COLOR;
     ctx.lineWidth = 3;
-    ctx.globalAlpha = player.shieldHits / SHIELD_MAX_HITS;
+    ctx.globalAlpha = 0.78;
     ctx.stroke();
   }
 

@@ -158,74 +158,42 @@ class InverseKinematicsArm {
     ctx.translate(tip.x, tip.y);
     ctx.rotate(forwardAngle);
 
-    const housingShift = tapExtension * 0.3;
+    const press = tapExtension * 0.24;
+    const handGradient = ctx.createLinearGradient(-58, -18, 8, 18);
+    handGradient.addColorStop(0, '#51606a');
+    handGradient.addColorStop(0.5, '#c4d0d6');
+    handGradient.addColorStop(1, '#f2f6f8');
+    ctx.fillStyle = handGradient;
+    ctx.strokeStyle = '#263139';
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
 
-    ctx.fillStyle = '#273239';
     ctx.beginPath();
-    ctx.roundRect(-54 + housingShift, -17, 28, 34, 10);
+    ctx.roundRect(-62 + press, -19, 34, 38, 11);
     ctx.fill();
-
-    ctx.fillStyle = '#57656e';
-    ctx.beginPath();
-    ctx.roundRect(-47 + housingShift, -10, 14, 20, 5);
-    ctx.fill();
-
-    ctx.fillStyle = '#3a4750';
-    ctx.beginPath();
-    ctx.roundRect(-28 + housingShift, -12, 12, 24, 4);
-    ctx.fill();
-
-    ctx.fillStyle = '#6e7d86';
-    ctx.beginPath();
-    ctx.roundRect(-16 + housingShift, -7, 13, 14, 3);
-    ctx.fill();
-
-    const barrelStart = -4;
-    const barrelEnd = -26 + tapExtension * 0.2;
-    const barrelGradient = ctx.createLinearGradient(barrelEnd, 0, barrelStart, 0);
-    barrelGradient.addColorStop(0, '#9eabb3');
-    barrelGradient.addColorStop(0.5, '#d9e0e4');
-    barrelGradient.addColorStop(1, '#7f8c95');
-    ctx.strokeStyle = barrelGradient;
-    ctx.lineWidth = 10;
-    ctx.beginPath();
-    ctx.moveTo(barrelEnd, 0);
-    ctx.lineTo(barrelStart, 0);
     ctx.stroke();
 
-    ctx.strokeStyle = '#eef3f5';
-    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(barrelEnd + 3, -3);
-    ctx.lineTo(barrelStart - 1, -3);
-    ctx.stroke();
-
-    ctx.strokeStyle = '#59656d';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(-31 + housingShift, 8);
-    ctx.lineTo(-19 + housingShift, 8);
-    ctx.stroke();
-
-    ctx.fillStyle = '#c9d2d8';
-    ctx.beginPath();
-    ctx.moveTo(-4, -5);
-    ctx.lineTo(0, 0);
-    ctx.lineTo(-4, 5);
+    ctx.moveTo(-30 + press, -13);
+    ctx.quadraticCurveTo(-9 + press, -12, 2 + press, -4);
+    ctx.quadraticCurveTo(9 + press, 0, 2 + press, 4);
+    ctx.quadraticCurveTo(-9 + press, 12, -30 + press, 13);
     ctx.closePath();
     ctx.fill();
+    ctx.stroke();
+
+    for (let i = 0; i < 3; i += 1) {
+      const y = -12 + i * 12;
+      ctx.fillStyle = '#9eacb4';
+      ctx.beginPath();
+      ctx.roundRect(-55 + press, y, 25, 7, 4);
+      ctx.fill();
+    }
 
     ctx.fillStyle = '#f8fbfc';
     ctx.beginPath();
-    ctx.arc(0, 0, 2.2, 0, Math.PI * 2);
+    ctx.arc(4 + press, 0, 3.2, 0, Math.PI * 2);
     ctx.fill();
-
-    ctx.strokeStyle = '#94a3ad';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(-8, 0);
-    ctx.lineTo(-1, 0);
-    ctx.stroke();
 
     ctx.restore();
   }
@@ -327,7 +295,6 @@ export class ATMTermsScene implements Scene {
   private previousTapHeld = false;
   private isSigningStrokeActive = false;
   private activeSignaturePoints = 0;
-  private hasStoredSignature = false;
   private displayedLines: DocumentLine[] = [];
   private lastTouchPoint: { x: number; y: number } | null = null;
 
@@ -389,7 +356,6 @@ export class ATMTermsScene implements Scene {
     this.lastTouchPoint = null;
     this.isSigningStrokeActive = false;
     this.activeSignaturePoints = 0;
-    this.hasStoredSignature = Boolean(localStorage.getItem(STORAGE_KEY));
     const armBase = this.getArmBase();
     this.arm.setBase(armBase.x, armBase.y);
     this.refreshPageMetrics();
@@ -468,7 +434,6 @@ export class ATMTermsScene implements Scene {
     this.drawRoom(ctx, width, height);
     this.drawAtm(ctx);
     this.arm.draw(ctx, this.tapAnimation * 14);
-    this.drawHud(ctx);
   }
 
   exit(): void {}
@@ -598,7 +563,6 @@ export class ATMTermsScene implements Scene {
     const payload = JSON.stringify(this.signature);
     try {
       localStorage.setItem(STORAGE_KEY, payload);
-      this.hasStoredSignature = true;
     } catch (error) {
       console.warn('Failed to save ATM signature', error);
     }
@@ -694,11 +658,17 @@ export class ATMTermsScene implements Scene {
   }
 
   private getScreenRect(): { x: number; y: number; width: number; height: number } {
-    const width = Math.min(660, getGameWidth() * 0.56);
-    const height = Math.min(470, getGameHeight() * 0.58);
+    const maxWidth = getGameWidth() * 0.78;
+    const maxHeight = getGameHeight() * 0.72;
+    let width = maxWidth;
+    let height = width * 0.75;
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = height * (4 / 3);
+    }
     return {
-      x: getGameCenterX() - width / 2 + 18,
-      y: getGameCenterY() - height / 2 - 34,
+      x: getGameCenterX() - width / 2,
+      y: getGameCenterY() - height / 2 - getGameHeight() * 0.03,
       width,
       height,
     };
@@ -722,11 +692,12 @@ export class ATMTermsScene implements Scene {
     height: number;
   }> {
     const frame = this.getMonitorFrameRect();
-    const buttonWidth = 58;
-    const buttonHeight = 48;
-    const startY = frame.y + 76;
-    const spacing = 80;
-    const x = frame.x + frame.width - 70;
+    const scale = Math.max(0.72, Math.min(1.35, frame.height / 560));
+    const buttonWidth = 58 * scale;
+    const buttonHeight = 48 * scale;
+    const startY = frame.y + 76 * scale;
+    const spacing = 80 * scale;
+    const x = frame.x + frame.width - 70 * scale;
 
     return [
       { action: 'pageDown', x, y: startY + spacing * 0, width: buttonWidth, height: buttonHeight },
@@ -747,11 +718,13 @@ export class ATMTermsScene implements Scene {
 
   private getSignatureBox(): { x: number; y: number; width: number; height: number } {
     const screen = this.getScreenRect();
+    const boxWidth = Math.min(screen.width - 80, screen.width * 0.72);
+    const boxHeight = Math.min(150, screen.height * 0.28);
     return {
-      x: screen.x + 70,
-      y: screen.y + 190,
-      width: screen.width - 140,
-      height: 130,
+      x: screen.x + (screen.width - boxWidth) / 2,
+      y: screen.y + screen.height * 0.42,
+      width: boxWidth,
+      height: boxHeight,
     };
   }
 
@@ -884,7 +857,7 @@ export class ATMTermsScene implements Scene {
     ctx.fillRect(screen.x, screen.y, screen.width, screen.height);
 
     ctx.fillStyle = textColor;
-    ctx.font = '16px "Courier New", monospace';
+    ctx.font = `${Math.max(14, Math.min(22, screen.width / 42))}px "Courier New", monospace`;
     ctx.textBaseline = 'top';
 
     if (this.state === 'reading') {
@@ -1058,15 +1031,4 @@ export class ATMTermsScene implements Scene {
     ctx.restore();
   }
 
-  private drawHud(ctx: CanvasRenderingContext2D): void {
-    ctx.fillStyle = 'rgba(255, 237, 166, 0.8)';
-    ctx.font = '15px "Courier New", monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText('MOVE ARM: mouse / right stick', 24, 24);
-    ctx.fillText('TAP: left click / A', 24, 44);
-    ctx.fillText('Drag on CRT during signature to sign. Drag elsewhere to scratch.', 24, 64);
-    if (this.hasStoredSignature) {
-      ctx.fillText('Stored signature data detected.', 24, 84);
-    }
-  }
 }

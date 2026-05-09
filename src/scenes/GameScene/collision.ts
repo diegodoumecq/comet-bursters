@@ -2,10 +2,12 @@ import {
   SHIELD_COLLISION_FUEL_COSTS,
   SHIELD_HIT_COOLDOWN,
   SHIELD_RADIUS,
+  type Asteroid,
   type Player,
 } from '@/constants';
 import { drainFuel } from '@/playerFuel';
 import { asteroids, bullets, getGameHeight, getGameWidth, player } from '@/state';
+import { circleIntersectsRotatedMask } from '@/maskCollision';
 
 export function checkCircleCollision(
   a: { x: number; y: number; getRadius: () => number },
@@ -71,9 +73,9 @@ function checkWrappedCollision(
 
 export function processBulletAsteroidCollisions(): {
   bulletIndex: number;
-  asteroidIndex: number;
+  asteroid: Asteroid;
 }[] {
-  const hits: { bulletIndex: number; asteroidIndex: number }[] = [];
+  const hits: { bulletIndex: number; asteroid: Asteroid }[] = [];
 
   for (let i = bullets.length - 1; i >= 0; i--) {
     const bullet = bullets[i];
@@ -82,17 +84,8 @@ export function processBulletAsteroidCollisions(): {
     for (let j = asteroids.length - 1; j >= 0; j--) {
       const asteroid = asteroids[j];
 
-      if (
-        checkWrappedCollision(
-          bullet.x,
-          bullet.y,
-          bulletRadius,
-          asteroid.x,
-          asteroid.y,
-          asteroid.getRadius(),
-        )
-      ) {
-        hits.push({ bulletIndex: i, asteroidIndex: j });
+      if (circleIntersectsRotatedMask(bullet.x, bullet.y, bulletRadius, asteroid)) {
+        hits.push({ bulletIndex: i, asteroid });
         break;
       }
     }
@@ -103,7 +96,7 @@ export function processBulletAsteroidCollisions(): {
 
 export function processPlayerAsteroidCollisions(onHit: (player: Player) => void): void {
   const currentPlayer = player;
-  if (!currentPlayer) {
+  if (!currentPlayer || currentPlayer.waitingToRespawn) {
     return;
   }
 
@@ -112,7 +105,6 @@ export function processPlayerAsteroidCollisions(onHit: (player: Player) => void)
 
     const asteroidRadius = asteroid.getRadius();
     const shieldCollisionDist = SHIELD_RADIUS + asteroidRadius;
-    const shipCollisionDist = currentPlayer.getRadius() + asteroidRadius;
 
     const playerPositions = getCollisionPositions(
       currentPlayer.x,
@@ -124,14 +116,17 @@ export function processPlayerAsteroidCollisions(onHit: (player: Player) => void)
     let actualDx = 0;
     let actualDy = 0;
     let actualDist = 0;
+    let bodyCollisionDetected = false;
 
     for (const pos of playerPositions) {
       const dx = pos.x - asteroid.x;
       const dy = pos.y - asteroid.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
-      if (dist < shieldCollisionDist || dist < shipCollisionDist) {
+      const bodyHit = circleIntersectsRotatedMask(pos.x, pos.y, currentPlayer.getRadius(), asteroid);
+      if (dist < shieldCollisionDist || bodyHit) {
         collisionDetected = true;
+        bodyCollisionDetected = bodyHit;
         actualDx = currentPlayer.x - asteroid.x;
         actualDy = currentPlayer.y - asteroid.y;
         actualDist = Math.sqrt(actualDx * actualDx + actualDy * actualDy);
@@ -141,7 +136,7 @@ export function processPlayerAsteroidCollisions(onHit: (player: Player) => void)
 
     if (!collisionDetected) continue;
 
-    if (currentPlayer.shieldActive && actualDist < shieldCollisionDist) {
+    if (currentPlayer.shieldActive && currentPlayer.fuel > 0 && actualDist < shieldCollisionDist) {
       const now = Date.now();
       if (now < currentPlayer.shieldHitUntil) continue;
 
@@ -164,11 +159,10 @@ export function processPlayerAsteroidCollisions(onHit: (player: Player) => void)
       asteroid.x -= nx * overlap;
       asteroid.y -= ny * overlap;
 
-      currentPlayer.shieldHits--;
-      if (currentPlayer.shieldHits <= 0) {
+      if (currentPlayer.fuel <= 0) {
         currentPlayer.shieldActive = false;
       }
-    } else if (!currentPlayer.shieldActive && actualDist < shipCollisionDist) {
+    } else if (!currentPlayer.shieldActive && bodyCollisionDetected) {
       const massMultiplier =
         asteroid.size === 'mega'
           ? 0.1
@@ -187,7 +181,7 @@ export function processPlayerAsteroidCollisions(onHit: (player: Player) => void)
 
 export function processBulletPlayerCollisions(): number[] {
   const hitIndices: number[] = [];
-  if (!player) {
+  if (!player || player.waitingToRespawn) {
     return hitIndices;
   }
 

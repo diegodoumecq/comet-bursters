@@ -498,25 +498,31 @@ export function removeParticle(index: number) {
   particles.splice(index, 1);
 }
 
-export function createThrusterParticle(x: number, y: number, dirX: number, dirY: number) {
+export function createThrusterParticle(
+  x: number,
+  y: number,
+  dirX: number,
+  dirY: number,
+  power = 1,
+) {
   if (Math.abs(dirX) < 0.01 && Math.abs(dirY) < 0.01) return;
 
-  const spread = 0.5;
+  const clampedPower = Math.max(0.1, Math.min(1, power));
+  const spread = 0.32 + clampedPower * 0.18;
   const randomAngle = Math.random() * spread - spread / 2;
   const cos = Math.cos(randomAngle);
   const sin = Math.sin(randomAngle);
 
-  const particleSpeed = 4 + Math.random() * 6;
+  const particleSpeed = (4 + Math.random() * 6) * (0.38 + clampedPower * 0.62);
   const particleVx = dirX * cos - dirY * sin;
   const particleVy = dirX * sin + dirY * cos;
   const lifetimeFactor = 0.5 + Math.pow(Math.random(), 0.55) * 0.5;
   const lifetime = THRUSTER_PARTICLE_LIFETIME * lifetimeFactor;
   const colorMix = (lifetimeFactor - 0.5) / 0.5;
-  const particleColor = mixRgb(
-    hexToRgbTuple(THRUSTER_COLORS[0]),
-    hexToRgbTuple(THRUSTER_COLORS[1]),
-    colorMix,
-  );
+  const particleColor =
+    clampedPower < 0.5
+      ? mixRgb(hexToRgbTuple('#bfdbfe'), hexToRgbTuple('#38bdf8'), colorMix)
+      : mixRgb(hexToRgbTuple(THRUSTER_COLORS[0]), hexToRgbTuple(THRUSTER_COLORS[1]), colorMix);
 
   thrusterParticles.push({
     x,
@@ -526,9 +532,9 @@ export function createThrusterParticle(x: number, y: number, dirX: number, dirY:
     alpha: 1,
     rotation: Math.random() * Math.PI * 2,
     rotationSpeed: (Math.random() - 0.5) * 0.1,
-    size: 8 + Math.random() * 8,
+    size: (8 + Math.random() * 8) * (0.58 + clampedPower * 0.42),
     color: particleColor,
-    glowColor: 'rgba(255, 180, 60, 0.08)',
+    glowColor: clampedPower < 0.5 ? 'rgba(56, 189, 248, 0.045)' : 'rgba(255, 180, 60, 0.08)',
     lifetime,
     maxLifetime: THRUSTER_PARTICLE_LIFETIME,
     scale: 1.2,

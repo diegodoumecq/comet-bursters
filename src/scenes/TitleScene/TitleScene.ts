@@ -364,6 +364,7 @@ export class TitleScene implements Scene {
       'L1 / Right Click: Pusher',
       'L2 / E: Shotgun',
       'A / Shift: Shield',
+      'R: Tractor Beam',
     ];
 
     ctx.font = `${layout.controlsFontSize}px Audiowide, sans-serif`;

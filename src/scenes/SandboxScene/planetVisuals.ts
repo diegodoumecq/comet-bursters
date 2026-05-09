@@ -5,8 +5,7 @@ import { drawPlanetSurface } from './planetSurfaces';
 import { polarPoint, tintColor } from './planetSurfaces/shared';
 
 const PLANET_CACHE_PADDING = 40;
-const PLANET_ROTATION_BUCKETS = 240;
-const PLANET_RENDER_VERSION = 'v3';
+const PLANET_RENDER_VERSION = 'v5-static-rotation';
 const planetSpriteCache = new Map<string, HTMLCanvasElement>();
 
 function withAlpha(color: string, alpha: number): string {
@@ -177,17 +176,8 @@ function drawStyledPlanetToContext(planet: Planet, ctx: CanvasRenderingContext2D
   ctx.restore();
 }
 
-function normalizeRotation(rotation: number): number {
-  const fullTurn = Math.PI * 2;
-  const normalized = rotation % fullTurn;
-  return normalized < 0 ? normalized + fullTurn : normalized;
-}
-
 function getPlanetCacheKey(planet: Planet): string {
-  const bucket = Math.round(
-    (normalizeRotation(planet.rotation) / (Math.PI * 2)) * PLANET_ROTATION_BUCKETS,
-  );
-  return `${PLANET_RENDER_VERSION}|${planet.kind}|${planet.color}|${bucket % PLANET_ROTATION_BUCKETS}`;
+  return `${PLANET_RENDER_VERSION}|${planet.kind}|${planet.color}`;
 }
 
 function getPlanetSprite(planet: Planet): HTMLCanvasElement {
@@ -210,7 +200,7 @@ function getPlanetSprite(planet: Planet): HTMLCanvasElement {
   }
 
   spriteCtx.translate(size / 2, size / 2);
-  drawStyledPlanetToContext({ ...planet, x: 0, y: 0 }, spriteCtx);
+  drawStyledPlanetToContext({ ...planet, x: 0, y: 0, rotation: 0 }, spriteCtx);
 
   planetSpriteCache.set(cacheKey, canvas);
   return canvas;
@@ -218,5 +208,9 @@ function getPlanetSprite(planet: Planet): HTMLCanvasElement {
 
 export function drawStyledPlanet(planet: Planet, ctx: CanvasRenderingContext2D): void {
   const sprite = getPlanetSprite(planet);
-  ctx.drawImage(sprite, planet.x - sprite.width / 2, planet.y - sprite.height / 2);
+  ctx.save();
+  ctx.translate(planet.x, planet.y);
+  ctx.rotate(planet.rotation);
+  ctx.drawImage(sprite, -sprite.width / 2, -sprite.height / 2);
+  ctx.restore();
 }

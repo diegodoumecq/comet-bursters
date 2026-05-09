@@ -1,11 +1,15 @@
-import { getAsteroidMask, getRandomAsteroidColor } from '@/assets';
+import { getAsteroidSpriteMask, getAsteroidSpriteRadius, getRandomAsteroidColor } from '@/assets';
 import {
   ASTEROID_CONFIGS,
-  ASTEROID_FUEL_BLOB_LIFETIME_MS,
   ASTEROID_FUEL_DROP_CHANCES,
   ASTEROID_FUEL_DROP_MAX_BLOBS,
   BULLET_CONFIGS,
+  FUELLESS_THRUST_POWER_SCALE,
   FUEL_BLOB_AMOUNT,
+  FUEL_BLOB_ATTRACTION_ACCELERATION,
+  FUEL_BLOB_ATTRACTION_RADIUS,
+  FUEL_BLOB_DRAG,
+  FUEL_BLOB_MAX_SPEED,
   FUEL_BLOB_RADIUS,
   FUEL_INSPECTION_BLOB_AMOUNT,
   FUEL_THRUST_PER_SECOND,
@@ -22,7 +26,6 @@ import {
   SHIELD_COLLISION_FUEL_COSTS,
   SHIELD_COLOR,
   SHIELD_HIT_COOLDOWN,
-  SHIELD_MAX_HITS,
   SHIELD_RADIUS,
   STAR_BASE_ALPHA,
   STAR_TWINKLE_AMOUNT,
@@ -37,6 +40,7 @@ import {
 } from '@/constants';
 import { InputManager } from '@/input';
 import { joymap } from '@/joymap';
+import { circleIntersectsRotatedMask } from '@/maskCollision';
 import {
   drainFuel,
   getWeaponFireMode,
@@ -71,7 +75,7 @@ import {
   drawThrusterParticle,
   updateThrusterParticle,
 } from '../GameScene/particle';
-import { createPlayer, drawFuelContour } from '../GameScene/player';
+import { createPlayer, drawFuelContour, incrementRespawnCount } from '../GameScene/player';
 import { rumbleDeath } from '../GameScene/rumble';
 import {
   dispose as disposeBlackHoleShader,
@@ -100,6 +104,12 @@ const INVULNERABLE_RESPAWN = 2000;
 const MINIMAP_WIDTH = 220;
 const MINIMAP_HEIGHT = 220;
 const MINIMAP_PADDING = 20;
+const MAX_INTERNAL_FUEL_METABALLS_PER_PLANET = 14;
+const SANDBOX_ASTEROID_SPAWN_INTERVAL_MS = 2400;
+const SANDBOX_MAX_ASTEROIDS = 28;
+const MINIMAP_FOG_COLUMNS = 44;
+const MINIMAP_FOG_ROWS = 44;
+const MINIMAP_SEE_RADIUS = 1250;
 
 type Camera = { x: number; y: number };
 
@@ -107,8 +117,9 @@ type DroppedFuelBlob = {
   id: string;
   x: number;
   y: number;
+  vx: number;
+  vy: number;
   wobbleSeed: number;
-  expiresAt: number;
 };
 
 type InspectionProbe = {
@@ -224,9 +235,9 @@ function applyGravity(
   const distSq = dx * dx + dy * dy;
   const dist = Math.sqrt(distSq);
 
-  if (dist < PLANET_CONFIG.radius * 3 && dist > 0) {
+  if (dist < PLANET_CONFIG.radius * 6 && dist > 0) {
     const force =
-      (PLANET_CONFIG.gravityStrength * PLANET_CONFIG.radius * PLANET_CONFIG.radius) / distSq;
+      (PLANET_CONFIG.gravityStrength * 0.5 * PLANET_CONFIG.radius * PLANET_CONFIG.radius) / distSq;
     entity.vx += (dx / dist) * force;
     entity.vy += (dy / dist) * force;
   }
@@ -271,6 +282,9 @@ function createSandboxAsteroid(
   }
 
   const speed = config.speed * (0.8 + Math.random() * 0.4);
+  const color = getRandomAsteroidColor(size);
+  const mask = getAsteroidSpriteMask(size, color);
+  const collisionRadius = getAsteroidSpriteRadius(size, color);
 
   return {
     x,
@@ -280,13 +294,39 @@ function createSandboxAsteroid(
     rotation: Math.random() * Math.PI * 2,
     rotationSpeed: (Math.random() - 0.5) * 0.05,
     size,
-    color: getRandomAsteroidColor(size),
+    color,
     hits: config.hits,
     splitCount: config.splitCount,
     mass: config.mass,
-    mask: getAsteroidMask(size),
-    getRadius: () => config.radius,
+    mask,
+    getRadius: () => collisionRadius,
   };
+}
+
+function createEdgeSandboxAsteroid(size: Asteroid['size']): Asteroid {
+  const config = ASTEROID_CONFIGS[size];
+  const edge = Math.floor(Math.random() * 4);
+  const margin = config.radius + 24;
+  const x =
+    edge === 0
+      ? margin
+      : edge === 1
+        ? SANDBOX_WORLD_WIDTH - margin
+        : margin + Math.random() * (SANDBOX_WORLD_WIDTH - margin * 2);
+  const y =
+    edge === 2
+      ? margin
+      : edge === 3
+        ? SANDBOX_WORLD_HEIGHT - margin
+        : margin + Math.random() * (SANDBOX_WORLD_HEIGHT - margin * 2);
+  const asteroid = createSandboxAsteroid(size, true, x, y);
+  const targetX = SANDBOX_WORLD_WIDTH * 0.5 + (Math.random() - 0.5) * SANDBOX_WORLD_WIDTH * 0.35;
+  const targetY = SANDBOX_WORLD_HEIGHT * 0.5 + (Math.random() - 0.5) * SANDBOX_WORLD_HEIGHT * 0.35;
+  const angle = Math.atan2(targetY - y, targetX - x);
+  const speed = config.speed * (0.85 + Math.random() * 0.35);
+  asteroid.vx = Math.cos(angle) * speed;
+  asteroid.vy = Math.sin(angle) * speed;
+  return asteroid;
 }
 
 function drawAsteroid(asteroid: Asteroid, ctx: CanvasRenderingContext2D): void {
@@ -493,16 +533,20 @@ function drawPlayer(player: Player, ctx: CanvasRenderingContext2D): void {
   if (player.isThrusting) {
     ctx.save();
     ctx.rotate(Math.atan2(player.thrustDirY, player.thrustDirX));
+    const fuelEmpty = player.fuel <= 0;
+    const flameLength = fuelEmpty
+      ? PLAYER_SIZE * (0.58 + Math.random() * 0.16)
+      : PLAYER_SIZE * (1.2 + Math.random() * 0.3);
     ctx.beginPath();
     ctx.moveTo(PLAYER_SIZE * 0.5, -PLAYER_SIZE * 0.25);
-    ctx.lineTo(PLAYER_SIZE * 1.2 + Math.random() * PLAYER_SIZE * 0.3, 0);
+    ctx.lineTo(flameLength, 0);
     ctx.lineTo(PLAYER_SIZE * 0.5, PLAYER_SIZE * 0.25);
     ctx.closePath();
-    const gradient = ctx.createLinearGradient(PLAYER_SIZE * 0.7, 0, PLAYER_SIZE * 1.5, 0);
-    gradient.addColorStop(0, '#fff');
-    gradient.addColorStop(0.2, '#ffff00');
-    gradient.addColorStop(0.5, '#ff8800');
-    gradient.addColorStop(1, 'rgba(255, 68, 0, 0)');
+    const gradient = ctx.createLinearGradient(PLAYER_SIZE * 0.7, 0, flameLength, 0);
+    gradient.addColorStop(0, fuelEmpty ? 'rgba(220, 250, 255, 0.8)' : '#fff');
+    gradient.addColorStop(0.2, fuelEmpty ? 'rgba(103, 232, 249, 0.55)' : '#ffff00');
+    gradient.addColorStop(0.5, fuelEmpty ? 'rgba(59, 130, 246, 0.28)' : '#ff8800');
+    gradient.addColorStop(1, fuelEmpty ? 'rgba(59, 130, 246, 0)' : 'rgba(255, 68, 0, 0)');
     ctx.fillStyle = gradient;
     ctx.fill();
     ctx.restore();
@@ -655,7 +699,7 @@ function drawPlayer(player: Player, ctx: CanvasRenderingContext2D): void {
     ctx.arc(0, 0, SHIELD_RADIUS, 0, Math.PI * 2);
     ctx.strokeStyle = SHIELD_COLOR;
     ctx.lineWidth = 3;
-    ctx.globalAlpha = player.shieldHits / SHIELD_MAX_HITS;
+    ctx.globalAlpha = 0.78;
     ctx.stroke();
   }
 
@@ -713,21 +757,24 @@ function updatePlayer(
     return;
   }
 
-  player.shieldActive = input.shield.pressed && player.shieldHits > 0;
+  player.shieldActive = input.shield.pressed && player.fuel > 0;
 
   const moveMagnitude = Math.sqrt(
     input.move.value[0] * input.move.value[0] + input.move.value[1] * input.move.value[1],
   );
-  const accelerationApplied = moveMagnitude > 0.1 && player.fuel > 0;
+  const accelerationApplied = moveMagnitude > 0.1;
+  const thrustPower = player.fuel > 0 ? 1 : FUELLESS_THRUST_POWER_SCALE;
 
   if (moveMagnitude > 0.1) {
     player.angle = Math.atan2(input.move.value[1], input.move.value[0]) + Math.PI * 0.5;
   }
 
   if (accelerationApplied) {
-    drainFuel(player, FUEL_THRUST_PER_SECOND * (deltaTime / 1000));
-    player.vx += input.move.value[0] * PLAYER_ACCELERATION;
-    player.vy += input.move.value[1] * PLAYER_ACCELERATION;
+    if (player.fuel > 0) {
+      drainFuel(player, FUEL_THRUST_PER_SECOND * (deltaTime / 1000));
+    }
+    player.vx += input.move.value[0] * PLAYER_ACCELERATION * thrustPower;
+    player.vy += input.move.value[1] * PLAYER_ACCELERATION * thrustPower;
   }
 
   const speed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
@@ -753,13 +800,15 @@ function updatePlayer(
   if (accelerationApplied) {
     player.thrustDirX = -input.move.value[0] / moveMagnitude;
     player.thrustDirY = -input.move.value[1] / moveMagnitude;
-    if (now - player.lastThrusterSpawn >= 10) {
+    const thrusterInterval = player.fuel > 0 ? 10 : 30;
+    if (now - player.lastThrusterSpawn >= thrusterInterval) {
       player.lastThrusterSpawn = now;
       createThrusterParticle(
         player.x + player.thrustDirX * PLAYER_SIZE,
         player.y + player.thrustDirY * PLAYER_SIZE,
         player.thrustDirX,
         player.thrustDirY,
+        thrustPower,
       );
     }
   }
@@ -881,6 +930,8 @@ function drawMinimap(
   camera: Camera,
   viewportWidth: number,
   viewportHeight: number,
+  seenCells: Uint8Array,
+  seeingCells: Uint8Array,
 ): void {
   const minimapX = viewportWidth - MINIMAP_WIDTH - MINIMAP_PADDING;
   const minimapY = MINIMAP_PADDING;
@@ -889,7 +940,7 @@ function drawMinimap(
 
   ctx.save();
 
-  ctx.fillStyle = 'rgba(6, 10, 20, 0.41)';
+  ctx.fillStyle = '#000';
   ctx.fillRect(minimapX, minimapY, MINIMAP_WIDTH, MINIMAP_HEIGHT);
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
   ctx.lineWidth = 2;
@@ -910,7 +961,26 @@ function drawMinimap(
     ctx.stroke();
   }
 
+  const cellWidth = MINIMAP_WIDTH / MINIMAP_FOG_COLUMNS;
+  const cellHeight = MINIMAP_HEIGHT / MINIMAP_FOG_ROWS;
+  for (let row = 0; row < MINIMAP_FOG_ROWS; row += 1) {
+    for (let col = 0; col < MINIMAP_FOG_COLUMNS; col += 1) {
+      const index = row * MINIMAP_FOG_COLUMNS + col;
+      if (!seenCells[index]) continue;
+      ctx.fillStyle = seeingCells[index] ? 'rgba(8, 20, 36, 0.88)' : 'rgba(8, 14, 25, 0.58)';
+      ctx.fillRect(minimapX + col * cellWidth, minimapY + row * cellHeight, cellWidth + 0.5, cellHeight + 0.5);
+    }
+  }
+
+  function isCellVisibleForMinimap(x: number, y: number, requireSeeing: boolean): boolean {
+    const col = clamp(Math.floor((x / SANDBOX_WORLD_WIDTH) * MINIMAP_FOG_COLUMNS), 0, MINIMAP_FOG_COLUMNS - 1);
+    const row = clamp(Math.floor((y / SANDBOX_WORLD_HEIGHT) * MINIMAP_FOG_ROWS), 0, MINIMAP_FOG_ROWS - 1);
+    const index = row * MINIMAP_FOG_COLUMNS + col;
+    return requireSeeing ? seeingCells[index] === 1 : seenCells[index] === 1;
+  }
+
   for (const planet of planets) {
+    if (!isCellVisibleForMinimap(planet.x, planet.y, false)) continue;
     const x = minimapX + planet.x * scaleX;
     const y = minimapY + planet.y * scaleY;
     const radius = Math.max(3, planet.getRadius() * scaleX);
@@ -923,6 +993,7 @@ function drawMinimap(
 
   ctx.globalAlpha = 1;
   for (const asteroid of asteroids) {
+    if (!isCellVisibleForMinimap(asteroid.x, asteroid.y, true)) continue;
     const x = minimapX + asteroid.x * scaleX;
     const y = minimapY + asteroid.y * scaleY;
     const radius = Math.max(1.5, Math.min(4.5, asteroid.getRadius() * scaleX * 0.6));
@@ -972,6 +1043,9 @@ export class SandboxScene implements Scene {
   private previousCamera: Camera = { x: 0, y: 0 };
   private droppedFuelBlobs: DroppedFuelBlob[] = [];
   private inspectionProbes: InspectionProbe[] = [];
+  private nextAsteroidSpawnAt = 0;
+  private readonly seenMinimapCells = new Uint8Array(MINIMAP_FOG_COLUMNS * MINIMAP_FOG_ROWS);
+  private readonly seeingMinimapCells = new Uint8Array(MINIMAP_FOG_COLUMNS * MINIMAP_FOG_ROWS);
 
   setCanvas(canvas: HTMLCanvasElement): void {
     this.canvas = canvas;
@@ -1055,24 +1129,56 @@ export class SandboxScene implements Scene {
     currentPlayer.y = SANDBOX_WORLD_HEIGHT / 2;
   }
 
-  private spawnWave(wave: number): void {
-    const count = 2 + wave;
-    const megaChance = Math.min(0.15, wave * 0.02);
-    const bigChance = Math.min(0.4, wave * 0.05);
+  private chooseSandboxSpawnSize(): Asteroid['size'] {
+    const roll = Math.random();
+    if (roll < 0.22) return 'mega';
+    if (roll < 0.62) return 'big';
+    if (roll < 0.88) return 'medium';
+    return 'small';
+  }
 
-    for (let i = 0; i < count; i++) {
-      const rand = Math.random();
-      let size: 'mega' | 'big' | 'medium' | 'small';
-      if (wave >= 10 && rand < megaChance) {
-        size = 'mega';
-      } else if (wave >= 5 && rand < megaChance + bigChance) {
-        size = 'big';
-      } else if (wave >= 3 && rand < megaChance + bigChance + 0.3) {
-        size = 'medium';
-      } else {
-        size = 'small';
+  private updateAsteroidEdgeSpawns(now: number): void {
+    if (now < this.nextAsteroidSpawnAt || asteroids.length >= SANDBOX_MAX_ASTEROIDS) {
+      return;
+    }
+    asteroids.push(createEdgeSandboxAsteroid(this.chooseSandboxSpawnSize()));
+    this.nextAsteroidSpawnAt = now + SANDBOX_ASTEROID_SPAWN_INTERVAL_MS;
+  }
+
+  private updateMinimapFog(currentPlayer: Player): void {
+    this.seeingMinimapCells.fill(0);
+    const minCol = clamp(
+      Math.floor(((currentPlayer.x - MINIMAP_SEE_RADIUS) / SANDBOX_WORLD_WIDTH) * MINIMAP_FOG_COLUMNS),
+      0,
+      MINIMAP_FOG_COLUMNS - 1,
+    );
+    const maxCol = clamp(
+      Math.floor(((currentPlayer.x + MINIMAP_SEE_RADIUS) / SANDBOX_WORLD_WIDTH) * MINIMAP_FOG_COLUMNS),
+      0,
+      MINIMAP_FOG_COLUMNS - 1,
+    );
+    const minRow = clamp(
+      Math.floor(((currentPlayer.y - MINIMAP_SEE_RADIUS) / SANDBOX_WORLD_HEIGHT) * MINIMAP_FOG_ROWS),
+      0,
+      MINIMAP_FOG_ROWS - 1,
+    );
+    const maxRow = clamp(
+      Math.floor(((currentPlayer.y + MINIMAP_SEE_RADIUS) / SANDBOX_WORLD_HEIGHT) * MINIMAP_FOG_ROWS),
+      0,
+      MINIMAP_FOG_ROWS - 1,
+    );
+
+    for (let row = minRow; row <= maxRow; row += 1) {
+      for (let col = minCol; col <= maxCol; col += 1) {
+        const worldX = ((col + 0.5) / MINIMAP_FOG_COLUMNS) * SANDBOX_WORLD_WIDTH;
+        const worldY = ((row + 0.5) / MINIMAP_FOG_ROWS) * SANDBOX_WORLD_HEIGHT;
+        if (distance(currentPlayer.x, currentPlayer.y, worldX, worldY) > MINIMAP_SEE_RADIUS) {
+          continue;
+        }
+        const index = row * MINIMAP_FOG_COLUMNS + col;
+        this.seeingMinimapCells[index] = 1;
+        this.seenMinimapCells[index] = 1;
       }
-      asteroids.push(createSandboxAsteroid(size));
     }
   }
 
@@ -1094,8 +1200,9 @@ export class SandboxScene implements Scene {
         id: `drop-${now}-${asteroid.x}-${asteroid.y}-${i}`,
         x: asteroid.x + Math.cos(angle) * scatter,
         y: asteroid.y + Math.sin(angle) * scatter,
+        vx: Math.cos(angle) * 0.35 + asteroid.vx * 0.12,
+        vy: Math.sin(angle) * 0.35 + asteroid.vy * 0.12,
         wobbleSeed: Math.random(),
-        expiresAt: now + ASTEROID_FUEL_BLOB_LIFETIME_MS,
       });
     }
   }
@@ -1140,10 +1247,32 @@ export class SandboxScene implements Scene {
 
     for (let i = this.droppedFuelBlobs.length - 1; i >= 0; i--) {
       const blob = this.droppedFuelBlobs[i];
-      if (now >= blob.expiresAt || isOutOfWorld(blob.x, blob.y, FUEL_BLOB_RADIUS)) {
+      if (isOutOfWorld(blob.x, blob.y, FUEL_BLOB_RADIUS)) {
         this.droppedFuelBlobs.splice(i, 1);
         continue;
       }
+
+      if (currentPlayer.fuel < currentPlayer.maxFuel && !currentPlayer.waitingToRespawn) {
+        const dx = currentPlayer.x - blob.x;
+        const dy = currentPlayer.y - blob.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0 && dist < FUEL_BLOB_ATTRACTION_RADIUS) {
+          const pull = 1 - dist / FUEL_BLOB_ATTRACTION_RADIUS;
+          blob.vx += (dx / dist) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull);
+          blob.vy += (dy / dist) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull);
+        }
+      }
+
+      blob.vx *= FUEL_BLOB_DRAG;
+      blob.vy *= FUEL_BLOB_DRAG;
+      const speed = Math.sqrt(blob.vx * blob.vx + blob.vy * blob.vy);
+      if (speed > FUEL_BLOB_MAX_SPEED) {
+        const speedScale = FUEL_BLOB_MAX_SPEED / speed;
+        blob.vx *= speedScale;
+        blob.vy *= speedScale;
+      }
+      blob.x += blob.vx;
+      blob.y += blob.vy;
 
       if (
         currentPlayer.fuel < currentPlayer.maxFuel &&
@@ -1243,14 +1372,25 @@ export class SandboxScene implements Scene {
           continue;
         }
 
-        const internalBlobCount = Math.ceil(planet.fuelReserve / FUEL_INSPECTION_BLOB_AMOUNT);
+        const reserveBlobCount = Math.ceil(planet.fuelReserve / FUEL_INSPECTION_BLOB_AMOUNT);
+        const internalBlobCount = Math.min(
+          MAX_INTERNAL_FUEL_METABALLS_PER_PLANET,
+          reserveBlobCount,
+        );
+        const reserveScale = Math.min(1, reserveBlobCount / MAX_INTERNAL_FUEL_METABALLS_PER_PLANET);
         for (let i = 0; i < internalBlobCount; i++) {
           const seed = (i + 1) * 12.9898 + planet.x * 0.001 + planet.y * 0.002;
-          const orbit = now * 0.00035 * Math.max(0.25, internalBlobCount / 4) + seed;
-          const radius = planet.getRadius() * (0.12 + ((i * 37) % 58) / 100);
-          const metaballRadius = 12 + Math.min(10, internalBlobCount * 0.6);
-          const screenX = planet.x - this.camera.x + Math.cos(orbit) * radius;
-          const screenY = planet.y - this.camera.y + Math.sin(orbit * 1.17) * radius;
+          const orbit = now * 0.00035 * Math.max(0.25, reserveScale * 3.5) + seed;
+          const metaballRadius = 10 + reserveScale * 12;
+          const maxCenterDistance = Math.max(0, planet.getRadius() - metaballRadius * 2.2);
+          const targetDistance = planet.getRadius() * (0.12 + ((i * 37) % 58) / 100);
+          const centerDistance = Math.min(targetDistance, maxCenterDistance);
+          const driftX = Math.cos(orbit) * centerDistance;
+          const driftY = Math.sin(orbit * 1.17) * centerDistance;
+          const driftLength = Math.hypot(driftX, driftY);
+          const driftScale = driftLength > maxCenterDistance ? maxCenterDistance / driftLength : 1;
+          const screenX = planet.x - this.camera.x + driftX * driftScale;
+          const screenY = planet.y - this.camera.y + driftY * driftScale;
           if (!isScreenMetaballVisible(screenX, screenY, metaballRadius * 3)) {
             continue;
           }
@@ -1320,6 +1460,9 @@ export class SandboxScene implements Scene {
     gameState.restartScene = 'sandbox';
     this.droppedFuelBlobs = [];
     this.inspectionProbes = [];
+    this.seenMinimapCells.fill(0);
+    this.seeingMinimapCells.fill(0);
+    this.nextAsteroidSpawnAt = Date.now() + 900;
     this.populateWorld();
 
     if (!player) {
@@ -1336,7 +1479,7 @@ export class SandboxScene implements Scene {
 
     currentPlayer.lives = STARTING_LIVES;
     currentPlayer.score = 0;
-    currentPlayer.shieldHits = SHIELD_MAX_HITS;
+    currentPlayer.shieldHits = 1;
     currentPlayer.shieldActive = false;
     refillRespawnResources(currentPlayer);
     currentPlayer.waitingToRespawn = false;
@@ -1351,7 +1494,7 @@ export class SandboxScene implements Scene {
     this.updateCamera();
     this.previousCamera.x = this.camera.x;
     this.previousCamera.y = this.camera.y;
-    this.spawnWave(1);
+    this.updateMinimapFog(currentPlayer);
 
     if (this.canvas) {
       initShader(this.canvas);
@@ -1377,6 +1520,8 @@ export class SandboxScene implements Scene {
 
     this.updatePlanetFuel(deltaTime, now, currentPlayer);
     this.updateInspectionProbes(now);
+    this.updateAsteroidEdgeSpawns(now);
+    this.updateMinimapFog(currentPlayer);
 
     for (const planet of planets) {
       if (currentPlayer.lives > 0 && !currentPlayer.waitingToRespawn) {
@@ -1442,27 +1587,16 @@ export class SandboxScene implements Scene {
       }
     }
 
-    if (asteroids.length === 0 && !gameState.waveCleared) {
-      gameState.waveCleared = true;
-      gameState.waveClearTime = now;
-    }
-
-    if (gameState.waveCleared && now - gameState.waveClearTime > 2000) {
-      gameState.currentWave++;
-      this.spawnWave(gameState.currentWave);
-      gameState.waveCleared = false;
-      currentPlayer.shieldHits = SHIELD_MAX_HITS;
-    }
-
     const handledBullets = new Set<number>();
+    const destroyedAsteroidsFromBullets = new Set<Asteroid>();
     for (let i = bullets.length - 1; i >= 0; i--) {
       const bullet = bullets[i];
       for (let j = asteroids.length - 1; j >= 0; j--) {
         const asteroid = asteroids[j];
-        if (
-          distance(bullet.x, bullet.y, asteroid.x, asteroid.y) >=
-          BULLET_RADIUS + asteroid.getRadius()
-        ) {
+        if (destroyedAsteroidsFromBullets.has(asteroid)) {
+          continue;
+        }
+        if (!circleIntersectsRotatedMask(bullet.x, bullet.y, BULLET_RADIUS, asteroid)) {
           continue;
         }
 
@@ -1483,7 +1617,11 @@ export class SandboxScene implements Scene {
           createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
           this.spawnAsteroidFuelDrops(asteroid, now);
           asteroids.push(...splitAsteroid(asteroid));
-          asteroids.splice(j, 1);
+          destroyedAsteroidsFromBullets.add(asteroid);
+          const asteroidIndex = asteroids.indexOf(asteroid);
+          if (asteroidIndex !== -1) {
+            asteroids.splice(asteroidIndex, 1);
+          }
         }
         break;
       }
@@ -1508,10 +1646,15 @@ export class SandboxScene implements Scene {
       for (const asteroid of asteroids) {
         const asteroidRadius = asteroid.getRadius();
         const shieldCollisionDist = SHIELD_RADIUS + asteroidRadius;
-        const shipCollisionDist = currentPlayer.getRadius() + asteroidRadius;
         const actualDist = distance(currentPlayer.x, currentPlayer.y, asteroid.x, asteroid.y);
+        const bodyHit = circleIntersectsRotatedMask(
+          currentPlayer.x,
+          currentPlayer.y,
+          currentPlayer.getRadius(),
+          asteroid,
+        );
 
-        if (currentPlayer.shieldActive && actualDist < shieldCollisionDist) {
+        if (currentPlayer.shieldActive && currentPlayer.fuel > 0 && actualDist < shieldCollisionDist) {
           const hitNow = Date.now();
           if (hitNow < currentPlayer.shieldHitUntil) {
             continue;
@@ -1530,11 +1673,10 @@ export class SandboxScene implements Scene {
           currentPlayer.vy += ny * bounceForce * shipInfluence;
           asteroid.x -= nx * (shieldCollisionDist - actualDist);
           asteroid.y -= ny * (shieldCollisionDist - actualDist);
-          currentPlayer.shieldHits--;
-          if (currentPlayer.shieldHits <= 0) {
+          if (currentPlayer.fuel <= 0) {
             currentPlayer.shieldActive = false;
           }
-        } else if (!currentPlayer.shieldActive && actualDist < shipCollisionDist) {
+        } else if (!currentPlayer.shieldActive && bodyHit) {
           const massMultiplier =
             asteroid.size === 'mega'
               ? 0.1
@@ -1564,8 +1706,9 @@ export class SandboxScene implements Scene {
       currentPlayer.invulnerableUntil = now + INVULNERABLE_RESPAWN;
       currentPlayer.vx = 0;
       currentPlayer.vy = 0;
-      currentPlayer.shieldHits = SHIELD_MAX_HITS;
+      currentPlayer.shieldHits = 1;
       refillRespawnResources(currentPlayer);
+      incrementRespawnCount(currentPlayer);
       currentPlayer.waitingToRespawn = false;
       this.placePlayerSafely(currentPlayer);
     }
@@ -1751,7 +1894,7 @@ export class SandboxScene implements Scene {
         ctx.fillText(`x${player.lives} ${'♥'.repeat(player.lives)}`, 110, 20);
       }
       ctx.fillText(`Score: ${player.score}`, 110, 45);
-      ctx.fillText(`Wave ${gameState.currentWave}`, 110, 70);
+      ctx.fillText(`Asteroids: ${asteroids.length}/${SANDBOX_MAX_ASTEROIDS}`, 110, 70);
       ctx.fillText(`Probes: ${player.inspectionProbes}`, 110, 95);
       ctx.fillStyle = '#888';
       ctx.fillText(
@@ -1761,7 +1904,14 @@ export class SandboxScene implements Scene {
       );
     }
 
-    drawMinimap(ctx, this.camera, viewportWidth, viewportHeight);
+    drawMinimap(
+      ctx,
+      this.camera,
+      viewportWidth,
+      viewportHeight,
+      this.seenMinimapCells,
+      this.seeingMinimapCells,
+    );
 
     if (this.canvas) {
       updateBlackHoles(

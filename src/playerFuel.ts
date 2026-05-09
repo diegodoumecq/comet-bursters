@@ -40,8 +40,12 @@ export function refillRespawnResources(player: Player): void {
 }
 
 export function getWeaponFireMode(player: Player, type: WeaponType): BulletMode | null {
+  if (type === 'small') {
+    return isLowFuel(player) ? 'degraded' : 'normal';
+  }
+
   if (isLowFuel(player)) {
-    return type === 'small' ? 'degraded' : null;
+    return null;
   }
 
   return spendFuel(player, FUEL_WEAPON_COSTS[type]) ? 'normal' : null;

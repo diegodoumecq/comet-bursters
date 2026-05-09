@@ -30,6 +30,7 @@ export interface Player extends Collidable {
   invulnerableUntil: number;
   respawnTime: number;
   waitingToRespawn: boolean;
+  respawnCount: number;
   shieldHits: number;
   shieldActive: boolean;
   shieldHitUntil: number;
@@ -106,7 +107,7 @@ export interface Bullet {
   damage: number;
   impact: number;
   recoil: number;
-  type: 'small' | 'blackHole' | 'pusher' | 'shotgun';
+  type: 'small' | 'blackHole' | 'pusher' | 'shotgun' | 'tractor';
 }
 
 export interface Particle {
@@ -181,12 +182,14 @@ export const SHIELD_COLOR = 'rgba(100, 200, 255, 0.6)';
 export const PLAYER_MAX_FUEL = 100;
 export const LOW_FUEL_RATIO = 0.1;
 export const FUEL_THRUST_PER_SECOND = 5;
+export const FUELLESS_THRUST_POWER_SCALE = 1 / 3;
 
 export const FUEL_WEAPON_COSTS = {
   small: 0.75,
   pusher: 0.2,
   shotgun: 3,
   blackHole: 12,
+  tractor: 0.08,
 } as const;
 
 export const SHIELD_COLLISION_FUEL_COSTS = {
@@ -195,6 +198,11 @@ export const SHIELD_COLLISION_FUEL_COSTS = {
   big: 14,
   mega: 22,
 } as const;
+
+export const TRACTOR_BEAM_RANGE = 360;
+export const TRACTOR_BEAM_LOCK_DISTANCE = 120;
+export const TRACTOR_BEAM_PULL = 0.42;
+export const TRACTOR_BEAM_MAX_TARGET_SPEED = 9;
 
 export const SHIP_INTERIOR_REFUEL_STATION_RADIUS = 120;
 export const SHIP_INTERIOR_REFUEL_PER_SECOND = 18;
@@ -205,8 +213,8 @@ export const PLANET_FUEL_EXTRACT_INTERVAL_MS = 2000;
 export const PLANET_FUEL_EXTRACTOR_MAX_BLOBS = 8;
 export const PLANET_MIN_ROTATION_SPEED = 0.00002;
 export const PLANET_MAX_ROTATION_SPEED = 0.00008;
-export const PLANET_MIN_FUEL_RESERVE = 150;
-export const PLANET_MAX_FUEL_RESERVE = 300;
+export const PLANET_MIN_FUEL_RESERVE = 1500;
+export const PLANET_MAX_FUEL_RESERVE = 3000;
 
 export const ASTEROID_FUEL_DROP_CHANCES = {
   medium: 0.4,
@@ -220,7 +228,10 @@ export const ASTEROID_FUEL_DROP_MAX_BLOBS = {
   mega: 3,
 } as const;
 
-export const ASTEROID_FUEL_BLOB_LIFETIME_MS = 20000;
+export const FUEL_BLOB_ATTRACTION_RADIUS = 260;
+export const FUEL_BLOB_ATTRACTION_ACCELERATION = 0.035;
+export const FUEL_BLOB_MAX_SPEED = 5.5;
+export const FUEL_BLOB_DRAG = 0.985;
 
 export const STARTING_INSPECTION_PROBES = 3;
 export const INSPECTION_PROBE_DURATION_MS = 15000;
@@ -339,6 +350,17 @@ export const BULLET_CONFIGS = {
     bulletCount: 12,
     spreadAngle: Math.PI / 4,
     speedVariance: 0.3,
+  },
+  tractor: {
+    speed: 0,
+    lifetime: 0,
+    damage: 0,
+    impact: 0,
+    recoil: 0,
+    fireRate: 0,
+    bulletCount: 0,
+    spreadAngle: 0,
+    speedVariance: 0,
   },
 } as const;
 

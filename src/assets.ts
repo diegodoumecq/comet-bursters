@@ -3,6 +3,7 @@ import {
   ASTEROID_COLORS,
   type AlphaMask,
 } from './constants';
+import { getAlphaMaskRadius } from './maskCollision';
 import { gameState } from './state';
 
 export function computeAlphaMask(
@@ -432,5 +433,19 @@ export function getRandomAsteroidColor(size: 'mega' | 'big' | 'medium' | 'small'
 export function getAsteroidMask(size: 'mega' | 'big' | 'medium' | 'small'): AlphaMask {
   const diameter = ASTEROID_CONFIGS[size].radius * 2;
   return createCircularMask(diameter);
+}
+
+export function getAsteroidSpriteMask(
+  size: 'mega' | 'big' | 'medium' | 'small',
+  color: string,
+): AlphaMask {
+  return computeAlphaMask(gameState.asteroidSprites[size][color]);
+}
+
+export function getAsteroidSpriteRadius(
+  size: 'mega' | 'big' | 'medium' | 'small',
+  color: string,
+): number {
+  return getAlphaMaskRadius(getAsteroidSpriteMask(size, color));
 }
 

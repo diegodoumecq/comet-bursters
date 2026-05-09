@@ -10,7 +10,7 @@ export type FuelMetaball = {
 };
 
 const MAX_METABALLS = 96;
-const RENDER_SCALE = 0.5;
+const RENDER_SCALE = 0.75;
 
 let renderer: THREE.WebGLRenderer | null = null;
 let scene: THREE.Scene | null = null;
@@ -58,17 +58,21 @@ void main() {
     weightedColor += vec3(0.1, 0.92, 1.0) * contribution;
   }
 
-  float body = smoothstep(0.78, 0.92, field);
-  float rim = smoothstep(0.48, 0.7, field) - body;
-  if (body <= 0.0 && rim <= 0.0) {
-    discard;
-  }
+	  float body = smoothstep(0.72, 0.9, field);
+	  float rim = smoothstep(0.48, 0.72, field) - smoothstep(0.86, 1.08, field);
+	  if (body <= 0.0 && rim <= 0.0) {
+	    discard;
+	  }
 
-  vec3 color = weightedColor / max(field, 0.001);
-  color = mix(color, vec3(0.8, 1.0, 1.0), body * 0.45);
-  float alpha = body * 0.82 + rim * 0.34;
-  gl_FragColor = vec4(color, alpha);
-}
+	  vec3 color = weightedColor / max(field, 0.001);
+	  float bands = 0.5 + 0.5 * sin((pixelPos.x + pixelPos.y) * 0.055 + u_time * 0.006);
+	  float filaments = smoothstep(0.58, 1.0, bands) * body;
+	  color = mix(color, vec3(0.65, 1.0, 1.0), body * 0.45);
+	  color += vec3(0.15, 0.85, 1.0) * filaments * 0.28;
+	  color += vec3(0.75, 1.0, 1.0) * rim * 0.95;
+	  float alpha = body * 0.78 + rim * 0.52;
+	  gl_FragColor = vec4(color, alpha);
+	}
 `;
 
 export function initFuelMetaballs(): void {
@@ -143,10 +147,24 @@ export function renderFuelMetaballs(
   }
 
   const data = dataTexture.image.data as Float32Array;
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
   for (let i = 0; i < count; i++) {
-    data[i * 4] = metaballs[i].x * RENDER_SCALE;
-    data[i * 4 + 1] = metaballs[i].y * RENDER_SCALE;
-    data[i * 4 + 2] = metaballs[i].radius * RENDER_SCALE;
+    const x = metaballs[i].x * RENDER_SCALE;
+    const y = metaballs[i].y * RENDER_SCALE;
+    const radius = metaballs[i].radius * RENDER_SCALE;
+    const influenceRadius = radius * 4;
+    minX = Math.min(minX, x - influenceRadius);
+    minY = Math.min(minY, y - influenceRadius);
+    maxX = Math.max(maxX, x + influenceRadius);
+    maxY = Math.max(maxY, y + influenceRadius);
+
+    data[i * 4] = x;
+    data[i * 4 + 1] = y;
+    data[i * 4 + 2] = radius;
     data[i * 4 + 3] = metaballs[i].seed;
   }
 
@@ -154,8 +172,21 @@ export function renderFuelMetaballs(
   material.uniforms.u_time.value = now;
   dataTexture.needsUpdate = true;
 
+  const scissorLeft = Math.max(0, Math.floor(minX));
+  const scissorTop = Math.max(0, Math.floor(minY));
+  const scissorRight = Math.min(canvas.width, Math.ceil(maxX));
+  const scissorBottom = Math.min(canvas.height, Math.ceil(maxY));
+  const scissorWidth = scissorRight - scissorLeft;
+  const scissorHeight = scissorBottom - scissorTop;
+  if (scissorWidth <= 0 || scissorHeight <= 0) {
+    return;
+  }
+
   renderer.clear();
+  renderer.setScissorTest(true);
+  renderer.setScissor(scissorLeft, canvas.height - scissorBottom, scissorWidth, scissorHeight);
   renderer.render(scene, camera);
+  renderer.setScissorTest(false);
   ctx.drawImage(canvas, 0, 0, width, height);
 }
 

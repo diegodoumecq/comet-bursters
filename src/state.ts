@@ -58,6 +58,7 @@ export type GameState = {
     small: Record<string, HTMLCanvasElement>;
   };
   currentWave: number;
+  startingWave: number;
   waveCleared: boolean;
   waveClearTime: number;
   gamePhase: GamePhase;
@@ -77,6 +78,7 @@ export const gameState: GameState = {
     small: {},
   },
   currentWave: 1,
+  startingWave: 1,
   waveCleared: false,
   waveClearTime: 0,
   gamePhase: 'title',

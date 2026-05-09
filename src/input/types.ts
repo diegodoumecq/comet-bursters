@@ -24,6 +24,7 @@ export interface InputState {
   fireReallyHard: ButtonResult;
   chaosFire: ButtonResult;
   shield: ButtonResult;
+  tractor: ButtonResult;
 }
 
 export const emptyStick: StickResult = {

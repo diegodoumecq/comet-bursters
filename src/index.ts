@@ -6,8 +6,8 @@ import { DemoScene } from './scenes/DemoScene/DemoScene';
 import { GameOverScene } from './scenes/GameOverScene/GameOverScene';
 import { GameScene } from './scenes/GameScene/GameScene';
 import { LoadingScene } from './scenes/LoadingScene/LoadingScene';
-import { ShipInteriorScene } from './scenes/ShipInteriorScene/ShipInteriorScene';
 import { SandboxScene } from './scenes/SandboxScene/SandboxScene';
+import { ShipInteriorScene } from './scenes/ShipInteriorScene/ShipInteriorScene';
 import { TitleScene } from './scenes/TitleScene/TitleScene';
 import { gameState } from './state';
 
@@ -31,11 +31,31 @@ app.innerHTML = `
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D;
+const startingWaveParam = Number.parseInt(new URLSearchParams(window.location.search).get('startingWave') ?? '', 10);
+if (Number.isFinite(startingWaveParam)) {
+  gameState.startingWave = Math.max(1, Math.min(50, startingWaveParam));
+}
 
 canvas.width = SIZE.width;
 canvas.height = SIZE.height;
 
 const resizeBtn = document.getElementById('resize-btn') as HTMLButtonElement;
+const fpsCounter = document.createElement('div');
+fpsCounter.textContent = '0 FPS';
+fpsCounter.style.position = 'fixed';
+fpsCounter.style.top = '12px';
+fpsCounter.style.right = '12px';
+fpsCounter.style.zIndex = '2147483647';
+fpsCounter.style.pointerEvents = 'none';
+fpsCounter.style.minWidth = '54px';
+fpsCounter.style.padding = '3px 7px';
+fpsCounter.style.borderRadius = '4px';
+fpsCounter.style.background = 'rgba(0, 0, 0, 0.72)';
+fpsCounter.style.color = '#a7f3d0';
+fpsCounter.style.font = '14px monospace';
+fpsCounter.style.textAlign = 'right';
+fpsCounter.style.boxShadow = '0 0 0 1px rgba(255, 255, 255, 0.18)';
+document.body.appendChild(fpsCounter);
 
 resizeBtn.addEventListener('click', () => {
   if (gameState.gameSize) {
@@ -73,8 +93,34 @@ sceneManager.register('demo', demoScene);
 sceneManager.register('gameover', gameOverScene);
 sceneManager.register('atmterms', atmTermsScene);
 
+let lastFrameTime = performance.now();
+let fpsSampleStartedAt = lastFrameTime;
+let fpsFrameCount = 0;
+let displayedFps = 0;
+
+function updateFps(now: number): number {
+  const deltaTime = Math.max(1, now - lastFrameTime);
+  lastFrameTime = now;
+  fpsFrameCount++;
+
+  const sampleDuration = now - fpsSampleStartedAt;
+  if (sampleDuration >= 500) {
+    displayedFps = Math.round((fpsFrameCount * 1000) / sampleDuration);
+    fpsFrameCount = 0;
+    fpsSampleStartedAt = now;
+  }
+
+  return deltaTime;
+}
+
+function updateFpsCounter(fps: number): void {
+  fpsCounter.textContent = `${fps} FPS`;
+  fpsCounter.style.color = fps >= 50 ? '#a7f3d0' : fps >= 30 ? '#fde68a' : '#fecaca';
+}
+
 joymap.setOnPoll(() => {
-  const deltaTime = 16;
+  const now = performance.now();
+  const deltaTime = updateFps(now);
 
   if (gameState.needsResize) {
     resizeBtn.style.display = 'block';
@@ -89,6 +135,7 @@ joymap.setOnPoll(() => {
   ctx.fillRect(0, 0, width, height);
 
   sceneManager.draw(ctx);
+  updateFpsCounter(displayedFps);
 });
 
 joymap.start();

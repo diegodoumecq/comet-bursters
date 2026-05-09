@@ -15,6 +15,7 @@ import {
 } from '@/constants';
 import { InputManager } from '@/input';
 import { joymap } from '@/joymap';
+import { sceneManager } from '@/sceneManager';
 import {
   backgroundOffset,
   gameState,
@@ -122,11 +123,10 @@ function drawDemoAsteroid(asteroid: Asteroid, ctx: CanvasRenderingContext2D): vo
   ctx.restore();
 }
 
-function updateDemoPlayer(currentPlayer: Player, camera: Camera): void {
-  const screenPlayerX = currentPlayer.x - camera.x;
-  const screenPlayerY = currentPlayer.y - camera.y;
-  const input = InputManager.getInputState(currentPlayer.module, screenPlayerX, screenPlayerY);
-
+function updateDemoPlayer(
+  currentPlayer: Player,
+  input: ReturnType<typeof InputManager.getInputState>,
+): void {
   if (input.move.value[0] !== 0 || input.move.value[1] !== 0) {
     currentPlayer.angle = Math.atan2(input.move.value[1], input.move.value[0]) + Math.PI * 0.5;
     currentPlayer.vx += input.move.value[0] * DEMO_PLAYER_ACCELERATION;
@@ -214,6 +214,14 @@ export class DemoScene implements Scene {
   private camera: Camera = { x: 0, y: 0 };
   private planets: Planet[] = [];
   private asteroids: Asteroid[] = [];
+  private startInputReadyAt = 0;
+
+  private handleKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'Enter' && Date.now() >= this.startInputReadyAt) {
+      sceneManager.transitionTo('game');
+      event.preventDefault();
+    }
+  };
 
   setCanvas(_canvas: HTMLCanvasElement): void {}
 
@@ -257,6 +265,8 @@ export class DemoScene implements Scene {
     resetState();
     clearFlatPlanetTextureCache();
     this.buildLayout();
+    this.startInputReadyAt = Date.now() + 500;
+    window.addEventListener('keydown', this.handleKeyDown);
 
     if (!player) {
       const padId = joymap.getUnusedPadIds()[0] ?? 'keyboard';
@@ -282,14 +292,25 @@ export class DemoScene implements Scene {
     this.updateCamera();
   }
 
-  update(_deltaTime: number): void {
-    updateBackground(16);
+  update(deltaTime: number): void {
+    updateBackground(deltaTime);
     const currentPlayer = player;
     if (!currentPlayer) {
       return;
     }
 
-    updateDemoPlayer(currentPlayer, this.camera);
+    const input = InputManager.getInputState(
+      currentPlayer.module,
+      currentPlayer.x - this.camera.x,
+      currentPlayer.y - this.camera.y,
+    );
+    const now = Date.now();
+    if (now >= this.startInputReadyAt && input.fire.justChanged && input.fire.pressed) {
+      sceneManager.transitionTo('game');
+      return;
+    }
+
+    updateDemoPlayer(currentPlayer, input);
     this.updateCamera();
   }
 
@@ -397,5 +418,7 @@ export class DemoScene implements Scene {
     ctx.restore();
   }
 
-  exit(): void {}
+  exit(): void {
+    window.removeEventListener('keydown', this.handleKeyDown);
+  }
 }

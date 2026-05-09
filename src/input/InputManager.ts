@@ -10,6 +10,7 @@ class InputManagerImpl {
     s: false,
     d: false,
     q: false,
+    r: false,
     e: false,
     space: false,
     enter: false,
@@ -159,6 +160,16 @@ class InputManagerImpl {
     };
   }
 
+  private getKeyboardTractor(): ButtonResult {
+    const pressed = this.keyboardState.r;
+    return {
+      type: 'button',
+      value: pressed ? 1 : 0,
+      pressed,
+      justChanged: pressed && !this.prevKeyboardState.r,
+    };
+  }
+
   private getMouseAim(playerX: number, playerY: number): StickResult {
     const dx = this.mousePos.x - playerX;
     const dy = this.mousePos.y - playerY;
@@ -304,6 +315,7 @@ class InputManagerImpl {
     const keyboardFireReallyHard = this.getKeyboardFireReallyHard();
     const keyboardChaosFire = this.getKeyboardChaosFire();
     const keyboardShield = this.getKeyboardShield();
+    const keyboardTractor = this.getKeyboardTractor();
 
     const mouseAim = this.getMouseAim(playerX, playerY);
     const mouseFire = this.getMouseFire();
@@ -335,6 +347,7 @@ class InputManagerImpl {
     );
     const mergedChaosFire = this.mergeButtons(keyboardChaosFire, gamepadChaosFire, emptyButton);
     const mergedShield = this.mergeButtons(keyboardShield, gamepadShield, emptyButton);
+    const mergedTractor = this.mergeButtons(keyboardTractor, emptyButton, emptyButton);
 
     return {
       move: mergedMove,
@@ -344,6 +357,7 @@ class InputManagerImpl {
       fireReallyHard: mergedFireReallyHard,
       chaosFire: mergedChaosFire,
       shield: mergedShield,
+      tractor: mergedTractor,
     };
   }
 

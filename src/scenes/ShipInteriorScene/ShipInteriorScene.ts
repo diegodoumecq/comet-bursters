@@ -1,12 +1,12 @@
 import {
   BULLET_CONFIGS,
+  FUELLESS_THRUST_POWER_SCALE,
   FUEL_THRUST_PER_SECOND,
   PLAYER_ACCELERATION,
   PLAYER_MAX_SPEED,
   PLAYER_SIZE,
   SHIELD_COLLISION_FUEL_COSTS,
   SHIELD_HIT_COOLDOWN,
-  SHIELD_MAX_HITS,
   SHIELD_RADIUS,
   SHIP_INTERIOR_REFUEL_PER_SECOND,
   SHIP_INTERIOR_REFUEL_STATION_RADIUS,
@@ -565,21 +565,26 @@ function updateScenePlayer(currentPlayer: Player, camera: Camera, deltaTime: num
   const input = InputManager.getInputState(currentPlayer.module, screenPlayerX, screenPlayerY);
   const now = Date.now();
 
-  currentPlayer.shieldActive = input.shield.pressed && currentPlayer.shieldHits > 0;
+  currentPlayer.shieldActive = input.shield.pressed && currentPlayer.fuel > 0;
 
   const moveMagnitude = Math.sqrt(
     input.move.value[0] * input.move.value[0] + input.move.value[1] * input.move.value[1],
   );
-  const accelerationApplied = moveMagnitude > 0.1 && currentPlayer.fuel > 0;
+  const accelerationApplied = moveMagnitude > 0.1;
+  const thrustPower = currentPlayer.fuel > 0 ? 1 : FUELLESS_THRUST_POWER_SCALE;
 
   if (moveMagnitude > 0.1) {
     currentPlayer.angle = Math.atan2(input.move.value[1], input.move.value[0]) + Math.PI * 0.5;
   }
 
   if (accelerationApplied) {
-    drainFuel(currentPlayer, FUEL_THRUST_PER_SECOND * (deltaTime / 1000));
-    currentPlayer.vx += input.move.value[0] * PLAYER_ACCELERATION * PLAYER_VELOCITY_MULTIPLIER;
-    currentPlayer.vy += input.move.value[1] * PLAYER_ACCELERATION * PLAYER_VELOCITY_MULTIPLIER;
+    if (currentPlayer.fuel > 0) {
+      drainFuel(currentPlayer, FUEL_THRUST_PER_SECOND * (deltaTime / 1000));
+    }
+    currentPlayer.vx +=
+      input.move.value[0] * PLAYER_ACCELERATION * PLAYER_VELOCITY_MULTIPLIER * thrustPower;
+    currentPlayer.vy +=
+      input.move.value[1] * PLAYER_ACCELERATION * PLAYER_VELOCITY_MULTIPLIER * thrustPower;
   }
 
   const speed = Math.sqrt(
@@ -608,13 +613,15 @@ function updateScenePlayer(currentPlayer: Player, camera: Camera, deltaTime: num
   if (accelerationApplied) {
     currentPlayer.thrustDirX = -input.move.value[0] / moveMagnitude;
     currentPlayer.thrustDirY = -input.move.value[1] / moveMagnitude;
-    if (now - currentPlayer.lastThrusterSpawn >= 10) {
+    const thrusterInterval = currentPlayer.fuel > 0 ? 10 : 30;
+    if (now - currentPlayer.lastThrusterSpawn >= thrusterInterval) {
       currentPlayer.lastThrusterSpawn = now;
       createThrusterParticle(
         currentPlayer.x + currentPlayer.thrustDirX * PLAYER_SIZE,
         currentPlayer.y + currentPlayer.thrustDirY * PLAYER_SIZE,
         currentPlayer.thrustDirX,
         currentPlayer.thrustDirY,
+        thrustPower,
       );
     }
   }
@@ -1408,7 +1415,7 @@ export class ShipInteriorScene implements Scene {
 
     currentPlayer.lives = STARTING_LIVES;
     currentPlayer.score = 0;
-    currentPlayer.shieldHits = SHIELD_MAX_HITS;
+    currentPlayer.shieldHits = 1;
     currentPlayer.shieldActive = false;
     refillRespawnResources(currentPlayer);
     currentPlayer.waitingToRespawn = false;

@@ -1,14 +1,22 @@
 import {
   ASTEROID_CONFIGS,
-  ASTEROID_FUEL_BLOB_LIFETIME_MS,
   ASTEROID_FUEL_DROP_CHANCES,
   ASTEROID_FUEL_DROP_MAX_BLOBS,
   FUEL_BLOB_AMOUNT,
+  FUEL_BLOB_ATTRACTION_ACCELERATION,
+  FUEL_BLOB_ATTRACTION_RADIUS,
+  FUEL_BLOB_DRAG,
+  FUEL_BLOB_MAX_SPEED,
   FUEL_BLOB_RADIUS,
-  SHIELD_MAX_HITS,
   STARTING_LIVES,
+  TRACTOR_BEAM_LOCK_DISTANCE,
+  TRACTOR_BEAM_MAX_TARGET_SPEED,
+  TRACTOR_BEAM_PULL,
+  TRACTOR_BEAM_RANGE,
   type Asteroid,
+  type Player,
 } from '@/constants';
+import { InputManager } from '@/input';
 import { joymap } from '@/joymap';
 import { refillRespawnResources } from '@/playerFuel';
 import { sceneManager } from '@/sceneManager';
@@ -26,6 +34,7 @@ import {
   screenShake,
   setPlayer,
   thrusterParticles,
+  type PlayableSceneName,
 } from '@/state';
 import {
   disposeFuelMetaballs,
@@ -48,7 +57,7 @@ import {
   updateParticle,
   updateThrusterParticle,
 } from './particle';
-import { createPlayer, drawPlayer, updatePlayer } from './player';
+import { createPlayer, drawPlayer, incrementRespawnCount, updatePlayer } from './player';
 import { rumbleDeath } from './rumble';
 import { dispose, initShader, renderWithShaders, updateBlackHoles } from './shader';
 
@@ -56,13 +65,20 @@ type DroppedFuelBlob = {
   id: string;
   x: number;
   y: number;
+  vx: number;
+  vy: number;
   wobbleSeed: number;
-  expiresAt: number;
 };
 
 export class GameScene implements Scene {
   private canvas: HTMLCanvasElement | null = null;
   private droppedFuelBlobs: DroppedFuelBlob[] = [];
+  private tractorTarget: Asteroid | null = null;
+  private readonly restartScene: PlayableSceneName;
+
+  constructor(options: { restartScene?: PlayableSceneName } = {}) {
+    this.restartScene = options.restartScene ?? 'game';
+  }
 
   private placePlayerSafely(currentPlayer: NonNullable<typeof player>): void {
     currentPlayer.x = Math.random() * getGameWidth();
@@ -99,23 +115,45 @@ export class GameScene implements Scene {
         id: `game-drop-${now}-${asteroid.x}-${asteroid.y}-${i}`,
         x: asteroid.x + Math.cos(angle) * scatter,
         y: asteroid.y + Math.sin(angle) * scatter,
+        vx: Math.cos(angle) * 0.35 + asteroid.vx * 0.12,
+        vy: Math.sin(angle) * 0.35 + asteroid.vy * 0.12,
         wobbleSeed: Math.random(),
-        expiresAt: now + ASTEROID_FUEL_BLOB_LIFETIME_MS,
       });
     }
   }
 
-  private updateDroppedFuel(now: number): void {
+  private updateDroppedFuel(): void {
     const currentPlayer = player;
     const width = getGameWidth();
     const height = getGameHeight();
 
     for (let i = this.droppedFuelBlobs.length - 1; i >= 0; i--) {
       const blob = this.droppedFuelBlobs[i];
-      if (now >= blob.expiresAt) {
-        this.droppedFuelBlobs.splice(i, 1);
-        continue;
+      if (
+        currentPlayer &&
+        !currentPlayer.waitingToRespawn &&
+        currentPlayer.fuel < currentPlayer.maxFuel
+      ) {
+        const dx = currentPlayer.x - blob.x;
+        const dy = currentPlayer.y - blob.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 0 && dist < FUEL_BLOB_ATTRACTION_RADIUS) {
+          const pull = 1 - dist / FUEL_BLOB_ATTRACTION_RADIUS;
+          blob.vx += (dx / dist) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull);
+          blob.vy += (dy / dist) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull);
+        }
       }
+
+      blob.vx *= FUEL_BLOB_DRAG;
+      blob.vy *= FUEL_BLOB_DRAG;
+      const speed = Math.sqrt(blob.vx * blob.vx + blob.vy * blob.vy);
+      if (speed > FUEL_BLOB_MAX_SPEED) {
+        const speedScale = FUEL_BLOB_MAX_SPEED / speed;
+        blob.vx *= speedScale;
+        blob.vy *= speedScale;
+      }
+      blob.x += blob.vx;
+      blob.y += blob.vy;
 
       if (blob.x < 0) blob.x = width;
       if (blob.x > width) blob.x = 0;
@@ -138,6 +176,117 @@ export class GameScene implements Scene {
         }
       }
     }
+  }
+
+  private applyTractorBeam(currentPlayer: Player): void {
+    const input = InputManager.getInputState(currentPlayer.module, currentPlayer.x, currentPlayer.y);
+    if (!input.tractor.pressed || currentPlayer.fuel <= 0 || currentPlayer.waitingToRespawn) {
+      this.tractorTarget = null;
+      return;
+    }
+
+    if (
+      !this.tractorTarget ||
+      !asteroids.includes(this.tractorTarget) ||
+      Math.hypot(this.tractorTarget.x - currentPlayer.x, this.tractorTarget.y - currentPlayer.y) >
+        TRACTOR_BEAM_RANGE
+    ) {
+      this.tractorTarget =
+        asteroids
+          .filter(
+            (asteroid) =>
+              Math.hypot(asteroid.x - currentPlayer.x, asteroid.y - currentPlayer.y) <=
+              TRACTOR_BEAM_RANGE,
+          )
+          .sort(
+            (a, b) =>
+              Math.hypot(a.x - currentPlayer.x, a.y - currentPlayer.y) -
+              Math.hypot(b.x - currentPlayer.x, b.y - currentPlayer.y),
+          )[0] ?? null;
+    }
+
+    const target = this.tractorTarget;
+    if (!target) {
+      return;
+    }
+
+    const dx = currentPlayer.x - target.x;
+    const dy = currentPlayer.y - target.y;
+    const dist = Math.max(1, Math.hypot(dx, dy));
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const lockError = dist - TRACTOR_BEAM_LOCK_DISTANCE;
+    target.vx += nx * lockError * 0.012 + currentPlayer.vx * 0.035;
+    target.vy += ny * lockError * 0.012 + currentPlayer.vy * 0.035;
+    if (dist > TRACTOR_BEAM_LOCK_DISTANCE) {
+      target.vx += nx * TRACTOR_BEAM_PULL;
+      target.vy += ny * TRACTOR_BEAM_PULL;
+    }
+
+    const speed = Math.hypot(target.vx, target.vy);
+    if (speed > TRACTOR_BEAM_MAX_TARGET_SPEED) {
+      target.vx = (target.vx / speed) * TRACTOR_BEAM_MAX_TARGET_SPEED;
+      target.vy = (target.vy / speed) * TRACTOR_BEAM_MAX_TARGET_SPEED;
+    }
+  }
+
+  private resolveAsteroidCollisions(): void {
+    for (let i = 0; i < asteroids.length; i += 1) {
+      for (let j = i + 1; j < asteroids.length; j += 1) {
+        const a = asteroids[i];
+        const b = asteroids[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const dist = Math.max(0.001, Math.hypot(dx, dy));
+        const minDist = a.getRadius() + b.getRadius();
+        if (dist >= minDist) continue;
+
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const overlap = minDist - dist;
+        const totalMass = a.mass + b.mass;
+        a.x -= nx * overlap * (b.mass / totalMass);
+        a.y -= ny * overlap * (b.mass / totalMass);
+        b.x += nx * overlap * (a.mass / totalMass);
+        b.y += ny * overlap * (a.mass / totalMass);
+
+        const rvx = b.vx - a.vx;
+        const rvy = b.vy - a.vy;
+        const velocityAlongNormal = rvx * nx + rvy * ny;
+        if (velocityAlongNormal > 0) continue;
+
+        const impulse = (-(1.05) * velocityAlongNormal) / (1 / a.mass + 1 / b.mass);
+        a.vx -= (impulse / a.mass) * nx;
+        a.vy -= (impulse / a.mass) * ny;
+        b.vx += (impulse / b.mass) * nx;
+        b.vy += (impulse / b.mass) * ny;
+      }
+    }
+  }
+
+  private drawTractorBeam(ctx: CanvasRenderingContext2D): void {
+    const currentPlayer = player;
+    const target = this.tractorTarget;
+    if (!currentPlayer || !target || currentPlayer.waitingToRespawn) {
+      return;
+    }
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(100, 235, 255, 0.72)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([10, 8]);
+    ctx.beginPath();
+    ctx.moveTo(currentPlayer.x, currentPlayer.y);
+    ctx.lineTo(target.x, target.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = 'rgba(210, 255, 255, 0.35)';
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(currentPlayer.x, currentPlayer.y);
+    ctx.lineTo(target.x, target.y);
+    ctx.stroke();
+    ctx.restore();
   }
 
   private collectFuelMetaballs(now: number): FuelMetaball[] {
@@ -168,10 +317,10 @@ export class GameScene implements Scene {
 
   enter(): void {
     resetState();
-    gameState.restartScene = 'game';
+    gameState.restartScene = this.restartScene;
+    gameState.currentWave = gameState.startingWave;
     this.droppedFuelBlobs = [];
-
-    spawnWave(1);
+    this.tractorTarget = null;
 
     if (!player) {
       const padId = joymap.getUnusedPadIds()[0] ?? 'keyboard';
@@ -187,7 +336,7 @@ export class GameScene implements Scene {
 
     currentPlayer.lives = STARTING_LIVES;
     currentPlayer.score = 0;
-    currentPlayer.shieldHits = SHIELD_MAX_HITS;
+    currentPlayer.shieldHits = 1;
     currentPlayer.shieldActive = false;
     refillRespawnResources(currentPlayer);
     currentPlayer.waitingToRespawn = false;
@@ -200,7 +349,7 @@ export class GameScene implements Scene {
     currentPlayer.invulnerableUntil = Date.now() + 3000;
     currentPlayer.respawnTime = 0;
 
-    spawnWave(1);
+    spawnWave(gameState.currentWave);
 
     if (this.canvas) {
       initShader(this.canvas);
@@ -233,9 +382,6 @@ export class GameScene implements Scene {
       gameState.currentWave++;
       spawnWave(gameState.currentWave);
       gameState.waveCleared = false;
-      if (player) {
-        player.shieldHits = SHIELD_MAX_HITS;
-      }
     }
 
     if (asteroids.length === 0 && gameState.currentWave === 1) {
@@ -244,15 +390,14 @@ export class GameScene implements Scene {
 
     const bulletHits = processBulletAsteroidCollisions();
     const handledBullets = new Set<number>();
-    for (const { bulletIndex: i, asteroidIndex: j } of bulletHits) {
+    const destroyedAsteroids = new Set<Asteroid>();
+    for (const { bulletIndex: i, asteroid } of bulletHits) {
       if (handledBullets.has(i)) continue;
+      if (destroyedAsteroids.has(asteroid) || !asteroids.includes(asteroid)) continue;
       handledBullets.add(i);
 
       const bullet = bullets[i];
       if (!bullet) continue;
-
-      const asteroid = asteroids[j];
-      if (!asteroid) continue;
 
       const massMultiplier = asteroid.size === 'big' ? 0.3 : asteroid.size === 'medium' ? 0.6 : 1.0;
       const impulse = bullet.impact * 2 * massMultiplier;
@@ -274,7 +419,11 @@ export class GameScene implements Scene {
         const children = splitAsteroid(asteroid);
         asteroids.push(...children);
 
-        asteroids.splice(j, 1);
+        destroyedAsteroids.add(asteroid);
+        const asteroidIndex = asteroids.indexOf(asteroid);
+        if (asteroidIndex !== -1) {
+          asteroids.splice(asteroidIndex, 1);
+        }
       }
     }
 
@@ -286,12 +435,14 @@ export class GameScene implements Scene {
 
     if (player) {
       updatePlayer(player, deltaTime);
+      this.applyTractorBeam(player);
     }
-    this.updateDroppedFuel(now);
+    this.updateDroppedFuel();
 
     for (const asteroid of asteroids) {
       updateAsteroid(asteroid);
     }
+    this.resolveAsteroidCollisions();
 
     processPlayerAsteroidCollisions((player) => {
       if (player.waitingToRespawn) return;
@@ -323,8 +474,9 @@ export class GameScene implements Scene {
         this.placePlayerSafely(currentPlayer);
         currentPlayer.vx = 0;
         currentPlayer.vy = 0;
-        currentPlayer.shieldHits = SHIELD_MAX_HITS;
+        currentPlayer.shieldHits = 1;
         refillRespawnResources(currentPlayer);
+        incrementRespawnCount(currentPlayer);
         currentPlayer.waitingToRespawn = false;
       }
     }
@@ -399,6 +551,7 @@ export class GameScene implements Scene {
     for (const asteroid of asteroids) {
       drawAsteroid(asteroid, ctx);
     }
+    this.drawTractorBeam(ctx);
 
     for (let i = thrusterParticles.length - 1; i >= 0; i--) {
       drawThrusterParticle(thrusterParticles[i], ctx);

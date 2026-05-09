@@ -1,4 +1,4 @@
-import { getAsteroidMask, getRandomAsteroidColor } from '@/assets';
+import { getAsteroidSpriteMask, getAsteroidSpriteRadius, getRandomAsteroidColor } from '@/assets';
 import { ASTEROID_CONFIGS, type Asteroid } from '@/constants';
 import {
   asteroids,
@@ -51,6 +51,10 @@ export function createAsteroid(
 
   const speed = config.speed * (0.8 + Math.random() * 0.4);
 
+  const color = getRandomAsteroidColor(size);
+  const mask = getAsteroidSpriteMask(size, color);
+  const collisionRadius = getAsteroidSpriteRadius(size, color);
+
   return {
     x,
     y,
@@ -59,12 +63,12 @@ export function createAsteroid(
     rotation: Math.random() * Math.PI * 2,
     rotationSpeed: (Math.random() - 0.5) * 0.05,
     size,
-    color: getRandomAsteroidColor(size),
+    color,
     hits: config.hits,
     splitCount: config.splitCount,
     mass: config.mass,
-    mask: getAsteroidMask(size),
-    getRadius: () => config.radius,
+    mask,
+    getRadius: () => collisionRadius,
   };
 }
 
