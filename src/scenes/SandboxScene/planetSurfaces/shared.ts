@@ -97,16 +97,13 @@ export function drawCraters(
     const crater = polarPoint(craterDistance, craterAngle);
     const craterRadius = radius * (0.055 + (i % 2) * 0.018);
 
-    if (intersectsExclusionZone(crater.x, crater.y, craterRadius, exclusionZones)) {
-      continue;
-    }
+    if (!intersectsExclusionZone(crater.x, crater.y, craterRadius, exclusionZones)) {
+      const squash = 0.76 + (i % 3) * 0.06;
+      const rotation = craterAngle + 0.35;
 
-    const squash = 0.76 + (i % 3) * 0.06;
-    const rotation = craterAngle + 0.35;
-
-    ctx.save();
-    ctx.translate(crater.x, crater.y);
-    ctx.rotate(rotation);
+      ctx.save();
+      ctx.translate(crater.x, crater.y);
+      ctx.rotate(rotation);
 
     const basinGradient = ctx.createRadialGradient(
       -craterRadius * 0.1,
@@ -166,6 +163,7 @@ export function drawCraters(
     );
     ctx.fill();
 
-    ctx.restore();
+      ctx.restore();
+    }
   }
 }

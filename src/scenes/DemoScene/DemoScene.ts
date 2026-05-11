@@ -196,15 +196,13 @@ function drawDemoBackground(
     x = (((x % width) + width) % width) - GRID_SPACING;
     y = (((y % height) + height) % height) - GRID_SPACING;
 
-    if (x < 0 || x > viewportWidth || y < 0 || y > viewportHeight) {
-      continue;
+    if (x >= 0 && x <= viewportWidth && y >= 0 && y <= viewportHeight) {
+      ctx.globalAlpha = STAR_BASE_ALPHA + Math.sin(star.twinklePhase) * STAR_TWINKLE_AMOUNT;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(x, y, star.size, 0, Math.PI * 2);
+      ctx.fill();
     }
-
-    ctx.globalAlpha = STAR_BASE_ALPHA + Math.sin(star.twinklePhase) * STAR_TWINKLE_AMOUNT;
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(x, y, star.size, 0, Math.PI * 2);
-    ctx.fill();
   }
 
   ctx.globalAlpha = 1;

@@ -153,22 +153,20 @@ function chooseAutotileVariant(
       return weight > 0 ? [[candidate, weight] as const] : [];
     });
 
-    if (weightedCandidates.length === 0) {
-      continue;
-    }
+    if (weightedCandidates.length > 0) {
+      const totalWeight = weightedCandidates.reduce((sum, [, weight]) => sum + weight, 0);
+      const targetWeight = hashText(`${layerId}:${cell.material}:${cell.x},${cell.y}`) % totalWeight;
 
-    const totalWeight = weightedCandidates.reduce((sum, [, weight]) => sum + weight, 0);
-    const targetWeight = hashText(`${layerId}:${cell.material}:${cell.x},${cell.y}`) % totalWeight;
-
-    let remainingWeight = targetWeight;
-    for (const [candidate, weight] of weightedCandidates) {
-      if (remainingWeight < weight) {
-        return candidate;
+      let remainingWeight = targetWeight;
+      for (const [candidate, weight] of weightedCandidates) {
+        if (remainingWeight < weight) {
+          return candidate;
+        }
+        remainingWeight -= weight;
       }
-      remainingWeight -= weight;
-    }
 
-    return weightedCandidates[0]?.[0] ?? null;
+      return weightedCandidates[0]?.[0] ?? null;
+    }
   }
 
   return null;

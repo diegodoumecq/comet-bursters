@@ -85,14 +85,14 @@ export function drawBackground(ctx: CanvasRenderingContext2D) {
     if (y < -GRID_SPACING) y += height + GRID_SPACING * 2;
     if (y > height + GRID_SPACING) y -= height + GRID_SPACING * 2;
 
-    if (x < 0 || x > width || y < 0 || y > height) continue;
-
-    const alpha = STAR_BASE_ALPHA + Math.sin(star.twinklePhase) * STAR_TWINKLE_AMOUNT;
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(x, y, star.size, 0, Math.PI * 2);
-    ctx.fill();
+    if (x >= 0 && x <= width && y >= 0 && y <= height) {
+      const alpha = STAR_BASE_ALPHA + Math.sin(star.twinklePhase) * STAR_TWINKLE_AMOUNT;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(x, y, star.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   ctx.globalAlpha = 1;

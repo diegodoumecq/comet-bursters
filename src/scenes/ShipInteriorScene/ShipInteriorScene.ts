@@ -173,30 +173,28 @@ function rebuildCollisionTileBuckets(): void {
   }
 
   for (const entity of activeLevel.entities) {
-    if (entity.type !== 'column') {
-      continue;
-    }
+    if (entity.type === 'column') {
+      const rect = {
+        x: entity.x - COLUMN_BASE_SIZE / 2,
+        y: entity.y - COLUMN_BASE_SIZE,
+        width: COLUMN_BASE_SIZE,
+        height: COLUMN_BASE_SIZE,
+      };
+      const ref: CollisionRef = { type: 'column', rect };
+      const minBucketX = Math.floor(rect.x / COLLISION_BUCKET_SIZE);
+      const maxBucketX = Math.floor((rect.x + rect.width - 1) / COLLISION_BUCKET_SIZE);
+      const minBucketY = Math.floor(rect.y / COLLISION_BUCKET_SIZE);
+      const maxBucketY = Math.floor((rect.y + rect.height - 1) / COLLISION_BUCKET_SIZE);
 
-    const rect = {
-      x: entity.x - COLUMN_BASE_SIZE / 2,
-      y: entity.y - COLUMN_BASE_SIZE,
-      width: COLUMN_BASE_SIZE,
-      height: COLUMN_BASE_SIZE,
-    };
-    const ref: CollisionRef = { type: 'column', rect };
-    const minBucketX = Math.floor(rect.x / COLLISION_BUCKET_SIZE);
-    const maxBucketX = Math.floor((rect.x + rect.width - 1) / COLLISION_BUCKET_SIZE);
-    const minBucketY = Math.floor(rect.y / COLLISION_BUCKET_SIZE);
-    const maxBucketY = Math.floor((rect.y + rect.height - 1) / COLLISION_BUCKET_SIZE);
-
-    for (let bucketY = minBucketY; bucketY <= maxBucketY; bucketY++) {
-      for (let bucketX = minBucketX; bucketX <= maxBucketX; bucketX++) {
-        const key = getCollisionBucketKey(bucketX, bucketY);
-        const bucket = nextBuckets.get(key);
-        if (bucket) {
-          bucket.push(ref);
-        } else {
-          nextBuckets.set(key, [ref]);
+      for (let bucketY = minBucketY; bucketY <= maxBucketY; bucketY++) {
+        for (let bucketX = minBucketX; bucketX <= maxBucketX; bucketX++) {
+          const key = getCollisionBucketKey(bucketX, bucketY);
+          const bucket = nextBuckets.get(key);
+          if (bucket) {
+            bucket.push(ref);
+          } else {
+            nextBuckets.set(key, [ref]);
+          }
         }
       }
     }
@@ -248,12 +246,10 @@ function getNearbyCollidableTiles(x: number, y: number, radius: number): Collisi
   for (let bucketY = minBucketY; bucketY <= maxBucketY; bucketY++) {
     for (let bucketX = minBucketX; bucketX <= maxBucketX; bucketX++) {
       const bucket = collisionTileBuckets.get(getCollisionBucketKey(bucketX, bucketY));
-      if (!bucket) {
-        continue;
-      }
-
-      for (const ref of bucket) {
-        refs.add(ref);
+      if (bucket) {
+        for (const ref of bucket) {
+          refs.add(ref);
+        }
       }
     }
   }
@@ -325,17 +321,15 @@ function intersectsCollidableTiles(x: number, y: number, radius: number): boolea
     const nearestY = clamp(y, rect.y, rect.y + rect.height);
     const dx = x - nearestX;
     const dy = y - nearestY;
-    if (dx * dx + dy * dy > radius * radius) {
-      continue;
-    }
-
-    if (ref.type === 'column') {
-      return true;
-    }
-
-    for (const sample of samplePoints) {
-      if (isPointInsideOpaqueTilePixel(ref.layer, ref.tile, sample.x, sample.y)) {
+    if (dx * dx + dy * dy <= radius * radius) {
+      if (ref.type === 'column') {
         return true;
+      }
+
+      for (const sample of samplePoints) {
+        if (isPointInsideOpaqueTilePixel(ref.layer, ref.tile, sample.x, sample.y)) {
+          return true;
+        }
       }
     }
   }
@@ -352,17 +346,15 @@ function intersectsCollidableTilePixels(x: number, y: number, radius: number): b
     const nearestY = clamp(y, rect.y, rect.y + rect.height);
     const dx = x - nearestX;
     const dy = y - nearestY;
-    if (dx * dx + dy * dy > radius * radius) {
-      continue;
-    }
-
-    if (ref.type === 'column') {
-      return true;
-    }
-
-    for (const sample of samplePoints) {
-      if (isPointInsideOpaqueTilePixel(ref.layer, ref.tile, sample.x, sample.y)) {
+    if (dx * dx + dy * dy <= radius * radius) {
+      if (ref.type === 'column') {
         return true;
+      }
+
+      for (const sample of samplePoints) {
+        if (isPointInsideOpaqueTilePixel(ref.layer, ref.tile, sample.x, sample.y)) {
+          return true;
+        }
       }
     }
   }
@@ -491,26 +483,24 @@ function raycastToWallDistance(
     const sampleX = originX + dirX * distanceTraveled;
     const sampleY = originY + dirY * distanceTraveled;
 
-    if (!intersectsCollidableTiles(sampleX, sampleY, 0)) {
-      continue;
-    }
+    if (intersectsCollidableTiles(sampleX, sampleY, 0)) {
+      const lowerBound = Math.max(0, distanceTraveled - coarseStep);
+      let low = lowerBound;
+      let high = distanceTraveled;
 
-    const lowerBound = Math.max(0, distanceTraveled - coarseStep);
-    let low = lowerBound;
-    let high = distanceTraveled;
-
-    for (let iteration = 0; iteration < 6; iteration++) {
-      const mid = (low + high) * 0.5;
-      const midX = originX + dirX * mid;
-      const midY = originY + dirY * mid;
-      if (intersectsCollidableTiles(midX, midY, 0)) {
-        high = mid;
-      } else {
-        low = mid;
+      for (let iteration = 0; iteration < 6; iteration++) {
+        const mid = (low + high) * 0.5;
+        const midX = originX + dirX * mid;
+        const midY = originY + dirY * mid;
+        if (intersectsCollidableTiles(midX, midY, 0)) {
+          high = mid;
+        } else {
+          low = mid;
+        }
       }
-    }
 
-    return high;
+      return high;
+    }
   }
 
   return maxDistance;
@@ -846,16 +836,14 @@ function drawInteriorBackground(
     x = (((x % (viewportWidth + 220)) + (viewportWidth + 220)) % (viewportWidth + 220)) - 110;
     y = (((y % (viewportHeight + 220)) + (viewportHeight + 220)) % (viewportHeight + 220)) - 110;
 
-    if (x < 0 || x > viewportWidth || y < 0 || y > viewportHeight) {
-      continue;
+    if (x >= 0 && x <= viewportWidth && y >= 0 && y <= viewportHeight) {
+      const alpha = 0.2 + Math.sin(star.twinklePhase) * 0.18;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(x, y, star.size * 0.8, 0, Math.PI * 2);
+      ctx.fill();
     }
-
-    const alpha = 0.2 + Math.sin(star.twinklePhase) * 0.18;
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(x, y, star.size * 0.8, 0, Math.PI * 2);
-    ctx.fill();
   }
   ctx.globalAlpha = 1;
 
@@ -1222,61 +1210,51 @@ export class ShipInteriorScene implements Scene {
   private updateEnemies(currentPlayer: Player, now: number): void {
     let playerSeen = false;
     for (const enemy of this.enemies) {
-      if (!enemy.alive) {
-        continue;
-      }
+      if (enemy.alive) {
+        const target = enemy.patrol[enemy.targetIndex] ?? enemy.patrol[0];
+        const dx = target.x - enemy.x;
+        const dy = target.y - enemy.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
 
-      const target = enemy.patrol[enemy.targetIndex] ?? enemy.patrol[0];
-      const dx = target.x - enemy.x;
-      const dy = target.y - enemy.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist < ENEMY_WAYPOINT_RADIUS) {
-        this.advanceEnemyPatrolTarget(enemy);
-      } else {
-        enemy.desiredFacing = Math.atan2(dy, dx);
-        enemy.facing = rotateTowardsAngle(enemy.facing, enemy.desiredFacing, ENEMY_TURN_SPEED);
-
-        const turnDelta = Math.abs(normalizeAngle(enemy.desiredFacing - enemy.facing));
-        const moveScale = Math.max(0, Math.cos(turnDelta));
-        const moveX = Math.cos(enemy.facing) * ENEMY_SPEED * moveScale;
-        const moveY = Math.sin(enemy.facing) * ENEMY_SPEED * moveScale;
-        const nextX = enemy.x + moveX;
-        const nextY = enemy.y + moveY;
-
-        if (
-          !pathBlockedByWall(enemy.x, enemy.y, nextX, nextY, ENEMY_RADIUS) &&
-          !intersectsWall(nextX, nextY, ENEMY_RADIUS)
-        ) {
-          enemy.x = nextX;
-          enemy.y = nextY;
+        if (dist < ENEMY_WAYPOINT_RADIUS) {
+          this.advanceEnemyPatrolTarget(enemy);
         } else {
-          enemy.desiredFacing = Math.atan2(target.y - enemy.y, target.x - enemy.x);
+          enemy.desiredFacing = Math.atan2(dy, dx);
+          enemy.facing = rotateTowardsAngle(enemy.facing, enemy.desiredFacing, ENEMY_TURN_SPEED);
+
+          const turnDelta = Math.abs(normalizeAngle(enemy.desiredFacing - enemy.facing));
+          const moveScale = Math.max(0, Math.cos(turnDelta));
+          const moveX = Math.cos(enemy.facing) * ENEMY_SPEED * moveScale;
+          const moveY = Math.sin(enemy.facing) * ENEMY_SPEED * moveScale;
+          const nextX = enemy.x + moveX;
+          const nextY = enemy.y + moveY;
+
+          if (
+            !pathBlockedByWall(enemy.x, enemy.y, nextX, nextY, ENEMY_RADIUS) &&
+            !intersectsWall(nextX, nextY, ENEMY_RADIUS)
+          ) {
+            enemy.x = nextX;
+            enemy.y = nextY;
+          } else {
+            enemy.desiredFacing = Math.atan2(target.y - enemy.y, target.x - enemy.x);
+          }
+        }
+
+        const toPlayerX = currentPlayer.x - enemy.x;
+        const toPlayerY = currentPlayer.y - enemy.y;
+        const playerDistance = Math.sqrt(toPlayerX * toPlayerX + toPlayerY * toPlayerY);
+        const playerAngle = Math.atan2(toPlayerY, toPlayerX);
+        const delta = normalizeAngle(playerAngle - enemy.facing);
+        const seesPlayer =
+          !currentPlayer.waitingToRespawn &&
+          !currentPlayer.invulnerable &&
+          playerDistance <= enemy.visionRange &&
+          Math.abs(delta) <= enemy.visionHalfAngle &&
+          hasLineOfSight(enemy.x, enemy.y, currentPlayer.x, currentPlayer.y);
+        if (seesPlayer) {
+          playerSeen = true;
         }
       }
-
-      if (currentPlayer.waitingToRespawn || currentPlayer.invulnerable) {
-        continue;
-      }
-
-      const toPlayerX = currentPlayer.x - enemy.x;
-      const toPlayerY = currentPlayer.y - enemy.y;
-      const playerDistance = Math.sqrt(toPlayerX * toPlayerX + toPlayerY * toPlayerY);
-      if (playerDistance > enemy.visionRange) {
-        continue;
-      }
-
-      const playerAngle = Math.atan2(toPlayerY, toPlayerX);
-      const delta = normalizeAngle(playerAngle - enemy.facing);
-      if (Math.abs(delta) > enemy.visionHalfAngle) {
-        continue;
-      }
-
-      if (!hasLineOfSight(enemy.x, enemy.y, currentPlayer.x, currentPlayer.y)) {
-        continue;
-      }
-
-      playerSeen = true;
     }
 
     if (playerSeen) {
@@ -1327,28 +1305,24 @@ export class ShipInteriorScene implements Scene {
       const expired = Date.now() - bullet.spawnTime >= bullet.lifetime;
       if (expired || intersectsWall(bullet.x, bullet.y, BULLET_RADIUS)) {
         bullets.splice(bulletIndex, 1);
-        continue;
-      }
-
-      let enemyHit = false;
-      for (const enemy of this.enemies) {
-        if (!enemy.alive) {
-          continue;
+      } else {
+        let enemyHit = false;
+        for (const enemy of this.enemies) {
+          if (
+            enemy.alive &&
+            distance(bullet.x, bullet.y, enemy.x, enemy.y) <= BULLET_RADIUS + ENEMY_RADIUS
+          ) {
+            enemy.alive = false;
+            enemyHit = true;
+            currentPlayer.score += 150;
+            createExplosion(enemy.x, enemy.y, 0.9, bullet.vx * 0.1, bullet.vy * 0.1);
+            break;
+          }
         }
 
-        if (distance(bullet.x, bullet.y, enemy.x, enemy.y) > BULLET_RADIUS + ENEMY_RADIUS) {
-          continue;
+        if (enemyHit) {
+          bullets.splice(bulletIndex, 1);
         }
-
-        enemy.alive = false;
-        enemyHit = true;
-        currentPlayer.score += 150;
-        createExplosion(enemy.x, enemy.y, 0.9, bullet.vx * 0.1, bullet.vy * 0.1);
-        break;
-      }
-
-      if (enemyHit) {
-        bullets.splice(bulletIndex, 1);
       }
     }
   }
@@ -1569,13 +1543,11 @@ export class ShipInteriorScene implements Scene {
     for (const drawable of sceneDrawables) {
       if (drawable.type === 'column') {
         this.drawColumn(ctx, drawable.column);
-        continue;
-      }
-      if (drawable.type === 'enemy') {
+      } else if (drawable.type === 'enemy') {
         drawEnemy(ctx, drawable.enemy, this.alarmActive);
-        continue;
+      } else {
+        drawPlayer(drawable.player, ctx);
       }
-      drawPlayer(drawable.player, ctx);
     }
 
     for (let i = particles.length - 1; i >= 0; i--) {

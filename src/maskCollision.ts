@@ -34,10 +34,7 @@ export function circleIntersectsRotatedMask(
     const dy = y + 0.5 - localCircleY;
     for (let x = minX; x <= maxX; x += 1) {
       const dx = x + 0.5 - localCircleX;
-      if (dx * dx + dy * dy > radiusSq) {
-        continue;
-      }
-      if (mask.data[y * mask.width + x]) {
+      if (dx * dx + dy * dy <= radiusSq && mask.data[y * mask.width + x]) {
         return true;
       }
     }
@@ -53,12 +50,11 @@ export function getAlphaMaskRadius(mask: AlphaMask): number {
 
   for (let y = 0; y < mask.height; y += 1) {
     for (let x = 0; x < mask.width; x += 1) {
-      if (!mask.data[y * mask.width + x]) {
-        continue;
+      if (mask.data[y * mask.width + x]) {
+        const dx = x + 0.5 - centerX;
+        const dy = y + 0.5 - centerY;
+        radiusSq = Math.max(radiusSq, dx * dx + dy * dy);
       }
-      const dx = x + 0.5 - centerX;
-      const dy = y + 0.5 - centerY;
-      radiusSq = Math.max(radiusSq, dx * dx + dy * dy);
     }
   }
 

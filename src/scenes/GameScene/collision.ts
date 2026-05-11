@@ -101,80 +101,82 @@ export function processPlayerAsteroidCollisions(onHit: (player: Player) => void)
   }
 
   for (const asteroid of asteroids) {
-    if (currentPlayer.invulnerable || currentPlayer.lives <= 0) continue;
+    if (!currentPlayer.invulnerable && currentPlayer.lives > 0) {
+      const asteroidRadius = asteroid.getRadius();
+      const shieldCollisionDist = SHIELD_RADIUS + asteroidRadius;
 
-    const asteroidRadius = asteroid.getRadius();
-    const shieldCollisionDist = SHIELD_RADIUS + asteroidRadius;
+      const playerPositions = getCollisionPositions(
+        currentPlayer.x,
+        currentPlayer.y,
+        currentPlayer.getRadius(),
+      );
 
-    const playerPositions = getCollisionPositions(
-      currentPlayer.x,
-      currentPlayer.y,
-      currentPlayer.getRadius(),
-    );
+      let collisionDetected = false;
+      let actualDx = 0;
+      let actualDy = 0;
+      let actualDist = 0;
+      let bodyCollisionDetected = false;
 
-    let collisionDetected = false;
-    let actualDx = 0;
-    let actualDy = 0;
-    let actualDist = 0;
-    let bodyCollisionDetected = false;
+      for (const pos of playerPositions) {
+        const dx = pos.x - asteroid.x;
+        const dy = pos.y - asteroid.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
 
-    for (const pos of playerPositions) {
-      const dx = pos.x - asteroid.x;
-      const dy = pos.y - asteroid.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      const bodyHit = circleIntersectsRotatedMask(pos.x, pos.y, currentPlayer.getRadius(), asteroid);
-      if (dist < shieldCollisionDist || bodyHit) {
-        collisionDetected = true;
-        bodyCollisionDetected = bodyHit;
-        actualDx = currentPlayer.x - asteroid.x;
-        actualDy = currentPlayer.y - asteroid.y;
-        actualDist = Math.sqrt(actualDx * actualDx + actualDy * actualDy);
-        break;
+        const bodyHit = circleIntersectsRotatedMask(pos.x, pos.y, currentPlayer.getRadius(), asteroid);
+        if (dist < shieldCollisionDist || bodyHit) {
+          collisionDetected = true;
+          bodyCollisionDetected = bodyHit;
+          actualDx = currentPlayer.x - asteroid.x;
+          actualDy = currentPlayer.y - asteroid.y;
+          actualDist = Math.sqrt(actualDx * actualDx + actualDy * actualDy);
+          break;
+        }
       }
-    }
 
-    if (!collisionDetected) continue;
+      const shieldCanAbsorb =
+        collisionDetected &&
+        currentPlayer.shieldActive &&
+        currentPlayer.fuel > 0 &&
+        actualDist < shieldCollisionDist &&
+        Date.now() >= currentPlayer.shieldHitUntil;
 
-    if (currentPlayer.shieldActive && currentPlayer.fuel > 0 && actualDist < shieldCollisionDist) {
-      const now = Date.now();
-      if (now < currentPlayer.shieldHitUntil) continue;
+      if (shieldCanAbsorb) {
+        currentPlayer.shieldHitUntil = Date.now() + SHIELD_HIT_COOLDOWN;
+        drainFuel(currentPlayer, SHIELD_COLLISION_FUEL_COSTS[asteroid.size]);
 
-      currentPlayer.shieldHitUntil = now + SHIELD_HIT_COOLDOWN;
-      drainFuel(currentPlayer, SHIELD_COLLISION_FUEL_COSTS[asteroid.size]);
+        const safeDist = actualDist || 1;
+        const nx = actualDx / safeDist;
+        const ny = actualDy / safeDist;
 
-      const safeDist = actualDist || 1;
-      const nx = actualDx / safeDist;
-      const ny = actualDy / safeDist;
+        const bounceForce = 8;
+        const shipInfluence = asteroid.mass / (1 + asteroid.mass);
 
-      const bounceForce = 8;
-      const shipInfluence = asteroid.mass / (1 + asteroid.mass);
+        asteroid.vx -= nx * bounceForce * (1 - shipInfluence);
+        asteroid.vy -= ny * bounceForce * (1 - shipInfluence);
+        currentPlayer.vx += nx * bounceForce * shipInfluence;
+        currentPlayer.vy += ny * bounceForce * shipInfluence;
 
-      asteroid.vx -= nx * bounceForce * (1 - shipInfluence);
-      asteroid.vy -= ny * bounceForce * (1 - shipInfluence);
-      currentPlayer.vx += nx * bounceForce * shipInfluence;
-      currentPlayer.vy += ny * bounceForce * shipInfluence;
+        const overlap = shieldCollisionDist - actualDist;
+        asteroid.x -= nx * overlap;
+        asteroid.y -= ny * overlap;
 
-      const overlap = shieldCollisionDist - actualDist;
-      asteroid.x -= nx * overlap;
-      asteroid.y -= ny * overlap;
-
-      if (currentPlayer.fuel <= 0) {
-        currentPlayer.shieldActive = false;
+        if (currentPlayer.fuel <= 0) {
+          currentPlayer.shieldActive = false;
+        }
+      } else if (collisionDetected && !currentPlayer.shieldActive && bodyCollisionDetected) {
+        const massMultiplier =
+          asteroid.size === 'mega'
+            ? 0.1
+            : asteroid.size === 'big'
+              ? 0.2
+              : asteroid.size === 'medium'
+                ? 0.5
+                : 1.0;
+        asteroid.vx += currentPlayer.vx * massMultiplier;
+        asteroid.vy += currentPlayer.vy * massMultiplier;
+        asteroid.hits -= 10;
+        onHit(currentPlayer);
       }
-    } else if (!currentPlayer.shieldActive && bodyCollisionDetected) {
-      const massMultiplier =
-        asteroid.size === 'mega'
-          ? 0.1
-          : asteroid.size === 'big'
-            ? 0.2
-            : asteroid.size === 'medium'
-              ? 0.5
-              : 1.0;
-      asteroid.vx += currentPlayer.vx * massMultiplier;
-      asteroid.vy += currentPlayer.vy * massMultiplier;
-      asteroid.hits -= 10;
-      onHit(currentPlayer);
     }
   }
 }
@@ -189,19 +191,19 @@ export function processBulletPlayerCollisions(): number[] {
     const bullet = bullets[i];
     const bulletRadius = 15;
 
-    if (player.invulnerable || player.lives <= 0) continue;
-
-    if (
-      checkWrappedCollision(
-        bullet.x,
-        bullet.y,
-        bulletRadius,
-        player.x,
-        player.y,
-        player.getRadius(),
-      )
-    ) {
-      hitIndices.push(i);
+    if (!player.invulnerable && player.lives > 0) {
+      if (
+        checkWrappedCollision(
+          bullet.x,
+          bullet.y,
+          bulletRadius,
+          player.x,
+          player.y,
+          player.getRadius(),
+        )
+      ) {
+        hitIndices.push(i);
+      }
     }
   }
 

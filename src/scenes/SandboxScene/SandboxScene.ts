@@ -273,7 +273,13 @@ function drawPlayerTrajectoryPreview(ctx: CanvasRenderingContext2D, currentPlaye
     strongestGravity = Math.max(strongestGravity, frameGravity);
     projection.x += projection.vx;
     projection.y += projection.vy;
-    if (isOutOfWorld(projection.x, projection.y, currentPlayer.getRadius())) {
+    const collidingPlanet = planets.some(
+      (planet) =>
+        distance(projection.x, projection.y, planet.x, planet.y) <=
+        currentPlayer.getRadius() + planet.getRadius(),
+    );
+    if (isOutOfWorld(projection.x, projection.y, currentPlayer.getRadius()) || collidingPlanet) {
+      points.push({ x: projection.x, y: projection.y });
       break;
     }
     if (frame % TRAJECTORY_PREVIEW_SAMPLE_EVERY === 0) {
@@ -295,7 +301,6 @@ function drawPlayerTrajectoryPreview(ctx: CanvasRenderingContext2D, currentPlaye
   ctx.lineWidth = 2;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  ctx.setLineDash([7, 9]);
   let previous = { x: currentPlayer.x, y: currentPlayer.y };
   for (let i = 0; i < points.length; i += 1) {
     const fade = 1 - i / points.length;
@@ -308,7 +313,6 @@ function drawPlayerTrajectoryPreview(ctx: CanvasRenderingContext2D, currentPlaye
     ctx.stroke();
     previous = point;
   }
-  ctx.setLineDash([]);
 
   ctx.restore();
 }
@@ -981,15 +985,13 @@ function drawSandboxBackground(
     x = (((x % width) + width) % width) - GRID_SPACING;
     y = (((y % height) + height) % height) - GRID_SPACING;
 
-    if (x < 0 || x > viewportWidth || y < 0 || y > viewportHeight) {
-      continue;
+    if (x >= 0 && x <= viewportWidth && y >= 0 && y <= viewportHeight) {
+      ctx.globalAlpha = STAR_BASE_ALPHA + Math.sin(star.twinklePhase) * STAR_TWINKLE_AMOUNT;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(x, y, star.size, 0, Math.PI * 2);
+      ctx.fill();
     }
-
-    ctx.globalAlpha = STAR_BASE_ALPHA + Math.sin(star.twinklePhase) * STAR_TWINKLE_AMOUNT;
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(x, y, star.size, 0, Math.PI * 2);
-    ctx.fill();
   }
 
   ctx.globalAlpha = 1;
@@ -1036,14 +1038,15 @@ function drawMinimap(
   for (let row = 0; row < MINIMAP_FOG_ROWS; row += 1) {
     for (let col = 0; col < MINIMAP_FOG_COLUMNS; col += 1) {
       const index = row * MINIMAP_FOG_COLUMNS + col;
-      if (!seenCells[index]) continue;
-      ctx.fillStyle = seeingCells[index] ? 'rgba(8, 20, 36, 0.88)' : 'rgba(8, 14, 25, 0.58)';
-      ctx.fillRect(
-        minimapX + col * cellWidth,
-        minimapY + row * cellHeight,
-        cellWidth + 0.5,
-        cellHeight + 0.5,
-      );
+      if (seenCells[index]) {
+        ctx.fillStyle = seeingCells[index] ? 'rgba(8, 20, 36, 0.88)' : 'rgba(8, 14, 25, 0.58)';
+        ctx.fillRect(
+          minimapX + col * cellWidth,
+          minimapY + row * cellHeight,
+          cellWidth + 0.5,
+          cellHeight + 0.5,
+        );
+      }
     }
   }
 
@@ -1063,27 +1066,29 @@ function drawMinimap(
   }
 
   for (const planet of planets) {
-    if (!isCellVisibleForMinimap(planet.x, planet.y, false)) continue;
-    const x = minimapX + planet.x * scaleX;
-    const y = minimapY + planet.y * scaleY;
-    const radius = Math.max(3, planet.getRadius() * scaleX);
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = planet.color;
-    ctx.globalAlpha = 0.85;
-    ctx.fill();
+    if (isCellVisibleForMinimap(planet.x, planet.y, false)) {
+      const x = minimapX + planet.x * scaleX;
+      const y = minimapY + planet.y * scaleY;
+      const radius = Math.max(3, planet.getRadius() * scaleX);
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = planet.color;
+      ctx.globalAlpha = 0.85;
+      ctx.fill();
+    }
   }
 
   ctx.globalAlpha = 1;
   for (const asteroid of asteroids) {
-    if (!isCellVisibleForMinimap(asteroid.x, asteroid.y, true)) continue;
-    const x = minimapX + asteroid.x * scaleX;
-    const y = minimapY + asteroid.y * scaleY;
-    const radius = Math.max(1.5, Math.min(4.5, asteroid.getRadius() * scaleX * 0.6));
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = asteroid.color;
-    ctx.fill();
+    if (isCellVisibleForMinimap(asteroid.x, asteroid.y, true)) {
+      const x = minimapX + asteroid.x * scaleX;
+      const y = minimapY + asteroid.y * scaleY;
+      const radius = Math.max(1.5, Math.min(4.5, asteroid.getRadius() * scaleX * 0.6));
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = asteroid.color;
+      ctx.fill();
+    }
   }
 
   const viewportBoxX = minimapX + camera.x * scaleX;
@@ -1263,12 +1268,11 @@ export class SandboxScene implements Scene {
       for (let col = minCol; col <= maxCol; col += 1) {
         const worldX = ((col + 0.5) / MINIMAP_FOG_COLUMNS) * SANDBOX_WORLD_WIDTH;
         const worldY = ((row + 0.5) / MINIMAP_FOG_ROWS) * SANDBOX_WORLD_HEIGHT;
-        if (distance(currentPlayer.x, currentPlayer.y, worldX, worldY) > MINIMAP_SEE_RADIUS) {
-          continue;
+        if (distance(currentPlayer.x, currentPlayer.y, worldX, worldY) <= MINIMAP_SEE_RADIUS) {
+          const index = row * MINIMAP_FOG_COLUMNS + col;
+          this.seeingMinimapCells[index] = 1;
+          this.seenMinimapCells[index] = 1;
         }
-        const index = row * MINIMAP_FOG_COLUMNS + col;
-        this.seeingMinimapCells[index] = 1;
-        this.seenMinimapCells[index] = 1;
       }
     }
   }
@@ -1314,66 +1318,108 @@ export class SandboxScene implements Scene {
           }
         }
 
-        for (let i = extractor.blobs.length - 1; i >= 0; i--) {
-          if (currentPlayer.fuel >= currentPlayer.maxFuel) {
-            continue;
-          }
-
-          const position = getExtractorBlobWorldPosition(
-            planet,
-            extractor,
-            extractor.blobs[i],
-            now,
-          );
-          if (
-            distance(currentPlayer.x, currentPlayer.y, position.x, position.y) <=
-            currentPlayer.getRadius() + FUEL_BLOB_RADIUS
-          ) {
-            addFuel(currentPlayer, FUEL_BLOB_AMOUNT);
-            extractor.blobs.splice(i, 1);
+        if (currentPlayer.fuel < currentPlayer.maxFuel) {
+          for (let i = extractor.blobs.length - 1; i >= 0; i--) {
+            const position = getExtractorBlobWorldPosition(
+              planet,
+              extractor,
+              extractor.blobs[i],
+              now,
+            );
+            if (
+              distance(currentPlayer.x, currentPlayer.y, position.x, position.y) <=
+              currentPlayer.getRadius() + FUEL_BLOB_RADIUS
+            ) {
+              addFuel(currentPlayer, FUEL_BLOB_AMOUNT);
+              extractor.blobs.splice(i, 1);
+            }
           }
         }
       }
     }
+  }
 
-    for (let i = this.droppedFuelBlobs.length - 1; i >= 0; i--) {
-      const blob = this.droppedFuelBlobs[i];
-      if (isOutOfWorld(blob.x, blob.y, FUEL_BLOB_RADIUS)) {
-        this.droppedFuelBlobs.splice(i, 1);
-        continue;
-      }
+  private updateDroppedFuelBlobs(currentPlayer: Player): void {
+    const remainingBlobs: DroppedFuelBlob[] = [];
 
-      if (currentPlayer.fuel < currentPlayer.maxFuel && !currentPlayer.waitingToRespawn) {
-        const dx = currentPlayer.x - blob.x;
-        const dy = currentPlayer.y - blob.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > 0 && dist < FUEL_BLOB_ATTRACTION_RADIUS) {
-          const pull = 1 - dist / FUEL_BLOB_ATTRACTION_RADIUS;
-          blob.vx += (dx / dist) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull);
-          blob.vy += (dy / dist) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull);
-        }
-      }
+    for (const blob of this.droppedFuelBlobs) {
+      this.pullDroppedFuelTowardPlayer(blob, currentPlayer);
+      this.moveDroppedFuelBlob(blob);
 
-      blob.vx *= FUEL_BLOB_DRAG;
-      blob.vy *= FUEL_BLOB_DRAG;
-      const speed = Math.sqrt(blob.vx * blob.vx + blob.vy * blob.vy);
-      if (speed > FUEL_BLOB_MAX_SPEED) {
-        const speedScale = FUEL_BLOB_MAX_SPEED / speed;
-        blob.vx *= speedScale;
-        blob.vy *= speedScale;
-      }
-      blob.x += blob.vx;
-      blob.y += blob.vy;
-
-      if (
-        currentPlayer.fuel < currentPlayer.maxFuel &&
-        distance(currentPlayer.x, currentPlayer.y, blob.x, blob.y) <=
-          currentPlayer.getRadius() + FUEL_BLOB_RADIUS
-      ) {
-        addFuel(currentPlayer, FUEL_BLOB_AMOUNT);
-        this.droppedFuelBlobs.splice(i, 1);
+      const resolution = this.resolveDroppedFuelBlob(blob, currentPlayer);
+      if (resolution === 'keep') {
+        remainingBlobs.push(blob);
       }
     }
+
+    this.droppedFuelBlobs = remainingBlobs;
+  }
+
+  private pullDroppedFuelTowardPlayer(blob: DroppedFuelBlob, currentPlayer: Player): void {
+    if (currentPlayer.waitingToRespawn || currentPlayer.fuel >= currentPlayer.maxFuel) {
+      return;
+    }
+
+    const dx = currentPlayer.x - blob.x;
+    const dy = currentPlayer.y - blob.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= 0 || dist >= FUEL_BLOB_ATTRACTION_RADIUS) {
+      return;
+    }
+
+    const pull = 1 - dist / FUEL_BLOB_ATTRACTION_RADIUS;
+    blob.vx += (dx / dist) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull);
+    blob.vy += (dy / dist) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull);
+  }
+
+  private moveDroppedFuelBlob(blob: DroppedFuelBlob): void {
+    blob.vx *= FUEL_BLOB_DRAG;
+    blob.vy *= FUEL_BLOB_DRAG;
+
+    const speed = Math.sqrt(blob.vx * blob.vx + blob.vy * blob.vy);
+    if (speed > FUEL_BLOB_MAX_SPEED) {
+      const speedScale = FUEL_BLOB_MAX_SPEED / speed;
+      blob.vx *= speedScale;
+      blob.vy *= speedScale;
+    }
+
+    blob.x += blob.vx;
+    blob.y += blob.vy;
+  }
+
+  private resolveDroppedFuelBlob(blob: DroppedFuelBlob, currentPlayer: Player): 'keep' | 'remove' {
+    if (isOutOfWorld(blob.x, blob.y, FUEL_BLOB_RADIUS)) {
+      return 'remove';
+    }
+
+    const absorbingPlanet = planets.find(
+      (planet) =>
+        distance(blob.x, blob.y, planet.x, planet.y) <= planet.getRadius() + FUEL_BLOB_RADIUS,
+    );
+    if (absorbingPlanet) {
+      absorbingPlanet.fuelReserve += FUEL_BLOB_AMOUNT;
+      return 'remove';
+    }
+
+    if (this.collectDroppedFuelBlob(blob, currentPlayer)) {
+      return 'remove';
+    }
+
+    return 'keep';
+  }
+
+  private collectDroppedFuelBlob(blob: DroppedFuelBlob, currentPlayer: Player): boolean {
+    if (currentPlayer.fuel >= currentPlayer.maxFuel) {
+      return false;
+    }
+
+    const collectionDistance = currentPlayer.getRadius() + FUEL_BLOB_RADIUS;
+    if (distance(currentPlayer.x, currentPlayer.y, blob.x, blob.y) > collectionDistance) {
+      return false;
+    }
+
+    addFuel(currentPlayer, FUEL_BLOB_AMOUNT);
+    return true;
   }
 
   private fireInspectionProbe(currentPlayer: Player): boolean {
@@ -1405,17 +1451,16 @@ export class SandboxScene implements Scene {
         isOutOfWorld(probe.x, probe.y, INSPECTION_PROBE_RADIUS)
       ) {
         this.inspectionProbes.splice(i, 1);
-        continue;
-      }
-
-      const hitPlanet = planets.find(
-        (planet) =>
-          distance(probe.x, probe.y, planet.x, planet.y) <=
-          planet.getRadius() + INSPECTION_PROBE_RADIUS,
-      );
-      if (hitPlanet) {
-        hitPlanet.inspectedUntil = now + INSPECTION_PROBE_DURATION_MS;
-        this.inspectionProbes.splice(i, 1);
+      } else {
+        const hitPlanet = planets.find(
+          (planet) =>
+            distance(probe.x, probe.y, planet.x, planet.y) <=
+            planet.getRadius() + INSPECTION_PROBE_RADIUS,
+        );
+        if (hitPlanet) {
+          hitPlanet.inspectedUntil = now + INSPECTION_PROBE_DURATION_MS;
+          this.inspectionProbes.splice(i, 1);
+        }
       }
     }
   }
@@ -1436,33 +1481,28 @@ export class SandboxScene implements Scene {
           const position = getExtractorBlobWorldPosition(planet, extractor, blob, now);
           const screenX = position.x - this.camera.x;
           const screenY = position.y - this.camera.y;
-          if (!isScreenMetaballVisible(screenX, screenY, FUEL_BLOB_RADIUS * 3)) {
-            continue;
+          if (isScreenMetaballVisible(screenX, screenY, FUEL_BLOB_RADIUS * 3)) {
+            metaballs.push({
+              x: screenX,
+              y: screenY,
+              radius: FUEL_BLOB_RADIUS,
+              seed: blob.wobbleSeed,
+            });
           }
-
-          metaballs.push({
-            x: screenX,
-            y: screenY,
-            radius: FUEL_BLOB_RADIUS,
-            seed: blob.wobbleSeed,
-          });
         }
       }
 
-      if (now < planet.inspectedUntil) {
-        if (
-          !isVisible(
+      if (
+        now < planet.inspectedUntil &&
+        isVisible(
             planet.x,
             planet.y,
             planet.getRadius(),
             this.camera,
             viewportWidth,
             viewportHeight,
-          )
-        ) {
-          continue;
-        }
-
+        )
+      ) {
         const reserveBlobCount = Math.ceil(planet.fuelReserve / FUEL_INSPECTION_BLOB_AMOUNT);
         const internalBlobCount = Math.min(
           MAX_INTERNAL_FUEL_METABALLS_PER_PLANET,
@@ -1482,16 +1522,14 @@ export class SandboxScene implements Scene {
           const driftScale = driftLength > maxCenterDistance ? maxCenterDistance / driftLength : 1;
           const screenX = planet.x - this.camera.x + driftX * driftScale;
           const screenY = planet.y - this.camera.y + driftY * driftScale;
-          if (!isScreenMetaballVisible(screenX, screenY, metaballRadius * 3)) {
-            continue;
+          if (isScreenMetaballVisible(screenX, screenY, metaballRadius * 3)) {
+            metaballs.push({
+              x: screenX,
+              y: screenY,
+              radius: metaballRadius,
+              seed,
+            });
           }
-
-          metaballs.push({
-            x: screenX,
-            y: screenY,
-            radius: metaballRadius,
-            seed,
-          });
         }
       }
     }
@@ -1500,16 +1538,14 @@ export class SandboxScene implements Scene {
       const wobble = Math.sin(now * 0.004 + blob.wobbleSeed * Math.PI * 2) * 3;
       const screenX = blob.x - this.camera.x;
       const screenY = blob.y - this.camera.y + wobble;
-      if (!isScreenMetaballVisible(screenX, screenY, FUEL_BLOB_RADIUS * 3)) {
-        continue;
+      if (isScreenMetaballVisible(screenX, screenY, FUEL_BLOB_RADIUS * 3)) {
+        metaballs.push({
+          x: screenX,
+          y: screenY,
+          radius: FUEL_BLOB_RADIUS,
+          seed: blob.wobbleSeed,
+        });
       }
-
-      metaballs.push({
-        x: screenX,
-        y: screenY,
-        radius: FUEL_BLOB_RADIUS,
-        seed: blob.wobbleSeed,
-      });
     }
 
     return metaballs;
@@ -1610,6 +1646,7 @@ export class SandboxScene implements Scene {
     }
 
     this.updatePlanetFuel(deltaTime, now, currentPlayer);
+    this.updateDroppedFuelBlobs(currentPlayer);
     this.updateInspectionProbes(now);
     this.updateAsteroidEdgeSpawns(now);
     this.updateMinimapFog(currentPlayer);
@@ -1623,6 +1660,9 @@ export class SandboxScene implements Scene {
       }
       for (const bullet of bullets) {
         applyGravity(bullet, planet);
+      }
+      for (const blob of this.droppedFuelBlobs) {
+        applyGravity(blob, planet);
       }
     }
 
@@ -1684,37 +1724,35 @@ export class SandboxScene implements Scene {
       const bullet = bullets[i];
       for (let j = asteroids.length - 1; j >= 0; j--) {
         const asteroid = asteroids[j];
-        if (destroyedAsteroidsFromBullets.has(asteroid)) {
-          continue;
-        }
-        if (!circleIntersectsRotatedMask(bullet.x, bullet.y, BULLET_RADIUS, asteroid)) {
-          continue;
-        }
+        if (
+          !destroyedAsteroidsFromBullets.has(asteroid) &&
+          circleIntersectsRotatedMask(bullet.x, bullet.y, BULLET_RADIUS, asteroid)
+        ) {
+          handledBullets.add(i);
+          const massMultiplier =
+            asteroid.size === 'big' ? 0.3 : asteroid.size === 'medium' ? 0.6 : 1.0;
+          const impulse = bullet.impact * 2 * massMultiplier;
+          asteroid.vx += bullet.vx * 0.1 * impulse;
+          asteroid.vy += bullet.vy * 0.1 * impulse;
+          asteroid.hits -= bullet.damage;
 
-        handledBullets.add(i);
-        const massMultiplier =
-          asteroid.size === 'big' ? 0.3 : asteroid.size === 'medium' ? 0.6 : 1.0;
-        const impulse = bullet.impact * 2 * massMultiplier;
-        asteroid.vx += bullet.vx * 0.1 * impulse;
-        asteroid.vy += bullet.vy * 0.1 * impulse;
-        asteroid.hits -= bullet.damage;
+          if (asteroid.hits <= 0) {
+            if (currentPlayer.id === bullet.playerId) {
+              currentPlayer.score += ASTEROID_CONFIGS[asteroid.size].points * currentPlayer.lives;
+            }
 
-        if (asteroid.hits <= 0) {
-          if (currentPlayer.id === bullet.playerId) {
-            currentPlayer.score += ASTEROID_CONFIGS[asteroid.size].points * currentPlayer.lives;
+            const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
+            createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
+            this.spawnAsteroidFuelDrops(asteroid, now);
+            asteroids.push(...splitAsteroid(asteroid));
+            destroyedAsteroidsFromBullets.add(asteroid);
+            const asteroidIndex = asteroids.indexOf(asteroid);
+            if (asteroidIndex !== -1) {
+              asteroids.splice(asteroidIndex, 1);
+            }
           }
-
-          const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
-          createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
-          this.spawnAsteroidFuelDrops(asteroid, now);
-          asteroids.push(...splitAsteroid(asteroid));
-          destroyedAsteroidsFromBullets.add(asteroid);
-          const asteroidIndex = asteroids.indexOf(asteroid);
-          if (asteroidIndex !== -1) {
-            asteroids.splice(asteroidIndex, 1);
-          }
+          break;
         }
-        break;
       }
     }
 
@@ -1745,15 +1783,14 @@ export class SandboxScene implements Scene {
           asteroid,
         );
 
-        if (
+        const shieldCanAbsorb =
           currentPlayer.shieldActive &&
           currentPlayer.fuel > 0 &&
-          actualDist < shieldCollisionDist
-        ) {
+          actualDist < shieldCollisionDist &&
+          Date.now() >= currentPlayer.shieldHitUntil;
+
+        if (shieldCanAbsorb) {
           const hitNow = Date.now();
-          if (hitNow < currentPlayer.shieldHitUntil) {
-            continue;
-          }
           currentPlayer.shieldHitUntil = hitNow + SHIELD_HIT_COOLDOWN;
           drainFuel(currentPlayer, SHIELD_COLLISION_FUEL_COSTS[asteroid.size]);
 

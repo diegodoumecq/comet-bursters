@@ -239,27 +239,27 @@ export class GameScene implements Scene {
         const dy = b.y - a.y;
         const dist = Math.max(0.001, Math.hypot(dx, dy));
         const minDist = a.getRadius() + b.getRadius();
-        if (dist >= minDist) continue;
+        if (dist < minDist) {
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const overlap = minDist - dist;
+          const totalMass = a.mass + b.mass;
+          a.x -= nx * overlap * (b.mass / totalMass);
+          a.y -= ny * overlap * (b.mass / totalMass);
+          b.x += nx * overlap * (a.mass / totalMass);
+          b.y += ny * overlap * (a.mass / totalMass);
 
-        const nx = dx / dist;
-        const ny = dy / dist;
-        const overlap = minDist - dist;
-        const totalMass = a.mass + b.mass;
-        a.x -= nx * overlap * (b.mass / totalMass);
-        a.y -= ny * overlap * (b.mass / totalMass);
-        b.x += nx * overlap * (a.mass / totalMass);
-        b.y += ny * overlap * (a.mass / totalMass);
-
-        const rvx = b.vx - a.vx;
-        const rvy = b.vy - a.vy;
-        const velocityAlongNormal = rvx * nx + rvy * ny;
-        if (velocityAlongNormal > 0) continue;
-
-        const impulse = (-(1.05) * velocityAlongNormal) / (1 / a.mass + 1 / b.mass);
-        a.vx -= (impulse / a.mass) * nx;
-        a.vy -= (impulse / a.mass) * ny;
-        b.vx += (impulse / b.mass) * nx;
-        b.vy += (impulse / b.mass) * ny;
+          const rvx = b.vx - a.vx;
+          const rvy = b.vy - a.vy;
+          const velocityAlongNormal = rvx * nx + rvy * ny;
+          if (velocityAlongNormal <= 0) {
+            const impulse = (-(1.05) * velocityAlongNormal) / (1 / a.mass + 1 / b.mass);
+            a.vx -= (impulse / a.mass) * nx;
+            a.vy -= (impulse / a.mass) * ny;
+            b.vx += (impulse / b.mass) * nx;
+            b.vy += (impulse / b.mass) * ny;
+          }
+        }
       }
     }
   }
@@ -392,37 +392,41 @@ export class GameScene implements Scene {
     const handledBullets = new Set<number>();
     const destroyedAsteroids = new Set<Asteroid>();
     for (const { bulletIndex: i, asteroid } of bulletHits) {
-      if (handledBullets.has(i)) continue;
-      if (destroyedAsteroids.has(asteroid) || !asteroids.includes(asteroid)) continue;
-      handledBullets.add(i);
-
       const bullet = bullets[i];
-      if (!bullet) continue;
+      const canHandleHit =
+        Boolean(bullet) &&
+        !handledBullets.has(i) &&
+        !destroyedAsteroids.has(asteroid) &&
+        asteroids.includes(asteroid);
+      if (canHandleHit && bullet) {
+        handledBullets.add(i);
 
-      const massMultiplier = asteroid.size === 'big' ? 0.3 : asteroid.size === 'medium' ? 0.6 : 1.0;
-      const impulse = bullet.impact * 2 * massMultiplier;
-      asteroid.vx += bullet.vx * 0.1 * impulse;
-      asteroid.vy += bullet.vy * 0.1 * impulse;
+        const massMultiplier =
+          asteroid.size === 'big' ? 0.3 : asteroid.size === 'medium' ? 0.6 : 1.0;
+        const impulse = bullet.impact * 2 * massMultiplier;
+        asteroid.vx += bullet.vx * 0.1 * impulse;
+        asteroid.vy += bullet.vy * 0.1 * impulse;
 
-      asteroid.hits -= bullet.damage;
+        asteroid.hits -= bullet.damage;
 
-      if (asteroid.hits <= 0) {
-        const shooter = player?.id === bullet.playerId ? player : null;
-        if (shooter) {
-          shooter.score += ASTEROID_CONFIGS[asteroid.size].points * shooter.lives;
-        }
+        if (asteroid.hits <= 0) {
+          const shooter = player?.id === bullet.playerId ? player : null;
+          if (shooter) {
+            shooter.score += ASTEROID_CONFIGS[asteroid.size].points * shooter.lives;
+          }
 
-        const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
-        createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
-        this.spawnAsteroidFuelDrops(asteroid, now);
+          const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
+          createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
+          this.spawnAsteroidFuelDrops(asteroid, now);
 
-        const children = splitAsteroid(asteroid);
-        asteroids.push(...children);
+          const children = splitAsteroid(asteroid);
+          asteroids.push(...children);
 
-        destroyedAsteroids.add(asteroid);
-        const asteroidIndex = asteroids.indexOf(asteroid);
-        if (asteroidIndex !== -1) {
-          asteroids.splice(asteroidIndex, 1);
+          destroyedAsteroids.add(asteroid);
+          const asteroidIndex = asteroids.indexOf(asteroid);
+          if (asteroidIndex !== -1) {
+            asteroids.splice(asteroidIndex, 1);
+          }
         }
       }
     }

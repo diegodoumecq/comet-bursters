@@ -202,40 +202,35 @@ function createAsteroidSprite(
       const candidateX = (rand() - 0.5) * radius * 0.88;
       const candidateY = (rand() - 0.5) * radius * 0.88;
 
-      if (Math.hypot(candidateX, candidateY) + craterR > radius * 0.88) {
-        continue;
-      }
+      if (Math.hypot(candidateX, candidateY) + craterR <= radius * 0.88) {
+        let overlaps = false;
+        for (const placement of craterPlacements) {
+          const dx = candidateX - placement.x;
+          const dy = candidateY - placement.y;
+          const minDistance = craterR + placement.radius + radius * 0.04;
+          if (dx * dx + dy * dy < minDistance * minDistance) {
+            overlaps = true;
+            break;
+          }
+        }
 
-      let overlaps = false;
-      for (const placement of craterPlacements) {
-        const dx = candidateX - placement.x;
-        const dy = candidateY - placement.y;
-        const minDistance = craterR + placement.radius + radius * 0.04;
-        if (dx * dx + dy * dy < minDistance * minDistance) {
-          overlaps = true;
+        if (!overlaps) {
+          craterX = candidateX;
+          craterY = candidateY;
+          foundPlacement = true;
           break;
         }
       }
-
-      if (!overlaps) {
-        craterX = candidateX;
-        craterY = candidateY;
-        foundPlacement = true;
-        break;
-      }
     }
 
-    if (!foundPlacement) {
-      continue;
-    }
+    if (foundPlacement) {
+      craterPlacements.push({ x: craterX, y: craterY, radius: craterR });
+      const squash = 0.74 + rand() * 0.18;
+      const rotation = rand() * Math.PI;
 
-    craterPlacements.push({ x: craterX, y: craterY, radius: craterR });
-    const squash = 0.74 + rand() * 0.18;
-    const rotation = rand() * Math.PI;
-
-    cctx.save();
-    cctx.translate(craterX, craterY);
-    cctx.rotate(rotation);
+      cctx.save();
+      cctx.translate(craterX, craterY);
+      cctx.rotate(rotation);
 
     const basinGradient = cctx.createRadialGradient(
       -craterR * 0.12,
@@ -294,7 +289,8 @@ function createAsteroidSprite(
     );
     cctx.fill();
 
-    cctx.restore();
+      cctx.restore();
+    }
   }
 
   cctx.fillStyle = 'rgba(255,255,255,0.05)';

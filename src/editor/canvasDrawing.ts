@@ -48,35 +48,27 @@ export function buildMaterialOverlayCanvas({
   overlayCtx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
   for (const layer of level.layers) {
-    if (layerVisibility[layer.id] === false) {
-      continue;
-    }
-
     const layerMaterialPlacements = materialPlacements[layer.id];
-    if (!layerMaterialPlacements) {
-      continue;
-    }
-
-    for (const [key, material] of Object.entries(layerMaterialPlacements)) {
-      const [x, y] = key.split(',').map((value) => Number.parseInt(value, 10));
-      if (!Number.isFinite(x) || !Number.isFinite(y)) {
-        continue;
+    if (layerVisibility[layer.id] !== false && layerMaterialPlacements) {
+      for (const [key, material] of Object.entries(layerMaterialPlacements)) {
+        const [x, y] = key.split(',').map((value) => Number.parseInt(value, 10));
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          const tileX = x * levelGrid.cellWidth;
+          const tileY = y * levelGrid.cellHeight;
+          overlayCtx.globalAlpha = layer.id === selectedLayerId ? 0.88 : 0.62;
+          overlayCtx.fillStyle = getMaterialColor(material);
+          overlayCtx.fillRect(tileX, tileY, levelGrid.cellWidth, levelGrid.cellHeight);
+          overlayCtx.globalAlpha = 1;
+          overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+          overlayCtx.lineWidth = 1;
+          overlayCtx.strokeRect(
+            tileX + 0.5,
+            tileY + 0.5,
+            levelGrid.cellWidth - 1,
+            levelGrid.cellHeight - 1,
+          );
+        }
       }
-
-      const tileX = x * levelGrid.cellWidth;
-      const tileY = y * levelGrid.cellHeight;
-      overlayCtx.globalAlpha = layer.id === selectedLayerId ? 0.88 : 0.62;
-      overlayCtx.fillStyle = getMaterialColor(material);
-      overlayCtx.fillRect(tileX, tileY, levelGrid.cellWidth, levelGrid.cellHeight);
-      overlayCtx.globalAlpha = 1;
-      overlayCtx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-      overlayCtx.lineWidth = 1;
-      overlayCtx.strokeRect(
-        tileX + 0.5,
-        tileY + 0.5,
-        levelGrid.cellWidth - 1,
-        levelGrid.cellHeight - 1,
-      );
     }
   }
 
@@ -108,52 +100,43 @@ export function buildTileLayerCanvas({
   }
 
   for (const layer of level.layers) {
-    if ((layer.overhead ?? false) !== overhead) {
-      continue;
-    }
-    if (layerVisibility[layer.id] === false) {
-      continue;
-    }
-
     const tileset = level.tilesets.find((candidate) => candidate.id === layer.tilesetId);
-    if (!tileset) {
-      continue;
-    }
-
-    const image = images[tileset.id];
-    if (!image) {
-      continue;
-    }
-
-    const tilePositions = getTilesetTilePositionMap(tileset);
-    layerCtx.save();
-    const layerOpacity = layer.opacity ?? 1;
-    const editableLayerOpacity =
-      layer.id === selectedLayerId ? Math.max(layerOpacity, 0.25) : layerOpacity;
-    layerCtx.globalAlpha =
-      editableLayerOpacity * (layer.id === selectedLayerId ? 1 : inactiveLayerOpacity);
-    for (const tile of layer.tiles) {
-      const tileX = tile.x * levelGrid.cellWidth;
-      const tileY = tile.y * levelGrid.cellHeight;
-      const frame = tilePositions[String(tile.tile)];
-      if (!frame) {
-        drawMissingTileMarker(layerCtx, tileX, tileY, levelGrid.cellWidth, levelGrid.cellHeight);
-        continue;
+    const image = tileset ? images[tileset.id] : null;
+    if (
+      (layer.overhead ?? false) === overhead &&
+      layerVisibility[layer.id] !== false &&
+      tileset &&
+      image
+    ) {
+      const tilePositions = getTilesetTilePositionMap(tileset);
+      layerCtx.save();
+      const layerOpacity = layer.opacity ?? 1;
+      const editableLayerOpacity =
+        layer.id === selectedLayerId ? Math.max(layerOpacity, 0.25) : layerOpacity;
+      layerCtx.globalAlpha =
+        editableLayerOpacity * (layer.id === selectedLayerId ? 1 : inactiveLayerOpacity);
+      for (const tile of layer.tiles) {
+        const tileX = tile.x * levelGrid.cellWidth;
+        const tileY = tile.y * levelGrid.cellHeight;
+        const frame = tilePositions[String(tile.tile)];
+        if (frame) {
+          layerCtx.drawImage(
+            image,
+            frame[0] * tileset.grid.frameWidth,
+            frame[1] * tileset.grid.frameHeight,
+            tileset.grid.frameWidth,
+            tileset.grid.frameHeight,
+            tileX,
+            tileY,
+            layer.scaleToGrid ? levelGrid.cellWidth : tileset.grid.frameWidth,
+            layer.scaleToGrid ? levelGrid.cellHeight : tileset.grid.frameHeight,
+          );
+        } else {
+          drawMissingTileMarker(layerCtx, tileX, tileY, levelGrid.cellWidth, levelGrid.cellHeight);
+        }
       }
-
-      layerCtx.drawImage(
-        image,
-        frame[0] * tileset.grid.frameWidth,
-        frame[1] * tileset.grid.frameHeight,
-        tileset.grid.frameWidth,
-        tileset.grid.frameHeight,
-        tileX,
-        tileY,
-        layer.scaleToGrid ? levelGrid.cellWidth : tileset.grid.frameWidth,
-        layer.scaleToGrid ? levelGrid.cellHeight : tileset.grid.frameHeight,
-      );
+      layerCtx.restore();
     }
-    layerCtx.restore();
   }
 
   return layerCanvas;
@@ -309,21 +292,20 @@ function drawEntities(
       ctx.lineWidth = isSelected ? 3 : 2;
       ctx.strokeStyle = isSelected ? '#facc15' : 'rgba(8, 15, 28, 0.95)';
       ctx.strokeRect(drawX - 1, drawY - 1, columnImage.width + 2, columnImage.height + 2);
-      continue;
+    } else {
+      ctx.beginPath();
+      ctx.arc(entity.x, entity.y, isPlayer ? 14 : isRefuelStation ? 13 : 11, 0, Math.PI * 2);
+      ctx.fillStyle = isPlayer ? '#38bdf8' : isRefuelStation ? '#22d3ee' : '#f87171';
+      ctx.fill();
+      ctx.lineWidth = isSelected ? 4 : 2;
+      ctx.strokeStyle = isSelected ? '#facc15' : '#020617';
+      ctx.stroke();
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(isPlayer ? 'P' : isRefuelStation ? 'F' : 'E', entity.x, entity.y + 3);
     }
-
-    ctx.beginPath();
-    ctx.arc(entity.x, entity.y, isPlayer ? 14 : isRefuelStation ? 13 : 11, 0, Math.PI * 2);
-    ctx.fillStyle = isPlayer ? '#38bdf8' : isRefuelStation ? '#22d3ee' : '#f87171';
-    ctx.fill();
-    ctx.lineWidth = isSelected ? 4 : 2;
-    ctx.strokeStyle = isSelected ? '#facc15' : '#020617';
-    ctx.stroke();
-
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = '10px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(isPlayer ? 'P' : isRefuelStation ? 'F' : 'E', entity.x, entity.y + 3);
   }
 }
 
@@ -403,41 +385,29 @@ function drawRectanglePreview(
 
   for (const previewTile of rectanglePreview.tileOverrides) {
     const layer = level.layers.find((candidate) => candidate.id === previewTile.layerId);
-    if (!layer || layerVisibility[layer.id] === false) {
-      continue;
+    const tileset = layer
+      ? level.tilesets.find((candidate) => candidate.id === layer.tilesetId)
+      : null;
+    const image = tileset ? images[tileset.id] : null;
+    const frame = tileset ? getTilesetTilePositionMap(tileset)[String(previewTile.tileId)] : null;
+    if (layer && layerVisibility[layer.id] !== false && tileset && image && frame) {
+      const tileX = previewTile.x * levelGrid.cellWidth;
+      const tileY = previewTile.y * levelGrid.cellHeight;
+      ctx.save();
+      ctx.globalAlpha = layer.id === selectedLayerId ? 0.95 : 0.85;
+      ctx.drawImage(
+        image,
+        frame[0] * tileset.grid.frameWidth,
+        frame[1] * tileset.grid.frameHeight,
+        tileset.grid.frameWidth,
+        tileset.grid.frameHeight,
+        tileX,
+        tileY,
+        layer.scaleToGrid ? levelGrid.cellWidth : tileset.grid.frameWidth,
+        layer.scaleToGrid ? levelGrid.cellHeight : tileset.grid.frameHeight,
+      );
+      ctx.restore();
     }
-
-    const tileset = level.tilesets.find((candidate) => candidate.id === layer.tilesetId);
-    if (!tileset) {
-      continue;
-    }
-
-    const image = images[tileset.id];
-    if (!image) {
-      continue;
-    }
-
-    const frame = getTilesetTilePositionMap(tileset)[String(previewTile.tileId)];
-    if (!frame) {
-      continue;
-    }
-
-    const tileX = previewTile.x * levelGrid.cellWidth;
-    const tileY = previewTile.y * levelGrid.cellHeight;
-    ctx.save();
-    ctx.globalAlpha = layer.id === selectedLayerId ? 0.95 : 0.85;
-    ctx.drawImage(
-      image,
-      frame[0] * tileset.grid.frameWidth,
-      frame[1] * tileset.grid.frameHeight,
-      tileset.grid.frameWidth,
-      tileset.grid.frameHeight,
-      tileX,
-      tileY,
-      layer.scaleToGrid ? levelGrid.cellWidth : tileset.grid.frameWidth,
-      layer.scaleToGrid ? levelGrid.cellHeight : tileset.grid.frameHeight,
-    );
-    ctx.restore();
   }
 
   const left = Math.min(rectanglePreview.startX, rectanglePreview.endX) * levelGrid.cellWidth;

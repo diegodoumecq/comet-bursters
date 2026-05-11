@@ -304,31 +304,27 @@ export class ATMTermsScene implements Scene {
     for (const line of this.documentLines) {
       if (line.type !== 'body' && line.type !== 'warning') {
         wrapped.push(line);
-        continue;
-      }
-
-      if (!line.text.trim()) {
+      } else if (!line.text.trim()) {
         wrapped.push(line);
-        continue;
-      }
+      } else {
+        const words = line.text.split(' ');
+        let current = '';
 
-      const words = line.text.split(' ');
-      let current = '';
-
-      for (const word of words) {
-        const next = current ? `${current} ${word}` : word;
-        if (next.length > MAX_TEXT_COLUMNS) {
-          if (current) {
-            wrapped.push({ type: line.type, text: current });
+        for (const word of words) {
+          const next = current ? `${current} ${word}` : word;
+          if (next.length > MAX_TEXT_COLUMNS) {
+            if (current) {
+              wrapped.push({ type: line.type, text: current });
+            }
+            current = word;
+          } else {
+            current = next;
           }
-          current = word;
-        } else {
-          current = next;
         }
-      }
 
-      if (current) {
-        wrapped.push({ type: line.type, text: current });
+        if (current) {
+          wrapped.push({ type: line.type, text: current });
+        }
       }
     }
 
@@ -1017,15 +1013,14 @@ export class ATMTermsScene implements Scene {
     ctx.lineJoin = 'round';
 
     for (const stroke of this.signature) {
-      if (stroke.points.length < 2) {
-        continue;
+      if (stroke.points.length >= 2) {
+        ctx.beginPath();
+        ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+        for (let i = 1; i < stroke.points.length; i += 1) {
+          ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+        }
+        ctx.stroke();
       }
-      ctx.beginPath();
-      ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-      for (let i = 1; i < stroke.points.length; i += 1) {
-        ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
-      }
-      ctx.stroke();
     }
 
     ctx.restore();

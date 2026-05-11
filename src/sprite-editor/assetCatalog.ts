@@ -34,14 +34,11 @@ function normalizePathSegments(path: string): string {
   const segments = path.split('/');
   const normalizedSegments: string[] = [];
   for (const segment of segments) {
-    if (!segment || segment === '.') {
-      continue;
-    }
     if (segment === '..') {
       normalizedSegments.pop();
-      continue;
+    } else if (segment && segment !== '.') {
+      normalizedSegments.push(segment);
     }
-    normalizedSegments.push(segment);
   }
   return normalizedSegments.join('/');
 }
