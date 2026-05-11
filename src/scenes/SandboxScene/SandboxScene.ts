@@ -29,7 +29,6 @@ import {
   SHIELD_RADIUS,
   STAR_BASE_ALPHA,
   STAR_TWINKLE_AMOUNT,
-  STARTING_LIVES,
   type Asteroid,
   type Bullet,
   type FuelBlob,
@@ -38,6 +37,7 @@ import {
   type Planet,
   type Player,
 } from '@/constants';
+import { resolveAsteroidCollisions } from '@/asteroidPhysics';
 import { InputManager } from '@/input';
 import { joymap } from '@/joymap';
 import { circleIntersectsRotatedMask } from '@/maskCollision';
@@ -48,7 +48,6 @@ import {
   type BulletMode,
   type WeaponType,
 } from '@/playerFuel';
-import { sceneManager } from '@/sceneManager';
 import {
   asteroids,
   backgroundOffset,
@@ -1556,7 +1555,6 @@ export class SandboxScene implements Scene {
       return;
     }
 
-    currentPlayer.lives--;
     currentPlayer.waitingToRespawn = true;
     currentPlayer.respawnTime = now + RESPAWN_DELAY;
     const debrisVx = currentPlayer.vx;
@@ -1604,8 +1602,6 @@ export class SandboxScene implements Scene {
       return;
     }
 
-    currentPlayer.lives = STARTING_LIVES;
-    currentPlayer.score = 0;
     currentPlayer.shieldHits = 1;
     currentPlayer.shieldActive = false;
     refillRespawnResources(currentPlayer);
@@ -1652,7 +1648,7 @@ export class SandboxScene implements Scene {
     this.updateMinimapFog(currentPlayer);
 
     for (const planet of planets) {
-      if (currentPlayer.lives > 0 && !currentPlayer.waitingToRespawn) {
+      if (!currentPlayer.waitingToRespawn) {
         applyGravity(currentPlayer, planet);
       }
       for (const asteroid of asteroids) {
@@ -1667,11 +1663,7 @@ export class SandboxScene implements Scene {
     }
 
     processPlanetPlayer: for (const planet of planets) {
-      if (
-        currentPlayer.invulnerable ||
-        currentPlayer.lives <= 0 ||
-        currentPlayer.waitingToRespawn
-      ) {
+      if (currentPlayer.invulnerable || currentPlayer.waitingToRespawn) {
         break;
       }
       if (
@@ -1737,10 +1729,6 @@ export class SandboxScene implements Scene {
           asteroid.hits -= bullet.damage;
 
           if (asteroid.hits <= 0) {
-            if (currentPlayer.id === bullet.playerId) {
-              currentPlayer.score += ASTEROID_CONFIGS[asteroid.size].points * currentPlayer.lives;
-            }
-
             const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
             createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
             this.spawnAsteroidFuelDrops(asteroid, now);
@@ -1770,6 +1758,7 @@ export class SandboxScene implements Scene {
     for (const asteroid of asteroids) {
       updateAsteroid(asteroid);
     }
+    resolveAsteroidCollisions(asteroids);
 
     if (!currentPlayer.invulnerable && !currentPlayer.waitingToRespawn) {
       for (const asteroid of asteroids) {
@@ -1830,10 +1819,7 @@ export class SandboxScene implements Scene {
       this.killPlayer(currentPlayer, now, 2);
     }
 
-    if (currentPlayer.lives <= 0 && now >= currentPlayer.respawnTime) {
-      sceneManager.transitionTo('gameover');
-      gameState.gameOverTime = now;
-    } else if (currentPlayer.waitingToRespawn && now >= currentPlayer.respawnTime) {
+    if (currentPlayer.waitingToRespawn && now >= currentPlayer.respawnTime) {
       currentPlayer.invulnerable = true;
       currentPlayer.invulnerableUntil = now + INVULNERABLE_RESPAWN;
       currentPlayer.vx = 0;
@@ -2011,31 +1997,6 @@ export class SandboxScene implements Scene {
     ctx.restore();
 
     renderFuelMetaballs(ctx, this.collectFuelMetaballs(now), now);
-
-    if (player) {
-      ctx.font = '20px monospace';
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
-      ctx.fillStyle = player.color;
-      ctx.fillText('Sandbox', 20, 20);
-      const remainingTime = Math.max(0, Math.ceil((player.respawnTime - now) / 1000));
-      if (player.lives <= 0) {
-        ctx.fillStyle = '#888';
-        ctx.fillText(`Waiting... ${remainingTime}s`, 110, 20);
-      } else {
-        ctx.fillStyle = '#fff';
-        ctx.fillText(`x${player.lives} ${'♥'.repeat(player.lives)}`, 110, 20);
-      }
-      ctx.fillText(`Score: ${player.score}`, 110, 45);
-      ctx.fillText(`Asteroids: ${asteroids.length}/${SANDBOX_MAX_ASTEROIDS}`, 110, 70);
-      ctx.fillText(`Probes: ${player.inspectionProbes}`, 110, 95);
-      ctx.fillStyle = '#888';
-      ctx.fillText(
-        `${Math.round(player.x)}, ${Math.round(player.y)} / ${SANDBOX_WORLD_WIDTH} x ${SANDBOX_WORLD_HEIGHT}`,
-        20,
-        viewportHeight - 30,
-      );
-    }
 
     drawMinimap(
       ctx,

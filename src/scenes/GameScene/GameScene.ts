@@ -16,6 +16,7 @@ import {
   type Asteroid,
   type Player,
 } from '@/constants';
+import { resolveAsteroidCollisions } from '@/asteroidPhysics';
 import { InputManager } from '@/input';
 import { joymap } from '@/joymap';
 import { refillRespawnResources } from '@/playerFuel';
@@ -230,40 +231,6 @@ export class GameScene implements Scene {
     }
   }
 
-  private resolveAsteroidCollisions(): void {
-    for (let i = 0; i < asteroids.length; i += 1) {
-      for (let j = i + 1; j < asteroids.length; j += 1) {
-        const a = asteroids[i];
-        const b = asteroids[j];
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const dist = Math.max(0.001, Math.hypot(dx, dy));
-        const minDist = a.getRadius() + b.getRadius();
-        if (dist < minDist) {
-          const nx = dx / dist;
-          const ny = dy / dist;
-          const overlap = minDist - dist;
-          const totalMass = a.mass + b.mass;
-          a.x -= nx * overlap * (b.mass / totalMass);
-          a.y -= ny * overlap * (b.mass / totalMass);
-          b.x += nx * overlap * (a.mass / totalMass);
-          b.y += ny * overlap * (a.mass / totalMass);
-
-          const rvx = b.vx - a.vx;
-          const rvy = b.vy - a.vy;
-          const velocityAlongNormal = rvx * nx + rvy * ny;
-          if (velocityAlongNormal <= 0) {
-            const impulse = (-(1.05) * velocityAlongNormal) / (1 / a.mass + 1 / b.mass);
-            a.vx -= (impulse / a.mass) * nx;
-            a.vy -= (impulse / a.mass) * ny;
-            b.vx += (impulse / b.mass) * nx;
-            b.vy += (impulse / b.mass) * ny;
-          }
-        }
-      }
-    }
-  }
-
   private drawTractorBeam(ctx: CanvasRenderingContext2D): void {
     const currentPlayer = player;
     const target = this.tractorTarget;
@@ -446,7 +413,7 @@ export class GameScene implements Scene {
     for (const asteroid of asteroids) {
       updateAsteroid(asteroid);
     }
-    this.resolveAsteroidCollisions();
+    resolveAsteroidCollisions(asteroids);
 
     processPlayerAsteroidCollisions((player) => {
       if (player.waitingToRespawn) return;
