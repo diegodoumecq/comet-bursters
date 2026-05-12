@@ -21,16 +21,28 @@ import {
   gameState,
   getGameHeight,
   getGameWidth,
+  bullets,
   player,
   resetState,
   setPlayer,
+  applySavedWeaponSlots,
   stars,
 } from '@/state';
 import { updateBackground } from '../GameScene/background';
-import { createPlayer, drawPlayer } from '../GameScene/player';
+import { drawBullet, isBulletExpired, updateBullet } from '../GameScene/bullet';
+import { createPlayer, drawPlayer, fireAssignedWeapon } from '../GameScene/player';
 import { drawPlanet } from '../SandboxScene/planets';
 import { clearFlatPlanetTextureCache } from '../SandboxScene/planetTextureEngine';
+import {
+  drawInspectionProbe,
+  fireInspectionProbe,
+  updateInspectionProbes,
+  type InspectionProbe,
+} from '../inspectionProbe';
 import type { Scene } from '../scene';
+import { getPlayerTimeDilationStep } from '../timeDilation';
+import { applyTractorBeamToTargets, drawTractorBeam } from '../tractorBeam';
+import { drawWeaponSelectionMenuIfOpen } from '../weaponSelection';
 
 const DEMO_WORLD_WIDTH = 4600;
 const DEMO_WORLD_HEIGHT = 3400;
@@ -127,15 +139,16 @@ function drawDemoAsteroid(asteroid: Asteroid, ctx: CanvasRenderingContext2D): vo
 function updateDemoPlayer(
   currentPlayer: Player,
   input: ReturnType<typeof InputManager.getInputState>,
+  deltaScale = 1,
 ): void {
   if (input.move.value[0] !== 0 || input.move.value[1] !== 0) {
     currentPlayer.angle = Math.atan2(input.move.value[1], input.move.value[0]) + Math.PI * 0.5;
-    currentPlayer.vx += input.move.value[0] * DEMO_PLAYER_ACCELERATION;
-    currentPlayer.vy += input.move.value[1] * DEMO_PLAYER_ACCELERATION;
+    currentPlayer.vx += input.move.value[0] * DEMO_PLAYER_ACCELERATION * deltaScale;
+    currentPlayer.vy += input.move.value[1] * DEMO_PLAYER_ACCELERATION * deltaScale;
   }
 
-  currentPlayer.vx *= DEMO_PLAYER_FRICTION;
-  currentPlayer.vy *= DEMO_PLAYER_FRICTION;
+  currentPlayer.vx *= 1 - (1 - DEMO_PLAYER_FRICTION) * deltaScale;
+  currentPlayer.vy *= 1 - (1 - DEMO_PLAYER_FRICTION) * deltaScale;
 
   const speed = Math.sqrt(
     currentPlayer.vx * currentPlayer.vx + currentPlayer.vy * currentPlayer.vy,
@@ -154,8 +167,8 @@ function updateDemoPlayer(
     }
   }
 
-  currentPlayer.x = clamp(currentPlayer.x + currentPlayer.vx, 0, DEMO_WORLD_WIDTH);
-  currentPlayer.y = clamp(currentPlayer.y + currentPlayer.vy, 0, DEMO_WORLD_HEIGHT);
+  currentPlayer.x = clamp(currentPlayer.x + currentPlayer.vx * deltaScale, 0, DEMO_WORLD_WIDTH);
+  currentPlayer.y = clamp(currentPlayer.y + currentPlayer.vy * deltaScale, 0, DEMO_WORLD_HEIGHT);
   currentPlayer.isThrusting = false;
   currentPlayer.shieldActive = false;
 }
@@ -211,6 +224,8 @@ function drawDemoBackground(
 
 export class DemoScene implements Scene {
   private camera: Camera = { x: 0, y: 0 };
+  private simulationTime = Date.now();
+  private inspectionProbes: InspectionProbe[] = [];
   private planets: Planet[] = [];
   private asteroids: Asteroid[] = [];
   private startInputReadyAt = 0;
@@ -264,6 +279,7 @@ export class DemoScene implements Scene {
     resetState();
     clearFlatPlanetTextureCache();
     this.buildLayout();
+    this.inspectionProbes = [];
     this.startInputReadyAt = Date.now() + 500;
     window.addEventListener('keydown', this.handleKeyDown);
 
@@ -288,28 +304,81 @@ export class DemoScene implements Scene {
     currentPlayer.invulnerable = false;
     currentPlayer.waitingToRespawn = false;
     currentPlayer.shieldActive = false;
+    applySavedWeaponSlots(currentPlayer);
+    this.simulationTime = Date.now();
     this.updateCamera();
   }
 
   update(deltaTime: number): void {
-    updateBackground(deltaTime);
     const currentPlayer = player;
     if (!currentPlayer) {
       return;
     }
 
-    const input = InputManager.getInputState(
-      currentPlayer.module,
+    const timeStep = getPlayerTimeDilationStep(
+      currentPlayer,
       currentPlayer.x - this.camera.x,
       currentPlayer.y - this.camera.y,
+      deltaTime,
+      this.simulationTime,
     );
+    this.simulationTime = timeStep.now;
+    updateBackground(timeStep.scaledDeltaTime, timeStep.now, timeStep.deltaScale);
+
+    const input = timeStep.input;
     const now = Date.now();
-    if (now >= this.startInputReadyAt && input.fire.justChanged && input.fire.pressed) {
+    if (
+      now >= this.startInputReadyAt &&
+      !input.timeDilation.pressed &&
+      input.fire.justChanged &&
+      input.fire.pressed
+    ) {
       sceneManager.transitionTo('game');
       return;
     }
 
-    updateDemoPlayer(currentPlayer, input);
+    updateDemoPlayer(currentPlayer, input, timeStep.deltaScale);
+    if (!input.timeDilation.pressed) {
+      if (input.fire.pressed) {
+        fireAssignedWeapon(
+          currentPlayer,
+          currentPlayer.primaryWeapon,
+          timeStep.now,
+          timeStep.deltaScale,
+          () => fireInspectionProbe(currentPlayer, this.inspectionProbes, timeStep.now),
+        );
+      }
+      if (input.fireSpecial.pressed) {
+        fireAssignedWeapon(
+          currentPlayer,
+          currentPlayer.secondaryWeapon,
+          timeStep.now,
+          timeStep.deltaScale,
+          () => fireInspectionProbe(currentPlayer, this.inspectionProbes, timeStep.now),
+        );
+      }
+      if (input.chaosFire.pressed) {
+        fireAssignedWeapon(currentPlayer, 'shotgun', timeStep.now, timeStep.deltaScale);
+      }
+      if (input.fireReallyHard.pressed) {
+        fireAssignedWeapon(currentPlayer, 'blackHole', timeStep.now, timeStep.deltaScale);
+      }
+    }
+    applyTractorBeamToTargets(currentPlayer, input, this.asteroids, timeStep.deltaScale);
+    for (const asteroid of this.asteroids) {
+      asteroid.x = clamp(asteroid.x + asteroid.vx * timeStep.deltaScale, 0, DEMO_WORLD_WIDTH);
+      asteroid.y = clamp(asteroid.y + asteroid.vy * timeStep.deltaScale, 0, DEMO_WORLD_HEIGHT);
+      asteroid.rotation += asteroid.rotationSpeed * timeStep.deltaScale;
+    }
+    updateInspectionProbes(this.inspectionProbes, timeStep.now, {
+      deltaScale: timeStep.deltaScale,
+    });
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      updateBullet(bullets[i], timeStep.deltaScale);
+      if (isBulletExpired(bullets[i], timeStep.now)) {
+        bullets.splice(i, 1);
+      }
+    }
     this.updateCamera();
   }
 
@@ -359,8 +428,23 @@ export class DemoScene implements Scene {
       }
     }
 
+    for (const bullet of bullets) {
+      drawBullet(bullet, ctx, this.simulationTime);
+    }
+
+    for (const probe of this.inspectionProbes) {
+      drawInspectionProbe(probe, ctx);
+    }
+
     if (player) {
+      const input = InputManager.getInputState(
+        player.module,
+        player.x - this.camera.x,
+        player.y - this.camera.y,
+      );
+      drawTractorBeam(ctx, player, input);
       drawPlayer(player, ctx);
+      drawWeaponSelectionMenuIfOpen(ctx, player, input);
     }
 
     ctx.restore();

@@ -18,6 +18,8 @@ import {
   STARTING_LIVES,
   THRUSTER_PARTICLE_SPAWN_INTERVAL,
   type Player,
+  type SelectableWeaponType,
+  type WeaponType,
 } from '@/constants';
 import { InputManager } from '@/input';
 import {
@@ -25,9 +27,8 @@ import {
   getFuelRatio,
   getWeaponFireMode,
   type BulletMode,
-  type WeaponType,
 } from '@/playerFuel';
-import { bullets, gameState, getGameHeight, getGameWidth } from '@/state';
+import { bullets, gameState, getGameHeight, getGameWidth, savedWeaponSlots } from '@/state';
 import { createThrusterParticle } from './particle';
 
 const RESPAWN_COUNT_STORAGE_KEY = 'comet-bursters-respawn-count';
@@ -73,6 +74,8 @@ export function createPlayer(padId: string): Player {
     fuel: PLAYER_MAX_FUEL,
     maxFuel: PLAYER_MAX_FUEL,
     inspectionProbes: STARTING_INSPECTION_PROBES,
+    primaryWeapon: savedWeaponSlots.primaryWeapon,
+    secondaryWeapon: savedWeaponSlots.secondaryWeapon,
     module: createQueryModule({
       padId: padId === 'keyboard' ? undefined : padId,
       autoConnect: padId === 'keyboard',
@@ -90,7 +93,14 @@ export function createPlayer(padId: string): Player {
   };
 }
 
-export function updatePlayer(player: Player, deltaTime: number, now = Date.now(), deltaScale = 1) {
+export function updatePlayer(
+  player: Player,
+  deltaTime: number,
+  now = Date.now(),
+  deltaScale = 1,
+  suppressAssignedSlots = false,
+  onInspectionProbe?: () => boolean,
+) {
   if (player.waitingToRespawn) {
     return;
   }
@@ -157,73 +167,82 @@ export function updatePlayer(player: Player, deltaTime: number, now = Date.now()
     }
   }
 
-  if (
-    !player.shieldActive &&
-    input.fire.pressed &&
-    now - player.timeoutSmall >= BULLET_CONFIGS.small.fireRate
-  ) {
-    const mode = getWeaponFireMode(player, 'small');
-    if (mode) {
-      player.timeoutSmall = now;
-      createBullet(player, 'small', mode, now);
-      const recoil = BULLET_CONFIGS.small.recoil;
-      const recoilAngle = player.turretAngle + Math.PI * 0.5;
-      player.vx += Math.cos(recoilAngle) * recoil * deltaScale;
-      player.vy += Math.sin(recoilAngle) * recoil * deltaScale;
-    }
+  if (!suppressAssignedSlots && input.fire.pressed) {
+    fireAssignedWeapon(player, player.primaryWeapon, now, deltaScale, onInspectionProbe);
   }
 
-  if (
-    !player.shieldActive &&
-    input.chaosFire.pressed &&
-    now - player.timeoutShotgun >= BULLET_CONFIGS.shotgun.fireRate
-  ) {
-    const mode = getWeaponFireMode(player, 'shotgun');
-    if (mode) {
-      player.timeoutShotgun = now;
-      createBullet(player, 'shotgun', mode, now);
-      const recoil = BULLET_CONFIGS.shotgun.recoil;
-      const recoilAngle = player.turretAngle + Math.PI * 0.5;
-      player.vx += Math.cos(recoilAngle) * recoil * deltaScale;
-      player.vy += Math.sin(recoilAngle) * recoil * deltaScale;
-      createBullet(player, 'shotgun', mode, now);
-    }
+  if (!suppressAssignedSlots && input.fireSpecial.pressed) {
+    fireAssignedWeapon(player, player.secondaryWeapon, now, deltaScale, onInspectionProbe);
   }
 
-  if (
-    !player.shieldActive &&
-    input.fireSpecial.pressed &&
-    now - player.timeoutPusher >= BULLET_CONFIGS.pusher.fireRate
-  ) {
-    const mode = getWeaponFireMode(player, 'pusher');
-    if (mode) {
-      player.timeoutPusher = now;
-      createBullet(player, 'pusher', mode, now);
-      const recoil = BULLET_CONFIGS.pusher.recoil;
-      const recoilAngle = player.turretAngle + Math.PI * 0.5;
-      player.vx += Math.cos(recoilAngle) * recoil * deltaScale;
-      player.vy += Math.sin(recoilAngle) * recoil * deltaScale;
-    }
+  if (input.chaosFire.pressed) {
+    fireAssignedWeapon(player, 'shotgun', now, deltaScale);
   }
 
-  if (
-    !player.shieldActive &&
-    input.fireReallyHard.pressed &&
-    now - player.timeoutBlackHole >= BULLET_CONFIGS.blackHole.fireRate
-  ) {
-    const mode = getWeaponFireMode(player, 'blackHole');
-    if (mode) {
-      player.timeoutBlackHole = now;
-      createBullet(player, 'blackHole', mode, now);
-      const recoil = BULLET_CONFIGS.blackHole.recoil;
-      const recoilAngle = player.turretAngle + Math.PI * 0.5;
-      player.vx += Math.cos(recoilAngle) * recoil * deltaScale;
-      player.vy += Math.sin(recoilAngle) * recoil * deltaScale;
-    }
+  if (input.fireReallyHard.pressed) {
+    fireAssignedWeapon(player, 'blackHole', now, deltaScale);
   }
 
   if (player.invulnerable && now >= player.invulnerableUntil) {
     player.invulnerable = false;
+  }
+}
+
+function isProjectileWeapon(type: SelectableWeaponType): type is WeaponType {
+  return type !== 'inspectionProbe';
+}
+
+export function fireAssignedWeapon(
+  player: Player,
+  type: SelectableWeaponType,
+  now: number,
+  deltaScale: number,
+  onInspectionProbe?: () => boolean,
+): void {
+  if (type === 'inspectionProbe') {
+    onInspectionProbe?.();
+    return;
+  }
+
+  if (!isProjectileWeapon(type) || type === 'tractor' || player.shieldActive) {
+    return;
+  }
+
+  if (now - getWeaponTimeout(player, type) < BULLET_CONFIGS[type].fireRate) {
+    return;
+  }
+
+  const mode = getWeaponFireMode(player, type);
+  if (mode) {
+    setWeaponTimeout(player, type, now);
+    createBullet(player, type, mode, now);
+    const recoil = BULLET_CONFIGS[type].recoil;
+    const recoilAngle = player.turretAngle + Math.PI * 0.5;
+    player.vx += Math.cos(recoilAngle) * recoil * deltaScale;
+    player.vy += Math.sin(recoilAngle) * recoil * deltaScale;
+
+    if (type === 'shotgun') {
+      createBullet(player, type, mode, now);
+    }
+  }
+}
+
+function getWeaponTimeout(player: Player, type: Exclude<WeaponType, 'tractor'>): number {
+  if (type === 'small') return player.timeoutSmall;
+  if (type === 'pusher') return player.timeoutPusher;
+  if (type === 'shotgun') return player.timeoutShotgun;
+  return player.timeoutBlackHole;
+}
+
+function setWeaponTimeout(player: Player, type: Exclude<WeaponType, 'tractor'>, now: number): void {
+  if (type === 'small') {
+    player.timeoutSmall = now;
+  } else if (type === 'pusher') {
+    player.timeoutPusher = now;
+  } else if (type === 'shotgun') {
+    player.timeoutShotgun = now;
+  } else {
+    player.timeoutBlackHole = now;
   }
 }
 

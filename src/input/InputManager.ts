@@ -239,15 +239,15 @@ class InputManagerImpl {
       },
       fire: {
         type: 'button' as const,
-        value: buttons.R1?.value || 0,
-        pressed: buttons.R1?.pressed || false,
-        justChanged: buttons.R1?.justChanged || false,
-      },
-      fireSpecial: {
-        type: 'button' as const,
         value: buttons.L1?.value || 0,
         pressed: buttons.L1?.pressed || false,
         justChanged: buttons.L1?.justChanged || false,
+      },
+      fireSpecial: {
+        type: 'button' as const,
+        value: buttons.R1?.value || 0,
+        pressed: buttons.R1?.pressed || false,
+        justChanged: buttons.R1?.justChanged || false,
       },
       fireReallyHard: {
         type: 'button' as const,
@@ -359,8 +359,7 @@ class InputManagerImpl {
     );
     const mergedChaosFire = this.mergeButtons(keyboardChaosFire, gamepadChaosFire, emptyButton);
     const mergedShield = this.mergeButtons(keyboardShield, gamepadShield, emptyButton);
-    const mergedTractor = this.mergeButtons(keyboardTractor, emptyButton, emptyButton);
-    const mergedTimeDilation = this.mergeButtons(keyboardTimeDilation, emptyButton, emptyButton);
+    const mergedTractor = keyboardTractor;
 
     return {
       move: mergedMove,
@@ -371,7 +370,7 @@ class InputManagerImpl {
       chaosFire: mergedChaosFire,
       shield: mergedShield,
       tractor: mergedTractor,
-      timeDilation: mergedTimeDilation,
+      timeDilation: keyboardTimeDilation,
     };
   }
 

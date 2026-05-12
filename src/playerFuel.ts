@@ -2,12 +2,12 @@ import {
   FUEL_WEAPON_COSTS,
   LOW_FUEL_RATIO,
   STARTING_INSPECTION_PROBES,
-  type Bullet,
   type Player,
+  type WeaponType,
 } from './constants';
 
 export type BulletMode = 'normal' | 'degraded';
-export type WeaponType = Bullet['type'];
+export type { WeaponType } from './constants';
 
 export function getFuelRatio(player: Player): number {
   return player.maxFuel > 0 ? player.fuel / player.maxFuel : 0;

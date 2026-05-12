@@ -10,12 +10,9 @@ import {
   FUEL_BLOB_DRAG,
   FUEL_BLOB_MAX_SPEED,
   FUEL_BLOB_RADIUS,
+  INSPECTION_PROBE_DURATION_MS,
+  INSPECTION_PROBE_RADIUS,
   STARTING_LIVES,
-  TIME_DILATION_SCALE,
-  TRACTOR_BEAM_MAX_TARGET_SPEED,
-  TRACTOR_BEAM_PULL,
-  TRACTOR_BEAM_RANGE,
-  PLAYER_SIZE,
   type Asteroid,
   type Bullet,
   type Player,
@@ -39,6 +36,7 @@ import {
   resetState,
   screenShake,
   setPlayer,
+  applySavedWeaponSlots,
   thrusterParticles,
   type PlayableSceneName,
 } from '@/state';
@@ -50,6 +48,15 @@ import {
   type FuelMetaball,
 } from '../SandboxScene/fuelMetaballs';
 import type { Scene } from '../scene';
+import {
+  drawInspectionProbe,
+  fireInspectionProbe,
+  updateInspectionProbes,
+  type InspectionProbe,
+} from '../inspectionProbe';
+import { getPlayerTimeDilationStep } from '../timeDilation';
+import { applyTractorBeamToTargets, drawTractorBeam } from '../tractorBeam';
+import { drawWeaponSelectionMenuIfOpen } from '../weaponSelection';
 import { drawAsteroid, spawnWave, splitAsteroid, updateAsteroid } from './asteroid';
 import {
   getBlackHoleRenderRadius,
@@ -81,12 +88,6 @@ type DroppedFuelBlob = {
   wobbleSeed: number;
 };
 
-const TRACTOR_BEAM_HALF_ANGLE = Math.PI / 6;
-const TRACTOR_BEAM_MIN_FORWARD_DISTANCE = 0;
-const TRACTOR_BEAM_MUZZLE_DISTANCE = PLAYER_SIZE * 0.68;
-const TRACTOR_BEAM_GRAVITY_RADIUS = 72;
-const TRACTOR_BEAM_GRAVITY_SOFTENING = 36;
-const TRACTOR_BEAM_GRAVITY_MAX_ACCELERATION = TRACTOR_BEAM_PULL * 0.9;
 const BLACK_HOLE_COLLAPSE_DURATION_MS = 700;
 const BLACK_HOLE_ABSORBED_FUEL_BLOBS: Record<Asteroid['size'], number> = {
   small: 1,
@@ -94,10 +95,10 @@ const BLACK_HOLE_ABSORBED_FUEL_BLOBS: Record<Asteroid['size'], number> = {
   big: 4,
   mega: 8,
 };
-
 export class GameScene implements Scene {
   private canvas: HTMLCanvasElement | null = null;
   private droppedFuelBlobs: DroppedFuelBlob[] = [];
+  private inspectionProbes: InspectionProbe[] = [];
   private simulationTime = Date.now();
   private readonly restartScene: PlayableSceneName;
 
@@ -313,175 +314,24 @@ export class GameScene implements Scene {
     }
   }
 
-  private getTractorBeamDirection(currentPlayer: Player): { x: number; y: number } {
-    const angle = currentPlayer.turretAngle - Math.PI * 0.5;
-    return { x: Math.cos(angle), y: Math.sin(angle) };
-  }
-
-  private getTractorMuzzlePosition(
-    currentPlayer: Player,
-    direction = this.getTractorBeamDirection(currentPlayer),
-  ): { x: number; y: number } {
-    return {
-      x: currentPlayer.x + direction.x * TRACTOR_BEAM_MUZZLE_DISTANCE,
-      y: currentPlayer.y + direction.y * TRACTOR_BEAM_MUZZLE_DISTANCE,
-    };
-  }
-
-  private getTractorBeamGeometry(currentPlayer: Player): {
-    direction: { x: number; y: number };
-    muzzle: { x: number; y: number };
-    gravityPoint: { x: number; y: number };
-  } {
-    const direction = this.getTractorBeamDirection(currentPlayer);
-    const muzzle = this.getTractorMuzzlePosition(currentPlayer, direction);
-    return {
-      direction,
-      muzzle,
-      gravityPoint: {
-        x: muzzle.x + direction.x * TRACTOR_BEAM_RANGE,
-        y: muzzle.y + direction.y * TRACTOR_BEAM_RANGE,
-      },
-    };
-  }
-
-  private isInTractorBeam(
-    currentPlayer: Player,
-    asteroid: { x: number; y: number },
-    direction = this.getTractorBeamDirection(currentPlayer),
-  ): boolean {
-    const muzzle = this.getTractorMuzzlePosition(currentPlayer, direction);
-    const dx = asteroid.x - muzzle.x;
-    const dy = asteroid.y - muzzle.y;
-    const distance = Math.hypot(dx, dy);
-    if (distance <= 0 || distance > TRACTOR_BEAM_RANGE) {
-      return false;
-    }
-
-    const forwardDistance = dx * direction.x + dy * direction.y;
-    if (forwardDistance < TRACTOR_BEAM_MIN_FORWARD_DISTANCE) {
-      return false;
-    }
-
-    const angle = Math.acos(Math.max(-1, Math.min(1, forwardDistance / distance)));
-    return angle <= TRACTOR_BEAM_HALF_ANGLE;
-  }
-
-  private isNearTractorGravityPoint(
-    asteroid: { x: number; y: number },
-    gravityPoint: { x: number; y: number },
-  ): boolean {
-    return Math.hypot(asteroid.x - gravityPoint.x, asteroid.y - gravityPoint.y) <=
-      TRACTOR_BEAM_GRAVITY_RADIUS;
-  }
-
   private applyTractorBeam(currentPlayer: Player, deltaScale = 1): void {
     const input = InputManager.getInputState(currentPlayer.module, currentPlayer.x, currentPlayer.y);
-    if (!input.tractor.pressed || currentPlayer.fuel <= 0 || currentPlayer.waitingToRespawn) {
-      return;
-    }
-
-    const { direction, gravityPoint } = this.getTractorBeamGeometry(currentPlayer);
-    for (const asteroid of asteroids) {
-      const affected =
-        this.isInTractorBeam(currentPlayer, asteroid, direction) ||
-        this.isNearTractorGravityPoint(asteroid, gravityPoint);
-
-      if (affected) {
-        const dx = gravityPoint.x - asteroid.x;
-        const dy = gravityPoint.y - asteroid.y;
-        const distance = Math.hypot(dx, dy);
-
-        if (distance > 0) {
-          const softenedDistance = Math.max(distance, TRACTOR_BEAM_GRAVITY_SOFTENING);
-          const gravityScale = Math.min(
-            TRACTOR_BEAM_GRAVITY_MAX_ACCELERATION,
-            (TRACTOR_BEAM_PULL * TRACTOR_BEAM_GRAVITY_RADIUS) / softenedDistance,
-          );
-          asteroid.vx += (dx / distance) * gravityScale * deltaScale;
-          asteroid.vy += (dy / distance) * gravityScale * deltaScale;
-
-          const speed = Math.hypot(asteroid.vx, asteroid.vy);
-          if (speed > TRACTOR_BEAM_MAX_TARGET_SPEED) {
-            asteroid.vx = (asteroid.vx / speed) * TRACTOR_BEAM_MAX_TARGET_SPEED;
-            asteroid.vy = (asteroid.vy / speed) * TRACTOR_BEAM_MAX_TARGET_SPEED;
-          }
-        }
-      }
-    }
+    applyTractorBeamToTargets(currentPlayer, input, asteroids, deltaScale);
   }
 
   private drawTractorBeam(ctx: CanvasRenderingContext2D): void {
     const currentPlayer = player;
-    if (!currentPlayer || currentPlayer.waitingToRespawn || currentPlayer.fuel <= 0) {
+    if (!currentPlayer) {
       return;
     }
 
     const input = InputManager.getInputState(currentPlayer.module, currentPlayer.x, currentPlayer.y);
-    if (!input.tractor.pressed) {
-      return;
-    }
+    drawTractorBeam(ctx, currentPlayer, input);
+  }
 
-    ctx.save();
-    const { direction, muzzle, gravityPoint } = this.getTractorBeamGeometry(currentPlayer);
-    const beamAngle = Math.atan2(direction.y, direction.x);
-    const edgeA = beamAngle - TRACTOR_BEAM_HALF_ANGLE;
-    const edgeB = beamAngle + TRACTOR_BEAM_HALF_ANGLE;
-    const endAX = muzzle.x + Math.cos(edgeA) * TRACTOR_BEAM_RANGE;
-    const endAY = muzzle.y + Math.sin(edgeA) * TRACTOR_BEAM_RANGE;
-    const endBX = muzzle.x + Math.cos(edgeB) * TRACTOR_BEAM_RANGE;
-    const endBY = muzzle.y + Math.sin(edgeB) * TRACTOR_BEAM_RANGE;
-
-    const beamGradient = ctx.createRadialGradient(
-      muzzle.x,
-      muzzle.y,
-      0,
-      muzzle.x,
-      muzzle.y,
-      TRACTOR_BEAM_RANGE,
-    );
-    beamGradient.addColorStop(0, 'rgba(210, 255, 255, 0.24)');
-    beamGradient.addColorStop(0.42, 'rgba(100, 235, 255, 0.14)');
-    beamGradient.addColorStop(1, 'rgba(100, 235, 255, 0.02)');
-    ctx.fillStyle = beamGradient;
-    ctx.beginPath();
-    ctx.moveTo(muzzle.x, muzzle.y);
-    ctx.lineTo(endAX, endAY);
-    ctx.lineTo(endBX, endBY);
-    ctx.lineTo(muzzle.x, muzzle.y);
-    ctx.fill();
-
-    ctx.strokeStyle = 'rgba(210, 255, 255, 0.28)';
-    ctx.lineWidth = 2;
-    for (let band = 0.28; band <= 1; band += 0.24) {
-      ctx.beginPath();
-      ctx.arc(muzzle.x, muzzle.y, TRACTOR_BEAM_RANGE * band, edgeA, edgeB);
-      ctx.stroke();
-    }
-
-    const focusGradient = ctx.createRadialGradient(
-      gravityPoint.x,
-      gravityPoint.y,
-      0,
-      gravityPoint.x,
-      gravityPoint.y,
-      26,
-    );
-    focusGradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
-    focusGradient.addColorStop(0.22, 'rgba(210, 255, 255, 0.7)');
-    focusGradient.addColorStop(0.58, 'rgba(100, 235, 255, 0.24)');
-    focusGradient.addColorStop(1, 'rgba(100, 235, 255, 0)');
-    ctx.fillStyle = focusGradient;
-    ctx.beginPath();
-    ctx.arc(gravityPoint.x, gravityPoint.y, 26, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = 'rgba(210, 255, 255, 0.42)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(gravityPoint.x, gravityPoint.y, 8, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
+  private drawSceneWeaponSelectionMenu(ctx: CanvasRenderingContext2D, currentPlayer: Player): void {
+    const input = InputManager.getInputState(currentPlayer.module, currentPlayer.x, currentPlayer.y);
+    drawWeaponSelectionMenuIfOpen(ctx, currentPlayer, input);
   }
 
   private collectFuelMetaballs(now: number): FuelMetaball[] {
@@ -515,6 +365,7 @@ export class GameScene implements Scene {
     gameState.restartScene = this.restartScene;
     gameState.currentWave = gameState.startingWave;
     this.droppedFuelBlobs = [];
+    this.inspectionProbes = [];
 
     if (!player) {
       const padId = joymap.getUnusedPadIds()[0] ?? 'keyboard';
@@ -532,6 +383,7 @@ export class GameScene implements Scene {
     currentPlayer.score = 0;
     currentPlayer.shieldHits = 1;
     currentPlayer.shieldActive = false;
+    applySavedWeaponSlots(currentPlayer);
     refillRespawnResources(currentPlayer);
     currentPlayer.waitingToRespawn = false;
     currentPlayer.angle = 0;
@@ -554,12 +406,18 @@ export class GameScene implements Scene {
 
   update(deltaTime: number): void {
     const currentPlayer = player;
-    const input = currentPlayer
-      ? InputManager.getInputState(currentPlayer.module, currentPlayer.x, currentPlayer.y)
+    const timeStep = currentPlayer
+      ? getPlayerTimeDilationStep(
+          currentPlayer,
+          currentPlayer.x,
+          currentPlayer.y,
+          deltaTime,
+          this.simulationTime,
+        )
       : null;
-    const deltaScale = input?.timeDilation.pressed ? TIME_DILATION_SCALE : 1;
-    const scaledDeltaTime = deltaTime * deltaScale;
-    this.simulationTime += scaledDeltaTime;
+    const deltaScale = timeStep?.deltaScale ?? 1;
+    const scaledDeltaTime = timeStep?.scaledDeltaTime ?? deltaTime;
+    this.simulationTime = timeStep?.now ?? this.simulationTime + scaledDeltaTime;
     const now = this.simulationTime;
     const realNow = Date.now();
 
@@ -650,11 +508,36 @@ export class GameScene implements Scene {
     this.removeBlackHolesCollidingWithPlanets();
 
     if (currentPlayer) {
-      updatePlayer(currentPlayer, scaledDeltaTime, now, deltaScale);
-      this.applyTractorBeam(currentPlayer, deltaScale);
+      updatePlayer(
+        currentPlayer,
+        scaledDeltaTime,
+        now,
+        deltaScale,
+        Boolean(timeStep?.input.timeDilation.pressed),
+        () => fireInspectionProbe(currentPlayer, this.inspectionProbes, now),
+      );
+      if (!timeStep?.input.timeDilation.pressed) {
+        this.applyTractorBeam(currentPlayer, deltaScale);
+      }
     }
     this.applyBlackHoleGravity(now, deltaScale);
     this.updateDroppedFuel(deltaScale);
+    updateInspectionProbes(this.inspectionProbes, now, {
+      deltaScale,
+      handleProbe: (probe) => {
+        const hitPlanet = planets.find(
+          (planet) =>
+            Math.hypot(probe.x - planet.x, probe.y - planet.y) <=
+            planet.getRadius() + INSPECTION_PROBE_RADIUS,
+        );
+        if (hitPlanet) {
+          hitPlanet.inspectedUntil = now + INSPECTION_PROBE_DURATION_MS;
+          return true;
+        }
+
+        return false;
+      },
+    });
 
     for (const asteroid of asteroids) {
       updateAsteroid(asteroid, deltaScale);
@@ -793,6 +676,10 @@ export class GameScene implements Scene {
       drawBullet(bullet, ctx, now);
     }
 
+    for (const probe of this.inspectionProbes) {
+      drawInspectionProbe(probe, ctx);
+    }
+
     for (const asteroid of asteroids) {
       drawAsteroid(asteroid, ctx);
     }
@@ -804,6 +691,7 @@ export class GameScene implements Scene {
 
     if (player && !player.waitingToRespawn) {
       drawPlayer(player, ctx);
+      this.drawSceneWeaponSelectionMenu(ctx, player);
     }
 
     for (let i = particles.length - 1; i >= 0; i--) {

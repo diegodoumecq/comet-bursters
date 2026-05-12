@@ -37,6 +37,8 @@ export interface Player extends Collidable {
   fuel: number;
   maxFuel: number;
   inspectionProbes: number;
+  primaryWeapon: SelectableWeaponType;
+  secondaryWeapon: SelectableWeaponType;
   module: QueryModule;
   timeoutSmall: number;
   timeoutBlackHole: number;
@@ -93,6 +95,9 @@ export interface FuelExtractor {
   blobs: FuelBlob[];
 }
 
+export type WeaponType = 'small' | 'blackHole' | 'pusher' | 'shotgun' | 'tractor';
+export type SelectableWeaponType = WeaponType | 'inspectionProbe';
+
 export interface Bullet {
   x: number;
   y: number;
@@ -107,7 +112,7 @@ export interface Bullet {
   damage: number;
   impact: number;
   recoil: number;
-  type: 'small' | 'blackHole' | 'pusher' | 'shotgun' | 'tractor';
+  type: WeaponType;
   absorbedFuelBlobs?: number;
   collapseStartTime?: number;
   collapseDuration?: number;

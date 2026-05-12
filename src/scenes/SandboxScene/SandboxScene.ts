@@ -16,9 +16,7 @@ import {
   GRID_COLOR,
   GRID_SPACING,
   INSPECTION_PROBE_DURATION_MS,
-  INSPECTION_PROBE_LIFETIME_MS,
   INSPECTION_PROBE_RADIUS,
-  INSPECTION_PROBE_SPEED,
   PLANET_CONFIG,
   PLAYER_ACCELERATION,
   PLAYER_MAX_SPEED,
@@ -35,6 +33,7 @@ import {
   type Particle,
   type Planet,
   type Player,
+  type SelectableWeaponType,
 } from '@/constants';
 import { InputManager } from '@/input';
 import { joymap } from '@/joymap';
@@ -59,6 +58,7 @@ import {
   resetState,
   screenShake,
   setPlayer,
+  applySavedWeaponSlots,
   stars,
   thrusterParticles,
 } from '@/state';
@@ -81,6 +81,15 @@ import {
   updateBlackHoles,
 } from '../GameScene/shader';
 import type { Scene } from '../scene';
+import {
+  drawInspectionProbe,
+  fireInspectionProbe,
+  updateInspectionProbes,
+  type InspectionProbe,
+} from '../inspectionProbe';
+import { getPlayerTimeDilationStep } from '../timeDilation';
+import { applyTractorBeamToTargets, drawTractorBeam } from '../tractorBeam';
+import { drawWeaponSelectionMenuIfOpen } from '../weaponSelection';
 import {
   disposeFuelMetaballs,
   initFuelMetaballs,
@@ -124,15 +133,6 @@ type DroppedFuelBlob = {
   vx: number;
   vy: number;
   wobbleSeed: number;
-};
-
-type InspectionProbe = {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  angle: number;
-  spawnTime: number;
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -513,11 +513,11 @@ function drawAsteroid(asteroid: Asteroid, ctx: CanvasRenderingContext2D): void {
   ctx.restore();
 }
 
-function updateAsteroid(asteroid: Asteroid): void {
-  asteroid.x += asteroid.vx;
-  asteroid.y += asteroid.vy;
+function updateAsteroid(asteroid: Asteroid, deltaScale = 1): void {
+  asteroid.x += asteroid.vx * deltaScale;
+  asteroid.y += asteroid.vy * deltaScale;
   wrapWorldPoint(asteroid);
-  asteroid.rotation += asteroid.rotationSpeed;
+  asteroid.rotation += asteroid.rotationSpeed * deltaScale;
 }
 
 function splitAsteroid(asteroid: Asteroid): Asteroid[] {
@@ -547,11 +547,11 @@ function splitAsteroid(asteroid: Asteroid): Asteroid[] {
   return children;
 }
 
-function updateBullet(bullet: Bullet): void {
+function updateBullet(bullet: Bullet, deltaScale = 1): void {
   bullet.prevX = bullet.x;
   bullet.prevY = bullet.y;
-  bullet.x += bullet.vx;
-  bullet.y += bullet.vy;
+  bullet.x += bullet.vx * deltaScale;
+  bullet.y += bullet.vy * deltaScale;
   wrapWorldPoint(bullet);
 }
 
@@ -614,24 +614,6 @@ function drawBullet(
   ctx.restore();
 }
 
-function drawInspectionProbe(probe: InspectionProbe, ctx: CanvasRenderingContext2D): void {
-  ctx.save();
-  ctx.translate(probe.x, probe.y);
-  ctx.rotate(probe.angle);
-  ctx.fillStyle = '#67e8f9';
-  ctx.strokeStyle = '#ecfeff';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(10, 0);
-  ctx.lineTo(-6, -4);
-  ctx.lineTo(-3, 0);
-  ctx.lineTo(-6, 4);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-}
-
 function drawFuelExtractorBuilding(
   ctx: CanvasRenderingContext2D,
   planet: Planet,
@@ -680,13 +662,13 @@ function drawInspectedPlanetOverlay(ctx: CanvasRenderingContext2D, planet: Plane
   ctx.restore();
 }
 
-function updateParticleNoWrap(particle: Particle, deltaTime: number): void {
-  particle.x += particle.vx * 0.6;
-  particle.y += particle.vy * 0.6;
+function updateParticleNoWrap(particle: Particle, deltaTime: number, deltaScale = 1): void {
+  particle.x += particle.vx * 0.6 * deltaScale;
+  particle.y += particle.vy * 0.6 * deltaScale;
   wrapWorldPoint(particle);
-  particle.vx *= 0.98;
-  particle.vy *= 0.98;
-  particle.rotation += particle.rotationSpeed;
+  particle.vx *= 1 - 0.02 * deltaScale;
+  particle.vy *= 1 - 0.02 * deltaScale;
+  particle.rotation += particle.rotationSpeed * deltaScale;
   particle.lifetime -= deltaTime;
   particle.alpha = Math.max(0, particle.lifetime / particle.maxLifetime);
 }
@@ -695,12 +677,15 @@ function drawParticleNoWrap(particle: Particle, ctx: CanvasRenderingContext2D): 
   drawOneParticle(particle, ctx);
 }
 
-function createBullet(player: Player, type: WeaponType, mode: BulletMode = 'normal'): void {
+function createBullet(
+  player: Player,
+  type: WeaponType,
+  mode: BulletMode = 'normal',
+  now = Date.now(),
+): void {
   const config = BULLET_CONFIGS[type];
   const isDegradedSmall = mode === 'degraded' && type === 'small';
   const bulletAngle = player.turretAngle - Math.PI * 0.5;
-  const now = Date.now();
-
   for (let i = 0; i < config.bulletCount; i++) {
     const spreadOffset =
       config.bulletCount > 1 ? (i / (config.bulletCount - 1) - 0.5) * config.spreadAngle : 0;
@@ -730,18 +715,64 @@ function createBullet(player: Player, type: WeaponType, mode: BulletMode = 'norm
   }
 }
 
+function isProjectileWeapon(type: SelectableWeaponType): type is WeaponType {
+  return type !== 'inspectionProbe';
+}
+
+function getWeaponTimeout(player: Player, type: WeaponType): number {
+  if (type === 'small') return player.timeoutSmall;
+  if (type === 'pusher') return player.timeoutPusher;
+  if (type === 'shotgun') return player.timeoutShotgun;
+  return player.timeoutBlackHole;
+}
+
+function setWeaponTimeout(player: Player, type: WeaponType, now: number): void {
+  if (type === 'small') {
+    player.timeoutSmall = now;
+  } else if (type === 'pusher') {
+    player.timeoutPusher = now;
+  } else if (type === 'shotgun') {
+    player.timeoutShotgun = now;
+  } else {
+    player.timeoutBlackHole = now;
+  }
+}
+
+function fireProjectileWeapon(player: Player, type: WeaponType, now: number, deltaScale = 1): void {
+  if (type === 'tractor' || player.shieldActive) {
+    return;
+  }
+
+  if (now - getWeaponTimeout(player, type) < BULLET_CONFIGS[type].fireRate) {
+    return;
+  }
+
+  const mode = getWeaponFireMode(player, type);
+  if (mode) {
+    setWeaponTimeout(player, type, now);
+    createBullet(player, type, mode, now);
+    if (type === 'shotgun') {
+      createBullet(player, type, mode, now);
+    }
+    const recoilAngle = player.turretAngle + Math.PI * 0.5;
+    player.vx += Math.cos(recoilAngle) * BULLET_CONFIGS[type].recoil * deltaScale;
+    player.vy += Math.sin(recoilAngle) * BULLET_CONFIGS[type].recoil * deltaScale;
+  }
+}
+
 function updatePlayer(
   player: Player,
   camera: Camera,
   visualPlayerPosition: Point,
   deltaTime: number,
   onProbeFire: () => boolean,
+  suppressAssignedSlots = false,
+  now = Date.now(),
+  deltaScale = 1,
 ): void {
   const screenPlayerX = visualPlayerPosition.x - camera.x;
   const screenPlayerY = visualPlayerPosition.y - camera.y;
   const input = InputManager.getInputState(player.module, screenPlayerX, screenPlayerY);
-  const now = Date.now();
-
   if (player.waitingToRespawn) {
     return;
   }
@@ -762,8 +793,8 @@ function updatePlayer(
     if (player.fuel > 0) {
       drainFuel(player, FUEL_THRUST_PER_SECOND * (deltaTime / 1000));
     }
-    player.vx += input.move.value[0] * PLAYER_ACCELERATION * thrustPower;
-    player.vy += input.move.value[1] * PLAYER_ACCELERATION * thrustPower;
+    player.vx += input.move.value[0] * PLAYER_ACCELERATION * thrustPower * deltaScale;
+    player.vy += input.move.value[1] * PLAYER_ACCELERATION * thrustPower * deltaScale;
   }
 
   const speed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
@@ -782,8 +813,8 @@ function updatePlayer(
     }
   }
 
-  player.x += player.vx;
-  player.y += player.vy;
+  player.x += player.vx * deltaScale;
+  player.y += player.vy * deltaScale;
 
   player.isThrusting = accelerationApplied;
   if (accelerationApplied) {
@@ -802,57 +833,27 @@ function updatePlayer(
     }
   }
 
-  if (
-    !player.shieldActive &&
-    input.fire.pressed &&
-    now - player.timeoutSmall >= BULLET_CONFIGS.small.fireRate
-  ) {
-    const mode = getWeaponFireMode(player, 'small');
-    if (mode) {
-      player.timeoutSmall = now;
-      createBullet(player, 'small', mode);
-      const recoilAngle = player.turretAngle + Math.PI * 0.5;
-      player.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.small.recoil;
-      player.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.small.recoil;
+  if (!suppressAssignedSlots && input.fire.pressed) {
+    if (player.primaryWeapon === 'inspectionProbe') {
+      onProbeFire();
+    } else if (isProjectileWeapon(player.primaryWeapon)) {
+      fireProjectileWeapon(player, player.primaryWeapon, now, deltaScale);
     }
   }
 
-  if (
-    !player.shieldActive &&
-    input.chaosFire.pressed &&
-    now - player.timeoutShotgun >= BULLET_CONFIGS.shotgun.fireRate
-  ) {
-    const mode = getWeaponFireMode(player, 'shotgun');
-    if (mode) {
-      player.timeoutShotgun = now;
-      createBullet(player, 'shotgun', mode);
-      createBullet(player, 'shotgun', mode);
-      const recoilAngle = player.turretAngle + Math.PI * 0.5;
-      player.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.shotgun.recoil;
-      player.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.shotgun.recoil;
+  if (!suppressAssignedSlots && input.fireSpecial.pressed) {
+    if (player.secondaryWeapon === 'inspectionProbe') {
+      onProbeFire();
+    } else if (isProjectileWeapon(player.secondaryWeapon)) {
+      fireProjectileWeapon(player, player.secondaryWeapon, now, deltaScale);
     }
   }
 
-  if (
-    !player.shieldActive &&
-    input.fireSpecial.pressed &&
-    now - player.timeoutPusher >= BULLET_CONFIGS.pusher.fireRate
-  ) {
-    const mode = getWeaponFireMode(player, 'pusher');
-    if (mode) {
-      player.timeoutPusher = now;
-      createBullet(player, 'pusher', mode);
-      const recoilAngle = player.turretAngle + Math.PI * 0.5;
-      player.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.pusher.recoil;
-      player.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.pusher.recoil;
-    }
+  if (input.chaosFire.pressed) {
+    fireProjectileWeapon(player, 'shotgun', now, deltaScale);
   }
 
-  if (
-    !player.shieldActive &&
-    input.fireReallyHard.pressed &&
-    now - player.timeoutBlackHole >= BULLET_CONFIGS.blackHole.fireRate
-  ) {
+  if (input.fireReallyHard.pressed) {
     if (onProbeFire()) {
       player.timeoutBlackHole = now;
     }
@@ -1061,6 +1062,7 @@ export class SandboxScene implements Scene {
   private camera: Camera = { x: 0, y: 0 };
   private previousCamera: Camera = { x: 0, y: 0 };
   private visualPlayerPosition: Point = { x: 0, y: 0 };
+  private simulationTime = Date.now();
   private droppedFuelBlobs: DroppedFuelBlob[] = [];
   private inspectionProbes: InspectionProbe[] = [];
   private readonly seenMinimapCells = new Uint8Array(MINIMAP_FOG_COLUMNS * MINIMAP_FOG_ROWS);
@@ -1333,36 +1335,11 @@ export class SandboxScene implements Scene {
     return true;
   }
 
-  private fireInspectionProbe(currentPlayer: Player): boolean {
-    if (currentPlayer.inspectionProbes <= 0) {
-      return false;
-    }
-
-    currentPlayer.inspectionProbes--;
-    const angle = currentPlayer.turretAngle - Math.PI * 0.5;
-    this.inspectionProbes.push({
-      x: currentPlayer.x + Math.cos(angle) * PLAYER_SIZE,
-      y: currentPlayer.y + Math.sin(angle) * PLAYER_SIZE,
-      vx: currentPlayer.vx + Math.cos(angle) * INSPECTION_PROBE_SPEED,
-      vy: currentPlayer.vy + Math.sin(angle) * INSPECTION_PROBE_SPEED,
-      angle,
-      spawnTime: Date.now(),
-    });
-    return true;
-  }
-
-  private updateInspectionProbes(now: number): void {
-    for (let i = this.inspectionProbes.length - 1; i >= 0; i--) {
-      const probe = this.inspectionProbes[i];
-      probe.x += probe.vx;
-      probe.y += probe.vy;
-      wrapWorldPoint(probe);
-
-      if (
-        now - probe.spawnTime >= INSPECTION_PROBE_LIFETIME_MS
-      ) {
-        this.inspectionProbes.splice(i, 1);
-      } else {
+  private updateInspectionProbes(now: number, deltaScale = 1): void {
+    updateInspectionProbes(this.inspectionProbes, now, {
+      deltaScale,
+      wrapProbe: wrapWorldPoint,
+      handleProbe: (probe) => {
         const hitPlanet = planets.find(
           (planet) =>
             wrappedDistance(probe.x, probe.y, planet.x, planet.y) <=
@@ -1370,10 +1347,12 @@ export class SandboxScene implements Scene {
         );
         if (hitPlanet) {
           hitPlanet.inspectedUntil = now + INSPECTION_PROBE_DURATION_MS;
-          this.inspectionProbes.splice(i, 1);
+          return true;
         }
-      }
-    }
+
+        return false;
+      },
+    });
   }
 
   private collectFuelMetaballs(now: number): FuelMetaball[] {
@@ -1514,6 +1493,7 @@ export class SandboxScene implements Scene {
 
     currentPlayer.shieldHits = 1;
     currentPlayer.shieldActive = false;
+    applySavedWeaponSlots(currentPlayer);
     refillRespawnResources(currentPlayer);
     currentPlayer.waitingToRespawn = false;
     currentPlayer.angle = 0;
@@ -1521,7 +1501,8 @@ export class SandboxScene implements Scene {
     currentPlayer.vx = 0;
     currentPlayer.vy = 0;
     currentPlayer.invulnerable = true;
-    currentPlayer.invulnerableUntil = Date.now() + 3000;
+    this.simulationTime = Date.now();
+    currentPlayer.invulnerableUntil = this.simulationTime + 3000;
     currentPlayer.respawnTime = 0;
     this.placePlayerSafely(currentPlayer);
     this.visualPlayerPosition = { x: currentPlayer.x, y: currentPlayer.y };
@@ -1538,24 +1519,39 @@ export class SandboxScene implements Scene {
   }
 
   update(deltaTime: number): void {
-    const now = Date.now();
-    updateBackground(deltaTime);
-
-    if (screenShake.intensity > 0) {
-      const elapsed = now - screenShake.startTime;
-      if (elapsed >= screenShake.duration) {
-        screenShake.intensity = 0;
-      }
-    }
-
     const currentPlayer = player;
     if (!gameState.baseAlphaMask || !currentPlayer) {
       return;
     }
 
-    this.updatePlanetFuel(deltaTime, now, currentPlayer);
+    this.updateCamera();
+    const screenPlayerX = this.visualPlayerPosition.x - this.camera.x;
+    const screenPlayerY = this.visualPlayerPosition.y - this.camera.y;
+    const timeStep = getPlayerTimeDilationStep(
+      currentPlayer,
+      screenPlayerX,
+      screenPlayerY,
+      deltaTime,
+      this.simulationTime,
+    );
+    this.simulationTime = timeStep.now;
+    const now = timeStep.now;
+    const realNow = Date.now();
+    const scaledDeltaTime = timeStep.scaledDeltaTime;
+    const deltaScale = timeStep.deltaScale;
+
+    updateBackground(scaledDeltaTime, now, deltaScale);
+
+    if (screenShake.intensity > 0) {
+      const elapsed = realNow - screenShake.startTime;
+      if (elapsed >= screenShake.duration) {
+        screenShake.intensity = 0;
+      }
+    }
+
+    this.updatePlanetFuel(scaledDeltaTime, now, currentPlayer);
     this.updateDroppedFuelBlobs(currentPlayer);
-    this.updateInspectionProbes(now);
+    this.updateInspectionProbes(now, deltaScale);
     this.updateMinimapFog(currentPlayer);
 
     for (const planet of planets) {
@@ -1662,10 +1658,16 @@ export class SandboxScene implements Scene {
       }
     }
 
-    this.updateCamera();
     const previousPlayerPosition = { x: currentPlayer.x, y: currentPlayer.y };
-    updatePlayer(currentPlayer, this.camera, this.visualPlayerPosition, deltaTime, () =>
-      this.fireInspectionProbe(currentPlayer),
+    updatePlayer(
+      currentPlayer,
+      this.camera,
+      this.visualPlayerPosition,
+      scaledDeltaTime,
+      () => fireInspectionProbe(currentPlayer, this.inspectionProbes, now),
+      timeStep.input.timeDilation.pressed,
+      now,
+      deltaScale,
     );
     wrapWorldPoint(currentPlayer);
     const playerMoveDelta = wrappedDelta(
@@ -1678,8 +1680,9 @@ export class SandboxScene implements Scene {
     this.visualPlayerPosition.y += playerMoveDelta.y;
 
     for (const asteroid of asteroids) {
-      updateAsteroid(asteroid);
+      updateAsteroid(asteroid, deltaScale);
     }
+    applyTractorBeamToTargets(currentPlayer, timeStep.input, asteroids, deltaScale);
     resolveWrappedAsteroidCollisions();
 
     if (!currentPlayer.invulnerable && !currentPlayer.waitingToRespawn) {
@@ -1703,11 +1706,10 @@ export class SandboxScene implements Scene {
           currentPlayer.shieldActive &&
           currentPlayer.fuel > 0 &&
           actualDist < shieldCollisionDist &&
-          Date.now() >= currentPlayer.shieldHitUntil;
+            now >= currentPlayer.shieldHitUntil;
 
         if (shieldCanAbsorb) {
-          const hitNow = Date.now();
-          currentPlayer.shieldHitUntil = hitNow + SHIELD_HIT_COOLDOWN;
+          currentPlayer.shieldHitUntil = now + SHIELD_HIT_COOLDOWN;
           drainFuel(currentPlayer, SHIELD_COLLISION_FUEL_COSTS[asteroid.size]);
 
           const safeDist = actualDist || 1;
@@ -1774,14 +1776,14 @@ export class SandboxScene implements Scene {
     }
 
     for (let i = bullets.length - 1; i >= 0; i--) {
-      updateBullet(bullets[i]);
-      if (Date.now() - bullets[i].spawnTime >= bullets[i].lifetime) {
+      updateBullet(bullets[i], deltaScale);
+      if (now - bullets[i].spawnTime >= bullets[i].lifetime) {
         bullets.splice(i, 1);
       }
     }
 
     for (let i = thrusterParticles.length - 1; i >= 0; i--) {
-      updateThrusterParticle(thrusterParticles[i], deltaTime);
+      updateThrusterParticle(thrusterParticles[i], scaledDeltaTime, deltaScale);
       wrapWorldPoint(thrusterParticles[i]);
       if (thrusterParticles[i].lifetime <= 0) {
         thrusterParticles.splice(i, 1);
@@ -1789,7 +1791,7 @@ export class SandboxScene implements Scene {
     }
 
     for (let i = particles.length - 1; i >= 0; i--) {
-      updateParticleNoWrap(particles[i], deltaTime);
+      updateParticleNoWrap(particles[i], scaledDeltaTime, deltaScale);
       if (particles[i].lifetime <= 0) {
         particles.splice(i, 1);
       }
@@ -1910,10 +1912,22 @@ export class SandboxScene implements Scene {
 
     if (player && !player.waitingToRespawn) {
       drawPlayerTrajectoryPreview(ctx, player, this.visualPlayerPosition);
+      const visualPlayer = {
+        ...player,
+        x: this.visualPlayerPosition.x,
+        y: this.visualPlayerPosition.y,
+      };
+      const input = InputManager.getInputState(
+        player.module,
+        this.visualPlayerPosition.x - this.camera.x,
+        this.visualPlayerPosition.y - this.camera.y,
+      );
+      drawTractorBeam(ctx, visualPlayer, input);
       drawOnePlayer(
-        { ...player, x: this.visualPlayerPosition.x, y: this.visualPlayerPosition.y },
+        visualPlayer,
         ctx,
       );
+      drawWeaponSelectionMenuIfOpen(ctx, player, input, this.visualPlayerPosition);
     }
 
     for (let i = particles.length - 1; i >= 0; i--) {

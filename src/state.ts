@@ -6,6 +6,7 @@ import type {
   Planet,
   Player,
   ScreenShake,
+  SelectableWeaponType,
   Star,
   ThrusterParticle,
 } from './constants';
@@ -13,6 +14,30 @@ import type {
 export let player: Player | null = null;
 export function setPlayer(nextPlayer: Player | null): void {
   player = nextPlayer;
+  if (player) {
+    applySavedWeaponSlots(player);
+  }
+}
+
+export const savedWeaponSlots: {
+  primaryWeapon: SelectableWeaponType;
+  secondaryWeapon: SelectableWeaponType;
+} = {
+  primaryWeapon: 'small',
+  secondaryWeapon: 'pusher',
+};
+
+export function setSavedPrimaryWeapon(primaryWeapon: SelectableWeaponType): void {
+  savedWeaponSlots.primaryWeapon = primaryWeapon;
+}
+
+export function setSavedSecondaryWeapon(secondaryWeapon: SelectableWeaponType): void {
+  savedWeaponSlots.secondaryWeapon = secondaryWeapon;
+}
+
+export function applySavedWeaponSlots(currentPlayer: Player): void {
+  currentPlayer.primaryWeapon = savedWeaponSlots.primaryWeapon;
+  currentPlayer.secondaryWeapon = savedWeaponSlots.secondaryWeapon;
 }
 export const asteroids: Asteroid[] = [];
 export const planets: Planet[] = [];

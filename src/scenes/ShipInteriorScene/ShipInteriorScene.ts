@@ -11,9 +11,11 @@ import {
   SHIP_INTERIOR_REFUEL_PER_SECOND,
   SHIP_INTERIOR_REFUEL_STATION_RADIUS,
   STARTING_LIVES,
+  INSPECTION_PROBE_RADIUS,
   type Bullet,
   type Particle,
   type Player,
+  type SelectableWeaponType,
 } from '@/constants';
 import { InputManager } from '@/input';
 import { joymap } from '@/joymap';
@@ -33,6 +35,7 @@ import {
   player,
   resetState,
   setPlayer,
+  applySavedWeaponSlots,
   stars,
   thrusterParticles,
 } from '@/state';
@@ -46,6 +49,15 @@ import {
 } from '../GameScene/particle';
 import { createPlayer, drawPlayer } from '../GameScene/player';
 import type { Scene } from '../scene';
+import {
+  drawInspectionProbe,
+  fireInspectionProbe,
+  updateInspectionProbes,
+  type InspectionProbe,
+} from '../inspectionProbe';
+import { getPlayerTimeDilationStep } from '../timeDilation';
+import { applyTractorBeamToTargets, drawTractorBeam } from '../tractorBeam';
+import { drawWeaponSelectionMenuIfOpen } from '../weaponSelection';
 import { ShipInteriorSpriteRenderer } from './interiorSprites';
 import {
   loadShipInteriorLevel,
@@ -80,6 +92,8 @@ type Camera = { x: number; y: number };
 type Enemy = {
   x: number;
   y: number;
+  vx: number;
+  vy: number;
   patrol: Point[];
   closedPath: boolean;
   patrolDirection: 1 | -1;
@@ -510,12 +524,11 @@ function createSceneBullet(
   currentPlayer: Player,
   type: WeaponType,
   mode: BulletMode = 'normal',
+  now = Date.now(),
 ): void {
   const config = BULLET_CONFIGS[type];
   const isDegradedSmall = mode === 'degraded' && type === 'small';
   const bulletAngle = currentPlayer.turretAngle - Math.PI * 0.5;
-  const now = Date.now();
-
   for (let i = 0; i < config.bulletCount; i++) {
     const spreadOffset =
       config.bulletCount > 1 ? (i / (config.bulletCount - 1) - 0.5) * config.spreadAngle : 0;
@@ -545,7 +558,81 @@ function createSceneBullet(
   }
 }
 
-function updateScenePlayer(currentPlayer: Player, camera: Camera, deltaTime: number): void {
+function isProjectileWeapon(type: SelectableWeaponType): type is WeaponType {
+  return type !== 'inspectionProbe';
+}
+
+function getWeaponTimeout(currentPlayer: Player, type: WeaponType): number {
+  if (type === 'small') {
+    return currentPlayer.timeoutSmall;
+  }
+
+  if (type === 'shotgun') {
+    return currentPlayer.timeoutShotgun;
+  }
+
+  if (type === 'pusher') {
+    return currentPlayer.timeoutPusher;
+  }
+
+  return currentPlayer.timeoutBlackHole;
+}
+
+function setWeaponTimeout(currentPlayer: Player, type: WeaponType, now: number): void {
+  if (type === 'small') {
+    currentPlayer.timeoutSmall = now;
+  } else if (type === 'shotgun') {
+    currentPlayer.timeoutShotgun = now;
+  } else if (type === 'pusher') {
+    currentPlayer.timeoutPusher = now;
+  } else {
+    currentPlayer.timeoutBlackHole = now;
+  }
+}
+
+function fireSceneWeapon(
+  currentPlayer: Player,
+  type: SelectableWeaponType,
+  now: number,
+  deltaScale = 1,
+  onInspectionProbe?: () => boolean,
+): void {
+  if (type === 'inspectionProbe') {
+    onInspectionProbe?.();
+    return;
+  }
+
+  if (!isProjectileWeapon(type) || type === 'tractor' || currentPlayer.shieldActive) {
+    return;
+  }
+
+  if (now - getWeaponTimeout(currentPlayer, type) < BULLET_CONFIGS[type].fireRate) {
+    return;
+  }
+
+  const mode = getWeaponFireMode(currentPlayer, type);
+  if (mode) {
+    setWeaponTimeout(currentPlayer, type, now);
+    createSceneBullet(currentPlayer, type, mode, now);
+    if (type === 'shotgun') {
+      createSceneBullet(currentPlayer, type, mode, now);
+    }
+
+    const recoilAngle = currentPlayer.turretAngle + Math.PI * 0.5;
+    currentPlayer.vx += Math.cos(recoilAngle) * BULLET_CONFIGS[type].recoil * deltaScale;
+    currentPlayer.vy += Math.sin(recoilAngle) * BULLET_CONFIGS[type].recoil * deltaScale;
+  }
+}
+
+function updateScenePlayer(
+  currentPlayer: Player,
+  camera: Camera,
+  deltaTime: number,
+  suppressAssignedSlots = false,
+  now = Date.now(),
+  deltaScale = 1,
+  onInspectionProbe?: () => boolean,
+): void {
   if (currentPlayer.waitingToRespawn) {
     return;
   }
@@ -553,8 +640,6 @@ function updateScenePlayer(currentPlayer: Player, camera: Camera, deltaTime: num
   const screenPlayerX = currentPlayer.x - camera.x;
   const screenPlayerY = currentPlayer.y - camera.y;
   const input = InputManager.getInputState(currentPlayer.module, screenPlayerX, screenPlayerY);
-  const now = Date.now();
-
   currentPlayer.shieldActive = input.shield.pressed && currentPlayer.fuel > 0;
 
   const moveMagnitude = Math.sqrt(
@@ -572,9 +657,9 @@ function updateScenePlayer(currentPlayer: Player, camera: Camera, deltaTime: num
       drainFuel(currentPlayer, FUEL_THRUST_PER_SECOND * (deltaTime / 1000));
     }
     currentPlayer.vx +=
-      input.move.value[0] * PLAYER_ACCELERATION * PLAYER_VELOCITY_MULTIPLIER * thrustPower;
+      input.move.value[0] * PLAYER_ACCELERATION * PLAYER_VELOCITY_MULTIPLIER * thrustPower * deltaScale;
     currentPlayer.vy +=
-      input.move.value[1] * PLAYER_ACCELERATION * PLAYER_VELOCITY_MULTIPLIER * thrustPower;
+      input.move.value[1] * PLAYER_ACCELERATION * PLAYER_VELOCITY_MULTIPLIER * thrustPower * deltaScale;
   }
 
   const speed = Math.sqrt(
@@ -596,8 +681,8 @@ function updateScenePlayer(currentPlayer: Player, camera: Camera, deltaTime: num
     }
   }
 
-  currentPlayer.x += currentPlayer.vx;
-  currentPlayer.y += currentPlayer.vy;
+  currentPlayer.x += currentPlayer.vx * deltaScale;
+  currentPlayer.y += currentPlayer.vy * deltaScale;
 
   currentPlayer.isThrusting = accelerationApplied;
   if (accelerationApplied) {
@@ -616,65 +701,20 @@ function updateScenePlayer(currentPlayer: Player, camera: Camera, deltaTime: num
     }
   }
 
-  if (
-    !currentPlayer.shieldActive &&
-    input.fire.pressed &&
-    now - currentPlayer.timeoutSmall >= BULLET_CONFIGS.small.fireRate
-  ) {
-    const mode = getWeaponFireMode(currentPlayer, 'small');
-    if (mode) {
-      currentPlayer.timeoutSmall = now;
-      createSceneBullet(currentPlayer, 'small', mode);
-      const recoilAngle = currentPlayer.turretAngle + Math.PI * 0.5;
-      currentPlayer.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.small.recoil;
-      currentPlayer.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.small.recoil;
-    }
+  if (!suppressAssignedSlots && input.fire.pressed) {
+    fireSceneWeapon(currentPlayer, currentPlayer.primaryWeapon, now, deltaScale, onInspectionProbe);
   }
 
-  if (
-    !currentPlayer.shieldActive &&
-    input.chaosFire.pressed &&
-    now - currentPlayer.timeoutShotgun >= BULLET_CONFIGS.shotgun.fireRate
-  ) {
-    const mode = getWeaponFireMode(currentPlayer, 'shotgun');
-    if (mode) {
-      currentPlayer.timeoutShotgun = now;
-      createSceneBullet(currentPlayer, 'shotgun', mode);
-      createSceneBullet(currentPlayer, 'shotgun', mode);
-      const recoilAngle = currentPlayer.turretAngle + Math.PI * 0.5;
-      currentPlayer.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.shotgun.recoil;
-      currentPlayer.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.shotgun.recoil;
-    }
+  if (input.chaosFire.pressed) {
+    fireSceneWeapon(currentPlayer, 'shotgun', now, deltaScale, onInspectionProbe);
   }
 
-  if (
-    !currentPlayer.shieldActive &&
-    input.fireSpecial.pressed &&
-    now - currentPlayer.timeoutPusher >= BULLET_CONFIGS.pusher.fireRate
-  ) {
-    const mode = getWeaponFireMode(currentPlayer, 'pusher');
-    if (mode) {
-      currentPlayer.timeoutPusher = now;
-      createSceneBullet(currentPlayer, 'pusher', mode);
-      const recoilAngle = currentPlayer.turretAngle + Math.PI * 0.5;
-      currentPlayer.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.pusher.recoil;
-      currentPlayer.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.pusher.recoil;
-    }
+  if (!suppressAssignedSlots && input.fireSpecial.pressed) {
+    fireSceneWeapon(currentPlayer, currentPlayer.secondaryWeapon, now, deltaScale, onInspectionProbe);
   }
 
-  if (
-    !currentPlayer.shieldActive &&
-    input.fireReallyHard.pressed &&
-    now - currentPlayer.timeoutBlackHole >= BULLET_CONFIGS.blackHole.fireRate
-  ) {
-    const mode = getWeaponFireMode(currentPlayer, 'blackHole');
-    if (mode) {
-      currentPlayer.timeoutBlackHole = now;
-      createSceneBullet(currentPlayer, 'blackHole', mode);
-      const recoilAngle = currentPlayer.turretAngle + Math.PI * 0.5;
-      currentPlayer.vx += Math.cos(recoilAngle) * BULLET_CONFIGS.blackHole.recoil;
-      currentPlayer.vy += Math.sin(recoilAngle) * BULLET_CONFIGS.blackHole.recoil;
-    }
+  if (input.fireReallyHard.pressed) {
+    fireSceneWeapon(currentPlayer, 'blackHole', now, deltaScale, onInspectionProbe);
   }
 
   if (currentPlayer.invulnerable && now >= currentPlayer.invulnerableUntil) {
@@ -685,11 +725,11 @@ function updateScenePlayer(currentPlayer: Player, camera: Camera, deltaTime: num
   currentPlayer.vy *= PLAYER_AIR_FRICTION;
 }
 
-function updateBullet(bullet: Bullet): void {
+function updateBullet(bullet: Bullet, deltaScale = 1): void {
   bullet.prevX = bullet.x;
   bullet.prevY = bullet.y;
-  bullet.x += bullet.vx;
-  bullet.y += bullet.vy;
+  bullet.x += bullet.vx * deltaScale;
+  bullet.y += bullet.vy * deltaScale;
 }
 
 function drawBullet(bullet: Bullet, ctx: CanvasRenderingContext2D): void {
@@ -738,12 +778,12 @@ function drawBullet(bullet: Bullet, ctx: CanvasRenderingContext2D): void {
   ctx.restore();
 }
 
-function updateParticleNoWrap(particle: Particle, deltaTime: number): void {
-  particle.x += particle.vx * 0.6;
-  particle.y += particle.vy * 0.6;
-  particle.vx *= 0.98;
-  particle.vy *= 0.98;
-  particle.rotation += particle.rotationSpeed;
+function updateParticleNoWrap(particle: Particle, deltaTime: number, deltaScale = 1): void {
+  particle.x += particle.vx * 0.6 * deltaScale;
+  particle.y += particle.vy * 0.6 * deltaScale;
+  particle.vx *= 1 - 0.02 * deltaScale;
+  particle.vy *= 1 - 0.02 * deltaScale;
+  particle.rotation += particle.rotationSpeed * deltaScale;
   particle.lifetime -= deltaTime;
   particle.alpha = Math.max(0, particle.lifetime / particle.maxLifetime);
 }
@@ -885,7 +925,9 @@ function drawWall(ctx: CanvasRenderingContext2D, wall: Rect): void {
 
 export class ShipInteriorScene implements Scene {
   private camera: Camera = { x: 0, y: 0 };
+  private simulationTime = Date.now();
   private enemies: Enemy[] = [];
+  private inspectionProbes: InspectionProbe[] = [];
   private columns: SceneColumn[] = [];
   private refuelStations: RefuelStation[] = [];
   private alarmActive = false;
@@ -940,6 +982,8 @@ export class ShipInteriorScene implements Scene {
         return {
           x: patroller.x,
           y: patroller.y,
+          vx: 0,
+          vy: 0,
           patrol: patroller.patrol,
           closedPath: patroller.closedPath,
           patrolDirection:
@@ -1149,7 +1193,7 @@ export class ShipInteriorScene implements Scene {
     return true;
   }
 
-  private resolvePlayerWallCollision(currentPlayer: Player): void {
+  private resolvePlayerWallCollision(currentPlayer: Player, now = Date.now()): void {
     const radius = currentPlayer.shieldActive ? SHIELD_RADIUS : currentPlayer.getRadius();
     let collided = false;
     for (const wall of getBoundaryWalls()) {
@@ -1196,7 +1240,6 @@ export class ShipInteriorScene implements Scene {
 
     if (collided) {
       if (currentPlayer.shieldActive) {
-        const now = Date.now();
         if (now >= currentPlayer.shieldHitUntil) {
           currentPlayer.shieldHitUntil = now + SHIELD_HIT_COOLDOWN;
           drainFuel(currentPlayer, SHIELD_COLLISION_FUEL_COSTS.small);
@@ -1207,7 +1250,7 @@ export class ShipInteriorScene implements Scene {
     }
   }
 
-  private updateEnemies(currentPlayer: Player, now: number): void {
+  private updateEnemies(currentPlayer: Player, now: number, deltaScale = 1): void {
     let playerSeen = false;
     for (const enemy of this.enemies) {
       if (enemy.alive) {
@@ -1220,12 +1263,16 @@ export class ShipInteriorScene implements Scene {
           this.advanceEnemyPatrolTarget(enemy);
         } else {
           enemy.desiredFacing = Math.atan2(dy, dx);
-          enemy.facing = rotateTowardsAngle(enemy.facing, enemy.desiredFacing, ENEMY_TURN_SPEED);
+          enemy.facing = rotateTowardsAngle(
+            enemy.facing,
+            enemy.desiredFacing,
+            ENEMY_TURN_SPEED * deltaScale,
+          );
 
           const turnDelta = Math.abs(normalizeAngle(enemy.desiredFacing - enemy.facing));
           const moveScale = Math.max(0, Math.cos(turnDelta));
-          const moveX = Math.cos(enemy.facing) * ENEMY_SPEED * moveScale;
-          const moveY = Math.sin(enemy.facing) * ENEMY_SPEED * moveScale;
+          const moveX = Math.cos(enemy.facing) * ENEMY_SPEED * moveScale * deltaScale;
+          const moveY = Math.sin(enemy.facing) * ENEMY_SPEED * moveScale * deltaScale;
           const nextX = enemy.x + moveX;
           const nextY = enemy.y + moveY;
 
@@ -1238,6 +1285,20 @@ export class ShipInteriorScene implements Scene {
           } else {
             enemy.desiredFacing = Math.atan2(target.y - enemy.y, target.x - enemy.x);
           }
+        }
+
+        if (enemy.vx !== 0 || enemy.vy !== 0) {
+          const nextX = enemy.x + enemy.vx * deltaScale;
+          const nextY = enemy.y + enemy.vy * deltaScale;
+          if (
+            !pathBlockedByWall(enemy.x, enemy.y, nextX, nextY, ENEMY_RADIUS) &&
+            !intersectsWall(nextX, nextY, ENEMY_RADIUS)
+          ) {
+            enemy.x = nextX;
+            enemy.y = nextY;
+          }
+          enemy.vx *= 1 - 0.08 * deltaScale;
+          enemy.vy *= 1 - 0.08 * deltaScale;
         }
 
         const toPlayerX = currentPlayer.x - enemy.x;
@@ -1299,10 +1360,10 @@ export class ShipInteriorScene implements Scene {
     this.nextAlarmBeepAt = now + 360;
   }
 
-  private processBulletCollisions(currentPlayer: Player): void {
+  private processBulletCollisions(currentPlayer: Player, now = Date.now()): void {
     for (let bulletIndex = bullets.length - 1; bulletIndex >= 0; bulletIndex--) {
       const bullet = bullets[bulletIndex];
-      const expired = Date.now() - bullet.spawnTime >= bullet.lifetime;
+      const expired = now - bullet.spawnTime >= bullet.lifetime;
       if (expired || intersectsWall(bullet.x, bullet.y, BULLET_RADIUS)) {
         bullets.splice(bulletIndex, 1);
       } else {
@@ -1370,6 +1431,7 @@ export class ShipInteriorScene implements Scene {
     this.levelStatus = 'idle';
     this.levelLoadError = null;
     this.enemies = [];
+    this.inspectionProbes = [];
     this.columns = [];
     this.refuelStations = [];
     activeLevel = EMPTY_LEVEL;
@@ -1391,16 +1453,17 @@ export class ShipInteriorScene implements Scene {
     currentPlayer.score = 0;
     currentPlayer.shieldHits = 1;
     currentPlayer.shieldActive = false;
+    applySavedWeaponSlots(currentPlayer);
     refillRespawnResources(currentPlayer);
     currentPlayer.waitingToRespawn = false;
     currentPlayer.invulnerable = true;
-    currentPlayer.invulnerableUntil = Date.now() + 2500;
+    this.simulationTime = Date.now();
+    currentPlayer.invulnerableUntil = this.simulationTime + 2500;
     currentPlayer.respawnTime = 0;
     void this.loadLevel();
   }
 
   update(deltaTime: number): void {
-    const now = Date.now();
     const currentPlayer = player;
     if (!gameState.baseAlphaMask || !currentPlayer) {
       return;
@@ -1410,18 +1473,39 @@ export class ShipInteriorScene implements Scene {
       return;
     }
 
-    updateBackground(deltaTime);
     this.updateCamera();
-    updateScenePlayer(currentPlayer, this.camera, deltaTime);
-    this.resolvePlayerWallCollision(currentPlayer);
-    this.updateRefuelStations(currentPlayer, deltaTime);
-    this.updateEnemies(currentPlayer, now);
+    const timeStep = getPlayerTimeDilationStep(
+      currentPlayer,
+      currentPlayer.x - this.camera.x,
+      currentPlayer.y - this.camera.y,
+      deltaTime,
+      this.simulationTime,
+    );
+    this.simulationTime = timeStep.now;
+    const now = timeStep.now;
+    const scaledDeltaTime = timeStep.scaledDeltaTime;
+    const deltaScale = timeStep.deltaScale;
+
+    updateBackground(scaledDeltaTime, now, deltaScale);
+    updateScenePlayer(
+      currentPlayer,
+      this.camera,
+      scaledDeltaTime,
+      timeStep.input.timeDilation.pressed,
+      now,
+      deltaScale,
+      () => fireInspectionProbe(currentPlayer, this.inspectionProbes, now),
+    );
+    this.resolvePlayerWallCollision(currentPlayer, now);
+    this.updateRefuelStations(currentPlayer, scaledDeltaTime);
+    applyTractorBeamToTargets(currentPlayer, timeStep.input, this.enemies, deltaScale);
+    this.updateEnemies(currentPlayer, now, deltaScale);
     if (this.alarmActive && now >= this.nextAlarmBeepAt) {
       this.playAlarmBeep(now);
     }
 
     for (let i = bullets.length - 1; i >= 0; i--) {
-      updateBullet(bullets[i]);
+      updateBullet(bullets[i], deltaScale);
       if (
         bullets[i].x < -200 ||
         bullets[i].x > activeLevel.width + 200 ||
@@ -1432,17 +1516,35 @@ export class ShipInteriorScene implements Scene {
       }
     }
 
-    this.processBulletCollisions(currentPlayer);
+    this.processBulletCollisions(currentPlayer, now);
+    updateInspectionProbes(this.inspectionProbes, now, {
+      deltaScale,
+      handleProbe: (probe) => {
+        const hitEnemy = this.enemies.find(
+          (enemy) =>
+            enemy.alive &&
+            distance(probe.x, probe.y, enemy.x, enemy.y) <=
+              INSPECTION_PROBE_RADIUS + ENEMY_RADIUS,
+        );
+        if (hitEnemy) {
+          hitEnemy.alive = false;
+          createExplosion(hitEnemy.x, hitEnemy.y, 0.5, probe.vx * 0.05, probe.vy * 0.05);
+          return true;
+        }
+
+        return false;
+      },
+    });
 
     for (let i = thrusterParticles.length - 1; i >= 0; i--) {
-      updateThrusterParticle(thrusterParticles[i], deltaTime);
+      updateThrusterParticle(thrusterParticles[i], scaledDeltaTime, deltaScale);
       if (thrusterParticles[i].lifetime <= 0) {
         thrusterParticles.splice(i, 1);
       }
     }
 
     for (let i = particles.length - 1; i >= 0; i--) {
-      updateParticleNoWrap(particles[i], deltaTime);
+      updateParticleNoWrap(particles[i], scaledDeltaTime, deltaScale);
       if (particles[i].lifetime <= 0) {
         particles.splice(i, 1);
       }
@@ -1514,6 +1616,10 @@ export class ShipInteriorScene implements Scene {
       drawBullet(bullet, ctx);
     }
 
+    for (const probe of this.inspectionProbes) {
+      drawInspectionProbe(probe, ctx);
+    }
+
     const sceneDrawables: SceneDrawable[] = [
       ...this.columns
         .filter((column) => {
@@ -1546,8 +1652,23 @@ export class ShipInteriorScene implements Scene {
       } else if (drawable.type === 'enemy') {
         drawEnemy(ctx, drawable.enemy, this.alarmActive);
       } else {
+        const input = InputManager.getInputState(
+          drawable.player.module,
+          drawable.player.x - this.camera.x,
+          drawable.player.y - this.camera.y,
+        );
+        drawTractorBeam(ctx, drawable.player, input);
         drawPlayer(drawable.player, ctx);
       }
+    }
+
+    if (player && !player.waitingToRespawn) {
+      const input = InputManager.getInputState(
+        player.module,
+        player.x - this.camera.x,
+        player.y - this.camera.y,
+      );
+      drawWeaponSelectionMenuIfOpen(ctx, player, input);
     }
 
     for (let i = particles.length - 1; i >= 0; i--) {
