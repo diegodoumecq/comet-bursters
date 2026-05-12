@@ -3,11 +3,11 @@ import { bullets, getGameHeight, getGameWidth } from '@/state';
 import { getBlackHoleRenderRadius } from './blackHole';
 import { areShadersSupported } from './shader';
 
-export function updateBullet(bullet: Bullet) {
+export function updateBullet(bullet: Bullet, deltaScale = 1) {
   bullet.prevX = bullet.x;
   bullet.prevY = bullet.y;
-  bullet.x += bullet.vx;
-  bullet.y += bullet.vy;
+  bullet.x += bullet.vx * deltaScale;
+  bullet.y += bullet.vy * deltaScale;
 
   const width = getGameWidth();
   const height = getGameHeight();
@@ -17,11 +17,11 @@ export function updateBullet(bullet: Bullet) {
   if (bullet.y > height) bullet.y = 0;
 }
 
-export function isBulletExpired(bullet: Bullet): boolean {
-  return Date.now() - bullet.spawnTime >= bullet.lifetime;
+export function isBulletExpired(bullet: Bullet, now = Date.now()): boolean {
+  return now - bullet.spawnTime >= bullet.lifetime;
 }
 
-function drawOneBullet(bullet: Bullet, ctx: CanvasRenderingContext2D) {
+function drawOneBullet(bullet: Bullet, ctx: CanvasRenderingContext2D, now = Date.now()) {
   ctx.save();
   ctx.translate(bullet.x, bullet.y);
 
@@ -39,7 +39,7 @@ function drawOneBullet(bullet: Bullet, ctx: CanvasRenderingContext2D) {
     }
     case 'blackHole': {
       if (!areShadersSupported()) {
-        const radius = getBlackHoleRenderRadius(bullet);
+        const radius = getBlackHoleRenderRadius(bullet, now);
         ctx.beginPath();
         ctx.arc(0, 0, radius, 0, Math.PI * 2);
         ctx.fillStyle = '#000';
@@ -80,11 +80,11 @@ function drawOneBullet(bullet: Bullet, ctx: CanvasRenderingContext2D) {
   ctx.restore();
 }
 
-export function drawBullet(bullet: Bullet, ctx: CanvasRenderingContext2D) {
+export function drawBullet(bullet: Bullet, ctx: CanvasRenderingContext2D, now = Date.now()) {
   const width = getGameWidth();
   const height = getGameHeight();
 
-  drawOneBullet(bullet, ctx);
+  drawOneBullet(bullet, ctx, now);
 
   const nearLeft = bullet.x < 15;
   const nearRight = bullet.x > width - 15;
@@ -92,28 +92,28 @@ export function drawBullet(bullet: Bullet, ctx: CanvasRenderingContext2D) {
   const nearBottom = bullet.y > height - 15;
 
   if (nearLeft) {
-    drawOneBullet({ ...bullet, x: bullet.x + width }, ctx);
+    drawOneBullet({ ...bullet, x: bullet.x + width }, ctx, now);
   }
   if (nearRight) {
-    drawOneBullet({ ...bullet, x: bullet.x - width }, ctx);
+    drawOneBullet({ ...bullet, x: bullet.x - width }, ctx, now);
   }
   if (nearTop) {
-    drawOneBullet({ ...bullet, y: bullet.y + height }, ctx);
+    drawOneBullet({ ...bullet, y: bullet.y + height }, ctx, now);
   }
   if (nearBottom) {
-    drawOneBullet({ ...bullet, y: bullet.y - height }, ctx);
+    drawOneBullet({ ...bullet, y: bullet.y - height }, ctx, now);
   }
   if (nearLeft && nearTop) {
-    drawOneBullet({ ...bullet, x: bullet.x + width, y: bullet.y + height }, ctx);
+    drawOneBullet({ ...bullet, x: bullet.x + width, y: bullet.y + height }, ctx, now);
   }
   if (nearRight && nearTop) {
-    drawOneBullet({ ...bullet, x: bullet.x - width, y: bullet.y + height }, ctx);
+    drawOneBullet({ ...bullet, x: bullet.x - width, y: bullet.y + height }, ctx, now);
   }
   if (nearLeft && nearBottom) {
-    drawOneBullet({ ...bullet, x: bullet.x + width, y: bullet.y - height }, ctx);
+    drawOneBullet({ ...bullet, x: bullet.x + width, y: bullet.y - height }, ctx, now);
   }
   if (nearRight && nearBottom) {
-    drawOneBullet({ ...bullet, x: bullet.x - width, y: bullet.y - height }, ctx);
+    drawOneBullet({ ...bullet, x: bullet.x - width, y: bullet.y - height }, ctx, now);
   }
 }
 

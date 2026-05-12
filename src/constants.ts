@@ -186,6 +186,7 @@ export const PLAYER_MAX_FUEL = 100;
 export const LOW_FUEL_RATIO = 0.1;
 export const FUEL_THRUST_PER_SECOND = 5;
 export const FUELLESS_THRUST_POWER_SCALE = 1 / 3;
+export const TIME_DILATION_SCALE = 0.1;
 
 export const FUEL_WEAPON_COSTS = {
   small: 0.75,

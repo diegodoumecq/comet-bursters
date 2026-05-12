@@ -90,9 +90,7 @@ export function createPlayer(padId: string): Player {
   };
 }
 
-export function updatePlayer(player: Player, deltaTime: number) {
-  const now = Date.now();
-
+export function updatePlayer(player: Player, deltaTime: number, now = Date.now(), deltaScale = 1) {
   if (player.waitingToRespawn) {
     return;
   }
@@ -115,8 +113,8 @@ export function updatePlayer(player: Player, deltaTime: number) {
     if (player.fuel > 0) {
       drainFuel(player, FUEL_THRUST_PER_SECOND * (deltaTime / 1000));
     }
-    player.vx += input.move.value[0] * PLAYER_ACCELERATION * thrustPower;
-    player.vy += input.move.value[1] * PLAYER_ACCELERATION * thrustPower;
+    player.vx += input.move.value[0] * PLAYER_ACCELERATION * thrustPower * deltaScale;
+    player.vy += input.move.value[1] * PLAYER_ACCELERATION * thrustPower * deltaScale;
   }
 
   const currentSpeed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
@@ -135,8 +133,8 @@ export function updatePlayer(player: Player, deltaTime: number) {
     }
   }
 
-  player.x += player.vx;
-  player.y += player.vy;
+  player.x += player.vx * deltaScale;
+  player.y += player.vy * deltaScale;
 
   const width = getGameWidth();
   const height = getGameHeight();
@@ -167,11 +165,11 @@ export function updatePlayer(player: Player, deltaTime: number) {
     const mode = getWeaponFireMode(player, 'small');
     if (mode) {
       player.timeoutSmall = now;
-      createBullet(player, 'small', mode);
+      createBullet(player, 'small', mode, now);
       const recoil = BULLET_CONFIGS.small.recoil;
       const recoilAngle = player.turretAngle + Math.PI * 0.5;
-      player.vx += Math.cos(recoilAngle) * recoil;
-      player.vy += Math.sin(recoilAngle) * recoil;
+      player.vx += Math.cos(recoilAngle) * recoil * deltaScale;
+      player.vy += Math.sin(recoilAngle) * recoil * deltaScale;
     }
   }
 
@@ -183,12 +181,12 @@ export function updatePlayer(player: Player, deltaTime: number) {
     const mode = getWeaponFireMode(player, 'shotgun');
     if (mode) {
       player.timeoutShotgun = now;
-      createBullet(player, 'shotgun', mode);
+      createBullet(player, 'shotgun', mode, now);
       const recoil = BULLET_CONFIGS.shotgun.recoil;
       const recoilAngle = player.turretAngle + Math.PI * 0.5;
-      player.vx += Math.cos(recoilAngle) * recoil;
-      player.vy += Math.sin(recoilAngle) * recoil;
-      createBullet(player, 'shotgun', mode);
+      player.vx += Math.cos(recoilAngle) * recoil * deltaScale;
+      player.vy += Math.sin(recoilAngle) * recoil * deltaScale;
+      createBullet(player, 'shotgun', mode, now);
     }
   }
 
@@ -200,11 +198,11 @@ export function updatePlayer(player: Player, deltaTime: number) {
     const mode = getWeaponFireMode(player, 'pusher');
     if (mode) {
       player.timeoutPusher = now;
-      createBullet(player, 'pusher', mode);
+      createBullet(player, 'pusher', mode, now);
       const recoil = BULLET_CONFIGS.pusher.recoil;
       const recoilAngle = player.turretAngle + Math.PI * 0.5;
-      player.vx += Math.cos(recoilAngle) * recoil;
-      player.vy += Math.sin(recoilAngle) * recoil;
+      player.vx += Math.cos(recoilAngle) * recoil * deltaScale;
+      player.vy += Math.sin(recoilAngle) * recoil * deltaScale;
     }
   }
 
@@ -216,11 +214,11 @@ export function updatePlayer(player: Player, deltaTime: number) {
     const mode = getWeaponFireMode(player, 'blackHole');
     if (mode) {
       player.timeoutBlackHole = now;
-      createBullet(player, 'blackHole', mode);
+      createBullet(player, 'blackHole', mode, now);
       const recoil = BULLET_CONFIGS.blackHole.recoil;
       const recoilAngle = player.turretAngle + Math.PI * 0.5;
-      player.vx += Math.cos(recoilAngle) * recoil;
-      player.vy += Math.sin(recoilAngle) * recoil;
+      player.vx += Math.cos(recoilAngle) * recoil * deltaScale;
+      player.vy += Math.sin(recoilAngle) * recoil * deltaScale;
     }
   }
 
@@ -229,11 +227,10 @@ export function updatePlayer(player: Player, deltaTime: number) {
   }
 }
 
-function createBullet(player: Player, type: WeaponType, mode: BulletMode = 'normal') {
+function createBullet(player: Player, type: WeaponType, mode: BulletMode = 'normal', now = Date.now()) {
   const config = BULLET_CONFIGS[type];
   const isDegradedSmall = mode === 'degraded' && type === 'small';
   const bulletAngle = player.turretAngle - Math.PI * 0.5;
-  const now = Date.now();
 
   for (let i = 0; i < config.bulletCount; i++) {
     const spreadOffset =

@@ -73,7 +73,7 @@ function checkWrappedCollision(
   return false;
 }
 
-export function processBulletAsteroidCollisions(): {
+export function processBulletAsteroidCollisions(now = Date.now()): {
   bulletIndex: number;
   asteroid: Asteroid;
 }[] {
@@ -81,7 +81,7 @@ export function processBulletAsteroidCollisions(): {
 
   for (let i = bullets.length - 1; i >= 0; i--) {
     const bullet = bullets[i];
-    const bulletRadius = getBulletCollisionRadius(bullet);
+    const bulletRadius = getBulletCollisionRadius(bullet, now);
 
     for (let j = asteroids.length - 1; j >= 0; j--) {
       const asteroid = asteroids[j];
@@ -96,15 +96,15 @@ export function processBulletAsteroidCollisions(): {
   return hits;
 }
 
-function getBulletCollisionRadius(bullet: Bullet): number {
+function getBulletCollisionRadius(bullet: Bullet, now = Date.now()): number {
   if (bullet.type !== 'blackHole') {
     return 15;
   }
 
-  return getBlackHoleRenderRadius(bullet);
+  return getBlackHoleRenderRadius(bullet, now);
 }
 
-export function processPlayerAsteroidCollisions(onHit: (player: Player) => void): void {
+export function processPlayerAsteroidCollisions(onHit: (player: Player) => void, now = Date.now()): void {
   const currentPlayer = player;
   if (!currentPlayer || currentPlayer.waitingToRespawn) {
     return;
@@ -148,10 +148,10 @@ export function processPlayerAsteroidCollisions(onHit: (player: Player) => void)
         currentPlayer.shieldActive &&
         currentPlayer.fuel > 0 &&
         actualDist < shieldCollisionDist &&
-        Date.now() >= currentPlayer.shieldHitUntil;
+        now >= currentPlayer.shieldHitUntil;
 
       if (shieldCanAbsorb) {
-        currentPlayer.shieldHitUntil = Date.now() + SHIELD_HIT_COOLDOWN;
+        currentPlayer.shieldHitUntil = now + SHIELD_HIT_COOLDOWN;
         drainFuel(currentPlayer, SHIELD_COLLISION_FUEL_COSTS[asteroid.size]);
 
         const safeDist = actualDist || 1;

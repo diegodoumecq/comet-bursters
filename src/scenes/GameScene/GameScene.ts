@@ -11,6 +11,7 @@ import {
   FUEL_BLOB_MAX_SPEED,
   FUEL_BLOB_RADIUS,
   STARTING_LIVES,
+  TIME_DILATION_SCALE,
   TRACTOR_BEAM_MAX_TARGET_SPEED,
   TRACTOR_BEAM_PULL,
   TRACTOR_BEAM_RANGE,
@@ -97,6 +98,7 @@ const BLACK_HOLE_ABSORBED_FUEL_BLOBS: Record<Asteroid['size'], number> = {
 export class GameScene implements Scene {
   private canvas: HTMLCanvasElement | null = null;
   private droppedFuelBlobs: DroppedFuelBlob[] = [];
+  private simulationTime = Date.now();
   private readonly restartScene: PlayableSceneName;
 
   constructor(options: { restartScene?: PlayableSceneName } = {}) {
@@ -203,7 +205,7 @@ export class GameScene implements Scene {
     return { x: dx, y: dy };
   }
 
-  private applyBlackHoleGravity(now: number): void {
+  private applyBlackHoleGravity(now: number, deltaScale = 1): void {
     const activeBlackHoles = bullets.filter(
       (bullet) =>
         bullet.type === 'blackHole' &&
@@ -228,8 +230,8 @@ export class GameScene implements Scene {
         const dist = Math.sqrt(distSq);
         if (dist > 0 && dist < gravityRange) {
           const force = (BLACK_HOLE_GRAVITY_STRENGTH * 0.5 * radius * radius) / distSq;
-          asteroid.vx += (dx / dist) * force;
-          asteroid.vy += (dy / dist) * force;
+          asteroid.vx += (dx / dist) * force * deltaScale;
+          asteroid.vy += (dy / dist) * force * deltaScale;
         }
       }
     }
@@ -255,7 +257,7 @@ export class GameScene implements Scene {
     }
   }
 
-  private updateDroppedFuel(): void {
+  private updateDroppedFuel(deltaScale = 1): void {
     const currentPlayer = player;
     const width = getGameWidth();
     const height = getGameHeight();
@@ -272,8 +274,8 @@ export class GameScene implements Scene {
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 0 && dist < FUEL_BLOB_ATTRACTION_RADIUS) {
           const pull = 1 - dist / FUEL_BLOB_ATTRACTION_RADIUS;
-          blob.vx += (dx / dist) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull);
-          blob.vy += (dy / dist) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull);
+          blob.vx += (dx / dist) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull) * deltaScale;
+          blob.vy += (dy / dist) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull) * deltaScale;
         }
       }
 
@@ -285,8 +287,8 @@ export class GameScene implements Scene {
         blob.vx *= speedScale;
         blob.vy *= speedScale;
       }
-      blob.x += blob.vx;
-      blob.y += blob.vy;
+      blob.x += blob.vx * deltaScale;
+      blob.y += blob.vy * deltaScale;
 
       if (blob.x < 0) blob.x = width;
       if (blob.x > width) blob.x = 0;
@@ -373,7 +375,7 @@ export class GameScene implements Scene {
       TRACTOR_BEAM_GRAVITY_RADIUS;
   }
 
-  private applyTractorBeam(currentPlayer: Player): void {
+  private applyTractorBeam(currentPlayer: Player, deltaScale = 1): void {
     const input = InputManager.getInputState(currentPlayer.module, currentPlayer.x, currentPlayer.y);
     if (!input.tractor.pressed || currentPlayer.fuel <= 0 || currentPlayer.waitingToRespawn) {
       return;
@@ -396,8 +398,8 @@ export class GameScene implements Scene {
             TRACTOR_BEAM_GRAVITY_MAX_ACCELERATION,
             (TRACTOR_BEAM_PULL * TRACTOR_BEAM_GRAVITY_RADIUS) / softenedDistance,
           );
-          asteroid.vx += (dx / distance) * gravityScale;
-          asteroid.vy += (dy / distance) * gravityScale;
+          asteroid.vx += (dx / distance) * gravityScale * deltaScale;
+          asteroid.vy += (dy / distance) * gravityScale * deltaScale;
 
           const speed = Math.hypot(asteroid.vx, asteroid.vy);
           if (speed > TRACTOR_BEAM_MAX_TARGET_SPEED) {
@@ -538,7 +540,8 @@ export class GameScene implements Scene {
     currentPlayer.vx = 0;
     currentPlayer.vy = 0;
     currentPlayer.invulnerable = true;
-    currentPlayer.invulnerableUntil = Date.now() + 3000;
+    this.simulationTime = Date.now();
+    currentPlayer.invulnerableUntil = this.simulationTime + 3000;
     currentPlayer.respawnTime = 0;
 
     spawnWave(gameState.currentWave);
@@ -550,12 +553,20 @@ export class GameScene implements Scene {
   }
 
   update(deltaTime: number): void {
-    const now = Date.now();
+    const currentPlayer = player;
+    const input = currentPlayer
+      ? InputManager.getInputState(currentPlayer.module, currentPlayer.x, currentPlayer.y)
+      : null;
+    const deltaScale = input?.timeDilation.pressed ? TIME_DILATION_SCALE : 1;
+    const scaledDeltaTime = deltaTime * deltaScale;
+    this.simulationTime += scaledDeltaTime;
+    const now = this.simulationTime;
+    const realNow = Date.now();
 
-    updateBackground(deltaTime);
+    updateBackground(scaledDeltaTime, now, deltaScale);
 
     if (screenShake.intensity > 0) {
-      const elapsed = now - screenShake.startTime;
+      const elapsed = realNow - screenShake.startTime;
       if (elapsed >= screenShake.duration) {
         screenShake.intensity = 0;
       }
@@ -580,7 +591,7 @@ export class GameScene implements Scene {
       spawnWave(1);
     }
 
-    const bulletHits = processBulletAsteroidCollisions();
+    const bulletHits = processBulletAsteroidCollisions(now);
     const handledBullets = new Set<number>();
     const destroyedAsteroids = new Set<Asteroid>();
     for (const { bulletIndex: i, asteroid } of bulletHits) {
@@ -638,15 +649,15 @@ export class GameScene implements Scene {
 
     this.removeBlackHolesCollidingWithPlanets();
 
-    if (player) {
-      updatePlayer(player, deltaTime);
-      this.applyTractorBeam(player);
+    if (currentPlayer) {
+      updatePlayer(currentPlayer, scaledDeltaTime, now, deltaScale);
+      this.applyTractorBeam(currentPlayer, deltaScale);
     }
-    this.applyBlackHoleGravity(now);
-    this.updateDroppedFuel();
+    this.applyBlackHoleGravity(now, deltaScale);
+    this.updateDroppedFuel(deltaScale);
 
     for (const asteroid of asteroids) {
-      updateAsteroid(asteroid);
+      updateAsteroid(asteroid, deltaScale);
     }
     resolveAsteroidCollisions(asteroids);
 
@@ -665,7 +676,7 @@ export class GameScene implements Scene {
       createExplosionBurst(player.x, player.y, 2, player.vx, player.vy);
 
       player.respawnTime = now + 2000;
-    });
+    }, now);
 
     const allWaitingToRespawn = player !== null && player.lives <= 0 && now >= player.respawnTime;
 
@@ -701,7 +712,7 @@ export class GameScene implements Scene {
 
     for (let i = bullets.length - 1; i >= 0; i--) {
       const bullet = bullets[i];
-      updateBullet(bullet);
+      updateBullet(bullet, deltaScale);
       if (bullet.type === 'blackHole') {
         if (bullet.collapseStartTime && bullet.collapseDuration) {
           if (now - bullet.collapseStartTime >= bullet.collapseDuration) {
@@ -722,26 +733,26 @@ export class GameScene implements Scene {
             );
             bullets.splice(i, 1);
           }
-        } else if (isBulletExpired(bullet)) {
+        } else if (isBulletExpired(bullet, now)) {
           bullet.collapseStartTime = now;
           bullet.collapseDuration = BLACK_HOLE_COLLAPSE_DURATION_MS;
           bullet.vx = 0;
           bullet.vy = 0;
         }
-      } else if (isBulletExpired(bullet)) {
+      } else if (isBulletExpired(bullet, now)) {
         bullets.splice(i, 1);
       }
     }
 
     for (let i = thrusterParticles.length - 1; i >= 0; i--) {
-      updateThrusterParticle(thrusterParticles[i], deltaTime);
+      updateThrusterParticle(thrusterParticles[i], scaledDeltaTime, deltaScale);
       if (thrusterParticles[i].lifetime <= 0) {
         thrusterParticles.splice(i, 1);
       }
     }
 
     for (let i = particles.length - 1; i >= 0; i--) {
-      updateParticle(particles[i], deltaTime);
+      updateParticle(particles[i], scaledDeltaTime, deltaScale);
       if (particles[i].lifetime <= 0) {
         particles.splice(i, 1);
       }
@@ -749,12 +760,13 @@ export class GameScene implements Scene {
   }
 
   draw(ctx: CanvasRenderingContext2D): void {
-    const now = Date.now();
+    const realNow = Date.now();
+    const now = this.simulationTime;
 
     let shakeX = 0;
     let shakeY = 0;
     if (screenShake.intensity > 0) {
-      const elapsed = now - screenShake.startTime;
+      const elapsed = realNow - screenShake.startTime;
       if (elapsed < screenShake.duration) {
         const decay = 1 - elapsed / screenShake.duration;
         shakeX = (Math.random() - 0.5) * screenShake.intensity * decay;
@@ -778,7 +790,7 @@ export class GameScene implements Scene {
     }
 
     for (const bullet of bullets) {
-      drawBullet(bullet, ctx);
+      drawBullet(bullet, ctx, now);
     }
 
     for (const asteroid of asteroids) {

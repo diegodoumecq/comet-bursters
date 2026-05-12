@@ -72,10 +72,10 @@ export function createAsteroid(
   };
 }
 
-export function updateAsteroid(asteroid: Asteroid) {
-  asteroid.x += asteroid.vx;
-  asteroid.y += asteroid.vy;
-  asteroid.rotation += asteroid.rotationSpeed;
+export function updateAsteroid(asteroid: Asteroid, deltaScale = 1) {
+  asteroid.x += asteroid.vx * deltaScale;
+  asteroid.y += asteroid.vy * deltaScale;
+  asteroid.rotation += asteroid.rotationSpeed * deltaScale;
 
   const width = getGameWidth();
   const height = getGameHeight();

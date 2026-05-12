@@ -30,17 +30,15 @@ export function initBackground() {
   }
 }
 
-export function updateBackground(deltaTime: number) {
-  const now = Date.now();
-
+export function updateBackground(deltaTime: number, now = Date.now(), deltaScale = 1) {
   if (now >= backgroundState.nextDriftChange) {
     backgroundState.driftAngle += (Math.random() - 0.5) * 0.3;
     backgroundState.nextDriftChange =
       now + DRIFT_CHANGE_MIN + Math.random() * (DRIFT_CHANGE_MAX - DRIFT_CHANGE_MIN);
   }
 
-  backgroundOffset.x += Math.cos(backgroundState.driftAngle) * BACKGROUND_SPEED;
-  backgroundOffset.y += Math.sin(backgroundState.driftAngle) * BACKGROUND_SPEED;
+  backgroundOffset.x += Math.cos(backgroundState.driftAngle) * BACKGROUND_SPEED * deltaScale;
+  backgroundOffset.y += Math.sin(backgroundState.driftAngle) * BACKGROUND_SPEED * deltaScale;
 
   for (const star of stars) {
     star.twinklePhase += star.twinkleSpeed * deltaTime * 0.001;

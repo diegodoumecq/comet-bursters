@@ -281,26 +281,26 @@ export function createExplosion(
   screenShake.duration = SCREEN_SHAKE_DURATION;
 }
 
-export function updateParticle(particle: Particle, deltaTime: number) {
+export function updateParticle(particle: Particle, deltaTime: number, deltaScale = 1) {
   if (particle.shape === 'shockwave') {
-    particle.x += particle.vx * 0.2;
-    particle.y += particle.vy * 0.2;
-    particle.size *= 1.11;
+    particle.x += particle.vx * 0.2 * deltaScale;
+    particle.y += particle.vy * 0.2 * deltaScale;
+    particle.size *= 1 + 0.11 * deltaScale;
     particle.lifetime -= deltaTime;
     const life = Math.max(0, particle.lifetime / particle.maxLifetime);
     particle.alpha = Math.pow(life, 1.35) * 0.82;
   } else {
-    particle.x += particle.vx * 0.6;
-    particle.y += particle.vy * 0.6;
+    particle.x += particle.vx * 0.6 * deltaScale;
+    particle.y += particle.vy * 0.6 * deltaScale;
     if (particle.shape === 'smoke') {
-      particle.vx *= 0.94;
-      particle.vy = particle.vy * 0.95 - 0.015;
-      particle.size *= 1.006;
+      particle.vx *= 1 - 0.06 * deltaScale;
+      particle.vy = particle.vy * (1 - 0.05 * deltaScale) - 0.015 * deltaScale;
+      particle.size *= 1 + 0.006 * deltaScale;
     } else {
-      particle.vx *= 0.98;
-      particle.vy *= 0.98;
+      particle.vx *= 1 - 0.02 * deltaScale;
+      particle.vy *= 1 - 0.02 * deltaScale;
     }
-    particle.rotation += particle.rotationSpeed;
+    particle.rotation += particle.rotationSpeed * deltaScale;
     particle.lifetime -= deltaTime;
     const life = Math.max(0, particle.lifetime / particle.maxLifetime);
     particle.alpha =
@@ -541,12 +541,12 @@ export function createThrusterParticle(
   });
 }
 
-export function updateThrusterParticle(particle: ThrusterParticle, deltaTime: number) {
-  particle.x += particle.vx;
-  particle.y += particle.vy;
-  particle.vx *= 0.95;
-  particle.vy *= 0.95;
-  particle.rotation += particle.rotationSpeed;
+export function updateThrusterParticle(particle: ThrusterParticle, deltaTime: number, deltaScale = 1) {
+  particle.x += particle.vx * deltaScale;
+  particle.y += particle.vy * deltaScale;
+  particle.vx *= 1 - 0.05 * deltaScale;
+  particle.vy *= 1 - 0.05 * deltaScale;
+  particle.rotation += particle.rotationSpeed * deltaScale;
   particle.lifetime -= deltaTime;
   particle.alpha = Math.max(0, particle.lifetime / particle.maxLifetime);
   particle.scale = (particle.lifetime / particle.maxLifetime) * 2;
