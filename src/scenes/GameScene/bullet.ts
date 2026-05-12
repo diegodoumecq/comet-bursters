@@ -1,4 +1,4 @@
-import { type Bullet } from '@/constants';
+import { BLACK_HOLE_RADIUS, type Bullet } from '@/constants';
 import { bullets, getGameHeight, getGameWidth } from '@/state';
 import { areShadersSupported } from './shader';
 
@@ -38,8 +38,9 @@ function drawOneBullet(bullet: Bullet, ctx: CanvasRenderingContext2D) {
     }
     case 'blackHole': {
       if (!areShadersSupported()) {
+        const radius = getBlackHoleRenderRadius(bullet);
         ctx.beginPath();
-        ctx.arc(0, 0, 10, 0, Math.PI * 2);
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
         ctx.fillStyle = '#000';
         ctx.fill();
         ctx.strokeStyle = '#fff';
@@ -76,6 +77,18 @@ function drawOneBullet(bullet: Bullet, ctx: CanvasRenderingContext2D) {
   }
 
   ctx.restore();
+}
+
+function getBlackHoleRenderRadius(bullet: Bullet): number {
+  if (!bullet.collapseStartTime || !bullet.collapseDuration) {
+    return BLACK_HOLE_RADIUS;
+  }
+
+  const collapseProgress = Math.min(
+    1,
+    Math.max(0, (Date.now() - bullet.collapseStartTime) / bullet.collapseDuration),
+  );
+  return BLACK_HOLE_RADIUS * (1 - collapseProgress);
 }
 
 export function drawBullet(bullet: Bullet, ctx: CanvasRenderingContext2D) {

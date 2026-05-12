@@ -108,6 +108,9 @@ export interface Bullet {
   impact: number;
   recoil: number;
   type: 'small' | 'blackHole' | 'pusher' | 'shotgun' | 'tractor';
+  absorbedFuelBlobs?: number;
+  collapseStartTime?: number;
+  collapseDuration?: number;
 }
 
 export interface Particle {

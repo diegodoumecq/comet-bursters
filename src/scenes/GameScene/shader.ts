@@ -43,7 +43,6 @@ precision highp float;
 
 uniform sampler2D u_texture;
 uniform sampler2D u_bhPositions;
-uniform float u_blackHoleRadius;
 uniform float u_distortionRadius;
 uniform float u_distortionStrength;
 uniform int u_blackHoleCount;
@@ -62,12 +61,15 @@ void main() {
     if (i >= u_blackHoleCount) break;
     
     vec2 bhUV = vec2((float(i) + 0.5) / float(${MAX_BLACK_HOLES}), 0.5);
-    vec2 bhPos = texture2D(u_bhPositions, bhUV).xy;
+    vec4 bhData = texture2D(u_bhPositions, bhUV);
+    vec2 bhPos = bhData.xy;
+    float blackHoleRadius = bhData.z;
+    float distortionRadius = max(blackHoleRadius + 1.0, u_distortionRadius * bhData.w);
     float dist = length(currentPos - bhPos);
     
-    if (dist >= u_blackHoleRadius && dist < u_distortionRadius) {
+    if (dist >= blackHoleRadius && dist < distortionRadius) {
       vec2 diff = currentPos - bhPos;
-      float t = 1.0 - (dist - u_blackHoleRadius) / (u_distortionRadius - u_blackHoleRadius);
+      float t = 1.0 - (dist - blackHoleRadius) / (distortionRadius - blackHoleRadius);
       float bendStrength = pow(t, 2.0) * u_distortionStrength;
       
       currentPos = currentPos + normalize(diff) * bendStrength * 30.0;
@@ -88,10 +90,12 @@ void main() {
     if (i >= u_blackHoleCount) break;
     
     vec2 bhUV = vec2((float(i) + 0.5) / float(${MAX_BLACK_HOLES}), 0.5);
-    vec2 bhPos = texture2D(u_bhPositions, bhUV).xy;
+    vec4 bhData = texture2D(u_bhPositions, bhUV);
+    vec2 bhPos = bhData.xy;
+    float blackHoleRadius = bhData.z;
     float dist = length(pixelPos - bhPos);
     
-    if (dist < u_blackHoleRadius) {
+    if (dist < blackHoleRadius) {
       gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
       return;
     }
@@ -102,10 +106,12 @@ void main() {
     if (i >= u_blackHoleCount) break;
     
     vec2 bhUV = vec2((float(i) + 0.5) / float(${MAX_BLACK_HOLES}), 0.5);
-    vec2 bhPos = texture2D(u_bhPositions, bhUV).xy;
+    vec4 bhData = texture2D(u_bhPositions, bhUV);
+    vec2 bhPos = bhData.xy;
+    float blackHoleRadius = bhData.z;
     float dist = length(pixelPos - bhPos);
     
-    if (dist >= u_blackHoleRadius && dist < u_blackHoleRadius + 1.0) {
+    if (dist >= blackHoleRadius && dist < blackHoleRadius + 1.0) {
       gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
       return;
     }
@@ -116,11 +122,13 @@ void main() {
     if (i >= u_blackHoleCount) break;
     
     vec2 bhUV = vec2((float(i) + 0.5) / float(${MAX_BLACK_HOLES}), 0.5);
-    vec2 bhPos = texture2D(u_bhPositions, bhUV).xy;
+    vec4 bhData = texture2D(u_bhPositions, bhUV);
+    vec2 bhPos = bhData.xy;
+    float blackHoleRadius = bhData.z;
     float dist = length(pixelPos - bhPos);
     
-    if (dist >= u_blackHoleRadius && dist < u_blackHoleRadius * 2.5) {
-      float tintStrength = 1.0 - (dist - u_blackHoleRadius) / (u_blackHoleRadius * 1.5);
+    if (dist >= blackHoleRadius && dist < blackHoleRadius * 2.5) {
+      float tintStrength = 1.0 - (dist - blackHoleRadius) / (blackHoleRadius * 1.5);
       color.rgb = mix(color.rgb, vec3(0.6, 0.3, 1.0), tintStrength * 0.5);
     }
   }
@@ -179,7 +187,6 @@ export function initShader(gameCanvas: HTMLCanvasElement): void {
     uniforms: {
       u_texture: { value: null },
       u_bhPositions: { value: bhDataTexture },
-      u_blackHoleRadius: { value: BLACK_HOLE_RADIUS },
       u_distortionRadius: { value: DISTORTION_RADIUS },
       u_distortionStrength: { value: DISTORTION_STRENGTH },
       u_blackHoleCount: { value: 0 },
@@ -197,7 +204,7 @@ export function initShader(gameCanvas: HTMLCanvasElement): void {
   initialized = true;
 }
 
-export function updateBlackHoles(blackHoles: { x: number; y: number }[]): void {
+export function updateBlackHoles(blackHoles: { x: number; y: number; radius?: number }[]): void {
   if (!initialized || !bhDataTexture) return;
 
   const count = Math.min(blackHoles.length, MAX_BLACK_HOLES);
@@ -208,8 +215,8 @@ export function updateBlackHoles(blackHoles: { x: number; y: number }[]): void {
   for (let i = 0; i < count; i++) {
     bhData[i * 4 + 0] = blackHoles[i].x;
     bhData[i * 4 + 1] = height - blackHoles[i].y;
-    bhData[i * 4 + 2] = 0;
-    bhData[i * 4 + 3] = 0;
+    bhData[i * 4 + 2] = blackHoles[i].radius ?? BLACK_HOLE_RADIUS;
+    bhData[i * 4 + 3] = (blackHoles[i].radius ?? BLACK_HOLE_RADIUS) / BLACK_HOLE_RADIUS;
   }
 
   bhDataTexture.needsUpdate = true;

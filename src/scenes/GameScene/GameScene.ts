@@ -2,6 +2,7 @@ import {
   ASTEROID_CONFIGS,
   ASTEROID_FUEL_DROP_CHANCES,
   ASTEROID_FUEL_DROP_MAX_BLOBS,
+  BLACK_HOLE_RADIUS,
   FUEL_BLOB_AMOUNT,
   FUEL_BLOB_ATTRACTION_ACCELERATION,
   FUEL_BLOB_ATTRACTION_RADIUS,
@@ -14,6 +15,7 @@ import {
   TRACTOR_BEAM_RANGE,
   PLAYER_SIZE,
   type Asteroid,
+  type Bullet,
   type Player,
 } from '@/constants';
 import { resolveAsteroidCollisions } from '@/asteroidPhysics';
@@ -30,6 +32,7 @@ import {
   getGameHeight,
   getGameWidth,
   particles,
+  planets,
   player,
   resetState,
   screenShake,
@@ -77,6 +80,13 @@ const TRACTOR_BEAM_MUZZLE_DISTANCE = PLAYER_SIZE * 0.68;
 const TRACTOR_BEAM_GRAVITY_RADIUS = 72;
 const TRACTOR_BEAM_GRAVITY_SOFTENING = 36;
 const TRACTOR_BEAM_GRAVITY_MAX_ACCELERATION = TRACTOR_BEAM_PULL * 0.9;
+const BLACK_HOLE_COLLAPSE_DURATION_MS = 700;
+const BLACK_HOLE_ABSORBED_FUEL_BLOBS: Record<Asteroid['size'], number> = {
+  small: 1,
+  medium: 2,
+  big: 4,
+  mega: 8,
+};
 
 export class GameScene implements Scene {
   private canvas: HTMLCanvasElement | null = null;
@@ -126,6 +136,81 @@ export class GameScene implements Scene {
         vy: Math.sin(angle) * 0.35 + asteroid.vy * 0.12,
         wobbleSeed: Math.random(),
       });
+    }
+  }
+
+  private spawnFuelBurst(
+    x: number,
+    y: number,
+    count: number,
+    now: number,
+    baseVx = 0,
+    baseVy = 0,
+  ): void {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const scatter = 8 + Math.random() * 28;
+      const speed = 0.35 + Math.random() * 0.75;
+      this.droppedFuelBlobs.push({
+        id: `black-hole-fuel-${now}-${Math.round(x)}-${Math.round(y)}-${i}`,
+        x: x + Math.cos(angle) * scatter,
+        y: y + Math.sin(angle) * scatter,
+        vx: baseVx * 0.08 + Math.cos(angle) * speed,
+        vy: baseVy * 0.08 + Math.sin(angle) * speed,
+        wobbleSeed: Math.random(),
+      });
+    }
+  }
+
+  private absorbAsteroidIntoBlackHole(blackHole: Bullet, asteroid: Asteroid): void {
+    blackHole.absorbedFuelBlobs =
+      (blackHole.absorbedFuelBlobs ?? 0) + BLACK_HOLE_ABSORBED_FUEL_BLOBS[asteroid.size];
+
+    const shooter = player?.id === blackHole.playerId ? player : null;
+    if (shooter) {
+      shooter.score += ASTEROID_CONFIGS[asteroid.size].points * shooter.lives;
+    }
+
+    const intensity = asteroid.size === 'big' ? 1.2 : asteroid.size === 'medium' ? 0.8 : 0.45;
+    createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
+
+    const asteroidIndex = asteroids.indexOf(asteroid);
+    if (asteroidIndex !== -1) {
+      asteroids.splice(asteroidIndex, 1);
+    }
+  }
+
+  private getBlackHoleRenderRadius(blackHole: Bullet, now: number): number {
+    if (!blackHole.collapseStartTime || !blackHole.collapseDuration) {
+      return BLACK_HOLE_RADIUS;
+    }
+
+    const collapseProgress = Math.min(
+      1,
+      Math.max(0, (now - blackHole.collapseStartTime) / blackHole.collapseDuration),
+    );
+    return BLACK_HOLE_RADIUS * (1 - collapseProgress);
+  }
+
+  private removeBlackHolesCollidingWithPlanets(): void {
+    if (planets.length === 0) {
+      return;
+    }
+
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const bullet = bullets[i];
+      if (bullet.type !== 'blackHole') {
+        continue;
+      }
+
+      const hitPlanet = planets.some((planet) => {
+        const dx = bullet.x - planet.x;
+        const dy = bullet.y - planet.y;
+        return Math.hypot(dx, dy) <= planet.getRadius() + BLACK_HOLE_RADIUS;
+      });
+      if (hitPlanet) {
+        bullets.splice(i, 1);
+      }
     }
   }
 
@@ -463,10 +548,18 @@ export class GameScene implements Scene {
       const bullet = bullets[i];
       const canHandleHit =
         Boolean(bullet) &&
-        !handledBullets.has(i) &&
+        (bullet.type === 'blackHole' || !handledBullets.has(i)) &&
         !destroyedAsteroids.has(asteroid) &&
         asteroids.includes(asteroid);
       if (canHandleHit && bullet) {
+        if (bullet.type === 'blackHole') {
+          if (!bullet.collapseStartTime) {
+            this.absorbAsteroidIntoBlackHole(bullet, asteroid);
+            destroyedAsteroids.add(asteroid);
+          }
+          continue;
+        }
+
         handledBullets.add(i);
 
         const massMultiplier =
@@ -504,6 +597,8 @@ export class GameScene implements Scene {
         bullets.splice(i, 1);
       }
     }
+
+    this.removeBlackHolesCollidingWithPlanets();
 
     if (player) {
       updatePlayer(player, deltaTime);
@@ -566,8 +661,41 @@ export class GameScene implements Scene {
     }
 
     for (let i = bullets.length - 1; i >= 0; i--) {
-      updateBullet(bullets[i]);
-      if (isBulletExpired(bullets[i])) {
+      const bullet = bullets[i];
+      updateBullet(bullet);
+      if (bullet.type === 'blackHole') {
+        if (bullet.collapseStartTime && bullet.collapseDuration) {
+          if (now - bullet.collapseStartTime >= bullet.collapseDuration) {
+            createExplosionBurst(
+              bullet.x,
+              bullet.y,
+              Math.max(0.45, (bullet.absorbedFuelBlobs ?? 0) * 0.08),
+              bullet.vx,
+              bullet.vy,
+            );
+            this.spawnFuelBurst(
+              bullet.x,
+              bullet.y,
+              bullet.absorbedFuelBlobs ?? 0,
+              now,
+              bullet.vx,
+              bullet.vy,
+            );
+            bullets.splice(i, 1);
+          }
+          continue;
+        }
+
+        if (isBulletExpired(bullet)) {
+          bullet.collapseStartTime = now;
+          bullet.collapseDuration = BLACK_HOLE_COLLAPSE_DURATION_MS;
+          bullet.vx = 0;
+          bullet.vy = 0;
+        }
+        continue;
+      }
+
+      if (isBulletExpired(bullet)) {
         bullets.splice(i, 1);
       }
     }
@@ -669,7 +797,7 @@ export class GameScene implements Scene {
     if (this.canvas) {
       const blackHoles = bullets
         .filter((b) => b.type === 'blackHole')
-        .map((b) => ({ x: b.x, y: b.y }));
+        .map((b) => ({ x: b.x, y: b.y, radius: this.getBlackHoleRenderRadius(b, now) }));
       updateBlackHoles(blackHoles);
       renderWithShaders(this.canvas);
     }
