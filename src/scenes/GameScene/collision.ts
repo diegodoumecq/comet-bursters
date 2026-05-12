@@ -2,12 +2,14 @@ import {
   SHIELD_COLLISION_FUEL_COSTS,
   SHIELD_HIT_COOLDOWN,
   SHIELD_RADIUS,
+  type Bullet,
   type Asteroid,
   type Player,
 } from '@/constants';
 import { drainFuel } from '@/playerFuel';
 import { asteroids, bullets, getGameHeight, getGameWidth, player } from '@/state';
 import { circleIntersectsRotatedMask } from '@/maskCollision';
+import { getBlackHoleRenderRadius } from './blackHole';
 
 export function checkCircleCollision(
   a: { x: number; y: number; getRadius: () => number },
@@ -79,7 +81,7 @@ export function processBulletAsteroidCollisions(): {
 
   for (let i = bullets.length - 1; i >= 0; i--) {
     const bullet = bullets[i];
-    const bulletRadius = 15;
+    const bulletRadius = getBulletCollisionRadius(bullet);
 
     for (let j = asteroids.length - 1; j >= 0; j--) {
       const asteroid = asteroids[j];
@@ -92,6 +94,14 @@ export function processBulletAsteroidCollisions(): {
   }
 
   return hits;
+}
+
+function getBulletCollisionRadius(bullet: Bullet): number {
+  if (bullet.type !== 'blackHole') {
+    return 15;
+  }
+
+  return getBlackHoleRenderRadius(bullet);
 }
 
 export function processPlayerAsteroidCollisions(onHit: (player: Player) => void): void {

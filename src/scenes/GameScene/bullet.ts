@@ -1,5 +1,6 @@
-import { BLACK_HOLE_RADIUS, type Bullet } from '@/constants';
+import { type Bullet } from '@/constants';
 import { bullets, getGameHeight, getGameWidth } from '@/state';
+import { getBlackHoleRenderRadius } from './blackHole';
 import { areShadersSupported } from './shader';
 
 export function updateBullet(bullet: Bullet) {
@@ -77,18 +78,6 @@ function drawOneBullet(bullet: Bullet, ctx: CanvasRenderingContext2D) {
   }
 
   ctx.restore();
-}
-
-function getBlackHoleRenderRadius(bullet: Bullet): number {
-  if (!bullet.collapseStartTime || !bullet.collapseDuration) {
-    return BLACK_HOLE_RADIUS;
-  }
-
-  const collapseProgress = Math.min(
-    1,
-    Math.max(0, (Date.now() - bullet.collapseStartTime) / bullet.collapseDuration),
-  );
-  return BLACK_HOLE_RADIUS * (1 - collapseProgress);
 }
 
 export function drawBullet(bullet: Bullet, ctx: CanvasRenderingContext2D) {

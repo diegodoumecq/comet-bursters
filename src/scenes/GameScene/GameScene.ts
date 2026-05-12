@@ -2,6 +2,7 @@ import {
   ASTEROID_CONFIGS,
   ASTEROID_FUEL_DROP_CHANCES,
   ASTEROID_FUEL_DROP_MAX_BLOBS,
+  BLACK_HOLE_GRAVITY_STRENGTH,
   BLACK_HOLE_RADIUS,
   FUEL_BLOB_AMOUNT,
   FUEL_BLOB_ATTRACTION_ACCELERATION,
@@ -49,6 +50,11 @@ import {
 } from '../SandboxScene/fuelMetaballs';
 import type { Scene } from '../scene';
 import { drawAsteroid, spawnWave, splitAsteroid, updateAsteroid } from './asteroid';
+import {
+  getBlackHoleRenderRadius,
+  getMatureBlackHoleRadius,
+  isMatureBlackHole,
+} from './blackHole';
 import { drawBackground, updateBackground } from './background';
 import { drawBullet, isBulletExpired, updateBullet } from './bullet';
 import { processBulletAsteroidCollisions, processPlayerAsteroidCollisions } from './collision';
@@ -180,16 +186,53 @@ export class GameScene implements Scene {
     }
   }
 
-  private getBlackHoleRenderRadius(blackHole: Bullet, now: number): number {
-    if (!blackHole.collapseStartTime || !blackHole.collapseDuration) {
-      return BLACK_HOLE_RADIUS;
+  private getWrappedDelta(fromX: number, fromY: number, toX: number, toY: number): {
+    x: number;
+    y: number;
+  } {
+    const width = getGameWidth();
+    const height = getGameHeight();
+    let dx = toX - fromX;
+    let dy = toY - fromY;
+
+    if (dx > width * 0.5) dx -= width;
+    if (dx < -width * 0.5) dx += width;
+    if (dy > height * 0.5) dy -= height;
+    if (dy < -height * 0.5) dy += height;
+
+    return { x: dx, y: dy };
+  }
+
+  private applyBlackHoleGravity(now: number): void {
+    const activeBlackHoles = bullets.filter(
+      (bullet) =>
+        bullet.type === 'blackHole' &&
+        !bullet.collapseStartTime &&
+        isMatureBlackHole(bullet, now),
+    );
+    if (activeBlackHoles.length === 0) {
+      return;
     }
 
-    const collapseProgress = Math.min(
-      1,
-      Math.max(0, (now - blackHole.collapseStartTime) / blackHole.collapseDuration),
-    );
-    return BLACK_HOLE_RADIUS * (1 - collapseProgress);
+    for (const blackHole of activeBlackHoles) {
+      const radius = getMatureBlackHoleRadius(blackHole, now);
+      const gravityRange = radius * 6;
+      for (const asteroid of asteroids) {
+        const { x: dx, y: dy } = this.getWrappedDelta(
+          asteroid.x,
+          asteroid.y,
+          blackHole.x,
+          blackHole.y,
+        );
+        const distSq = dx * dx + dy * dy;
+        const dist = Math.sqrt(distSq);
+        if (dist > 0 && dist < gravityRange) {
+          const force = (BLACK_HOLE_GRAVITY_STRENGTH * 0.5 * radius * radius) / distSq;
+          asteroid.vx += (dx / dist) * force;
+          asteroid.vy += (dy / dist) * force;
+        }
+      }
+    }
   }
 
   private removeBlackHolesCollidingWithPlanets(): void {
@@ -199,17 +242,15 @@ export class GameScene implements Scene {
 
     for (let i = bullets.length - 1; i >= 0; i--) {
       const bullet = bullets[i];
-      if (bullet.type !== 'blackHole') {
-        continue;
-      }
-
-      const hitPlanet = planets.some((planet) => {
-        const dx = bullet.x - planet.x;
-        const dy = bullet.y - planet.y;
-        return Math.hypot(dx, dy) <= planet.getRadius() + BLACK_HOLE_RADIUS;
-      });
-      if (hitPlanet) {
-        bullets.splice(i, 1);
+      if (bullet.type === 'blackHole') {
+        const hitPlanet = planets.some((planet) => {
+          const dx = bullet.x - planet.x;
+          const dy = bullet.y - planet.y;
+          return Math.hypot(dx, dy) <= planet.getRadius() + BLACK_HOLE_RADIUS;
+        });
+        if (hitPlanet) {
+          bullets.splice(i, 1);
+        }
       }
     }
   }
@@ -340,32 +381,30 @@ export class GameScene implements Scene {
 
     const { direction, gravityPoint } = this.getTractorBeamGeometry(currentPlayer);
     for (const asteroid of asteroids) {
-      if (
-        !this.isInTractorBeam(currentPlayer, asteroid, direction) &&
-        !this.isNearTractorGravityPoint(asteroid, gravityPoint)
-      ) {
-        continue;
-      }
+      const affected =
+        this.isInTractorBeam(currentPlayer, asteroid, direction) ||
+        this.isNearTractorGravityPoint(asteroid, gravityPoint);
 
-      const dx = gravityPoint.x - asteroid.x;
-      const dy = gravityPoint.y - asteroid.y;
-      const distance = Math.hypot(dx, dy);
-      if (distance <= 0) {
-        continue;
-      }
+      if (affected) {
+        const dx = gravityPoint.x - asteroid.x;
+        const dy = gravityPoint.y - asteroid.y;
+        const distance = Math.hypot(dx, dy);
 
-      const softenedDistance = Math.max(distance, TRACTOR_BEAM_GRAVITY_SOFTENING);
-      const gravityScale = Math.min(
-        TRACTOR_BEAM_GRAVITY_MAX_ACCELERATION,
-        (TRACTOR_BEAM_PULL * TRACTOR_BEAM_GRAVITY_RADIUS) / softenedDistance,
-      );
-      asteroid.vx += (dx / distance) * gravityScale;
-      asteroid.vy += (dy / distance) * gravityScale;
+        if (distance > 0) {
+          const softenedDistance = Math.max(distance, TRACTOR_BEAM_GRAVITY_SOFTENING);
+          const gravityScale = Math.min(
+            TRACTOR_BEAM_GRAVITY_MAX_ACCELERATION,
+            (TRACTOR_BEAM_PULL * TRACTOR_BEAM_GRAVITY_RADIUS) / softenedDistance,
+          );
+          asteroid.vx += (dx / distance) * gravityScale;
+          asteroid.vy += (dy / distance) * gravityScale;
 
-      const speed = Math.hypot(asteroid.vx, asteroid.vy);
-      if (speed > TRACTOR_BEAM_MAX_TARGET_SPEED) {
-        asteroid.vx = (asteroid.vx / speed) * TRACTOR_BEAM_MAX_TARGET_SPEED;
-        asteroid.vy = (asteroid.vy / speed) * TRACTOR_BEAM_MAX_TARGET_SPEED;
+          const speed = Math.hypot(asteroid.vx, asteroid.vy);
+          if (speed > TRACTOR_BEAM_MAX_TARGET_SPEED) {
+            asteroid.vx = (asteroid.vx / speed) * TRACTOR_BEAM_MAX_TARGET_SPEED;
+            asteroid.vy = (asteroid.vy / speed) * TRACTOR_BEAM_MAX_TARGET_SPEED;
+          }
+        }
       }
     }
   }
@@ -557,36 +596,35 @@ export class GameScene implements Scene {
             this.absorbAsteroidIntoBlackHole(bullet, asteroid);
             destroyedAsteroids.add(asteroid);
           }
-          continue;
-        }
+        } else {
+          handledBullets.add(i);
 
-        handledBullets.add(i);
+          const massMultiplier =
+            asteroid.size === 'big' ? 0.3 : asteroid.size === 'medium' ? 0.6 : 1.0;
+          const impulse = bullet.impact * 2 * massMultiplier;
+          asteroid.vx += bullet.vx * 0.1 * impulse;
+          asteroid.vy += bullet.vy * 0.1 * impulse;
 
-        const massMultiplier =
-          asteroid.size === 'big' ? 0.3 : asteroid.size === 'medium' ? 0.6 : 1.0;
-        const impulse = bullet.impact * 2 * massMultiplier;
-        asteroid.vx += bullet.vx * 0.1 * impulse;
-        asteroid.vy += bullet.vy * 0.1 * impulse;
+          asteroid.hits -= bullet.damage;
 
-        asteroid.hits -= bullet.damage;
+          if (asteroid.hits <= 0) {
+            const shooter = player?.id === bullet.playerId ? player : null;
+            if (shooter) {
+              shooter.score += ASTEROID_CONFIGS[asteroid.size].points * shooter.lives;
+            }
 
-        if (asteroid.hits <= 0) {
-          const shooter = player?.id === bullet.playerId ? player : null;
-          if (shooter) {
-            shooter.score += ASTEROID_CONFIGS[asteroid.size].points * shooter.lives;
-          }
+            const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
+            createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
+            this.spawnAsteroidFuelDrops(asteroid, now);
 
-          const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
-          createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
-          this.spawnAsteroidFuelDrops(asteroid, now);
+            const children = splitAsteroid(asteroid);
+            asteroids.push(...children);
 
-          const children = splitAsteroid(asteroid);
-          asteroids.push(...children);
-
-          destroyedAsteroids.add(asteroid);
-          const asteroidIndex = asteroids.indexOf(asteroid);
-          if (asteroidIndex !== -1) {
-            asteroids.splice(asteroidIndex, 1);
+            destroyedAsteroids.add(asteroid);
+            const asteroidIndex = asteroids.indexOf(asteroid);
+            if (asteroidIndex !== -1) {
+              asteroids.splice(asteroidIndex, 1);
+            }
           }
         }
       }
@@ -604,6 +642,7 @@ export class GameScene implements Scene {
       updatePlayer(player, deltaTime);
       this.applyTractorBeam(player);
     }
+    this.applyBlackHoleGravity(now);
     this.updateDroppedFuel();
 
     for (const asteroid of asteroids) {
@@ -683,19 +722,13 @@ export class GameScene implements Scene {
             );
             bullets.splice(i, 1);
           }
-          continue;
-        }
-
-        if (isBulletExpired(bullet)) {
+        } else if (isBulletExpired(bullet)) {
           bullet.collapseStartTime = now;
           bullet.collapseDuration = BLACK_HOLE_COLLAPSE_DURATION_MS;
           bullet.vx = 0;
           bullet.vy = 0;
         }
-        continue;
-      }
-
-      if (isBulletExpired(bullet)) {
+      } else if (isBulletExpired(bullet)) {
         bullets.splice(i, 1);
       }
     }
@@ -797,7 +830,7 @@ export class GameScene implements Scene {
     if (this.canvas) {
       const blackHoles = bullets
         .filter((b) => b.type === 'blackHole')
-        .map((b) => ({ x: b.x, y: b.y, radius: this.getBlackHoleRenderRadius(b, now) }));
+        .map((b) => ({ x: b.x, y: b.y, radius: getBlackHoleRenderRadius(b, now) }));
       updateBlackHoles(blackHoles);
       renderWithShaders(this.canvas);
     }
