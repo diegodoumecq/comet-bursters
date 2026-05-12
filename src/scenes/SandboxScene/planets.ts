@@ -2,19 +2,25 @@ import {
   PLANET_CONFIG,
   PLANET_FUEL_EXTRACT_INTERVAL_MS,
   PLANET_FUEL_EXTRACTOR_MAX_BLOBS,
-  PLANET_KINDS,
-  PLANET_MAX_FUEL_RESERVE,
   PLANET_MAX_ROTATION_SPEED,
-  PLANET_MIN_FUEL_RESERVE,
   PLANET_MIN_ROTATION_SPEED,
   type FuelExtractor,
+  type PlanetKind,
   type Planet,
 } from '@/constants';
 import { drawStyledPlanet } from './planetVisuals';
 
+const planetKinds = Object.keys(PLANET_CONFIG) as PlanetKind[];
+
+function getFuelReserveForPlanetKind(kind: PlanetKind): number {
+  const range = PLANET_CONFIG[kind].fuelReserveRange;
+  return Math.floor((range.min + Math.random() * (range.max - range.min)) / 5) * 5;
+}
+
 export function createPlanet(x: number, y: number): Planet {
-  const kind = PLANET_KINDS[Math.floor(Math.random() * PLANET_KINDS.length)];
-  const palette = PLANET_CONFIG.palettes[kind];
+  const kind = planetKinds[Math.floor(Math.random() * planetKinds.length)];
+  const config = PLANET_CONFIG[kind];
+  const palette = config.palette;
   const color = palette[Math.floor(Math.random() * palette.length)];
   const variations: number[] = [];
 
@@ -22,12 +28,6 @@ export function createPlanet(x: number, y: number): Planet {
     variations.push(0.9 + Math.random() * 0.2);
   }
 
-  const fuelSteps =
-    Math.floor(
-      (PLANET_MIN_FUEL_RESERVE +
-        Math.random() * (PLANET_MAX_FUEL_RESERVE - PLANET_MIN_FUEL_RESERVE)) /
-        5,
-    ) * 5;
   const rotationDirection = Math.random() < 0.5 ? -1 : 1;
   const rotationSpeed =
     rotationDirection *
@@ -54,10 +54,10 @@ export function createPlanet(x: number, y: number): Planet {
     altitudeVariations: variations,
     rotation: Math.random() * Math.PI * 2,
     rotationSpeed,
-    fuelReserve: fuelSteps,
+    fuelReserve: getFuelReserveForPlanetKind(kind),
     fuelExtractors: extractors,
     inspectedUntil: 0,
-    getRadius: () => PLANET_CONFIG.radius,
+    getRadius: () => config.radius,
     mask: null,
   };
 }

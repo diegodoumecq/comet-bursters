@@ -1,4 +1,4 @@
-import { PLANET_CONFIG, type Planet } from '@/constants';
+import type { Planet } from '@/constants';
 
 import { tracePlanetShape } from './planetShapes';
 import { PLANET_SHELL_STYLES } from './planetStyles';
@@ -10,7 +10,7 @@ function withAlpha(color: string, alpha: number): string {
 }
 
 export function drawLavaPlanet(planet: Planet, ctx: CanvasRenderingContext2D): void {
-  const radius = PLANET_CONFIG.radius;
+  const radius = planet.getRadius();
   const style = PLANET_SHELL_STYLES.lava;
   const lightAngle = -Math.PI / 3;
   const lightOffset = polarPoint(radius * 0.45, lightAngle);

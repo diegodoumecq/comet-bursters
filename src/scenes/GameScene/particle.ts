@@ -1,5 +1,5 @@
 import {
-  ASTEROID_COLORS,
+  ASTEROID_CONFIGS,
   PARTICLE_COUNT,
   PARTICLE_LIFETIME,
   SCREEN_SHAKE_DURATION,
@@ -187,7 +187,7 @@ export function createExplosion(
   kind: ExplosionKind = 'asteroid',
   baseColor = '#debbad',
 ) {
-  const palette = Object.values(ASTEROID_COLORS).flat();
+  const palette = Object.values(ASTEROID_CONFIGS).flatMap((config) => config.colors);
   const particleCount = kind === 'ship' ? Math.floor(PARTICLE_COUNT * 1.75) : PARTICLE_COUNT;
   for (let i = 0; i < particleCount; i++) {
     const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;

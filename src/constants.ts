@@ -215,6 +215,7 @@ export const PLANET_MIN_ROTATION_SPEED = 0.00002;
 export const PLANET_MAX_ROTATION_SPEED = 0.00008;
 export const PLANET_MIN_FUEL_RESERVE = 1500;
 export const PLANET_MAX_FUEL_RESERVE = 3000;
+export const PLANET_NEAR_EMPTY_FUEL_RESERVE = 50;
 
 export const ASTEROID_FUEL_DROP_CHANCES = {
   medium: 0.4,
@@ -244,67 +245,6 @@ export const BLACK_HOLE_RADIUS = 6;
 export const DISTORTION_RADIUS = 200;
 export const DISTORTION_STRENGTH = 0.8;
 export const MAX_BLACK_HOLES = 10;
-
-export const COLOR_GRADE_PRESETS = {
-  none: {
-    lift: [0, 0, 0],
-    gamma: [1, 1, 1],
-    gain: [1, 1, 1],
-    saturation: 1.0,
-    contrast: 1.0,
-    brightness: 0.0,
-  },
-  cinematic: {
-    lift: [-0.03, -0.02, 0.0],
-    gamma: [1.1, 1.05, 0.95],
-    gain: [1.05, 1.02, 1.08],
-    saturation: 0.9,
-    contrast: 1.1,
-    brightness: -0.02,
-  },
-  vibrant: {
-    lift: [0, 0, 0],
-    gamma: [1, 1, 1],
-    gain: [1.1, 1.1, 1.1],
-    saturation: 1.3,
-    contrast: 1.1,
-    brightness: 0.05,
-  },
-  muted: {
-    lift: [0.02, 0.02, 0.03],
-    gamma: [1.1, 1.1, 1.1],
-    gain: [0.95, 0.95, 0.95],
-    saturation: 0.6,
-    contrast: 0.95,
-    brightness: -0.05,
-  },
-  warm: {
-    lift: [0, -0.02, -0.05],
-    gamma: [1, 0.95, 0.9],
-    gain: [1.1, 1.05, 0.95],
-    saturation: 1.15,
-    contrast: 1.05,
-    brightness: 0.02,
-  },
-  cool: {
-    lift: [0, 0, 0.02],
-    gamma: [0.95, 0.95, 1.05],
-    gain: [0.95, 1.0, 1.1],
-    saturation: 1.1,
-    contrast: 1.05,
-    brightness: 0,
-  },
-  neon: {
-    lift: [-0.05, 0, 0.05],
-    gamma: [1.2, 1.0, 1.2],
-    gain: [1.2, 1.1, 1.3],
-    saturation: 1.5,
-    contrast: 1.2,
-    brightness: 0.05,
-  },
-} as const;
-
-export type ColorGradePreset = keyof typeof COLOR_GRADE_PRESETS;
 
 export const BULLET_CONFIGS = {
   small: {
@@ -373,6 +313,7 @@ export const ASTEROID_CONFIGS = {
     hits: 30,
     splitCount: 3,
     mass: 10,
+    colors: ['#ff6b6b', '#ff69b4'],
   },
   big: {
     radius: 70,
@@ -382,6 +323,7 @@ export const ASTEROID_CONFIGS = {
     hits: 10,
     splitCount: 2,
     mass: 5,
+    colors: ['#ffd93d', '#ff8800'],
   },
   medium: {
     radius: 45,
@@ -391,8 +333,18 @@ export const ASTEROID_CONFIGS = {
     hits: 3,
     splitCount: 2,
     mass: 2,
+    colors: ['#6bcb77', '#40e0d0'],
   },
-  small: { radius: 25, points: 100, speed: 3.5, childSize: null, hits: 1, splitCount: 0, mass: 1 },
+  small: {
+    radius: 25,
+    points: 100,
+    speed: 3.5,
+    childSize: null,
+    hits: 1,
+    splitCount: 0,
+    mass: 1,
+    colors: ['#4d96ff', '#9b59b6'],
+  },
 } as const;
 
 export const PARTICLE_COUNT = 20;
@@ -402,12 +354,6 @@ export const SCREEN_SHAKE_DURATION = 250;
 export const PLAYER_COLORS = ['#debbad', '#debade', '#badbde', '#baded6', '#d6bade'] as const;
 export type PlayerColor = (typeof PLAYER_COLORS)[number];
 
-export const ASTEROID_COLORS: Record<'mega' | 'big' | 'medium' | 'small', [string, string]> = {
-  mega: ['#ff6b6b', '#ff69b4'],
-  big: ['#ffd93d', '#ff8800'],
-  medium: ['#6bcb77', '#40e0d0'],
-  small: ['#4d96ff', '#9b59b6'],
-};
 export type AsteroidColor = string;
 
 export const THRUSTER_PARTICLE_LIFETIME = 700;
@@ -434,19 +380,49 @@ export interface Star {
   parallaxLayer: number;
 }
 
-export const PLANET_KINDS = ['lush', 'desert', 'ice', 'lava', 'gas', 'toxic', 'crystal'] as const;
-export type PlanetKind = (typeof PLANET_KINDS)[number];
-
 export const PLANET_CONFIG = {
-  radius: 150,
-  gravityStrength: 0.5,
-  palettes: {
-    lush: ['#2ecc71', '#27ae60', '#58d68d'],
-    desert: ['#f39c12', '#d68910', '#e67e22'],
-    ice: ['#8bd3ff', '#5dade2', '#d6f6ff'],
-    lava: ['#e74c3c', '#ff6b35', '#c0392b'],
-    gas: ['#9b59b6', '#8e44ad', '#c39bd3'],
-    toxic: ['#1abc9c', '#16a085', '#7bed9f'],
-    crystal: ['#8ef6ff', '#7bc7ff', '#d6f7ff'],
-  } satisfies Record<PlanetKind, readonly string[]>,
+  lush: {
+    radius: 150,
+    gravityStrength: 0.5,
+    fuelReserveRange: { min: PLANET_MIN_FUEL_RESERVE, max: PLANET_MAX_FUEL_RESERVE },
+    palette: ['#2ecc71', '#27ae60', '#58d68d'],
+  },
+  desert: {
+    radius: 150,
+    gravityStrength: 0.5,
+    fuelReserveRange: { min: 0, max: 0 },
+    palette: ['#f39c12', '#d68910', '#e67e22'],
+  },
+  ice: {
+    radius: 150,
+    gravityStrength: 0.5,
+    fuelReserveRange: { min: 0, max: PLANET_NEAR_EMPTY_FUEL_RESERVE },
+    palette: ['#8bd3ff', '#5dade2', '#d6f6ff'],
+  },
+  lava: {
+    radius: 150,
+    gravityStrength: 0.5,
+    fuelReserveRange: { min: 0, max: PLANET_NEAR_EMPTY_FUEL_RESERVE },
+    palette: ['#e74c3c', '#ff6b35', '#c0392b'],
+  },
+  gas: {
+    radius: 300,
+    gravityStrength: 0.5,
+    fuelReserveRange: { min: 0, max: PLANET_NEAR_EMPTY_FUEL_RESERVE },
+    palette: ['#9b59b6', '#8e44ad', '#c39bd3'],
+  },
+  toxic: {
+    radius: 150,
+    gravityStrength: 0.5,
+    fuelReserveRange: { min: 0, max: PLANET_NEAR_EMPTY_FUEL_RESERVE },
+    palette: ['#1abc9c', '#16a085', '#7bed9f'],
+  },
+  crystal: {
+    radius: 200,
+    gravityStrength: 1,
+    fuelReserveRange: { min: 0, max: PLANET_NEAR_EMPTY_FUEL_RESERVE },
+    palette: ['#8ef6ff', '#7bc7ff', '#d6f7ff'],
+  },
 };
+
+export type PlanetKind = keyof typeof PLANET_CONFIG;

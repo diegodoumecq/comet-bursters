@@ -2,7 +2,6 @@ import { initAssets } from '@/assets';
 import { SIZE } from '@/constants';
 import { sceneManager } from '@/sceneManager';
 import { initBackground } from '@/scenes/GameScene/background';
-import { setColorGradePreset } from '@/scenes/GameScene/shader';
 import { gameState } from '@/state';
 import type { Scene } from '../scene';
 
@@ -15,7 +14,6 @@ export class LoadingScene implements Scene {
 
     initAssets();
     initBackground();
-    setColorGradePreset('cinematic');
     gameState.assetsLoaded = true;
   }
 

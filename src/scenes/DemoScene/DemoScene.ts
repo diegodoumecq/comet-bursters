@@ -64,7 +64,8 @@ function isVisible(
 }
 
 function createDemoPlanet(kind: PlanetKind, x: number, y: number, colorIndex: number): Planet {
-  const palette = PLANET_CONFIG.palettes[kind];
+  const config = PLANET_CONFIG[kind];
+  const palette = config.palette;
   const altitudeVariations: number[] = [];
 
   for (let i = 0; i < 32; i++) {
@@ -84,7 +85,7 @@ function createDemoPlanet(kind: PlanetKind, x: number, y: number, colorIndex: nu
     fuelReserve: 0,
     fuelExtractors: [],
     inspectedUntil: 0,
-    getRadius: () => PLANET_CONFIG.radius,
+    getRadius: () => config.radius,
     mask: null,
   };
 }

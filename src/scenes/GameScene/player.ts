@@ -325,7 +325,7 @@ export function drawFuelContour(ctx: CanvasRenderingContext2D, player: Player, n
   ctx.restore();
 }
 
-function drawOnePlayer(player: Player, ctx: CanvasRenderingContext2D) {
+export function drawOnePlayer(player: Player, ctx: CanvasRenderingContext2D) {
   const now = Date.now();
   if (player.invulnerable && Math.floor(now / 100) % 2 === 0) {
     ctx.globalAlpha = 0.3;

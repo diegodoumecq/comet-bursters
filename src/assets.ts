@@ -1,6 +1,5 @@
 import {
   ASTEROID_CONFIGS,
-  ASTEROID_COLORS,
   type AlphaMask,
 } from './constants';
 import { getAlphaMaskRadius } from './maskCollision';
@@ -406,7 +405,7 @@ export function initAssets() {
   gameState.baseAlphaMask = createPlayerBaseMask();
 
   for (const size of ['mega', 'big', 'medium', 'small'] as const) {
-    for (const color of ASTEROID_COLORS[size]) {
+    for (const color of ASTEROID_CONFIGS[size].colors) {
       gameState.asteroidSprites[size][color] = createAsteroidSprite(size, color);
     }
   }
@@ -416,13 +415,13 @@ export function getAsteroidSprite(
   size: 'mega' | 'big' | 'medium' | 'small',
   colorIndex: number,
 ): HTMLCanvasElement | undefined {
-  const colors = ASTEROID_COLORS[size];
+  const colors = ASTEROID_CONFIGS[size].colors;
   const color = colors[colorIndex % colors.length];
   return gameState.asteroidSprites[size][color];
 }
 
 export function getRandomAsteroidColor(size: 'mega' | 'big' | 'medium' | 'small'): string {
-  const colors = ASTEROID_COLORS[size];
+  const colors = ASTEROID_CONFIGS[size].colors;
   return colors[Math.floor(Math.random() * colors.length)];
 }
 

@@ -2,7 +2,6 @@ import * as THREE from 'three';
 
 import {
   BLACK_HOLE_RADIUS,
-  COLOR_GRADE_PRESETS,
   DISTORTION_RADIUS,
   DISTORTION_STRENGTH,
 } from '@/constants';
@@ -50,25 +49,7 @@ uniform float u_distortionStrength;
 uniform int u_blackHoleCount;
 uniform vec2 u_resolution;
 
-uniform vec3 u_lift;
-uniform vec3 u_gamma;
-uniform vec3 u_gain;
-uniform float u_saturation;
-uniform float u_contrast;
-uniform float u_brightness;
-
 varying vec2 vUv;
-
-vec3 applyColorGrading(vec3 color) {
-  color = color + u_brightness;
-  color = (color - 0.5) * u_contrast + 0.5;
-  color = color + u_lift * (1.0 - color);
-  color = color * u_gain;
-  color = pow(max(color, vec3(0.0)), 1.0 / u_gamma);
-  float lum = dot(color, vec3(0.2126, 0.7152, 0.0722));
-  color = mix(vec3(lum), color, u_saturation);
-  return clamp(color, 0.0, 1.0);
-}
 
 void main() {
   vec2 pixelPos = vUv * u_resolution;
@@ -144,8 +125,6 @@ void main() {
     }
   }
   
-  color.rgb = applyColorGrading(color.rgb);
-  
   gl_FragColor = color;
 }
 `;
@@ -205,12 +184,6 @@ export function initShader(gameCanvas: HTMLCanvasElement): void {
       u_distortionStrength: { value: DISTORTION_STRENGTH },
       u_blackHoleCount: { value: 0 },
       u_resolution: { value: new THREE.Vector2(width, height) },
-      u_lift: { value: new THREE.Vector3(0, 0, 0) },
-      u_gamma: { value: new THREE.Vector3(1, 1, 1) },
-      u_gain: { value: new THREE.Vector3(1, 1, 1) },
-      u_saturation: { value: 1.0 },
-      u_contrast: { value: 1.0 },
-      u_brightness: { value: 0.0 },
     },
     vertexShader,
     fragmentShader,
@@ -222,18 +195,6 @@ export function initShader(gameCanvas: HTMLCanvasElement): void {
   scene.add(mesh);
 
   initialized = true;
-}
-
-export function setColorGradePreset(preset: keyof typeof COLOR_GRADE_PRESETS): void {
-  if (!initialized) return;
-
-  const p = COLOR_GRADE_PRESETS[preset];
-  material.uniforms.u_lift.value.set(p.lift[0], p.lift[1], p.lift[2]);
-  material.uniforms.u_gamma.value.set(p.gamma[0], p.gamma[1], p.gamma[2]);
-  material.uniforms.u_gain.value.set(p.gain[0], p.gain[1], p.gain[2]);
-  material.uniforms.u_saturation.value = p.saturation;
-  material.uniforms.u_contrast.value = p.contrast;
-  material.uniforms.u_brightness.value = p.brightness;
 }
 
 export function updateBlackHoles(blackHoles: { x: number; y: number }[]): void {

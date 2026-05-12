@@ -1,4 +1,4 @@
-import { PLANET_CONFIG, type Planet } from '@/constants';
+import type { Planet } from '@/constants';
 import { tracePlanetShape } from './planetShapes';
 import { PLANET_SHELL_STYLES } from './planetStyles';
 import { drawPlanetSurface } from './planetSurfaces';
@@ -36,7 +36,7 @@ function drawDesertBaseGradient(
 }
 
 function drawStyledPlanetToContext(planet: Planet, ctx: CanvasRenderingContext2D): void {
-  const radius = PLANET_CONFIG.radius;
+  const radius = planet.getRadius();
   const style = PLANET_SHELL_STYLES[planet.kind];
   const isToxic = planet.kind === 'toxic';
   const lightAngle = -Math.PI / 3;
@@ -177,7 +177,7 @@ function drawStyledPlanetToContext(planet: Planet, ctx: CanvasRenderingContext2D
 }
 
 function getPlanetCacheKey(planet: Planet): string {
-  return `${PLANET_RENDER_VERSION}|${planet.kind}|${planet.color}`;
+  return `${PLANET_RENDER_VERSION}|${planet.kind}|${planet.color}|${planet.getRadius()}`;
 }
 
 function getPlanetSprite(planet: Planet): HTMLCanvasElement {
@@ -187,7 +187,7 @@ function getPlanetSprite(planet: Planet): HTMLCanvasElement {
     return cached;
   }
 
-  const radius = PLANET_CONFIG.radius;
+  const radius = planet.getRadius();
   const extent = radius * 1.3 + PLANET_CACHE_PADDING;
   const size = Math.ceil(extent * 2);
   const canvas = document.createElement('canvas');
