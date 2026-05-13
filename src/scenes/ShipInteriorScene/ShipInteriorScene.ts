@@ -705,16 +705,8 @@ function updateScenePlayer(
     fireSceneWeapon(currentPlayer, currentPlayer.primaryWeapon, now, deltaScale, onInspectionProbe);
   }
 
-  if (input.chaosFire.pressed) {
-    fireSceneWeapon(currentPlayer, 'shotgun', now, deltaScale, onInspectionProbe);
-  }
-
   if (!suppressAssignedSlots && input.fireSpecial.pressed) {
     fireSceneWeapon(currentPlayer, currentPlayer.secondaryWeapon, now, deltaScale, onInspectionProbe);
-  }
-
-  if (input.fireReallyHard.pressed) {
-    fireSceneWeapon(currentPlayer, 'blackHole', now, deltaScale, onInspectionProbe);
   }
 
   if (currentPlayer.invulnerable && now >= currentPlayer.invulnerableUntil) {

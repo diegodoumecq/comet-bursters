@@ -15,17 +15,6 @@ export function rumbleQuickFire(module: QueryModule) {
   module.addRumble({ duration: 50, strongMagnitude: 0, weakMagnitude: 0.3 }, 'quickfire');
 }
 
-export function rumbleChaosFire(module: QueryModule) {
-  module.addRumble(
-    [
-      { duration: 30, strongMagnitude: 0.1, weakMagnitude: 1 },
-      30,
-      { duration: 50, strongMagnitude: 0.5, weakMagnitude: 0.3 },
-    ],
-    'chaosFire',
-  );
-}
-
 export function rumbleSpinningFire(module: QueryModule) {
   module.addRumble({ duration: 50, strongMagnitude: 0, weakMagnitude: 0.6 }, 'spinningFire');
 }

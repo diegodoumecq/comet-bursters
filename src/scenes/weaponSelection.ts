@@ -34,11 +34,11 @@ export function getRadialMenuWeapon(currentPlayer: Player): SelectableWeaponType
 export function applyWeaponSelectionInput(currentPlayer: Player, input: InputState): void {
   if (input.timeDilation.pressed) {
     const selectedWeapon = getRadialMenuWeapon(currentPlayer);
-    if (input.fire.justChanged) {
+    if (input.fire.pressed) {
       currentPlayer.primaryWeapon = selectedWeapon;
       setSavedPrimaryWeapon(selectedWeapon);
     }
-    if (input.fireSpecial.justChanged) {
+    if (input.fireSpecial.pressed) {
       currentPlayer.secondaryWeapon = selectedWeapon;
       setSavedSecondaryWeapon(selectedWeapon);
     }

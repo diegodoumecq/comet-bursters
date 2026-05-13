@@ -26,7 +26,7 @@ export function isTractorActive(currentPlayer: Player, input: InputState): boole
 
   const primaryTractor = currentPlayer.primaryWeapon === 'tractor' && input.fire.pressed;
   const secondaryTractor = currentPlayer.secondaryWeapon === 'tractor' && input.fireSpecial.pressed;
-  return input.tractor.pressed || primaryTractor || secondaryTractor;
+  return primaryTractor || secondaryTractor;
 }
 
 function getTractorBeamDirection(currentPlayer: Player): { x: number; y: number } {

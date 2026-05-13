@@ -63,6 +63,7 @@ import {
   thrusterParticles,
 } from '@/state';
 import { updateBackground } from '../GameScene/background';
+import { getBlackHoleRenderRadius, updateBlackHoleLifecycles } from '../GameScene/blackHole';
 import {
   createExplosion,
   createExplosionBurst,
@@ -339,6 +340,7 @@ function addFuel(player: Player, amount: number): void {
 function applyGravity(
   entity: { x: number; y: number; vx: number; vy: number },
   planet: Planet,
+  deltaScale = 1,
 ): number {
   const { x: dx, y: dy } = wrappedDelta(entity.x, entity.y, planet.x, planet.y);
   const distSq = dx * dx + dy * dy;
@@ -349,8 +351,8 @@ function applyGravity(
   if (dist < planetRadius * 6 && dist > 0) {
     const force =
       (PLANET_CONFIG[planet.kind].gravityStrength * 0.5 * planetRadius * planetRadius) / distSq;
-    entity.vx += (dx / dist) * force;
-    entity.vy += (dy / dist) * force;
+    entity.vx += (dx / dist) * force * deltaScale;
+    entity.vy += (dy / dist) * force * deltaScale;
     return force;
   }
 
@@ -558,6 +560,7 @@ function updateBullet(bullet: Bullet, deltaScale = 1): void {
 function drawBullet(
   bullet: Bullet,
   ctx: CanvasRenderingContext2D,
+  now = Date.now(),
   cameraX = 0,
   cameraY = 0,
   previousCameraX = 0,
@@ -579,8 +582,9 @@ function drawBullet(
       break;
     }
     case 'blackHole': {
+      const radius = getBlackHoleRenderRadius(bullet, now);
       ctx.beginPath();
-      ctx.arc(0, 0, 10, 0, Math.PI * 2);
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
       ctx.fillStyle = '#000';
       ctx.fill();
       ctx.strokeStyle = '#fff';
@@ -846,16 +850,6 @@ function updatePlayer(
       onProbeFire();
     } else if (isProjectileWeapon(player.secondaryWeapon)) {
       fireProjectileWeapon(player, player.secondaryWeapon, now, deltaScale);
-    }
-  }
-
-  if (input.chaosFire.pressed) {
-    fireProjectileWeapon(player, 'shotgun', now, deltaScale);
-  }
-
-  if (input.fireReallyHard.pressed) {
-    if (onProbeFire()) {
-      player.timeoutBlackHole = now;
     }
   }
 
@@ -1218,6 +1212,29 @@ export class SandboxScene implements Scene {
     }
   }
 
+  private spawnFuelBurst(
+    x: number,
+    y: number,
+    count: number,
+    now: number,
+    baseVx = 0,
+    baseVy = 0,
+  ): void {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const scatter = 8 + Math.random() * 28;
+      const speed = 0.35 + Math.random() * 0.75;
+      this.droppedFuelBlobs.push({
+        id: `black-hole-fuel-${now}-${Math.round(x)}-${Math.round(y)}-${i}`,
+        x: x + Math.cos(angle) * scatter,
+        y: y + Math.sin(angle) * scatter,
+        vx: baseVx * 0.08 + Math.cos(angle) * speed,
+        vy: baseVy * 0.08 + Math.sin(angle) * speed,
+        wobbleSeed: Math.random(),
+      });
+    }
+  }
+
   private updatePlanetFuel(deltaTime: number, now: number, currentPlayer: Player): void {
     for (const planet of planets) {
       planet.rotation += planet.rotationSpeed * deltaTime;
@@ -1556,16 +1573,18 @@ export class SandboxScene implements Scene {
 
     for (const planet of planets) {
       if (!currentPlayer.waitingToRespawn) {
-        applyGravity(currentPlayer, planet);
+        applyGravity(currentPlayer, planet, deltaScale);
       }
       for (const asteroid of asteroids) {
-        applyGravity(asteroid, planet);
+        applyGravity(asteroid, planet, deltaScale);
       }
       for (const bullet of bullets) {
-        applyGravity(bullet, planet);
+        if (bullet.type !== 'blackHole') {
+          applyGravity(bullet, planet, deltaScale);
+        }
       }
       for (const blob of this.droppedFuelBlobs) {
-        applyGravity(blob, planet);
+        applyGravity(blob, planet, deltaScale);
       }
     }
 
@@ -1608,6 +1627,7 @@ export class SandboxScene implements Scene {
     for (let i = bullets.length - 1; i >= 0; i--) {
       const bullet = bullets[i];
       if (
+        bullet.type !== 'blackHole' &&
         planets.some(
           (planet) =>
             wrappedDistance(bullet.x, bullet.y, planet.x, planet.y) <
@@ -1625,6 +1645,7 @@ export class SandboxScene implements Scene {
       for (let j = asteroids.length - 1; j >= 0; j--) {
         const asteroid = asteroids[j];
         if (
+          bullet.type !== 'blackHole' &&
           !destroyedAsteroidsFromBullets.has(asteroid) &&
           circleIntersectsWrappedRotatedMask(bullet.x, bullet.y, BULLET_RADIUS, asteroid)
         ) {
@@ -1679,6 +1700,20 @@ export class SandboxScene implements Scene {
     this.visualPlayerPosition.x += playerMoveDelta.x;
     this.visualPlayerPosition.y += playerMoveDelta.y;
 
+    updateBlackHoleLifecycles({
+      now,
+      deltaScale,
+      planets,
+      getDelta: wrappedDelta,
+      distance: wrappedDistance,
+      onAsteroidAbsorbed: (asteroid) => {
+        const intensity = asteroid.size === 'big' ? 1.2 : asteroid.size === 'medium' ? 0.8 : 0.45;
+        createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
+      },
+      onFuelBurst: (x, y, count, burstNow, baseVx, baseVy) =>
+        this.spawnFuelBurst(x, y, count, burstNow, baseVx, baseVy),
+      createExplosionBurst,
+    });
     for (const asteroid of asteroids) {
       updateAsteroid(asteroid, deltaScale);
     }
@@ -1777,7 +1812,7 @@ export class SandboxScene implements Scene {
 
     for (let i = bullets.length - 1; i >= 0; i--) {
       updateBullet(bullets[i], deltaScale);
-      if (now - bullets[i].spawnTime >= bullets[i].lifetime) {
+      if (bullets[i].type !== 'blackHole' && now - bullets[i].spawnTime >= bullets[i].lifetime) {
         bullets.splice(i, 1);
       }
     }
@@ -1802,14 +1837,15 @@ export class SandboxScene implements Scene {
   }
 
   draw(ctx: CanvasRenderingContext2D): void {
-    const now = Date.now();
+    const realNow = Date.now();
+    const now = this.simulationTime;
     const viewportWidth = getGameWidth();
     const viewportHeight = getGameHeight();
 
     let shakeX = 0;
     let shakeY = 0;
     if (screenShake.intensity > 0) {
-      const elapsed = now - screenShake.startTime;
+      const elapsed = realNow - screenShake.startTime;
       if (elapsed < screenShake.duration) {
         const decay = 1 - elapsed / screenShake.duration;
         shakeX = (Math.random() - 0.5) * screenShake.intensity * decay;
@@ -1856,6 +1892,7 @@ export class SandboxScene implements Scene {
           drawBullet(
             bullet,
             ctx,
+            now,
             this.camera.x,
             this.camera.y,
             this.previousCamera.x,
@@ -1966,11 +2003,15 @@ export class SandboxScene implements Scene {
             getWrappedDrawPositions(
               bullet.x,
               bullet.y,
-              BULLET_RADIUS,
+              getBlackHoleRenderRadius(bullet, now),
               this.camera,
               viewportWidth,
               viewportHeight,
-            ).map((position) => ({ x: position.x - this.camera.x, y: position.y - this.camera.y })),
+            ).map((position) => ({
+              x: position.x - this.camera.x,
+              y: position.y - this.camera.y,
+              radius: getBlackHoleRenderRadius(bullet, now),
+            })),
           ),
       );
       renderWithShaders(this.canvas);

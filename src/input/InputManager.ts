@@ -9,9 +9,6 @@ class InputManagerImpl {
     a: false,
     s: false,
     d: false,
-    q: false,
-    r: false,
-    e: false,
     f: false,
     space: false,
     enter: false,
@@ -131,26 +128,6 @@ class InputManagerImpl {
     };
   }
 
-  private getKeyboardFireReallyHard(): ButtonResult {
-    const pressed = this.keyboardState.q;
-    return {
-      type: 'button',
-      value: pressed ? 1 : 0,
-      pressed,
-      justChanged: pressed && !this.prevKeyboardState.q,
-    };
-  }
-
-  private getKeyboardChaosFire(): ButtonResult {
-    const pressed = this.keyboardState.e;
-    return {
-      type: 'button',
-      value: pressed ? 1 : 0,
-      pressed,
-      justChanged: pressed && !this.prevKeyboardState.e,
-    };
-  }
-
   private getKeyboardShield(): ButtonResult {
     const pressed = this.keyboardState.shift;
     return {
@@ -158,16 +135,6 @@ class InputManagerImpl {
       value: pressed ? 1 : 0,
       pressed,
       justChanged: pressed && !this.prevKeyboardState.shift,
-    };
-  }
-
-  private getKeyboardTractor(): ButtonResult {
-    const pressed = this.keyboardState.r;
-    return {
-      type: 'button',
-      value: pressed ? 1 : 0,
-      pressed,
-      justChanged: pressed && !this.prevKeyboardState.r,
     };
   }
 
@@ -220,7 +187,7 @@ class InputManagerImpl {
     }
 
     const sticks = module.getSticks('L', 'R');
-    const buttons = module.getButtons('R1', 'L1', 'R2', 'L2', 'A');
+    const buttons = module.getButtons('R1', 'L1', 'A');
 
     return {
       move: {
@@ -248,18 +215,6 @@ class InputManagerImpl {
         value: buttons.R1?.value || 0,
         pressed: buttons.R1?.pressed || false,
         justChanged: buttons.R1?.justChanged || false,
-      },
-      fireReallyHard: {
-        type: 'button' as const,
-        value: buttons.R2?.value || 0,
-        pressed: buttons.R2?.pressed || false,
-        justChanged: buttons.R2?.justChanged || false,
-      },
-      chaosFire: {
-        type: 'button' as const,
-        value: buttons.L2?.value || 0,
-        pressed: buttons.L2?.pressed || false,
-        justChanged: buttons.L2?.justChanged || false,
       },
       shield: {
         type: 'button' as const,
@@ -323,10 +278,7 @@ class InputManagerImpl {
     const gamepadInput = this.getGamepadInput(module);
 
     const keyboardMove = this.getKeyboardMove();
-    const keyboardFireReallyHard = this.getKeyboardFireReallyHard();
-    const keyboardChaosFire = this.getKeyboardChaosFire();
     const keyboardShield = this.getKeyboardShield();
-    const keyboardTractor = this.getKeyboardTractor();
     const keyboardTimeDilation = this.getKeyboardTimeDilation();
 
     const mouseAim = this.getMouseAim(playerX, playerY);
@@ -337,8 +289,6 @@ class InputManagerImpl {
     const gamepadAim = gamepadInput.aim || emptyStick;
     const gamepadFire = gamepadInput.fire || emptyButton;
     const gamepadFireSpecial = gamepadInput.fireSpecial || emptyButton;
-    const gamepadFireReallyHard = gamepadInput.fireReallyHard || emptyButton;
-    const gamepadChaosFire = gamepadInput.chaosFire || emptyButton;
     const gamepadShield = gamepadInput.shield || emptyButton;
 
     const mergedMove = this.mergeSticks(keyboardMove, gamepadMove);
@@ -352,24 +302,14 @@ class InputManagerImpl {
 
     const mergedFire = this.mergeButtons(emptyButton, gamepadFire, mouseFire);
     const mergedFireSpecial = this.mergeButtons(emptyButton, gamepadFireSpecial, mouseFireSpecial);
-    const mergedFireReallyHard = this.mergeButtons(
-      keyboardFireReallyHard,
-      gamepadFireReallyHard,
-      emptyButton,
-    );
-    const mergedChaosFire = this.mergeButtons(keyboardChaosFire, gamepadChaosFire, emptyButton);
     const mergedShield = this.mergeButtons(keyboardShield, gamepadShield, emptyButton);
-    const mergedTractor = keyboardTractor;
 
     return {
       move: mergedMove,
       aim: mergedAim,
       fire: mergedFire,
       fireSpecial: mergedFireSpecial,
-      fireReallyHard: mergedFireReallyHard,
-      chaosFire: mergedChaosFire,
       shield: mergedShield,
-      tractor: mergedTractor,
       timeDilation: keyboardTimeDilation,
     };
   }

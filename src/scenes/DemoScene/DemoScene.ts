@@ -357,12 +357,6 @@ export class DemoScene implements Scene {
           () => fireInspectionProbe(currentPlayer, this.inspectionProbes, timeStep.now),
         );
       }
-      if (input.chaosFire.pressed) {
-        fireAssignedWeapon(currentPlayer, 'shotgun', timeStep.now, timeStep.deltaScale);
-      }
-      if (input.fireReallyHard.pressed) {
-        fireAssignedWeapon(currentPlayer, 'blackHole', timeStep.now, timeStep.deltaScale);
-      }
     }
     applyTractorBeamToTargets(currentPlayer, input, this.asteroids, timeStep.deltaScale);
     for (const asteroid of this.asteroids) {

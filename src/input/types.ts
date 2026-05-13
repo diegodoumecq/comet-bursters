@@ -21,10 +21,7 @@ export interface InputState {
   aim: StickResult;
   fire: ButtonResult;
   fireSpecial: ButtonResult;
-  fireReallyHard: ButtonResult;
-  chaosFire: ButtonResult;
   shield: ButtonResult;
-  tractor: ButtonResult;
   timeDilation: ButtonResult;
 }
 

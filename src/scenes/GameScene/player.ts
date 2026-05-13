@@ -175,14 +175,6 @@ export function updatePlayer(
     fireAssignedWeapon(player, player.secondaryWeapon, now, deltaScale, onInspectionProbe);
   }
 
-  if (input.chaosFire.pressed) {
-    fireAssignedWeapon(player, 'shotgun', now, deltaScale);
-  }
-
-  if (input.fireReallyHard.pressed) {
-    fireAssignedWeapon(player, 'blackHole', now, deltaScale);
-  }
-
   if (player.invulnerable && now >= player.invulnerableUntil) {
     player.invulnerable = false;
   }
