@@ -1,4 +1,4 @@
-import type { Player, SelectableWeaponType } from '@/constants';
+import { getWeaponIconSprite, type Player, type SelectableWeaponType } from '@/constants';
 import type { InputState } from '@/input/types';
 import { setSavedPrimaryWeapon, setSavedSecondaryWeapon } from '@/state';
 
@@ -11,17 +11,12 @@ export const SELECTABLE_WEAPONS: SelectableWeaponType[] = [
   'inspectionProbe',
 ];
 
-export const SELECTABLE_WEAPON_LABELS: Record<SelectableWeaponType, string> = {
-  small: 'Blaster',
-  pusher: 'Pusher',
-  shotgun: 'Shotgun',
-  blackHole: 'Black Hole',
-  tractor: 'Tractor',
-  inspectionProbe: 'Probe',
-};
-
 export const RADIAL_MENU_INNER_RADIUS = 34;
 export const RADIAL_MENU_OUTER_RADIUS = 116;
+const SLOT_MARKER_RADIUS = RADIAL_MENU_INNER_RADIUS + 16;
+const ICON_RADIUS = (RADIAL_MENU_INNER_RADIUS + RADIAL_MENU_OUTER_RADIUS) * 0.5;
+const PRIMARY_SLOT_COLOR = '#38bdf8';
+const SECONDARY_SLOT_COLOR = '#fb7185';
 
 export function getRadialMenuWeapon(currentPlayer: Player): SelectableWeaponType {
   const turretAngle = currentPlayer.turretAngle - Math.PI * 0.5;
@@ -87,31 +82,50 @@ export function drawWeaponSelectionMenu(
     ctx.lineWidth = selected ? 2 : 1;
     ctx.stroke();
 
-    const labelRadius = (RADIAL_MENU_INNER_RADIUS + RADIAL_MENU_OUTER_RADIUS) * 0.5;
-    const labelX = Math.cos(centerAngle) * labelRadius;
-    const labelY = Math.sin(centerAngle) * labelRadius;
-    ctx.fillStyle = selected ? '#ffffff' : '#cbd5e1';
-    ctx.fillText(SELECTABLE_WEAPON_LABELS[weapon], labelX, labelY);
+    ctx.save();
+    ctx.translate(Math.cos(centerAngle) * ICON_RADIUS, Math.sin(centerAngle) * ICON_RADIUS);
+    const icon = getWeaponIconSprite(weapon, selected);
+    ctx.drawImage(icon, -icon.width / 2, -icon.height / 2);
+    ctx.restore();
 
-    if (currentPlayer.primaryWeapon === weapon || currentPlayer.secondaryWeapon === weapon) {
+    const hasPrimarySlot = currentPlayer.primaryWeapon === weapon;
+    const hasSecondarySlot = currentPlayer.secondaryWeapon === weapon;
+    if (hasPrimarySlot || hasSecondarySlot) {
       const slotLabel =
-        currentPlayer.primaryWeapon === weapon && currentPlayer.secondaryWeapon === weapon
+        hasPrimarySlot && hasSecondarySlot
           ? 'L/R'
-          : currentPlayer.primaryWeapon === weapon
+          : hasPrimarySlot
             ? 'L'
             : 'R';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.82)';
-      ctx.fillText(slotLabel, Math.cos(centerAngle) * 98, Math.sin(centerAngle) * 98);
+      const slotX = Math.cos(centerAngle) * SLOT_MARKER_RADIUS;
+      const slotY = Math.sin(centerAngle) * SLOT_MARKER_RADIUS;
+
+      ctx.save();
+      ctx.translate(slotX, slotY);
+      if (hasPrimarySlot && hasSecondarySlot) {
+        ctx.beginPath();
+        ctx.arc(0, 0, 12, Math.PI * 0.5, Math.PI * 1.5);
+        ctx.fillStyle = PRIMARY_SLOT_COLOR;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(0, 0, 12, Math.PI * 1.5, Math.PI * 0.5);
+        ctx.fillStyle = SECONDARY_SLOT_COLOR;
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, 11, 0, Math.PI * 2);
+        ctx.fillStyle = hasPrimarySlot ? PRIMARY_SLOT_COLOR : SECONDARY_SLOT_COLOR;
+        ctx.fill();
+      }
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.86)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = '#06111f';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText(slotLabel, 0, 0);
+      ctx.restore();
     }
   }
-
-  const aimAngle = currentPlayer.turretAngle - Math.PI * 0.5;
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(Math.cos(aimAngle) * RADIAL_MENU_INNER_RADIUS, Math.sin(aimAngle) * RADIAL_MENU_INNER_RADIUS);
-  ctx.lineTo(Math.cos(aimAngle) * (RADIAL_MENU_OUTER_RADIUS + 16), Math.sin(aimAngle) * (RADIAL_MENU_OUTER_RADIUS + 16));
-  ctx.stroke();
 
   ctx.restore();
 }

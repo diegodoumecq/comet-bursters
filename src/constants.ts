@@ -1,5 +1,6 @@
 import { QueryModule } from 'joymap';
 
+import { createWeaponIconSprites } from './weaponIconSprites';
 import { gameState } from './state';
 
 export interface AlphaMask {
@@ -260,6 +261,7 @@ export const MAX_BLACK_HOLES = 10;
 
 export const BULLET_CONFIGS = {
   small: {
+    iconSprites: createWeaponIconSprites('small'),
     speed: 15,
     lifetime: 500,
     damage: 2,
@@ -271,6 +273,7 @@ export const BULLET_CONFIGS = {
     speedVariance: 0,
   },
   blackHole: {
+    iconSprites: createWeaponIconSprites('blackHole'),
     speed: 1,
     lifetime: 10000,
     damage: 400,
@@ -282,6 +285,7 @@ export const BULLET_CONFIGS = {
     speedVariance: 0,
   },
   pusher: {
+    iconSprites: createWeaponIconSprites('pusher'),
     speed: 8,
     lifetime: 1000,
     damage: 0.2,
@@ -293,6 +297,7 @@ export const BULLET_CONFIGS = {
     speedVariance: 0,
   },
   shotgun: {
+    iconSprites: createWeaponIconSprites('shotgun'),
     speed: 12,
     lifetime: 250,
     damage: 1,
@@ -304,6 +309,7 @@ export const BULLET_CONFIGS = {
     speedVariance: 0.3,
   },
   tractor: {
+    iconSprites: createWeaponIconSprites('tractor'),
     speed: 0,
     lifetime: 0,
     damage: 0,
@@ -315,6 +321,18 @@ export const BULLET_CONFIGS = {
     speedVariance: 0,
   },
 } as const;
+
+export const INSPECTION_PROBE_WEAPON_CONFIG = {
+  iconSprites: createWeaponIconSprites('inspectionProbe'),
+} as const;
+
+export function getWeaponIconSprite(weapon: SelectableWeaponType, selected: boolean): HTMLCanvasElement {
+  const iconSprites =
+    weapon === 'inspectionProbe'
+      ? INSPECTION_PROBE_WEAPON_CONFIG.iconSprites
+      : BULLET_CONFIGS[weapon].iconSprites;
+  return selected ? iconSprites.selected : iconSprites.normal;
+}
 
 export const ASTEROID_CONFIGS = {
   mega: {
