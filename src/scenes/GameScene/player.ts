@@ -3,8 +3,8 @@ import { createQueryModule } from 'joymap';
 import { scaleMask } from '@/assets';
 import {
   BULLET_CONFIGS,
-  FUELLESS_THRUST_POWER_SCALE,
   FUEL_THRUST_PER_SECOND,
+  FUELLESS_THRUST_POWER_SCALE,
   INVULNERABILITY_DURATION,
   LOW_FUEL_RATIO,
   PLAYER_ACCELERATION,
@@ -23,12 +23,7 @@ import {
   type WeaponType,
 } from '@/constants';
 import { InputManager } from '@/input';
-import {
-  drainFuel,
-  getFuelRatio,
-  getWeaponFireMode,
-  type BulletMode,
-} from '@/playerFuel';
+import { drainFuel, getFuelRatio, getWeaponFireMode, type BulletMode } from '@/playerFuel';
 import { bullets, gameState, getGameHeight, getGameWidth, savedWeaponSlots } from '@/state';
 import { createThrusterParticle } from './particle';
 
@@ -91,6 +86,7 @@ export function createPlayer(padId: string): Player {
     thrustDirX: 0,
     thrustDirY: 0,
     getRadius: () => PLAYER_SIZE * 0.6,
+    zIndex: 1,
   };
 }
 
@@ -166,16 +162,26 @@ export function updatePlayer(
       player.lastThrusterSpawn = now;
       const thrusterX = player.x + player.thrustDirX * PLAYER_SIZE;
       const thrusterY = player.y + player.thrustDirY * PLAYER_SIZE;
-      thrusterParticle = createThrusterParticle(thrusterX, thrusterY, player.thrustDirX, player.thrustDirY, thrustPower);
+      thrusterParticle = createThrusterParticle(
+        thrusterX,
+        thrusterY,
+        player.thrustDirX,
+        player.thrustDirY,
+        thrustPower,
+      );
     }
   }
 
   if (!suppressAssignedSlots && input.fire.pressed) {
-    createdBullets.push(...fireAssignedWeapon(player, player.primaryWeapon, now, deltaScale, onInspectionProbe));
+    createdBullets.push(
+      ...fireAssignedWeapon(player, player.primaryWeapon, now, deltaScale, onInspectionProbe),
+    );
   }
 
   if (!suppressAssignedSlots && input.fireSpecial.pressed) {
-    createdBullets.push(...fireAssignedWeapon(player, player.secondaryWeapon, now, deltaScale, onInspectionProbe));
+    createdBullets.push(
+      ...fireAssignedWeapon(player, player.secondaryWeapon, now, deltaScale, onInspectionProbe),
+    );
   }
 
   if (player.invulnerable && now >= player.invulnerableUntil) {
@@ -244,7 +250,12 @@ function setWeaponTimeout(player: Player, type: Exclude<WeaponType, 'tractor'>, 
   }
 }
 
-function createBullet(player: Player, type: WeaponType, mode: BulletMode = 'normal', now = Date.now()): Bullet[] {
+function createBullet(
+  player: Player,
+  type: WeaponType,
+  mode: BulletMode = 'normal',
+  now = Date.now(),
+): Bullet[] {
   const createdBullets: Bullet[] = [];
   const config = BULLET_CONFIGS[type];
   const isDegradedSmall = mode === 'degraded' && type === 'small';

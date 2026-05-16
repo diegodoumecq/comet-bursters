@@ -1,8 +1,8 @@
 import { QueryModule } from 'joymap';
-import type { SceneEntity } from './scenes/entities';
 
-import { createWeaponIconSprites } from './weaponIconSprites';
+import type { SceneEntity } from './scenes/entities';
 import { gameState } from './state';
+import { createWeaponIconSprites } from './weaponIconSprites';
 
 export interface AlphaMask {
   width: number;
@@ -327,7 +327,10 @@ export const INSPECTION_PROBE_WEAPON_CONFIG = {
   iconSprites: createWeaponIconSprites('inspectionProbe'),
 } as const;
 
-export function getWeaponIconSprite(weapon: SelectableWeaponType, selected: boolean): HTMLCanvasElement {
+export function getWeaponIconSprite(
+  weapon: SelectableWeaponType,
+  selected: boolean,
+): HTMLCanvasElement {
   const iconSprites =
     weapon === 'inspectionProbe'
       ? INSPECTION_PROBE_WEAPON_CONFIG.iconSprites
@@ -413,43 +416,43 @@ export interface Star {
 
 export const PLANET_CONFIG = {
   lush: {
-    radius: 150,
+    radius: 250,
     gravityStrength: 0.5,
     fuelReserveRange: { min: PLANET_MIN_FUEL_RESERVE, max: PLANET_MAX_FUEL_RESERVE },
     palette: ['#2ecc71', '#27ae60', '#58d68d'],
   },
   desert: {
-    radius: 150,
+    radius: 250,
     gravityStrength: 0.5,
     fuelReserveRange: { min: 0, max: 0 },
     palette: ['#f39c12', '#d68910', '#e67e22'],
   },
   ice: {
-    radius: 150,
+    radius: 250,
     gravityStrength: 0.5,
     fuelReserveRange: { min: 0, max: PLANET_NEAR_EMPTY_FUEL_RESERVE },
     palette: ['#8bd3ff', '#5dade2', '#d6f6ff'],
   },
   lava: {
-    radius: 150,
+    radius: 450,
     gravityStrength: 0.5,
     fuelReserveRange: { min: 0, max: PLANET_NEAR_EMPTY_FUEL_RESERVE },
     palette: ['#e74c3c', '#ff6b35', '#c0392b'],
   },
   gas: {
-    radius: 300,
+    radius: 700,
     gravityStrength: 0.5,
     fuelReserveRange: { min: 0, max: PLANET_NEAR_EMPTY_FUEL_RESERVE },
     palette: ['#9b59b6', '#8e44ad', '#c39bd3'],
   },
   toxic: {
-    radius: 150,
+    radius: 350,
     gravityStrength: 0.5,
     fuelReserveRange: { min: 0, max: PLANET_NEAR_EMPTY_FUEL_RESERVE },
     palette: ['#1abc9c', '#16a085', '#7bed9f'],
   },
   crystal: {
-    radius: 200,
+    radius: 300,
     gravityStrength: 1,
     fuelReserveRange: { min: 0, max: PLANET_NEAR_EMPTY_FUEL_RESERVE },
     palette: ['#8ef6ff', '#7bc7ff', '#d6f7ff'],

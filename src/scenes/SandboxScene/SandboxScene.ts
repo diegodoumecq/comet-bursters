@@ -1291,7 +1291,7 @@ export class SandboxScene implements Scene {
   }
 
   private refreshPlayerZIndex(): void {
-    if (player) {
+    if (player?.render) {
       player.zIndex = this.playerUndocked ? 40 : 1;
       this.entities.add(player);
     }
@@ -1405,6 +1405,7 @@ export class SandboxScene implements Scene {
   private startMothershipReveal(now: number): void {
     this.mothershipDoorOpenedAt = now;
     this.playerUndocked = false;
+    this.refreshPlayerZIndex();
   }
 
   private orientPlayerForMothershipSpawn(currentPlayer: Player): void {
@@ -1817,9 +1818,9 @@ export class SandboxScene implements Scene {
     currentPlayer.respawnTime = 0;
     this.placePlayerSafely(currentPlayer);
     this.mothershipPosition = { x: currentPlayer.x - 100, y: currentPlayer.y };
+    this.startMothershipReveal(Date.now());
     this.attachPlayerEntity(currentPlayer);
     this.attachMothershipEntities();
-    this.startMothershipReveal(Date.now());
     this.visualPlayerPosition = { x: currentPlayer.x, y: currentPlayer.y };
     this.updateCamera();
     this.previousCamera.x = this.camera.x;

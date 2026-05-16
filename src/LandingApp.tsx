@@ -22,15 +22,14 @@ export function LandingApp() {
             Comet Bursters
           </div>
           <h1 className="mt-3 max-w-3xl text-5xl font-semibold leading-tight text-white">
-            Choose Between The Game And The Level Editor
+            Choose A Runtime Or Tool
           </h1>
           <p className="mt-4 max-w-2xl text-base text-slate-400">
-            The runtime game and the editor now live as separate entrypoints. Use the game for
-            playtesting and the editor for asset selection, tiles, and level authoring.
+            The legacy game, the Phaser rewrite, and the editors live as separate entrypoints.
           </p>
         </header>
 
-        <main className="grid flex-1 gap-6 lg:grid-cols-2 2xl:grid-cols-4">
+        <main className="grid flex-1 gap-6 lg:grid-cols-2 2xl:grid-cols-5">
           <div
             className="group rounded-3xl border border-slate-800 bg-slate-900/70 p-8 transition hover:border-cyan-400/50 hover:bg-slate-900"
           >
@@ -57,6 +56,20 @@ export function LandingApp() {
               Go to game
             </a>
           </div>
+
+          <a
+            href="/phaser-game.html"
+            className="group rounded-3xl border border-slate-800 bg-slate-900/70 p-8 transition hover:border-cyan-400/50 hover:bg-slate-900"
+          >
+            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-300">
+              Rewrite
+            </div>
+            <h2 className="mt-4 text-3xl font-semibold text-white">Open Phaser Game</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-400">
+              Launch the new Phaser-based runtime while the rewrite is developed in parallel.
+            </p>
+            <div className="mt-10 text-sm font-medium text-cyan-200">Go to Phaser game</div>
+          </a>
 
           <a
             href="/editor.html"

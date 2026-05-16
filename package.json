@@ -36,6 +36,7 @@
   "license": "MIT",
   "dependencies": {
     "joymap": "^2.2.4",
+    "phaser": "^3.90.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-resizable-panels": "^4.10.0",
