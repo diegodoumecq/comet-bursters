@@ -44,6 +44,17 @@ export function wrapAsteroid(asteroid: AsteroidEntity, world: WorldSize): void {
   if (asteroid.body.y > world.height + radius) asteroid.body.y = -radius;
 }
 
+export function updateAsteroids(asteroids: AsteroidEntity[], deltaSeconds: number, world: WorldSize): void {
+  for (const asteroid of asteroids) {
+    const velocity = asteroid.velocity ?? { x: 0, y: 0 };
+    asteroid.body.setPosition(
+      asteroid.body.x + velocity.x * deltaSeconds,
+      asteroid.body.y + velocity.y * deltaSeconds,
+    );
+    wrapAsteroid(asteroid, world);
+  }
+}
+
 function resolvePair(left: AsteroidEntity, right: AsteroidEntity, world: WorldSize): void {
   const leftConfig = ASTEROIDS[left.tier];
   const rightConfig = ASTEROIDS[right.tier];

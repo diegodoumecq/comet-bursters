@@ -1,12 +1,14 @@
 import Phaser from 'phaser';
 
-import type { FuelBlobEntity, Vector, WorldSize } from '../model';
+import type { AsteroidEntity, FuelBlobEntity, Vector, WorldSize } from '../model';
 import {
+  FUEL_BLOB_AMOUNT,
   FUEL_BLOB_ATTRACTION_ACCELERATION,
   FUEL_BLOB_ATTRACTION_RADIUS,
   FUEL_BLOB_DRAG_PER_FRAME,
   FUEL_BLOB_MAX_SPEED,
   FUEL_BLOB_RADIUS,
+  getFuelDropCount,
 } from './fuel';
 import { wrapPoint } from './world';
 
@@ -36,6 +38,18 @@ export function spawnFuelBlobs(
     });
   }
   return blobs;
+}
+
+export function spawnAsteroidFuelDrops(scene: Phaser.Scene, asteroid: AsteroidEntity): FuelBlobEntity[] {
+  const count = getFuelDropCount(asteroid.tier);
+  return count === 0
+    ? []
+    : spawnFuelBlobs(
+        scene,
+        { x: asteroid.body.x, y: asteroid.body.y },
+        asteroid.velocity ?? { x: 0, y: 0 },
+        count,
+      );
 }
 
 export function updateFuelBlob(
@@ -70,4 +84,20 @@ export function updateFuelBlob(
     blob.shape.y + blob.velocity.y * deltaSeconds,
   );
   wrapPoint(blob.shape, world);
+}
+
+export function updateFuelBlobs(
+  blobs: FuelBlobEntity[],
+  player: Vector,
+  canCollect: boolean,
+  deltaSeconds: number,
+  world: WorldSize,
+): { collected: FuelBlobEntity[]; fuelGain: number } {
+  const collected: FuelBlobEntity[] = [];
+  for (const blob of blobs) {
+    updateFuelBlob(blob, player, canCollect, deltaSeconds, world);
+    const distance = Phaser.Math.Distance.Between(player.x, player.y, blob.shape.x, blob.shape.y);
+    if (canCollect && distance <= 18 + FUEL_BLOB_RADIUS) collected.push(blob);
+  }
+  return { collected, fuelGain: collected.length * FUEL_BLOB_AMOUNT };
 }

@@ -35,6 +35,7 @@ export type AsteroidEntity = {
 
 export type PlanetEntity = {
   body: Phaser.GameObjects.Arc;
+  gravityStrength: number;
   radius: number;
 };
 
@@ -52,4 +53,12 @@ export type FuelBlobEntity = {
   shape: Phaser.GameObjects.Arc;
   velocity: Vector;
   wobbleSeed: number;
+};
+
+export type ParticleEntity = {
+  alphaDecayPerSecond: number;
+  dragPerSecond: number;
+  lifetimeMs: number;
+  shape: Phaser.GameObjects.Arc;
+  velocity: Vector;
 };

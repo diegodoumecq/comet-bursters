@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 const MENU_ITEMS = [
   { key: 'demo', label: 'Demo Scene' },
   { key: 'game', label: 'Game Scene' },
+  { key: 'sandbox', label: 'Sandbox Scene' },
 ] as const;
 
 export class SceneMenuScene extends Phaser.Scene {

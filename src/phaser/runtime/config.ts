@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { BootScene } from '../scenes/BootScene';
 import { PhaserDemoScene } from '../scenes/DemoScene';
 import { PhaserGameScene } from '../scenes/GameScene';
+import { PhaserSandboxScene } from '../scenes/SandboxScene';
 import { SceneMenuScene } from '../scenes/SceneMenuScene';
 
 export function createPhaserConfig(parent: string): Phaser.Types.Core.GameConfig {
@@ -26,6 +27,6 @@ export function createPhaserConfig(parent: string): Phaser.Types.Core.GameConfig
         debug: false,
       },
     },
-    scene: [BootScene, SceneMenuScene, PhaserDemoScene, PhaserGameScene],
+    scene: [BootScene, SceneMenuScene, PhaserDemoScene, PhaserGameScene, PhaserSandboxScene],
   };
 }

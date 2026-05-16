@@ -7,6 +7,7 @@ export function LandingApp() {
     return Number.isFinite(parsed) ? Math.max(1, Math.min(50, parsed)) : 1;
   });
   const gameHref = useMemo(() => `/game.html?startingWave=${startingWave}`, [startingWave]);
+  const phaserGameHref = useMemo(() => `/phaser-game.html?startingWave=${startingWave}`, [startingWave]);
 
   function updateStartingWave(value: number): void {
     const next = Math.max(1, Math.min(50, Math.round(value || 1)));
@@ -27,6 +28,17 @@ export function LandingApp() {
           <p className="mt-4 max-w-2xl text-base text-slate-400">
             The legacy game, the Phaser rewrite, and the editors live as separate entrypoints.
           </p>
+          <label className="mt-8 block text-sm font-medium text-slate-300">
+            Starting wave
+            <input
+              className="mt-2 block w-28 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-cyan-300"
+              min={1}
+              max={50}
+              type="number"
+              value={startingWave}
+              onChange={(event) => updateStartingWave(Number(event.target.value))}
+            />
+          </label>
         </header>
 
         <main className="grid flex-1 gap-6 lg:grid-cols-2 2xl:grid-cols-5">
@@ -41,24 +53,13 @@ export function LandingApp() {
               Launch the original canvas-based game client with scenes, controls, and current
               gameplay flow.
             </p>
-            <label className="mt-8 block text-sm font-medium text-slate-300">
-              Starting wave
-              <input
-                className="mt-2 block w-28 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-cyan-300"
-                min={1}
-                max={50}
-                type="number"
-                value={startingWave}
-                onChange={(event) => updateStartingWave(Number(event.target.value))}
-              />
-            </label>
             <a className="mt-8 inline-block text-sm font-medium text-cyan-200" href={gameHref}>
               Go to game
             </a>
           </div>
 
           <a
-            href="/phaser-game.html"
+            href={phaserGameHref}
             className="group rounded-3xl border border-slate-800 bg-slate-900/70 p-8 transition hover:border-cyan-400/50 hover:bg-slate-900"
           >
             <div className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-300">

@@ -176,6 +176,7 @@ export class PhaserDemoScene extends Phaser.Scene {
     ];
     this.planets = layouts.map(([x, y, radius, color]) => ({
       body: this.add.circle(x, y, radius, color).setStrokeStyle(4, 0xffffff, 0.25),
+      gravityStrength: 0.5,
       radius,
     }));
   }
