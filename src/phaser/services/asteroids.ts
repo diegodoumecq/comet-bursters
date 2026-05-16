@@ -117,12 +117,16 @@ export function splitAsteroid(scene: Phaser.Scene, asteroid: AsteroidEntity): As
   const inherited = asteroid.velocity ?? { x: 0, y: 0 };
   const children: AsteroidEntity[] = [];
   for (let i = 0; i < config.splitCount; i += 1) {
-    const angle = Math.random() * Math.PI * 2;
+    const angle = (Math.PI * 2 * i) / config.splitCount + Phaser.Math.FloatBetween(-0.35, 0.35);
     const speed = childConfig.speed * Phaser.Math.FloatBetween(0.8, 1.2);
+    const spawnDistance = config.radius + childConfig.radius + 4;
     children.push(createAsteroid(
       scene,
       config.child,
-      { x: asteroid.body.x + Phaser.Math.Between(-20, 20), y: asteroid.body.y + Phaser.Math.Between(-20, 20) },
+      {
+        x: asteroid.body.x + Math.cos(angle) * spawnDistance,
+        y: asteroid.body.y + Math.sin(angle) * spawnDistance,
+      },
       { x: inherited.x + Math.cos(angle) * speed, y: inherited.y + Math.sin(angle) * speed },
     ));
   }

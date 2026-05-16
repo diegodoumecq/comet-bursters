@@ -109,6 +109,7 @@ export class PhaserDemoScene extends Phaser.Scene {
       collapseStartedAt: null,
       createdAt: now,
       kind,
+      lifetimeMs: spec.lifetimeMs,
       shape,
       velocity: {
         x: direction.x * spec.speed,
@@ -120,8 +121,7 @@ export class PhaserDemoScene extends Phaser.Scene {
   private updateProjectiles(now: number, deltaSeconds: number): void {
     for (let i = this.projectiles.length - 1; i >= 0; i -= 1) {
       const projectile = this.projectiles[i];
-      const spec = PROJECTILES[projectile.kind];
-      if (now - projectile.createdAt >= spec.lifetimeMs) {
+      if (now - projectile.createdAt >= projectile.lifetimeMs) {
         this.removeProjectile(projectile);
       } else {
         projectile.shape.setPosition(

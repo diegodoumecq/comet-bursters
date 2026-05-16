@@ -7,11 +7,12 @@ export type ActionState = {
   firePrimary: boolean;
   fireSecondary: boolean;
   move: Vector;
+  shield: boolean;
   timeDilation: boolean;
 };
 
 export class ActionReader {
-  private readonly keys: Record<'up' | 'down' | 'left' | 'right' | 'time' | 'primary' | 'secondary', Phaser.Input.Keyboard.Key>;
+  private readonly keys: Record<'up' | 'down' | 'left' | 'right' | 'time' | 'primary' | 'secondary' | 'shield', Phaser.Input.Keyboard.Key>;
 
   constructor(private readonly scene: Phaser.Scene) {
     const keyboard = scene.input.keyboard;
@@ -26,6 +27,7 @@ export class ActionReader {
       time: Phaser.Input.Keyboard.KeyCodes.SHIFT,
       primary: Phaser.Input.Keyboard.KeyCodes.SPACE,
       secondary: Phaser.Input.Keyboard.KeyCodes.E,
+      shield: Phaser.Input.Keyboard.KeyCodes.F,
     }) as typeof this.keys;
     scene.input.mouse?.disableContextMenu();
   }
@@ -53,6 +55,7 @@ export class ActionReader {
       firePrimary: pointer.leftButtonDown() || this.keys.primary.isDown || Boolean(pad?.L1),
       fireSecondary: pointer.rightButtonDown() || this.keys.secondary.isDown || Boolean(pad?.R1),
       move,
+      shield: this.keys.shield.isDown || Boolean(pad?.R2),
       timeDilation: this.keys.time.isDown || Boolean(pad?.L2),
     };
   }

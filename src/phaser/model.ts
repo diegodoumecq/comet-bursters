@@ -4,11 +4,14 @@ export type WeaponKind = 'small' | 'pusher' | 'shotgun' | 'blackHole' | 'tractor
 export type ProjectileKind = Exclude<WeaponKind, 'tractor'>;
 
 export type ProjectileSpec = {
+  count: number;
   damage: number;
   impact: number;
   lifetimeMs: number;
   radius: number;
+  recoil: number;
   speed: number;
+  spread: number;
 };
 
 export type WorldSize = {
@@ -40,6 +43,13 @@ export type ProjectileEntity = {
   collapseStartedAt: number | null;
   createdAt: number;
   kind: ProjectileKind;
+  lifetimeMs: number;
   shape: Phaser.GameObjects.Arc;
   velocity: Vector;
+};
+
+export type FuelBlobEntity = {
+  shape: Phaser.GameObjects.Arc;
+  velocity: Vector;
+  wobbleSeed: number;
 };
