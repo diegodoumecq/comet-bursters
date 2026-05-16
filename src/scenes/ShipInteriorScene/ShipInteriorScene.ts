@@ -48,6 +48,7 @@ import {
   updateThrusterParticle,
 } from '../GameScene/particle';
 import { createPlayer, drawPlayer } from '../GameScene/player';
+import { SceneEntityRegistry } from '../entities';
 import type { Scene } from '../scene';
 import {
   drawInspectionProbe,
@@ -130,11 +131,6 @@ type CollisionRef =
       type: 'column';
       rect: Rect;
     };
-
-type SceneDrawable =
-  | { type: 'column'; baseY: number; column: SceneColumn }
-  | { type: 'enemy'; baseY: number; enemy: Enemy }
-  | { type: 'player'; baseY: number; player: Player };
 
 const EMPTY_LEVEL: ShipInteriorLevel = {
   formatVersion: 1,
@@ -918,6 +914,7 @@ function drawWall(ctx: CanvasRenderingContext2D, wall: Rect): void {
 export class ShipInteriorScene implements Scene {
   private camera: Camera = { x: 0, y: 0 };
   private simulationTime = Date.now();
+  private readonly entities = new SceneEntityRegistry();
   private enemies: Enemy[] = [];
   private inspectionProbes: InspectionProbe[] = [];
   private columns: SceneColumn[] = [];
@@ -1587,11 +1584,20 @@ export class ShipInteriorScene implements Scene {
       y + radius >= renderCameraY &&
       y - radius <= renderCameraY + height;
 
+    this.entities.clear();
+
     for (const enemy of this.enemies) {
       if (enemy.alive && isCircleVisible(enemy.x, enemy.y, enemy.visionRange)) {
-        drawPlayerVisionCone(ctx, enemy, this.alarmActive, now);
+        this.entities.add({
+          id: `enemyVision:${enemy.x}:${enemy.y}`,
+          entityType: 'enemyVision',
+          zIndex: enemy.y,
+          render: () => drawPlayerVisionCone(ctx, enemy, this.alarmActive, now),
+        });
       }
     }
+
+    this.entities.renderAll(ctx, { now });
 
     const drewLayers = this.spriteRenderer.drawLayers(ctx, activeLevel.layers);
     if (!drewLayers) {
@@ -1600,59 +1606,104 @@ export class ShipInteriorScene implements Scene {
       }
     }
 
+    this.entities.clear();
+
     for (const station of this.refuelStations) {
-      this.drawRefuelStation(ctx, station, player, now);
+      this.entities.add({
+        id: `refuelStation:${station.x}:${station.y}`,
+        entityType: 'refuelStation',
+        zIndex: station.y,
+        render: () => this.drawRefuelStation(ctx, station, player, now),
+      });
     }
 
     for (const bullet of bullets) {
-      drawBullet(bullet, ctx);
+      this.entities.add({
+        id: `bullet:${bullet.spawnTime}:${bullet.x}:${bullet.y}`,
+        entityType: 'bullet',
+        zIndex: bullet.y,
+        render: () => drawBullet(bullet, ctx),
+      });
     }
 
     for (const probe of this.inspectionProbes) {
-      drawInspectionProbe(probe, ctx);
+      this.entities.add({
+        id: `probe:${probe.spawnTime}`,
+        entityType: 'inspectionProbe',
+        zIndex: probe.y,
+        render: () => drawInspectionProbe(probe, ctx),
+      });
     }
 
-    const sceneDrawables: SceneDrawable[] = [
-      ...this.columns
-        .filter((column) => {
-          const image = this.loadedImages.get(column.sprite);
-          const width = image?.width ?? 16;
-          const height = image?.height ?? 48;
-          return (
-            column.x + width / 2 >= renderCameraX &&
-            column.x - width / 2 <= renderCameraX + width + getGameWidth() &&
-            column.y >= renderCameraY &&
-            column.y - height <= renderCameraY + getGameHeight()
-          );
-        })
-        .map((column) => ({ type: 'column', baseY: column.y, column }) as const),
-      ...this.enemies
-        .filter((enemy) => enemy.alive && isCircleVisible(enemy.x, enemy.y, ENEMY_RADIUS))
-        .map((enemy) => ({ type: 'enemy', baseY: enemy.y, enemy }) as const),
-      ...(player && !player.waitingToRespawn
-        ? [{ type: 'player', baseY: player.y, player } as const]
-        : []),
-    ].sort((left, right) => left.baseY - right.baseY);
-
-    for (let i = thrusterParticles.length - 1; i >= 0; i--) {
-      drawThrusterParticle(thrusterParticles[i], ctx);
-    }
-
-    for (const drawable of sceneDrawables) {
-      if (drawable.type === 'column') {
-        this.drawColumn(ctx, drawable.column);
-      } else if (drawable.type === 'enemy') {
-        drawEnemy(ctx, drawable.enemy, this.alarmActive);
-      } else {
-        const input = InputManager.getInputState(
-          drawable.player.module,
-          drawable.player.x - this.camera.x,
-          drawable.player.y - this.camera.y,
-        );
-        drawTractorBeam(ctx, drawable.player, input);
-        drawPlayer(drawable.player, ctx);
+    for (const column of this.columns) {
+      const image = this.loadedImages.get(column.sprite);
+      const width = image?.width ?? 16;
+      const height = image?.height ?? 48;
+      const visible =
+        column.x + width / 2 >= renderCameraX &&
+        column.x - width / 2 <= renderCameraX + width + getGameWidth() &&
+        column.y >= renderCameraY &&
+        column.y - height <= renderCameraY + getGameHeight();
+      if (visible) {
+        this.entities.add({
+          id: `column:${column.x}:${column.y}:${column.sprite}`,
+          entityType: 'column',
+          zIndex: column.y,
+          render: () => this.drawColumn(ctx, column),
+        });
       }
     }
+
+    for (const enemy of this.enemies) {
+      if (enemy.alive && isCircleVisible(enemy.x, enemy.y, ENEMY_RADIUS)) {
+        this.entities.add({
+          id: `enemy:${enemy.x}:${enemy.y}`,
+          entityType: 'enemy',
+          zIndex: enemy.y,
+          render: () => drawEnemy(ctx, enemy, this.alarmActive),
+        });
+      }
+    }
+
+    for (let i = thrusterParticles.length - 1; i >= 0; i--) {
+      const thrusterParticle = thrusterParticles[i];
+      this.entities.add({
+        id: `thruster:${i}`,
+        entityType: 'thrusterParticle',
+        zIndex: thrusterParticle.y,
+        render: () => drawThrusterParticle(thrusterParticle, ctx),
+      });
+    }
+
+    if (player && !player.waitingToRespawn) {
+      const playerForDraw = player;
+      const input = InputManager.getInputState(
+        playerForDraw.module,
+        playerForDraw.x - this.camera.x,
+        playerForDraw.y - this.camera.y,
+      );
+      this.entities.add({
+        id: 'player',
+        entityType: 'player',
+        zIndex: playerForDraw.y,
+        render: () => {
+          drawTractorBeam(ctx, playerForDraw, input);
+          drawPlayer(playerForDraw, ctx);
+        },
+      });
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const particle = particles[i];
+      this.entities.add({
+        id: `particle:${i}`,
+        entityType: 'particle',
+        zIndex: Number.MAX_SAFE_INTEGER,
+        render: () => drawOneParticle(particle, ctx),
+      });
+    }
+
+    this.entities.renderAll(ctx, { now });
 
     if (player && !player.waitingToRespawn) {
       const input = InputManager.getInputState(
@@ -1661,10 +1712,6 @@ export class ShipInteriorScene implements Scene {
         player.y - this.camera.y,
       );
       drawWeaponSelectionMenuIfOpen(ctx, player, input);
-    }
-
-    for (let i = particles.length - 1; i >= 0; i--) {
-      drawOneParticle(particles[i], ctx);
     }
 
     this.spriteRenderer.drawLayers(ctx, activeLevel.layers, { overhead: true });

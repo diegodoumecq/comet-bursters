@@ -6,7 +6,7 @@ import {
   type Player,
 } from '@/constants';
 
-export type InspectionProbe = {
+export type InspectionProbe = Partial<import('./entities').SceneEntity> & {
   x: number;
   y: number;
   vx: number;
@@ -19,12 +19,14 @@ type UpdateInspectionProbesOptions = {
   deltaScale?: number;
   wrapProbe?: (probe: InspectionProbe) => void;
   handleProbe?: (probe: InspectionProbe) => boolean;
+  onRemove?: (probe: InspectionProbe) => void;
 };
 
 export function fireInspectionProbe(
   currentPlayer: Player,
   inspectionProbes: InspectionProbe[],
   now = Date.now(),
+  onCreate?: (probe: InspectionProbe) => void,
 ): boolean {
   if (currentPlayer.inspectionProbes <= 0) {
     return false;
@@ -32,14 +34,16 @@ export function fireInspectionProbe(
 
   currentPlayer.inspectionProbes--;
   const angle = currentPlayer.turretAngle - Math.PI * 0.5;
-  inspectionProbes.push({
+  const probe: InspectionProbe = {
     x: currentPlayer.x + Math.cos(angle) * PLAYER_SIZE,
     y: currentPlayer.y + Math.sin(angle) * PLAYER_SIZE,
     vx: currentPlayer.vx + Math.cos(angle) * INSPECTION_PROBE_SPEED,
     vy: currentPlayer.vy + Math.sin(angle) * INSPECTION_PROBE_SPEED,
     angle,
     spawnTime: now,
-  });
+  };
+  onCreate?.(probe);
+  inspectionProbes.push(probe);
   return true;
 }
 
@@ -58,6 +62,7 @@ export function updateInspectionProbes(
     const expired = now - probe.spawnTime >= INSPECTION_PROBE_LIFETIME_MS;
     const handled = !expired && Boolean(options.handleProbe?.(probe));
     if (expired || handled) {
+      options.onRemove?.(probe);
       inspectionProbes.splice(i, 1);
     }
   }

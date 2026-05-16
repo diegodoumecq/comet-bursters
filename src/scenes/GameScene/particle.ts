@@ -9,11 +9,26 @@ import {
   type ThrusterParticle,
 } from '@/constants';
 import { getGameHeight, getGameWidth, particles, screenShake, thrusterParticles } from '@/state';
+import { configureParticleEntity, configureThrusterParticleEntity } from '../entities';
 
 type ExplosionKind = 'asteroid' | 'ship';
 
 const EXPLOSION_BURST_LIFETIME = 600;
 const SHIP_DEBRIS_LIFETIME = 1800;
+
+function addParticle(particle: Particle): Particle {
+  configureParticleEntity(particle, (ctx) => drawParticle(particle, ctx));
+  particles.push(particle);
+  return particle;
+}
+
+function addThrusterParticle(particle: ThrusterParticle): ThrusterParticle {
+  configureThrusterParticleEntity(particle, (ctx) =>
+    drawThrusterParticle(particle, ctx),
+  );
+  thrusterParticles.push(particle);
+  return particle;
+}
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
@@ -38,7 +53,8 @@ export function createShipDebris(
   inheritVx = 0,
   inheritVy = 0,
   baseColor = '#debbad',
-) {
+): Particle[] {
+  const createdParticles: Particle[] = [];
   const debrisCount = Math.floor(PARTICLE_COUNT * 0.875);
   const shipSpeed = Math.hypot(inheritVx, inheritVy);
   for (let i = 0; i < debrisCount; i++) {
@@ -55,7 +71,7 @@ export function createShipDebris(
     const color = i % 3 === 0 ? (i % 2 === 0 ? '#1a202c' : '#f2f6ff') : baseColor;
     const color2 = i % 3 === 0 ? (i % 2 === 0 ? '#1a202c' : '#9ca3af') : undefined;
     const glowColor = 'rgba(226,232,240,0.22)';
-    particles.push({
+    createdParticles.push(addParticle({
       x,
       y,
       vx: Math.cos(angle) * speed + inheritVx,
@@ -70,8 +86,9 @@ export function createShipDebris(
       shape,
       lifetime: SHIP_DEBRIS_LIFETIME,
       maxLifetime: SHIP_DEBRIS_LIFETIME,
-    });
+    }));
   }
+  return createdParticles;
 }
 
 export function createExplosionBurst(
@@ -80,9 +97,10 @@ export function createExplosionBurst(
   intensity: number,
   inheritVx = 0,
   inheritVy = 0,
-) {
+): Particle[] {
+  const createdParticles: Particle[] = [];
   const shockwaveLifetime = EXPLOSION_BURST_LIFETIME * 0.42;
-  particles.push({
+  createdParticles.push(addParticle({
     x,
     y,
     vx: inheritVx * 0.2,
@@ -97,7 +115,7 @@ export function createExplosionBurst(
     shape: 'shockwave',
     lifetime: shockwaveLifetime,
     maxLifetime: shockwaveLifetime,
-  });
+  }));
 
   const explosionCount = Math.floor(PARTICLE_COUNT * 1.7);
   for (let i = 0; i < explosionCount; i++) {
@@ -155,7 +173,7 @@ export function createExplosionBurst(
         : shape === 'core'
           ? EXPLOSION_BURST_LIFETIME * (0.62 + Math.random() * 0.32)
           : EXPLOSION_BURST_LIFETIME * (0.8 + Math.random() * 0.3);
-    particles.push({
+    createdParticles.push(addParticle({
       x,
       y,
       vx: Math.cos(angle) * speed + inheritVx,
@@ -170,12 +188,13 @@ export function createExplosionBurst(
       shape,
       lifetime,
       maxLifetime: lifetime,
-    });
+    }));
   }
 
   screenShake.intensity = intensity * 8;
   screenShake.startTime = Date.now();
   screenShake.duration = SCREEN_SHAKE_DURATION;
+  return createdParticles;
 }
 
 export function createExplosion(
@@ -186,7 +205,8 @@ export function createExplosion(
   inheritVy = 0,
   kind: ExplosionKind = 'asteroid',
   baseColor = '#debbad',
-) {
+): Particle[] {
+  const createdParticles: Particle[] = [];
   const palette = Object.values(ASTEROID_CONFIGS).flatMap((config) => config.colors);
   const particleCount = kind === 'ship' ? Math.floor(PARTICLE_COUNT * 1.75) : PARTICLE_COUNT;
   for (let i = 0; i < particleCount; i++) {
@@ -258,7 +278,7 @@ export function createExplosion(
               ? 'rgba(220,38,38,0.4)'
               : 'rgba(226,232,240,0.22)'
           : 'rgba(255,200,120,0.35)';
-    particles.push({
+    createdParticles.push(addParticle({
       x,
       y,
       vx: Math.cos(angle) * speed + inheritVx,
@@ -273,12 +293,13 @@ export function createExplosion(
       shape,
       lifetime: PARTICLE_LIFETIME,
       maxLifetime: PARTICLE_LIFETIME,
-    });
+    }));
   }
 
   screenShake.intensity = intensity * 8;
   screenShake.startTime = Date.now();
   screenShake.duration = SCREEN_SHAKE_DURATION;
+  return createdParticles;
 }
 
 export function updateParticle(particle: Particle, deltaTime: number, deltaScale = 1) {
@@ -504,8 +525,8 @@ export function createThrusterParticle(
   dirX: number,
   dirY: number,
   power = 1,
-) {
-  if (Math.abs(dirX) < 0.01 && Math.abs(dirY) < 0.01) return;
+): ThrusterParticle | null {
+  if (Math.abs(dirX) < 0.01 && Math.abs(dirY) < 0.01) return null;
 
   const clampedPower = Math.max(0.1, Math.min(1, power));
   const spread = 0.32 + clampedPower * 0.18;
@@ -524,7 +545,7 @@ export function createThrusterParticle(
       ? mixRgb(hexToRgbTuple('#bfdbfe'), hexToRgbTuple('#38bdf8'), colorMix)
       : mixRgb(hexToRgbTuple(THRUSTER_COLORS[0]), hexToRgbTuple(THRUSTER_COLORS[1]), colorMix);
 
-  thrusterParticles.push({
+  return addThrusterParticle({
     x,
     y,
     vx: particleVx * particleSpeed,

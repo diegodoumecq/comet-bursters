@@ -46,6 +46,7 @@ import {
   type WeaponType,
 } from '@/playerFuel';
 import {
+  applySavedWeaponSlots,
   asteroids,
   backgroundOffset,
   bullets,
@@ -58,10 +59,18 @@ import {
   resetState,
   screenShake,
   setPlayer,
-  applySavedWeaponSlots,
   stars,
   thrusterParticles,
 } from '@/state';
+import {
+  configureAsteroidEntity,
+  configureParticleEntity,
+  configurePlanetEntity,
+  configurePlayerEntity,
+  configureProjectileEntity,
+  configureThrusterParticleEntity,
+  SceneEntityRegistry,
+} from '../entities';
 import { updateBackground } from '../GameScene/background';
 import { getBlackHoleRenderRadius, updateBlackHoleLifecycles } from '../GameScene/blackHole';
 import {
@@ -81,13 +90,13 @@ import {
   renderWithShaders,
   updateBlackHoles,
 } from '../GameScene/shader';
-import type { Scene } from '../scene';
 import {
   drawInspectionProbe,
   fireInspectionProbe,
   updateInspectionProbes,
   type InspectionProbe,
 } from '../inspectionProbe';
+import type { Scene } from '../scene';
 import { getPlayerTimeDilationStep } from '../timeDilation';
 import { applyTractorBeamToTargets, drawTractorBeam } from '../tractorBeam';
 import { drawWeaponSelectionMenuIfOpen } from '../weaponSelection';
@@ -98,6 +107,11 @@ import {
   resizeFuelMetaballs,
   type FuelMetaball,
 } from './fuelMetaballs';
+import {
+  drawMothershipLayer,
+  MOTHERSHIP_DOOR_OPEN_DURATION_MS,
+  MOTHERSHIP_DRAW_RADIUS,
+} from './mothership';
 import { createPlanet, drawPlanet } from './planets';
 
 const SANDBOX_WORLD_WIDTH = 12000;
@@ -109,6 +123,7 @@ const SANDBOX_SPAWN_MARGIN = 300;
 const BULLET_RADIUS = 15;
 const RESPAWN_DELAY = 2000;
 const INVULNERABLE_RESPAWN = 2000;
+const MOTHERSHIP_SPAWN_PLAYER_ANGLE = Math.PI * 0.5;
 const MINIMAP_WIDTH = 220;
 const MINIMAP_HEIGHT = 220;
 const MINIMAP_PADDING = 20;
@@ -169,12 +184,7 @@ function wrappedDistance(aX: number, aY: number, bX: number, bY: number): number
   return Math.hypot(delta.x, delta.y);
 }
 
-function getNearestWrappedPosition(
-  x: number,
-  y: number,
-  targetX: number,
-  targetY: number,
-): Point {
+function getNearestWrappedPosition(x: number, y: number, targetX: number, targetY: number): Point {
   const delta = wrappedDelta(targetX, targetY, x, y);
   return { x: targetX + delta.x, y: targetY + delta.y };
 }
@@ -192,8 +202,16 @@ function getWrappedDrawPositions(
   const base = getNearestWrappedPosition(x, y, centerX, centerY);
   const positions: Point[] = [];
 
-  for (let offsetX = -SANDBOX_WORLD_WIDTH; offsetX <= SANDBOX_WORLD_WIDTH; offsetX += SANDBOX_WORLD_WIDTH) {
-    for (let offsetY = -SANDBOX_WORLD_HEIGHT; offsetY <= SANDBOX_WORLD_HEIGHT; offsetY += SANDBOX_WORLD_HEIGHT) {
+  for (
+    let offsetX = -SANDBOX_WORLD_WIDTH;
+    offsetX <= SANDBOX_WORLD_WIDTH;
+    offsetX += SANDBOX_WORLD_WIDTH
+  ) {
+    for (
+      let offsetY = -SANDBOX_WORLD_HEIGHT;
+      offsetY <= SANDBOX_WORLD_HEIGHT;
+      offsetY += SANDBOX_WORLD_HEIGHT
+    ) {
       const drawX = base.x + offsetX;
       const drawY = base.y + offsetY;
       if (
@@ -220,7 +238,14 @@ function withWrappedDrawPositions(
   viewportHeight: number,
   draw: (position: Point) => void,
 ): void {
-  for (const position of getWrappedDrawPositions(x, y, radius, camera, viewportWidth, viewportHeight)) {
+  for (const position of getWrappedDrawPositions(
+    x,
+    y,
+    radius,
+    camera,
+    viewportWidth,
+    viewportHeight,
+  )) {
     ctx.save();
     ctx.translate(position.x - x, position.y - y);
     draw(position);
@@ -266,7 +291,7 @@ function resolveWrappedAsteroidCollisions(): void {
         const rvy = b.vy - a.vy;
         const velocityAlongNormal = rvx * nx + rvy * ny;
         if (velocityAlongNormal <= 0) {
-          const impulse = (-(1.05) * velocityAlongNormal) / (1 / a.mass + 1 / b.mass);
+          const impulse = (-1.05 * velocityAlongNormal) / (1 / a.mass + 1 / b.mass);
           a.vx -= (impulse / a.mass) * nx;
           a.vy -= (impulse / a.mass) * ny;
           b.vx += (impulse / b.mass) * nx;
@@ -686,7 +711,8 @@ function createBullet(
   type: WeaponType,
   mode: BulletMode = 'normal',
   now = Date.now(),
-): void {
+): Bullet[] {
+  const createdBullets: Bullet[] = [];
   const config = BULLET_CONFIGS[type];
   const isDegradedSmall = mode === 'degraded' && type === 'small';
   const bulletAngle = player.turretAngle - Math.PI * 0.5;
@@ -700,7 +726,7 @@ function createBullet(
       config.speedVariance > 0 ? config.lifetime * (0.7 + Math.random() * 0.3) : config.lifetime;
     const lifetime = isDegradedSmall ? baseLifetime * 0.5 : baseLifetime;
 
-    bullets.push({
+    const bullet: Bullet = {
       x: player.x + Math.cos(bulletAngle) * PLAYER_SIZE,
       y: player.y + Math.sin(bulletAngle) * PLAYER_SIZE,
       prevX: player.x + Math.cos(bulletAngle) * PLAYER_SIZE,
@@ -715,8 +741,11 @@ function createBullet(
       impact: isDegradedSmall ? config.impact * 0.5 : config.impact,
       recoil: config.recoil,
       type,
-    });
+    };
+    bullets.push(bullet);
+    createdBullets.push(bullet);
   }
+  return createdBullets;
 }
 
 function isProjectileWeapon(type: SelectableWeaponType): type is WeaponType {
@@ -742,27 +771,39 @@ function setWeaponTimeout(player: Player, type: WeaponType, now: number): void {
   }
 }
 
-function fireProjectileWeapon(player: Player, type: WeaponType, now: number, deltaScale = 1): void {
+function fireProjectileWeapon(
+  player: Player,
+  type: WeaponType,
+  now: number,
+  deltaScale = 1,
+): Bullet[] {
   if (type === 'tractor' || player.shieldActive) {
-    return;
+    return [];
   }
 
   if (now - getWeaponTimeout(player, type) < BULLET_CONFIGS[type].fireRate) {
-    return;
+    return [];
   }
 
   const mode = getWeaponFireMode(player, type);
   if (mode) {
+    const createdBullets = createBullet(player, type, mode, now);
     setWeaponTimeout(player, type, now);
-    createBullet(player, type, mode, now);
     if (type === 'shotgun') {
-      createBullet(player, type, mode, now);
+      createdBullets.push(...createBullet(player, type, mode, now));
     }
     const recoilAngle = player.turretAngle + Math.PI * 0.5;
     player.vx += Math.cos(recoilAngle) * BULLET_CONFIGS[type].recoil * deltaScale;
     player.vy += Math.sin(recoilAngle) * BULLET_CONFIGS[type].recoil * deltaScale;
+    return createdBullets;
   }
+  return [];
 }
+
+type PlayerUpdateResult = {
+  bullets: Bullet[];
+  thrusterParticle: (typeof thrusterParticles)[number] | null;
+};
 
 function updatePlayer(
   player: Player,
@@ -773,12 +814,14 @@ function updatePlayer(
   suppressAssignedSlots = false,
   now = Date.now(),
   deltaScale = 1,
-): void {
+): PlayerUpdateResult {
+  const createdBullets: Bullet[] = [];
+  let thrusterParticle: (typeof thrusterParticles)[number] | null = null;
   const screenPlayerX = visualPlayerPosition.x - camera.x;
   const screenPlayerY = visualPlayerPosition.y - camera.y;
   const input = InputManager.getInputState(player.module, screenPlayerX, screenPlayerY);
   if (player.waitingToRespawn) {
-    return;
+    return { bullets: createdBullets, thrusterParticle };
   }
 
   player.shieldActive = input.shield.pressed && player.fuel > 0;
@@ -827,7 +870,7 @@ function updatePlayer(
     const thrusterInterval = player.fuel > 0 ? 10 : 30;
     if (now - player.lastThrusterSpawn >= thrusterInterval) {
       player.lastThrusterSpawn = now;
-      createThrusterParticle(
+      thrusterParticle = createThrusterParticle(
         player.x + player.thrustDirX * PLAYER_SIZE,
         player.y + player.thrustDirY * PLAYER_SIZE,
         player.thrustDirX,
@@ -841,7 +884,7 @@ function updatePlayer(
     if (player.primaryWeapon === 'inspectionProbe') {
       onProbeFire();
     } else if (isProjectileWeapon(player.primaryWeapon)) {
-      fireProjectileWeapon(player, player.primaryWeapon, now, deltaScale);
+      createdBullets.push(...fireProjectileWeapon(player, player.primaryWeapon, now, deltaScale));
     }
   }
 
@@ -849,13 +892,14 @@ function updatePlayer(
     if (player.secondaryWeapon === 'inspectionProbe') {
       onProbeFire();
     } else if (isProjectileWeapon(player.secondaryWeapon)) {
-      fireProjectileWeapon(player, player.secondaryWeapon, now, deltaScale);
+      createdBullets.push(...fireProjectileWeapon(player, player.secondaryWeapon, now, deltaScale));
     }
   }
 
   if (player.invulnerable && now >= player.invulnerableUntil) {
     player.invulnerable = false;
   }
+  return { bullets: createdBullets, thrusterParticle };
 }
 
 function drawSandboxBackground(
@@ -1057,6 +1101,10 @@ export class SandboxScene implements Scene {
   private previousCamera: Camera = { x: 0, y: 0 };
   private visualPlayerPosition: Point = { x: 0, y: 0 };
   private simulationTime = Date.now();
+  private mothershipPosition: Point | null = null;
+  private mothershipDoorOpenedAt = 0;
+  private playerUndocked = false;
+  private readonly entities = new SceneEntityRegistry();
   private droppedFuelBlobs: DroppedFuelBlob[] = [];
   private inspectionProbes: InspectionProbe[] = [];
   private readonly seenMinimapCells = new Uint8Array(MINIMAP_FOG_COLUMNS * MINIMAP_FOG_ROWS);
@@ -1103,6 +1151,196 @@ export class SandboxScene implements Scene {
     }
   }
 
+  private attachPlanetEntity(planet: Planet): void {
+    configurePlanetEntity(planet, (ctx, context) => {
+      withWrappedDrawPositions(
+        ctx,
+        planet.x,
+        planet.y,
+        planet.getRadius() * 1.35,
+        this.camera,
+        getGameWidth(),
+        getGameHeight(),
+        () => {
+          drawPlanet(planet, ctx);
+          if (context.now < planet.inspectedUntil) drawInspectedPlanetOverlay(ctx, planet);
+          for (const extractor of planet.fuelExtractors)
+            drawFuelExtractorBuilding(ctx, planet, extractor);
+        },
+      );
+    });
+    this.entities.add(planet);
+  }
+
+  private attachBulletEntity(bullet: Bullet): void {
+    configureProjectileEntity('bullet', bullet, (ctx, context) => {
+      withWrappedDrawPositions(
+        ctx,
+        bullet.x,
+        bullet.y,
+        BULLET_RADIUS,
+        this.camera,
+        getGameWidth(),
+        getGameHeight(),
+        () => {
+          drawBullet(
+            bullet,
+            ctx,
+            context.now,
+            this.camera.x,
+            this.camera.y,
+            this.previousCamera.x,
+            this.previousCamera.y,
+          );
+        },
+      );
+    });
+    this.entities.add(bullet);
+  }
+
+  private attachProbeEntity(probe: InspectionProbe): void {
+    configureProjectileEntity('inspectionProbe', probe, (ctx) => {
+      withWrappedDrawPositions(
+        ctx,
+        probe.x,
+        probe.y,
+        INSPECTION_PROBE_RADIUS,
+        this.camera,
+        getGameWidth(),
+        getGameHeight(),
+        () => drawInspectionProbe(probe, ctx),
+      );
+    });
+    this.entities.add(probe);
+  }
+
+  private attachAsteroidEntity(asteroid: Asteroid): void {
+    configureAsteroidEntity(asteroid, (ctx) => {
+      withWrappedDrawPositions(
+        ctx,
+        asteroid.x,
+        asteroid.y,
+        asteroid.getRadius(),
+        this.camera,
+        getGameWidth(),
+        getGameHeight(),
+        () => drawAsteroid(asteroid, ctx),
+      );
+    });
+    this.entities.add(asteroid);
+  }
+
+  private attachParticleEntity(particle: Particle): void {
+    configureParticleEntity(particle, (ctx) => {
+      withWrappedDrawPositions(
+        ctx,
+        particle.x,
+        particle.y,
+        16,
+        this.camera,
+        getGameWidth(),
+        getGameHeight(),
+        () => drawParticleNoWrap(particle, ctx),
+      );
+    });
+    this.entities.add(particle);
+  }
+
+  private attachThrusterParticleEntity(particle: (typeof thrusterParticles)[number]): void {
+    configureThrusterParticleEntity(particle, (ctx) => {
+      withWrappedDrawPositions(
+        ctx,
+        particle.x,
+        particle.y,
+        12,
+        this.camera,
+        getGameWidth(),
+        getGameHeight(),
+        () => drawThrusterParticle(particle, ctx),
+      );
+    });
+    this.entities.add(particle);
+  }
+
+  private attachPlayerEntity(currentPlayer: Player): void {
+    configurePlayerEntity(
+      currentPlayer,
+      (ctx) => {
+        if (currentPlayer.waitingToRespawn) return;
+        const visualPlayer = {
+          ...currentPlayer,
+          x: this.visualPlayerPosition.x,
+          y: this.visualPlayerPosition.y,
+        };
+        const input = InputManager.getInputState(
+          currentPlayer.module,
+          this.visualPlayerPosition.x - this.camera.x,
+          this.visualPlayerPosition.y - this.camera.y,
+        );
+        if (this.playerUndocked) {
+          drawPlayerTrajectoryPreview(ctx, currentPlayer, this.visualPlayerPosition);
+          drawTractorBeam(ctx, visualPlayer, input);
+        }
+        drawOnePlayer(visualPlayer, ctx);
+        if (this.playerUndocked)
+          drawWeaponSelectionMenuIfOpen(ctx, currentPlayer, input, this.visualPlayerPosition);
+      },
+      this.playerUndocked ? 40 : 1,
+    );
+    this.entities.add(currentPlayer);
+  }
+
+  private refreshPlayerZIndex(): void {
+    if (player) {
+      player.zIndex = this.playerUndocked ? 40 : 1;
+      this.entities.add(player);
+    }
+  }
+
+  private removeEntity(entity: { id?: string }): void {
+    if (entity.id) this.entities.remove(entity.id);
+  }
+
+  private addAsteroids(newAsteroids: Asteroid[]): void {
+    for (const asteroid of newAsteroids) this.attachAsteroidEntity(asteroid);
+    asteroids.push(...newAsteroids);
+  }
+
+  private addParticles(newParticles: Particle[]): void {
+    for (const particle of newParticles) this.attachParticleEntity(particle);
+  }
+
+  private attachMothershipEntities(): void {
+    const layers = [
+      { layer: 'front' as const, zIndex: 0 },
+      { layer: 'door' as const, zIndex: 2 },
+      { layer: 'back' as const, zIndex: 3 },
+    ];
+    for (const { layer, zIndex } of layers) {
+      this.entities.add({
+        id: `mothership:${layer}`,
+        entityType: 'mothership',
+        zIndex,
+        render: (ctx) => {
+          if (!this.mothershipPosition) return;
+          const doorOpenProgress = this.getMothershipDoorOpenProgress(Date.now());
+          withWrappedDrawPositions(
+            ctx,
+            this.mothershipPosition.x,
+            this.mothershipPosition.y,
+            MOTHERSHIP_DRAW_RADIUS,
+            this.camera,
+            getGameWidth(),
+            getGameHeight(),
+            (position) => {
+              drawMothershipLayer(ctx, layer, position.x, position.y, doorOpenProgress);
+            },
+          );
+        },
+      });
+    }
+  }
+
   private populateWorld(): void {
     planets.length = 0;
     asteroids.length = 0;
@@ -1127,7 +1365,9 @@ export class SandboxScene implements Scene {
           Math.random() * (SANDBOX_WORLD_HEIGHT - SANDBOX_PLANET_MARGIN * 2);
       }
 
-      planets.push(createPlanet(x, y));
+      const planet = createPlanet(x, y);
+      planets.push(planet);
+      this.attachPlanetEntity(planet);
     }
 
     this.populateInitialAsteroids();
@@ -1152,6 +1392,53 @@ export class SandboxScene implements Scene {
     currentPlayer.y = SANDBOX_WORLD_HEIGHT / 2;
   }
 
+  private placePlayerAtMothership(currentPlayer: Player): void {
+    if (this.mothershipPosition) {
+      currentPlayer.x = this.mothershipPosition.x;
+      currentPlayer.y = this.mothershipPosition.y;
+    } else {
+      this.placePlayerSafely(currentPlayer);
+      this.mothershipPosition = { x: currentPlayer.x - 100, y: currentPlayer.y };
+    }
+  }
+
+  private startMothershipReveal(now: number): void {
+    this.mothershipDoorOpenedAt = now;
+    this.playerUndocked = false;
+  }
+
+  private orientPlayerForMothershipSpawn(currentPlayer: Player): void {
+    currentPlayer.angle = MOTHERSHIP_SPAWN_PLAYER_ANGLE;
+    currentPlayer.turretAngle = MOTHERSHIP_SPAWN_PLAYER_ANGLE;
+  }
+
+  private getMothershipDoorOpenProgress(now: number): number {
+    if (this.mothershipDoorOpenedAt === 0) {
+      return 1;
+    }
+    return Math.min(1, (now - this.mothershipDoorOpenedAt) / MOTHERSHIP_DOOR_OPEN_DURATION_MS);
+  }
+
+  private updateMothershipDockingState(currentPlayer: Player): void {
+    if (!this.mothershipPosition || this.playerUndocked || currentPlayer.waitingToRespawn) {
+      return;
+    }
+
+    const movedFromBay =
+      wrappedDistance(
+        currentPlayer.x,
+        currentPlayer.y,
+        this.mothershipPosition.x,
+        this.mothershipPosition.y,
+      ) >
+      PLAYER_SIZE * 0.5;
+    const doorFullyOpen = this.getMothershipDoorOpenProgress(Date.now()) >= 1;
+    if (movedFromBay || doorFullyOpen) {
+      this.playerUndocked = true;
+      this.refreshPlayerZIndex();
+    }
+  }
+
   private chooseSandboxSpawnSize(): Asteroid['size'] {
     const roll = Math.random();
     if (roll < 0.22) return 'mega';
@@ -1166,7 +1453,7 @@ export class SandboxScene implements Scene {
       asteroid.vx *= SANDBOX_INITIAL_ASTEROID_SPEED_SCALE;
       asteroid.vy *= SANDBOX_INITIAL_ASTEROID_SPEED_SCALE;
       asteroid.rotationSpeed *= SANDBOX_INITIAL_ASTEROID_SPEED_SCALE;
-      asteroids.push(asteroid);
+      this.addAsteroids([asteroid]);
     }
   }
 
@@ -1369,6 +1656,9 @@ export class SandboxScene implements Scene {
 
         return false;
       },
+      onRemove: (probe) => {
+        if (probe?.id) this.entities.remove(probe.id);
+      },
     });
   }
 
@@ -1470,25 +1760,30 @@ export class SandboxScene implements Scene {
     currentPlayer.vy = 0;
     currentPlayer.isThrusting = false;
     rumbleDeath(currentPlayer.module);
-    createShipDebris(
-      currentPlayer.x,
-      currentPlayer.y,
-      explosionIntensity,
-      debrisVx,
-      debrisVy,
-      currentPlayer.color,
+    this.addParticles(
+      createShipDebris(
+        currentPlayer.x,
+        currentPlayer.y,
+        explosionIntensity,
+        debrisVx,
+        debrisVy,
+        currentPlayer.color,
+      ),
     );
-    createExplosionBurst(
-      currentPlayer.x,
-      currentPlayer.y,
-      explosionIntensity,
-      currentPlayer.vx,
-      currentPlayer.vy,
+    this.addParticles(
+      createExplosionBurst(
+        currentPlayer.x,
+        currentPlayer.y,
+        explosionIntensity,
+        currentPlayer.vx,
+        currentPlayer.vy,
+      ),
     );
   }
 
   enter(): void {
     resetState();
+    this.entities.clear();
     gameState.restartScene = 'sandbox';
     this.droppedFuelBlobs = [];
     this.inspectionProbes = [];
@@ -1513,8 +1808,7 @@ export class SandboxScene implements Scene {
     applySavedWeaponSlots(currentPlayer);
     refillRespawnResources(currentPlayer);
     currentPlayer.waitingToRespawn = false;
-    currentPlayer.angle = 0;
-    currentPlayer.turretAngle = 0;
+    this.orientPlayerForMothershipSpawn(currentPlayer);
     currentPlayer.vx = 0;
     currentPlayer.vy = 0;
     currentPlayer.invulnerable = true;
@@ -1522,6 +1816,10 @@ export class SandboxScene implements Scene {
     currentPlayer.invulnerableUntil = this.simulationTime + 3000;
     currentPlayer.respawnTime = 0;
     this.placePlayerSafely(currentPlayer);
+    this.mothershipPosition = { x: currentPlayer.x - 100, y: currentPlayer.y };
+    this.attachPlayerEntity(currentPlayer);
+    this.attachMothershipEntities();
+    this.startMothershipReveal(Date.now());
     this.visualPlayerPosition = { x: currentPlayer.x, y: currentPlayer.y };
     this.updateCamera();
     this.previousCamera.x = this.camera.x;
@@ -1570,6 +1868,7 @@ export class SandboxScene implements Scene {
     this.updateDroppedFuelBlobs(currentPlayer);
     this.updateInspectionProbes(now, deltaScale);
     this.updateMinimapFog(currentPlayer);
+    this.updateMothershipDockingState(currentPlayer);
 
     for (const planet of planets) {
       if (!currentPlayer.waitingToRespawn) {
@@ -1618,8 +1917,11 @@ export class SandboxScene implements Scene {
       if (destroyedAsteroids.has(i)) {
         const asteroid = asteroids[i];
         const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
-        createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
+        this.addParticles(
+          createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy),
+        );
         this.spawnAsteroidFuelDrops(asteroid, now);
+        this.removeEntity(asteroid);
         asteroids.splice(i, 1);
       }
     }
@@ -1634,6 +1936,7 @@ export class SandboxScene implements Scene {
             planet.getRadius() + BULLET_RADIUS,
         )
       ) {
+        this.removeEntity(bullet);
         bullets.splice(i, 1);
       }
     }
@@ -1659,12 +1962,15 @@ export class SandboxScene implements Scene {
 
           if (asteroid.hits <= 0) {
             const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
-            createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
+            this.addParticles(
+              createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy),
+            );
             this.spawnAsteroidFuelDrops(asteroid, now);
-            asteroids.push(...splitAsteroid(asteroid));
+            this.addAsteroids(splitAsteroid(asteroid));
             destroyedAsteroidsFromBullets.add(asteroid);
             const asteroidIndex = asteroids.indexOf(asteroid);
             if (asteroidIndex !== -1) {
+              this.removeEntity(asteroid);
               asteroids.splice(asteroidIndex, 1);
             }
           }
@@ -1675,21 +1981,27 @@ export class SandboxScene implements Scene {
 
     for (let i = bullets.length - 1; i >= 0; i--) {
       if (handledBullets.has(i)) {
+        this.removeEntity(bullets[i]);
         bullets.splice(i, 1);
       }
     }
 
     const previousPlayerPosition = { x: currentPlayer.x, y: currentPlayer.y };
-    updatePlayer(
+    const created = updatePlayer(
       currentPlayer,
       this.camera,
       this.visualPlayerPosition,
       scaledDeltaTime,
-      () => fireInspectionProbe(currentPlayer, this.inspectionProbes, now),
+      () =>
+        fireInspectionProbe(currentPlayer, this.inspectionProbes, now, (probe) =>
+          this.attachProbeEntity(probe),
+        ),
       timeStep.input.timeDilation.pressed,
       now,
       deltaScale,
     );
+    for (const bullet of created.bullets) this.attachBulletEntity(bullet);
+    if (created.thrusterParticle) this.attachThrusterParticleEntity(created.thrusterParticle);
     wrapWorldPoint(currentPlayer);
     const playerMoveDelta = wrappedDelta(
       previousPlayerPosition.x,
@@ -1708,11 +2020,13 @@ export class SandboxScene implements Scene {
       distance: wrappedDistance,
       onAsteroidAbsorbed: (asteroid) => {
         const intensity = asteroid.size === 'big' ? 1.2 : asteroid.size === 'medium' ? 0.8 : 0.45;
-        createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
+        this.addParticles(
+          createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy),
+        );
       },
       onFuelBurst: (x, y, count, burstNow, baseVx, baseVy) =>
         this.spawnFuelBurst(x, y, count, burstNow, baseVx, baseVy),
-      createExplosionBurst,
+      createExplosionBurst: (...args) => this.addParticles(createExplosionBurst(...args)),
     });
     for (const asteroid of asteroids) {
       updateAsteroid(asteroid, deltaScale);
@@ -1741,14 +2055,19 @@ export class SandboxScene implements Scene {
           currentPlayer.shieldActive &&
           currentPlayer.fuel > 0 &&
           actualDist < shieldCollisionDist &&
-            now >= currentPlayer.shieldHitUntil;
+          now >= currentPlayer.shieldHitUntil;
 
         if (shieldCanAbsorb) {
           currentPlayer.shieldHitUntil = now + SHIELD_HIT_COOLDOWN;
           drainFuel(currentPlayer, SHIELD_COLLISION_FUEL_COSTS[asteroid.size]);
 
           const safeDist = actualDist || 1;
-          const bounceDelta = wrappedDelta(asteroid.x, asteroid.y, currentPlayer.x, currentPlayer.y);
+          const bounceDelta = wrappedDelta(
+            asteroid.x,
+            asteroid.y,
+            currentPlayer.x,
+            currentPlayer.y,
+          );
           const nx = bounceDelta.x / safeDist;
           const ny = bounceDelta.y / safeDist;
           const bounceForce = 8;
@@ -1790,22 +2109,27 @@ export class SandboxScene implements Scene {
       refillRespawnResources(currentPlayer);
       incrementRespawnCount(currentPlayer);
       currentPlayer.waitingToRespawn = false;
-      this.placePlayerSafely(currentPlayer);
+      this.placePlayerAtMothership(currentPlayer);
+      this.orientPlayerForMothershipSpawn(currentPlayer);
+      this.startMothershipReveal(realNow);
       this.visualPlayerPosition = { x: currentPlayer.x, y: currentPlayer.y };
     }
 
     for (let i = asteroids.length - 1; i >= 0; i--) {
       const asteroid = asteroids[i];
       if (asteroid.hits <= 0) {
-        createExplosion(
-          asteroid.x,
-          asteroid.y,
-          asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5,
-          asteroid.vx,
-          asteroid.vy,
+        this.addParticles(
+          createExplosion(
+            asteroid.x,
+            asteroid.y,
+            asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5,
+            asteroid.vx,
+            asteroid.vy,
+          ),
         );
         this.spawnAsteroidFuelDrops(asteroid, now);
-        asteroids.push(...splitAsteroid(asteroid));
+        this.addAsteroids(splitAsteroid(asteroid));
+        this.removeEntity(asteroid);
         asteroids.splice(i, 1);
       }
     }
@@ -1813,6 +2137,7 @@ export class SandboxScene implements Scene {
     for (let i = bullets.length - 1; i >= 0; i--) {
       updateBullet(bullets[i], deltaScale);
       if (bullets[i].type !== 'blackHole' && now - bullets[i].spawnTime >= bullets[i].lifetime) {
+        this.removeEntity(bullets[i]);
         bullets.splice(i, 1);
       }
     }
@@ -1821,6 +2146,7 @@ export class SandboxScene implements Scene {
       updateThrusterParticle(thrusterParticles[i], scaledDeltaTime, deltaScale);
       wrapWorldPoint(thrusterParticles[i]);
       if (thrusterParticles[i].lifetime <= 0) {
+        this.removeEntity(thrusterParticles[i]);
         thrusterParticles.splice(i, 1);
       }
     }
@@ -1828,6 +2154,7 @@ export class SandboxScene implements Scene {
     for (let i = particles.length - 1; i >= 0; i--) {
       updateParticleNoWrap(particles[i], scaledDeltaTime, deltaScale);
       if (particles[i].lifetime <= 0) {
+        this.removeEntity(particles[i]);
         particles.splice(i, 1);
       }
     }
@@ -1858,129 +2185,7 @@ export class SandboxScene implements Scene {
     ctx.save();
     ctx.translate(shakeX - this.camera.x, shakeY - this.camera.y);
 
-    for (const planet of planets) {
-      withWrappedDrawPositions(
-        ctx,
-        planet.x,
-        planet.y,
-        planet.getRadius() * 1.35,
-        this.camera,
-        viewportWidth,
-        viewportHeight,
-        () => {
-          drawPlanet(planet, ctx);
-          if (now < planet.inspectedUntil) {
-            drawInspectedPlanetOverlay(ctx, planet);
-          }
-          for (const extractor of planet.fuelExtractors) {
-            drawFuelExtractorBuilding(ctx, planet, extractor);
-          }
-        },
-      );
-    }
-
-    for (const bullet of bullets) {
-      withWrappedDrawPositions(
-        ctx,
-        bullet.x,
-        bullet.y,
-        BULLET_RADIUS,
-        this.camera,
-        viewportWidth,
-        viewportHeight,
-        () => {
-          drawBullet(
-            bullet,
-            ctx,
-            now,
-            this.camera.x,
-            this.camera.y,
-            this.previousCamera.x,
-            this.previousCamera.y,
-          );
-        },
-      );
-    }
-
-    for (const probe of this.inspectionProbes) {
-      withWrappedDrawPositions(
-        ctx,
-        probe.x,
-        probe.y,
-        INSPECTION_PROBE_RADIUS,
-        this.camera,
-        viewportWidth,
-        viewportHeight,
-        () => {
-          drawInspectionProbe(probe, ctx);
-        },
-      );
-    }
-
-    for (const asteroid of asteroids) {
-      withWrappedDrawPositions(
-        ctx,
-        asteroid.x,
-        asteroid.y,
-        asteroid.getRadius(),
-        this.camera,
-        viewportWidth,
-        viewportHeight,
-        () => {
-          drawAsteroid(asteroid, ctx);
-        },
-      );
-    }
-
-    for (let i = thrusterParticles.length - 1; i >= 0; i--) {
-      withWrappedDrawPositions(
-        ctx,
-        thrusterParticles[i].x,
-        thrusterParticles[i].y,
-        12,
-        this.camera,
-        viewportWidth,
-        viewportHeight,
-        () => {
-          drawThrusterParticle(thrusterParticles[i], ctx);
-        },
-      );
-    }
-
-    if (player && !player.waitingToRespawn) {
-      drawPlayerTrajectoryPreview(ctx, player, this.visualPlayerPosition);
-      const visualPlayer = {
-        ...player,
-        x: this.visualPlayerPosition.x,
-        y: this.visualPlayerPosition.y,
-      };
-      const input = InputManager.getInputState(
-        player.module,
-        this.visualPlayerPosition.x - this.camera.x,
-        this.visualPlayerPosition.y - this.camera.y,
-      );
-      drawTractorBeam(ctx, visualPlayer, input);
-      drawOnePlayer(
-        visualPlayer,
-        ctx,
-      );
-      drawWeaponSelectionMenuIfOpen(ctx, player, input, this.visualPlayerPosition);
-    }
-
-    for (let i = particles.length - 1; i >= 0; i--) {
-      withWrappedDrawPositions(
-        ctx,
-        particles[i].x,
-        particles[i].y,
-        16,
-        this.camera,
-        viewportWidth,
-        viewportHeight,
-        () => {
-          drawParticleNoWrap(particles[i], ctx);
-        },
-      );
-    }
+    this.entities.renderAll(ctx, { now });
 
     ctx.restore();
 

@@ -17,6 +17,7 @@ import {
   STARTING_INSPECTION_PROBES,
   STARTING_LIVES,
   THRUSTER_PARTICLE_SPAWN_INTERVAL,
+  type Bullet,
   type Player,
   type SelectableWeaponType,
   type WeaponType,
@@ -100,9 +101,11 @@ export function updatePlayer(
   deltaScale = 1,
   suppressAssignedSlots = false,
   onInspectionProbe?: () => boolean,
-) {
+): { bullets: Bullet[]; thrusterParticle: ReturnType<typeof createThrusterParticle> } {
+  const createdBullets: Bullet[] = [];
+  let thrusterParticle: ReturnType<typeof createThrusterParticle> = null;
   if (player.waitingToRespawn) {
-    return;
+    return { bullets: createdBullets, thrusterParticle };
   }
 
   const input = InputManager.getInputState(player.module, player.x, player.y);
@@ -163,21 +166,22 @@ export function updatePlayer(
       player.lastThrusterSpawn = now;
       const thrusterX = player.x + player.thrustDirX * PLAYER_SIZE;
       const thrusterY = player.y + player.thrustDirY * PLAYER_SIZE;
-      createThrusterParticle(thrusterX, thrusterY, player.thrustDirX, player.thrustDirY, thrustPower);
+      thrusterParticle = createThrusterParticle(thrusterX, thrusterY, player.thrustDirX, player.thrustDirY, thrustPower);
     }
   }
 
   if (!suppressAssignedSlots && input.fire.pressed) {
-    fireAssignedWeapon(player, player.primaryWeapon, now, deltaScale, onInspectionProbe);
+    createdBullets.push(...fireAssignedWeapon(player, player.primaryWeapon, now, deltaScale, onInspectionProbe));
   }
 
   if (!suppressAssignedSlots && input.fireSpecial.pressed) {
-    fireAssignedWeapon(player, player.secondaryWeapon, now, deltaScale, onInspectionProbe);
+    createdBullets.push(...fireAssignedWeapon(player, player.secondaryWeapon, now, deltaScale, onInspectionProbe));
   }
 
   if (player.invulnerable && now >= player.invulnerableUntil) {
     player.invulnerable = false;
   }
+  return { bullets: createdBullets, thrusterParticle };
 }
 
 function isProjectileWeapon(type: SelectableWeaponType): type is WeaponType {
@@ -190,33 +194,35 @@ export function fireAssignedWeapon(
   now: number,
   deltaScale: number,
   onInspectionProbe?: () => boolean,
-): void {
+): Bullet[] {
   if (type === 'inspectionProbe') {
     onInspectionProbe?.();
-    return;
+    return [];
   }
 
   if (!isProjectileWeapon(type) || type === 'tractor' || player.shieldActive) {
-    return;
+    return [];
   }
 
   if (now - getWeaponTimeout(player, type) < BULLET_CONFIGS[type].fireRate) {
-    return;
+    return [];
   }
 
   const mode = getWeaponFireMode(player, type);
   if (mode) {
     setWeaponTimeout(player, type, now);
-    createBullet(player, type, mode, now);
+    const createdBullets = createBullet(player, type, mode, now);
     const recoil = BULLET_CONFIGS[type].recoil;
     const recoilAngle = player.turretAngle + Math.PI * 0.5;
     player.vx += Math.cos(recoilAngle) * recoil * deltaScale;
     player.vy += Math.sin(recoilAngle) * recoil * deltaScale;
 
     if (type === 'shotgun') {
-      createBullet(player, type, mode, now);
+      createdBullets.push(...createBullet(player, type, mode, now));
     }
+    return createdBullets;
   }
+  return [];
 }
 
 function getWeaponTimeout(player: Player, type: Exclude<WeaponType, 'tractor'>): number {
@@ -238,7 +244,8 @@ function setWeaponTimeout(player: Player, type: Exclude<WeaponType, 'tractor'>, 
   }
 }
 
-function createBullet(player: Player, type: WeaponType, mode: BulletMode = 'normal', now = Date.now()) {
+function createBullet(player: Player, type: WeaponType, mode: BulletMode = 'normal', now = Date.now()): Bullet[] {
+  const createdBullets: Bullet[] = [];
   const config = BULLET_CONFIGS[type];
   const isDegradedSmall = mode === 'degraded' && type === 'small';
   const bulletAngle = player.turretAngle - Math.PI * 0.5;
@@ -254,7 +261,7 @@ function createBullet(player: Player, type: WeaponType, mode: BulletMode = 'norm
       config.speedVariance > 0 ? config.lifetime * (0.7 + Math.random() * 0.3) : config.lifetime;
     const lifetime = isDegradedSmall ? baseLifetime * 0.5 : baseLifetime;
 
-    bullets.push({
+    const bullet: Bullet = {
       x: player.x + Math.cos(bulletAngle) * PLAYER_SIZE,
       y: player.y + Math.sin(bulletAngle) * PLAYER_SIZE,
       prevX: player.x + Math.cos(bulletAngle) * PLAYER_SIZE,
@@ -269,8 +276,11 @@ function createBullet(player: Player, type: WeaponType, mode: BulletMode = 'norm
       impact: isDegradedSmall ? config.impact * 0.5 : config.impact,
       recoil: config.recoil,
       type,
-    });
+    };
+    bullets.push(bullet);
+    createdBullets.push(bullet);
   }
+  return createdBullets;
 }
 
 function tracePlayerHullPath(ctx: CanvasRenderingContext2D): void {

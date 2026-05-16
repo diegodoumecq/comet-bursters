@@ -27,6 +27,8 @@ type BlackHoleLifecycleOptions = {
   getDelta: (fromX: number, fromY: number, toX: number, toY: number) => { x: number; y: number };
   distance: (fromX: number, fromY: number, toX: number, toY: number) => number;
   onAsteroidAbsorbed: (asteroid: Asteroid) => void;
+  onAsteroidRemoved?: (asteroid: Asteroid) => void;
+  onBlackHoleRemoved?: (blackHole: Bullet) => void;
   onFuelBurst: (
     x: number,
     y: number,
@@ -85,6 +87,7 @@ export function absorbAsteroidIntoBlackHole(blackHole: Bullet, asteroid: Asteroi
 export function removeBlackHolesCollidingWithPlanets(
   activePlanets: Planet[],
   distance: BlackHoleLifecycleOptions['distance'],
+  onBlackHoleRemoved?: BlackHoleLifecycleOptions['onBlackHoleRemoved'],
 ): void {
   if (activePlanets.length === 0) {
     return;
@@ -98,6 +101,7 @@ export function removeBlackHolesCollidingWithPlanets(
           distance(bullet.x, bullet.y, planet.x, planet.y) <= planet.getRadius() + BLACK_HOLE_RADIUS,
       );
       if (hitPlanet) {
+        onBlackHoleRemoved?.(bullet);
         bullets.splice(i, 1);
       }
     }
@@ -142,10 +146,12 @@ export function updateBlackHoleLifecycles({
   getDelta,
   distance,
   onAsteroidAbsorbed,
+  onAsteroidRemoved,
+  onBlackHoleRemoved,
   onFuelBurst,
   createExplosionBurst,
 }: BlackHoleLifecycleOptions): void {
-  removeBlackHolesCollidingWithPlanets(planets, distance);
+  removeBlackHolesCollidingWithPlanets(planets, distance, onBlackHoleRemoved);
   applyBlackHoleGravity({ now, deltaScale, getDelta });
 
   for (let i = bullets.length - 1; i >= 0; i--) {
@@ -168,6 +174,7 @@ export function updateBlackHoleLifecycles({
             bullet.vx,
             bullet.vy,
           );
+          onBlackHoleRemoved?.(bullet);
           bullets.splice(i, 1);
         }
       } else if (now - bullet.spawnTime >= bullet.lifetime) {
@@ -188,6 +195,7 @@ export function updateBlackHoleLifecycles({
         if (hitDistance <= getBlackHoleRenderRadius(bullet, now) + asteroid.getRadius()) {
           absorbAsteroidIntoBlackHole(bullet, asteroid);
           onAsteroidAbsorbed(asteroid);
+          onAsteroidRemoved?.(asteroid);
           asteroids.splice(j, 1);
         }
       }

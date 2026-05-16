@@ -1,4 +1,5 @@
 import { QueryModule } from 'joymap';
+import type { SceneEntity } from './scenes/entities';
 
 import { createWeaponIconSprites } from './weaponIconSprites';
 import { gameState } from './state';
@@ -9,7 +10,7 @@ export interface AlphaMask {
   data: Uint8Array;
 }
 
-export interface Collidable {
+export interface Collidable extends Partial<SceneEntity> {
   x: number;
   y: number;
   mask: AlphaMask;
@@ -63,7 +64,7 @@ export interface Asteroid extends Collidable {
   mass: number;
 }
 
-export interface Planet {
+export interface Planet extends Partial<SceneEntity> {
   x: number;
   y: number;
   vx: number;
@@ -99,7 +100,7 @@ export interface FuelExtractor {
 export type WeaponType = 'small' | 'blackHole' | 'pusher' | 'shotgun' | 'tractor';
 export type SelectableWeaponType = WeaponType | 'inspectionProbe';
 
-export interface Bullet {
+export interface Bullet extends Partial<SceneEntity> {
   x: number;
   y: number;
   prevX: number;
@@ -119,7 +120,7 @@ export interface Bullet {
   collapseDuration?: number;
 }
 
-export interface Particle {
+export interface Particle extends Partial<SceneEntity> {
   x: number;
   y: number;
   vx: number;
@@ -136,7 +137,7 @@ export interface Particle {
   maxLifetime: number;
 }
 
-export interface ThrusterParticle {
+export interface ThrusterParticle extends Partial<SceneEntity> {
   x: number;
   y: number;
   vx: number;

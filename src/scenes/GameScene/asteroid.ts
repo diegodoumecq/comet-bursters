@@ -8,6 +8,7 @@ import {
   getGameHeight,
   getGameWidth,
 } from '@/state';
+import { configureAsteroidEntity } from '../entities';
 
 export function createAsteroid(
   x: number,
@@ -55,7 +56,7 @@ export function createAsteroid(
   const mask = getAsteroidSpriteMask(size, color);
   const collisionRadius = getAsteroidSpriteRadius(size, color);
 
-  return {
+  const asteroid: Asteroid = {
     x,
     y,
     vx: Math.cos(angle) * speed,
@@ -70,6 +71,8 @@ export function createAsteroid(
     mask,
     getRadius: () => collisionRadius,
   };
+  configureAsteroidEntity(asteroid, (ctx) => drawAsteroid(asteroid, ctx));
+  return asteroid;
 }
 
 export function updateAsteroid(asteroid: Asteroid, deltaScale = 1) {
@@ -137,7 +140,8 @@ export function drawAsteroid(asteroid: Asteroid, ctx: CanvasRenderingContext2D) 
   }
 }
 
-export function spawnWave(wave: number) {
+export function spawnWave(wave: number): Asteroid[] {
+  const spawnedAsteroids: Asteroid[] = [];
   const count = 2 + wave;
   const megaChance = Math.min(0.15, wave * 0.02);
   const bigChance = Math.min(0.4, wave * 0.05);
@@ -154,8 +158,11 @@ export function spawnWave(wave: number) {
     } else {
       size = 'small';
     }
-    asteroids.push(createAsteroid(0, 0, size));
+    const asteroid = createAsteroid(0, 0, size);
+    asteroids.push(asteroid);
+    spawnedAsteroids.push(asteroid);
   }
+  return spawnedAsteroids;
 }
 
 export function splitAsteroid(asteroid: Asteroid): Asteroid[] {

@@ -12,6 +12,7 @@ import {
   type Planet,
   type PlanetKind,
   type Player,
+  type SelectableWeaponType,
 } from '@/constants';
 import { InputManager } from '@/input';
 import { joymap } from '@/joymap';
@@ -34,6 +35,13 @@ import { createPlayer, drawPlayer, fireAssignedWeapon } from '../GameScene/playe
 import { drawPlanet } from '../SandboxScene/planets';
 import { clearFlatPlanetTextureCache } from '../SandboxScene/planetTextureEngine';
 import {
+  configureAsteroidEntity,
+  configurePlanetEntity,
+  configurePlayerEntity,
+  configureProjectileEntity,
+  SceneEntityRegistry,
+} from '../entities';
+import {
   drawInspectionProbe,
   fireInspectionProbe,
   updateInspectionProbes,
@@ -52,27 +60,10 @@ const MINIMAP_PADDING = 20;
 const DEMO_PLAYER_ACCELERATION = PLAYER_ACCELERATION * 6.8;
 const DEMO_PLAYER_MAX_SPEED = PLAYER_MAX_SPEED * 6.2;
 const DEMO_PLAYER_FRICTION = 0.96;
-
 type Camera = { x: number; y: number };
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
-}
-
-function isVisible(
-  x: number,
-  y: number,
-  radius: number,
-  camera: Camera,
-  viewportWidth: number,
-  viewportHeight: number,
-): boolean {
-  return !(
-    x + radius < camera.x ||
-    x - radius > camera.x + viewportWidth ||
-    y + radius < camera.y ||
-    y - radius > camera.y + viewportHeight
-  );
 }
 
 function createDemoPlanet(kind: PlanetKind, x: number, y: number, colorIndex: number): Planet {
@@ -84,7 +75,7 @@ function createDemoPlanet(kind: PlanetKind, x: number, y: number, colorIndex: nu
     altitudeVariations.push(0.9 + Math.sin(i * 1.7 + colorIndex) * 0.03 + (i % 3) * 0.01);
   }
 
-  return {
+  const planet: Planet = {
     x,
     y,
     vx: 0,
@@ -100,6 +91,14 @@ function createDemoPlanet(kind: PlanetKind, x: number, y: number, colorIndex: nu
     getRadius: () => config.radius,
     mask: null,
   };
+  configurePlanetEntity(planet, (ctx) => {
+    drawPlanet(planet, ctx);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+    ctx.font = '26px Audiowide, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(planet.kind, planet.x, planet.y + planet.getRadius() + 70);
+  });
+  return planet;
 }
 
 function createDemoAsteroid(
@@ -109,7 +108,7 @@ function createDemoAsteroid(
   y: number,
 ): Asteroid {
   const config = ASTEROID_CONFIGS[size];
-  return {
+  const asteroid: Asteroid = {
     x,
     y,
     vx: 0,
@@ -124,6 +123,14 @@ function createDemoAsteroid(
     mask: getAsteroidMask(size),
     getRadius: () => config.radius,
   };
+  configureAsteroidEntity(asteroid, (ctx) => {
+    drawDemoAsteroid(asteroid, ctx);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+    ctx.font = '26px Audiowide, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(asteroid.size, asteroid.x, asteroid.y + asteroid.getRadius() + 70);
+  });
+  return asteroid;
 }
 
 function drawDemoAsteroid(asteroid: Asteroid, ctx: CanvasRenderingContext2D): void {
@@ -225,6 +232,7 @@ function drawDemoBackground(
 export class DemoScene implements Scene {
   private camera: Camera = { x: 0, y: 0 };
   private simulationTime = Date.now();
+  private readonly entities = new SceneEntityRegistry();
   private inspectionProbes: InspectionProbe[] = [];
   private planets: Planet[] = [];
   private asteroids: Asteroid[] = [];
@@ -237,6 +245,42 @@ export class DemoScene implements Scene {
     }
   };
 
+  private attachPlayerEntity(currentPlayer: Player): void {
+    configurePlayerEntity(currentPlayer, (ctx) => {
+      const input = InputManager.getInputState(
+        currentPlayer.module,
+        currentPlayer.x - this.camera.x,
+        currentPlayer.y - this.camera.y,
+      );
+      drawTractorBeam(ctx, currentPlayer, input);
+      drawPlayer(currentPlayer, ctx);
+      drawWeaponSelectionMenuIfOpen(ctx, currentPlayer, input);
+    });
+    this.entities.add(currentPlayer);
+  }
+
+  private fireDemoWeapon(
+    currentPlayer: Player,
+    weapon: SelectableWeaponType,
+    now: number,
+    deltaScale: number,
+  ): void {
+    const createdBullets = fireAssignedWeapon(currentPlayer, weapon, now, deltaScale, () =>
+      fireInspectionProbe(currentPlayer, this.inspectionProbes, now, (probe) => {
+        configureProjectileEntity('inspectionProbe', probe, (ctx) =>
+          drawInspectionProbe(probe, ctx),
+        );
+        this.entities.add(probe);
+      }),
+    );
+
+    for (const bullet of createdBullets) {
+      configureProjectileEntity('bullet', bullet, (ctx, context) =>
+        drawBullet(bullet, ctx, context.now),
+      );
+      this.entities.add(bullet);
+    }
+  }
   setCanvas(_canvas: HTMLCanvasElement): void {}
 
   private updateCamera(): void {
@@ -273,13 +317,25 @@ export class DemoScene implements Scene {
       createDemoAsteroid('medium', '#6bcb77', 2820, 2650),
       createDemoAsteroid('small', '#4d96ff', 3660, 2480),
     ];
+
+    for (const planet of this.planets) {
+      if (planet) {
+        this.entities.add(planet);
+      }
+    }
+    for (const asteroid of this.asteroids) {
+      if (asteroid) {
+        this.entities.add(asteroid);
+      }
+    }
   }
 
   enter(): void {
     resetState();
+    this.entities.clear();
     clearFlatPlanetTextureCache();
     this.buildLayout();
-    this.inspectionProbes = [];
+    this.inspectionProbes.length = 0;
     this.startInputReadyAt = Date.now() + 500;
     window.addEventListener('keydown', this.handleKeyDown);
 
@@ -295,6 +351,7 @@ export class DemoScene implements Scene {
       return;
     }
 
+    this.attachPlayerEntity(currentPlayer);
     currentPlayer.x = 620;
     currentPlayer.y = 760;
     currentPlayer.vx = 0;
@@ -340,21 +397,14 @@ export class DemoScene implements Scene {
     updateDemoPlayer(currentPlayer, input, timeStep.deltaScale);
     if (!input.timeDilation.pressed) {
       if (input.fire.pressed) {
-        fireAssignedWeapon(
-          currentPlayer,
-          currentPlayer.primaryWeapon,
-          timeStep.now,
-          timeStep.deltaScale,
-          () => fireInspectionProbe(currentPlayer, this.inspectionProbes, timeStep.now),
-        );
+        this.fireDemoWeapon(currentPlayer, currentPlayer.primaryWeapon, timeStep.now, timeStep.deltaScale);
       }
       if (input.fireSpecial.pressed) {
-        fireAssignedWeapon(
+        this.fireDemoWeapon(
           currentPlayer,
           currentPlayer.secondaryWeapon,
           timeStep.now,
           timeStep.deltaScale,
-          () => fireInspectionProbe(currentPlayer, this.inspectionProbes, timeStep.now),
         );
       }
     }
@@ -366,10 +416,19 @@ export class DemoScene implements Scene {
     }
     updateInspectionProbes(this.inspectionProbes, timeStep.now, {
       deltaScale: timeStep.deltaScale,
+      onRemove: (probe) => {
+        if (probe?.id) {
+          this.entities.remove(probe.id);
+        }
+      },
     });
     for (let i = bullets.length - 1; i >= 0; i--) {
-      updateBullet(bullets[i], timeStep.deltaScale);
-      if (isBulletExpired(bullets[i], timeStep.now)) {
+      const bullet = bullets[i];
+      updateBullet(bullet, timeStep.deltaScale);
+      if (isBulletExpired(bullet, timeStep.now)) {
+        if (bullet?.id) {
+          this.entities.remove(bullet.id);
+        }
         bullets.splice(i, 1);
       }
     }
@@ -384,62 +443,7 @@ export class DemoScene implements Scene {
     ctx.save();
     ctx.translate(-this.camera.x, -this.camera.y);
 
-    for (const planet of this.planets) {
-      if (
-        isVisible(
-          planet.x,
-          planet.y,
-          planet.getRadius(),
-          this.camera,
-          viewportWidth,
-          viewportHeight,
-        )
-      ) {
-        drawPlanet(planet, ctx);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
-        ctx.font = '26px Audiowide, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(planet.kind, planet.x, planet.y + planet.getRadius() + 70);
-      }
-    }
-
-    for (const asteroid of this.asteroids) {
-      if (
-        isVisible(
-          asteroid.x,
-          asteroid.y,
-          asteroid.getRadius(),
-          this.camera,
-          viewportWidth,
-          viewportHeight,
-        )
-      ) {
-        drawDemoAsteroid(asteroid, ctx);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
-        ctx.font = '26px Audiowide, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(asteroid.size, asteroid.x, asteroid.y + asteroid.getRadius() + 70);
-      }
-    }
-
-    for (const bullet of bullets) {
-      drawBullet(bullet, ctx, this.simulationTime);
-    }
-
-    for (const probe of this.inspectionProbes) {
-      drawInspectionProbe(probe, ctx);
-    }
-
-    if (player) {
-      const input = InputManager.getInputState(
-        player.module,
-        player.x - this.camera.x,
-        player.y - this.camera.y,
-      );
-      drawTractorBeam(ctx, player, input);
-      drawPlayer(player, ctx);
-      drawWeaponSelectionMenuIfOpen(ctx, player, input);
-    }
+    this.entities.renderAll(ctx, { now: this.simulationTime });
 
     ctx.restore();
 

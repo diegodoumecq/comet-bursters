@@ -12,6 +12,7 @@ import {
   INSPECTION_PROBE_RADIUS,
   STARTING_LIVES,
   type Asteroid,
+  type Particle,
   type Player,
 } from '@/constants';
 import { resolveAsteroidCollisions } from '@/asteroidPhysics';
@@ -44,6 +45,7 @@ import {
   resizeFuelMetaballs,
   type FuelMetaball,
 } from '../SandboxScene/fuelMetaballs';
+import { configurePlayerEntity, configureProjectileEntity, SceneEntityRegistry } from '../entities';
 import type { Scene } from '../scene';
 import {
   drawInspectionProbe,
@@ -54,7 +56,7 @@ import {
 import { getPlayerTimeDilationStep } from '../timeDilation';
 import { applyTractorBeamToTargets, drawTractorBeam } from '../tractorBeam';
 import { drawWeaponSelectionMenuIfOpen } from '../weaponSelection';
-import { drawAsteroid, spawnWave, splitAsteroid, updateAsteroid } from './asteroid';
+import { spawnWave, splitAsteroid, updateAsteroid } from './asteroid';
 import {
   getBlackHoleRenderRadius,
   updateBlackHoleLifecycles,
@@ -66,8 +68,6 @@ import {
   createExplosion,
   createExplosionBurst,
   createShipDebris,
-  drawParticle,
-  drawThrusterParticle,
   updateParticle,
   updateThrusterParticle,
 } from './particle';
@@ -88,6 +88,7 @@ export class GameScene implements Scene {
   private canvas: HTMLCanvasElement | null = null;
   private droppedFuelBlobs: DroppedFuelBlob[] = [];
   private inspectionProbes: InspectionProbe[] = [];
+  private readonly entities = new SceneEntityRegistry();
   private simulationTime = Date.now();
   private readonly restartScene: PlayableSceneName;
 
@@ -253,6 +254,29 @@ export class GameScene implements Scene {
     drawWeaponSelectionMenuIfOpen(ctx, currentPlayer, input);
   }
 
+  private attachPlayerEntity(currentPlayer: Player): void {
+    configurePlayerEntity(currentPlayer, (ctx) => {
+      if (!currentPlayer.waitingToRespawn) {
+        drawPlayer(currentPlayer, ctx);
+        this.drawSceneWeaponSelectionMenu(ctx, currentPlayer);
+      }
+    });
+    this.entities.add(currentPlayer);
+  }
+
+  private addAsteroids(newAsteroids: Asteroid[]): void {
+    for (const asteroid of newAsteroids) this.entities.add(asteroid);
+    asteroids.push(...newAsteroids);
+  }
+
+  private addParticlesFrom(create: () => Particle[]): void {
+    for (const particle of create()) this.entities.add(particle);
+  }
+
+  private removeEntity(entity: { id?: string }): void {
+    if (entity.id) this.entities.remove(entity.id);
+  }
+
   private collectFuelMetaballs(now: number): FuelMetaball[] {
     const width = getGameWidth();
     const height = getGameHeight();
@@ -281,6 +305,13 @@ export class GameScene implements Scene {
 
   enter(): void {
     resetState();
+    this.entities.clear();
+    this.entities.add({
+      id: 'tractorBeam',
+      entityType: 'tractorBeam',
+      zIndex: 30,
+      render: (ctx) => this.drawTractorBeam(ctx),
+    });
     gameState.restartScene = this.restartScene;
     gameState.currentWave = gameState.startingWave;
     this.droppedFuelBlobs = [];
@@ -298,6 +329,7 @@ export class GameScene implements Scene {
       return;
     }
 
+    this.attachPlayerEntity(currentPlayer);
     currentPlayer.lives = STARTING_LIVES;
     currentPlayer.score = 0;
     currentPlayer.shieldHits = 1;
@@ -315,7 +347,7 @@ export class GameScene implements Scene {
     currentPlayer.invulnerableUntil = this.simulationTime + 3000;
     currentPlayer.respawnTime = 0;
 
-    spawnWave(gameState.currentWave);
+    for (const asteroid of spawnWave(gameState.currentWave)) this.entities.add(asteroid);
 
     if (this.canvas) {
       initShader(this.canvas);
@@ -360,12 +392,12 @@ export class GameScene implements Scene {
 
     if (gameState.waveCleared && now - gameState.waveClearTime > 2000) {
       gameState.currentWave++;
-      spawnWave(gameState.currentWave);
+      for (const asteroid of spawnWave(gameState.currentWave)) this.entities.add(asteroid);
       gameState.waveCleared = false;
     }
 
     if (asteroids.length === 0 && gameState.currentWave === 1) {
-      spawnWave(1);
+      for (const asteroid of spawnWave(1)) this.entities.add(asteroid);
     }
 
     const bulletHits = processBulletAsteroidCollisions(now);
@@ -397,15 +429,16 @@ export class GameScene implements Scene {
           }
 
           const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
-          createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
+          this.addParticlesFrom(() => createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy));
           this.spawnAsteroidFuelDrops(asteroid, now);
 
           const children = splitAsteroid(asteroid);
-          asteroids.push(...children);
+          this.addAsteroids(children);
 
           destroyedAsteroids.add(asteroid);
           const asteroidIndex = asteroids.indexOf(asteroid);
           if (asteroidIndex !== -1) {
+            this.removeEntity(asteroid);
             asteroids.splice(asteroidIndex, 1);
           }
         }
@@ -414,19 +447,32 @@ export class GameScene implements Scene {
 
     for (let i = bullets.length - 1; i >= 0; i--) {
       if (handledBullets.has(i)) {
+        this.removeEntity(bullets[i]);
         bullets.splice(i, 1);
       }
     }
 
     if (currentPlayer) {
-      updatePlayer(
+      const created = updatePlayer(
         currentPlayer,
         scaledDeltaTime,
         now,
         deltaScale,
         Boolean(timeStep?.input.timeDilation.pressed),
-        () => fireInspectionProbe(currentPlayer, this.inspectionProbes, now),
+        () => fireInspectionProbe(currentPlayer, this.inspectionProbes, now, (probe) => {
+          configureProjectileEntity('inspectionProbe', probe, (ctx) =>
+            drawInspectionProbe(probe, ctx),
+          );
+          this.entities.add(probe);
+        }),
       );
+      for (const bullet of created.bullets) {
+        configureProjectileEntity('bullet', bullet, (ctx, context) =>
+          drawBullet(bullet, ctx, context.now),
+        );
+        this.entities.add(bullet);
+      }
+      if (created.thrusterParticle) this.entities.add(created.thrusterParticle);
       if (!timeStep?.input.timeDilation.pressed) {
         this.applyTractorBeam(currentPlayer, deltaScale);
       }
@@ -439,11 +485,16 @@ export class GameScene implements Scene {
       distance: (fromX, fromY, toX, toY) => Math.hypot(toX - fromX, toY - fromY),
       onAsteroidAbsorbed: (asteroid) => {
         const intensity = asteroid.size === 'big' ? 1.2 : asteroid.size === 'medium' ? 0.8 : 0.45;
-        createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
+        this.addParticlesFrom(() => createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy));
       },
+      onAsteroidRemoved: (asteroid) => this.removeEntity(asteroid),
+      onBlackHoleRemoved: (blackHole) => this.removeEntity(blackHole),
       onFuelBurst: (x, y, count, burstNow, baseVx, baseVy) =>
         this.spawnFuelBurst(x, y, count, burstNow, baseVx, baseVy),
-      createExplosionBurst,
+      createExplosionBurst: (...args) => {
+        this.addParticlesFrom(() => createExplosionBurst(...args));
+        return [];
+      },
     });
     this.updateDroppedFuel(deltaScale);
     updateInspectionProbes(this.inspectionProbes, now, {
@@ -460,6 +511,11 @@ export class GameScene implements Scene {
         }
 
         return false;
+      },
+      onRemove: (probe) => {
+        if (probe?.id) {
+          this.entities.remove(probe.id);
+        }
       },
     });
 
@@ -479,8 +535,8 @@ export class GameScene implements Scene {
       player.vy = 0;
       player.isThrusting = false;
       rumbleDeath(player.module);
-      createShipDebris(player.x, player.y, 2, debrisVx, debrisVy, player.color);
-      createExplosionBurst(player.x, player.y, 2, player.vx, player.vy);
+      this.addParticlesFrom(() => createShipDebris(player.x, player.y, 2, debrisVx, debrisVy, player.color));
+      this.addParticlesFrom(() => createExplosionBurst(player.x, player.y, 2, player.vx, player.vy));
 
       player.respawnTime = now + 2000;
     }, now);
@@ -509,10 +565,11 @@ export class GameScene implements Scene {
       const asteroid = asteroids[i];
       if (asteroid.hits <= 0) {
         const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
-        createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy);
+        this.addParticlesFrom(() => createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy));
         this.spawnAsteroidFuelDrops(asteroid, now);
         const children = splitAsteroid(asteroid);
-        asteroids.push(...children);
+        this.addAsteroids(children);
+        this.removeEntity(asteroid);
         asteroids.splice(i, 1);
       }
     }
@@ -521,6 +578,7 @@ export class GameScene implements Scene {
       const bullet = bullets[i];
       updateBullet(bullet, deltaScale);
       if (bullet.type !== 'blackHole' && isBulletExpired(bullet, now)) {
+        this.removeEntity(bullet);
         bullets.splice(i, 1);
       }
     }
@@ -528,6 +586,7 @@ export class GameScene implements Scene {
     for (let i = thrusterParticles.length - 1; i >= 0; i--) {
       updateThrusterParticle(thrusterParticles[i], scaledDeltaTime, deltaScale);
       if (thrusterParticles[i].lifetime <= 0) {
+        this.removeEntity(thrusterParticles[i]);
         thrusterParticles.splice(i, 1);
       }
     }
@@ -535,6 +594,7 @@ export class GameScene implements Scene {
     for (let i = particles.length - 1; i >= 0; i--) {
       updateParticle(particles[i], scaledDeltaTime, deltaScale);
       if (particles[i].lifetime <= 0) {
+        this.removeEntity(particles[i]);
         particles.splice(i, 1);
       }
     }
@@ -570,31 +630,7 @@ export class GameScene implements Scene {
       return;
     }
 
-    for (const bullet of bullets) {
-      drawBullet(bullet, ctx, now);
-    }
-
-    for (const probe of this.inspectionProbes) {
-      drawInspectionProbe(probe, ctx);
-    }
-
-    for (const asteroid of asteroids) {
-      drawAsteroid(asteroid, ctx);
-    }
-    this.drawTractorBeam(ctx);
-
-    for (let i = thrusterParticles.length - 1; i >= 0; i--) {
-      drawThrusterParticle(thrusterParticles[i], ctx);
-    }
-
-    if (player && !player.waitingToRespawn) {
-      drawPlayer(player, ctx);
-      this.drawSceneWeaponSelectionMenu(ctx, player);
-    }
-
-    for (let i = particles.length - 1; i >= 0; i--) {
-      drawParticle(particles[i], ctx);
-    }
+    this.entities.renderAll(ctx, { now });
 
     renderFuelMetaballs(ctx, this.collectFuelMetaballs(now), now);
 
