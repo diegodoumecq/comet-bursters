@@ -1,17 +1,17 @@
 import Phaser from 'phaser';
 
-import type { Vector, WorldSize } from '../model';
-import { createAsteroidTextures } from '../services/asteroids';
-import { SHIELD_RADIUS } from '../services/fuel';
+import type { Vector, WorldSize } from '../../model';
+import { createAsteroidTextures } from '../../services/asteroids';
+import { SHIELD_RADIUS } from '../../services/fuel';
 
-export function createGameBackground(scene: Phaser.Scene, world: WorldSize): void {
+export function createArcadeBackground(scene: Phaser.Scene, world: WorldSize): void {
   const graphics = scene.add.graphics();
   graphics.lineStyle(1, 0x1f2a44, 0.7);
   for (let x = 0; x <= world.width; x += 120) graphics.lineBetween(x, 0, x, world.height);
   for (let y = 0; y <= world.height; y += 120) graphics.lineBetween(0, y, world.width, y);
 }
 
-export function createGameTextures(scene: Phaser.Scene): void {
+export function createArcadeTextures(scene: Phaser.Scene): void {
   if (scene.textures.exists('phaser-ship')) return;
   const graphics = scene.make.graphics({ x: 0, y: 0 }, false);
   graphics.fillStyle(0xf4f7ff, 1);
@@ -62,7 +62,7 @@ export function updateCameraShake(
   return { shakeIntensity };
 }
 
-export function createGameOverText(scene: Phaser.Scene, world: WorldSize): Phaser.GameObjects.Text {
+export function createArcadeGameOverText(scene: Phaser.Scene, world: WorldSize): Phaser.GameObjects.Text {
   return scene.add.text(world.width * 0.5, world.height * 0.5, 'GAME OVER\nfire to restart', {
     color: '#ffffff',
     fontFamily: 'monospace',

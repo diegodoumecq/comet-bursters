@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 
 const MENU_ITEMS = [
   { key: 'demo', label: 'Demo Scene' },
-  { key: 'game', label: 'Game Scene' },
+  { key: 'arcade', label: 'Arcade Scene' },
   { key: 'sandbox', label: 'Sandbox Scene' },
 ] as const;
 

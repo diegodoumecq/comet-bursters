@@ -18,16 +18,6 @@ export const ASTEROIDS: Record<AsteroidTier, {
   small: { child: null, color: 0x4d96ff, hits: 1, mass: 1, points: 100, radius: 25, speed: 4.3333, splitCount: 0 },
 };
 
-export function chooseWaveTier(wave: number): AsteroidTier {
-  const roll = Math.random();
-  const megaChance = Math.min(0.15, wave * 0.02);
-  const bigChance = Math.min(0.4, wave * 0.05);
-  if (wave >= 10 && roll < megaChance) return 'mega';
-  if (wave >= 5 && roll < megaChance + bigChance) return 'big';
-  if (wave >= 3 && roll < megaChance + bigChance + 0.3) return 'medium';
-  return 'small';
-}
-
 export function wrapAsteroid(asteroid: AsteroidEntity, world: WorldSize): void {
   const radius = ASTEROIDS[asteroid.tier].radius;
   if (asteroid.body.x < -radius) asteroid.body.x = world.width + radius;
@@ -58,24 +48,6 @@ export function createAsteroid(
   body.setBounce(1);
   body.setVelocity(velocity.x, velocity.y);
   return { body, hits: config.hits, tier, velocity };
-}
-
-export function createWaveAsteroids(scene: Phaser.Scene, wave: number, world: WorldSize): AsteroidEntity[] {
-  const asteroids: AsteroidEntity[] = [];
-  for (let i = 0; i < wave + 2; i += 1) {
-    const tier = chooseWaveTier(wave);
-    const config = ASTEROIDS[tier];
-    const side = Phaser.Math.Between(0, 3);
-    const position = side === 0 ? { x: -config.radius, y: Math.random() * world.height } :
-      side === 1 ? { x: world.width + config.radius, y: Math.random() * world.height } :
-        side === 2 ? { x: Math.random() * world.width, y: -config.radius } :
-          { x: Math.random() * world.width, y: world.height + config.radius };
-    const centerAngle = Math.atan2(world.height * 0.5 - position.y, world.width * 0.5 - position.x);
-    const angle = centerAngle + Phaser.Math.FloatBetween(-Math.PI * 0.5, Math.PI * 0.5);
-    const speed = config.speed * Phaser.Math.FloatBetween(0.8, 1.2);
-    asteroids.push(createAsteroid(scene, tier, position, { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed }));
-  }
-  return asteroids;
 }
 
 export function splitAsteroid(scene: Phaser.Scene, asteroid: AsteroidEntity): AsteroidEntity[] {

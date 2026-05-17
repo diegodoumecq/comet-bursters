@@ -3,8 +3,12 @@ import Phaser from 'phaser';
 import type { PlanetEntity, Vector, WorldSize } from '../model';
 import { ActionReader } from '../services/actions';
 import { createAsteroid, createAsteroidTextures } from '../services/asteroids';
+import { consumeThrustFuel, FUELLESS_THRUST_SCALE } from '../services/fuel';
 import { applyPlanetGravity } from '../services/gravity';
-import { createSandboxPlanets } from '../services/planets';
+import { mainGameState } from '../services/mainGameState';
+import { createSandboxPlanets } from './sandbox/sandboxPlanets';
+import { PlayerRuntimeState } from '../services/playerRuntimeState';
+import { ALL_WEAPONS, type SceneWeaponPolicy } from '../services/sceneWeaponPolicy';
 import { getTimeScale } from '../services/time';
 import { normalize, wrapPoint } from '../services/world';
 import { Hud } from '../ui/Hud';
@@ -19,7 +23,9 @@ export class PhaserSandboxScene extends Phaser.Scene {
   private player!: Phaser.Physics.Matter.Image;
   private turret!: Phaser.GameObjects.Line;
   private planets: PlanetEntity[] = [];
-  private lastAim: Vector = { x: 0, y: -1 };
+  private readonly runtime = new PlayerRuntimeState();
+  private readonly ship = mainGameState.ship;
+  private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: ALL_WEAPONS };
   private playerVelocity: Vector = { x: 0, y: 0 };
 
   constructor() {
@@ -46,13 +52,17 @@ export class PhaserSandboxScene extends Phaser.Scene {
     const deltaSeconds = (delta / 1000) * getTimeScale(action.timeDilation);
     const aim = normalize(action.aim);
     const move = normalize(action.move);
-    if (Math.hypot(aim.x, aim.y) > 0) this.lastAim = aim;
+    this.runtime.updateAim(aim);
     if (Math.hypot(move.x, move.y) > 0) {
       this.player.setRotation(Math.atan2(move.y, move.x) + Math.PI * 0.5);
     }
 
-    this.playerVelocity.x += move.x * PLAYER_ACCELERATION * deltaSeconds;
-    this.playerVelocity.y += move.y * PLAYER_ACCELERATION * deltaSeconds;
+    const thrusting = Math.hypot(move.x, move.y) > 0;
+    const nextFuel = consumeThrustFuel(this.ship.fuel, deltaSeconds, thrusting);
+    const thrustScale = nextFuel > 0 ? 1 : FUELLESS_THRUST_SCALE;
+    this.ship.setFuel(nextFuel);
+    this.playerVelocity.x += move.x * PLAYER_ACCELERATION * thrustScale * deltaSeconds;
+    this.playerVelocity.y += move.y * PLAYER_ACCELERATION * thrustScale * deltaSeconds;
     applyPlanetGravity(this.playerVelocity, this.player, this.planets, WORLD, deltaSeconds);
     const speed = Math.hypot(this.playerVelocity.x, this.playerVelocity.y);
     if (speed > PLAYER_MAX_SPEED) {
@@ -65,8 +75,15 @@ export class PhaserSandboxScene extends Phaser.Scene {
     );
     wrapPoint(this.player, WORLD);
     this.turret.setPosition(this.player.x, this.player.y);
-    this.turret.setRotation(Math.atan2(this.lastAim.y, this.lastAim.x) + Math.PI * 0.5);
-    this.hud.update({ asteroids: 4, projectiles: 0, timeDilation: action.timeDilation });
+    this.turret.setRotation(Math.atan2(this.runtime.lastAim.y, this.runtime.lastAim.x) + Math.PI * 0.5);
+    this.hud.update({
+      asteroids: 4,
+      fuel: this.ship.fuel,
+      primary: this.weaponPolicy.allowedWeapons.includes(this.ship.primaryWeapon) ? this.ship.primaryWeapon : undefined,
+      projectiles: 0,
+      secondary: this.weaponPolicy.allowedWeapons.includes(this.ship.secondaryWeapon) ? this.ship.secondaryWeapon : undefined,
+      timeDilation: action.timeDilation,
+    });
   }
 
   private createBackground(): void {

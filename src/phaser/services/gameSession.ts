@@ -2,11 +2,47 @@ import Phaser from 'phaser';
 
 import type { AsteroidEntity, Vector, WorldSize } from '../model';
 import { ASTEROIDS } from './asteroids';
+import { GameWorld } from './gameWorld';
+import { PlayerState } from './playerState';
 
 export const RESPAWN_DELAY_MS = 1800;
 
-export function isPlayerAlive(respawnAt: number, lives: number): boolean {
-  return respawnAt === 0 && lives > 0;
+export class GameSession {
+  readonly world: GameWorld;
+  readonly player = new PlayerState();
+  wave: number;
+  score = 0;
+  lives = 3;
+  waveClearAt = 0;
+
+  constructor(startingWave: number) {
+    this.world = new GameWorld();
+    this.wave = startingWave;
+  }
+
+  get playerAlive(): boolean {
+    return this.player.respawnAt === 0 && this.lives > 0;
+  }
+
+  awardAsteroidScore(points: number): void {
+    this.score += points * this.lives;
+  }
+
+  destroyPlayer(now: number): void {
+    this.lives -= 1;
+    this.player.destroy(now);
+  }
+
+  shouldRespawn(now: number): boolean {
+    return this.lives > 0 && this.player.respawnAt !== 0 && now >= this.player.respawnAt;
+  }
+
+  advanceWave(now: number): boolean {
+    const state = getNextWaveState(this.world.asteroids.length, this.wave, this.waveClearAt, now);
+    this.wave = state.wave;
+    this.waveClearAt = state.waveClearAt;
+    return state.shouldSpawn;
+  }
 }
 
 export function getNextWaveState(asteroidCount: number, wave: number, waveClearAt: number, now: number): {

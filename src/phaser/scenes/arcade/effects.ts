@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 
-import type { AsteroidEntity, ParticleEntity, Vector } from '../model';
-import { ASTEROIDS } from './asteroids';
-import { spawnBurst } from './particles';
+import type { AsteroidEntity, ParticleEntity, Vector } from '../../model';
+import { ASTEROIDS } from '../../services/asteroids';
+import { spawnBurst } from '../../services/particles';
 
 export type EffectResult = {
   particles: ParticleEntity[];

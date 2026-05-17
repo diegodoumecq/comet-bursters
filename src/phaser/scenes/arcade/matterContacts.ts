@@ -1,6 +1,6 @@
 import type Phaser from 'phaser';
 
-import type { AsteroidEntity, ProjectileEntity } from '../model';
+import type { AsteroidEntity, ProjectileEntity } from '../../model';
 
 export class MatterContacts {
   private readonly playerAsteroids = new Set<AsteroidEntity>();

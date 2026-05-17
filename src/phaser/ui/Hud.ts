@@ -12,7 +12,7 @@ export class Hud {
 
   update(values: { asteroids: number; fuel?: number; lives?: number; primary?: string; projectiles: number; score?: number; secondary?: string; timeDilation: boolean; wave?: number }): void {
     this.text.setText([
-      values.wave === undefined ? 'Phaser Demo Scene' : 'Phaser Game Scene',
+      values.wave === undefined ? 'Phaser Demo Scene' : 'Phaser Arcade Scene',
       ...(values.wave === undefined ? [] : [
         `Wave ${values.wave}`,
         `Score ${values.score ?? 0}`,

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
-import type { MatterImage, Vector } from '../model';
-import { FUELLESS_THRUST_SCALE, consumeThrustFuel } from './fuel';
+import type { MatterImage, Vector } from '../../model';
+import { FUELLESS_THRUST_SCALE, consumeThrustFuel } from '../../services/fuel';
 
 export const PLAYER_ACCELERATION = 1600;
 export const PLAYER_MAX_SPEED = 13.6667;

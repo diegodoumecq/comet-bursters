@@ -1,7 +1,7 @@
-import type { AsteroidEntity, ProjectileEntity, Vector } from '../model';
-import { ASTEROIDS } from './asteroids';
-import { SHIELD_HIT_COOLDOWN_MS, SHIELD_RADIUS, spendShieldFuel } from './fuel';
-import { PROJECTILES } from './weapons';
+import type { AsteroidEntity, ProjectileEntity, Vector } from '../../model';
+import { ASTEROIDS } from '../../services/asteroids';
+import { SHIELD_HIT_COOLDOWN_MS, SHIELD_RADIUS, spendShieldFuel } from '../../services/fuel';
+import { PROJECTILES } from '../../services/weapons';
 
 export function applyProjectileImpulse(projectile: ProjectileEntity, asteroid: AsteroidEntity): void {
   const asteroidVelocity = asteroid.velocity ?? { x: 0, y: 0 };

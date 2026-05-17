@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
-import type { MatterImage, Vector } from '../model';
-import { SHIELD_RADIUS } from './fuel';
+import type { MatterImage, Vector } from '../../model';
+import { SHIELD_RADIUS } from '../../services/fuel';
 
 export function createShieldSensor(scene: Phaser.Scene, position: Vector): MatterImage {
   const sensor = scene.matter.add.image(position.x, position.y, '__DEFAULT') as MatterImage;
