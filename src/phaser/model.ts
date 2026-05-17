@@ -1,5 +1,14 @@
 import type Phaser from 'phaser';
 
+export type MatterImage = Omit<Phaser.Physics.Matter.Image, 'body'> & {
+  body: MatterJS.BodyType;
+};
+
+export type MatterArc = Phaser.GameObjects.Arc &
+  Phaser.Physics.Matter.Components.Velocity & {
+    body: MatterJS.BodyType;
+  };
+
 export type WeaponKind = 'small' | 'pusher' | 'shotgun' | 'blackHole' | 'tractor';
 export type ProjectileKind = Exclude<WeaponKind, 'tractor'>;
 
@@ -27,7 +36,7 @@ export type Vector = {
 export type AsteroidTier = 'small' | 'medium' | 'big' | 'mega';
 
 export type AsteroidEntity = {
-  body: Phaser.Physics.Matter.Image;
+  body: MatterImage;
   hits?: number;
   tier: AsteroidTier;
   velocity?: Vector;
@@ -45,7 +54,7 @@ export type ProjectileEntity = {
   createdAt: number;
   kind: ProjectileKind;
   lifetimeMs: number;
-  shape: Phaser.GameObjects.Arc;
+  shape: MatterArc;
   velocity: Vector;
 };
 

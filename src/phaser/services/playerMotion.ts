@@ -1,26 +1,34 @@
-import type { Vector } from '../model';
+import Phaser from 'phaser';
+
+import type { MatterImage, Vector } from '../model';
 import { FUELLESS_THRUST_SCALE, consumeThrustFuel } from './fuel';
 
 export const PLAYER_ACCELERATION = 1600;
-export const PLAYER_MAX_SPEED = 820;
+export const PLAYER_MAX_SPEED = 13.6667;
 
-export function updatePlayerMotion(
-  velocity: Vector,
+export function applyPlayerThrust(
+  body: MatterImage,
   move: Vector,
   fuel: number,
   deltaSeconds: number,
-): { fuel: number; thrustScale: number; thrusting: boolean; velocity: Vector } {
+): { fuel: number; thrustScale: number; thrusting: boolean } {
   const thrusting = Math.hypot(move.x, move.y) > 0;
   const nextFuel = consumeThrustFuel(fuel, deltaSeconds, thrusting);
   const thrustScale = nextFuel > 0 ? 1 : FUELLESS_THRUST_SCALE;
-  const nextVelocity = {
-    x: velocity.x + move.x * PLAYER_ACCELERATION * thrustScale * deltaSeconds,
-    y: velocity.y + move.y * PLAYER_ACCELERATION * thrustScale * deltaSeconds,
-  };
-  const speed = Math.hypot(nextVelocity.x, nextVelocity.y);
-  if (speed > PLAYER_MAX_SPEED) {
-    nextVelocity.x = (nextVelocity.x / speed) * PLAYER_MAX_SPEED;
-    nextVelocity.y = (nextVelocity.y / speed) * PLAYER_MAX_SPEED;
+  if (thrusting) {
+    const forceScale = PLAYER_ACCELERATION * body.body.mass * thrustScale * 0.000001;
+    body.applyForce(new Phaser.Math.Vector2(
+      move.x * forceScale,
+      move.y * forceScale,
+    ));
   }
-  return { fuel: nextFuel, thrustScale, thrusting, velocity: nextVelocity };
+  const velocity = body.body.velocity;
+  const speed = Math.hypot(velocity.x, velocity.y);
+  if (speed > PLAYER_MAX_SPEED) {
+    body.setVelocity(
+      (velocity.x / speed) * PLAYER_MAX_SPEED,
+      (velocity.y / speed) * PLAYER_MAX_SPEED,
+    );
+  }
+  return { fuel: nextFuel, thrustScale, thrusting };
 }

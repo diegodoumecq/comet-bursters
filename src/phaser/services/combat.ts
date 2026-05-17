@@ -10,18 +10,11 @@ export function applyProjectileImpulse(projectile: ProjectileEntity, asteroid: A
   if (projectileSpeed === 0) return;
   const normalX = projectile.velocity.x / projectileSpeed;
   const normalY = projectile.velocity.y / projectileSpeed;
-  const impulse = PROJECTILES[projectile.kind].impact * 90 * (1 / config.mass);
+  const impulse = PROJECTILES[projectile.kind].impact * 1.5 * (1 / config.mass);
   asteroidVelocity.x += normalX * impulse;
   asteroidVelocity.y += normalY * impulse;
   asteroid.velocity = asteroidVelocity;
-}
-
-export function getProjectileAsteroidHit(projectile: ProjectileEntity, asteroids: AsteroidEntity[]): AsteroidEntity | null {
-  if (projectile.kind === 'blackHole') return null;
-  return asteroids.find((asteroid) => {
-    const distance = Math.hypot(projectile.shape.x - asteroid.body.x, projectile.shape.y - asteroid.body.y);
-    return distance <= PROJECTILES[projectile.kind].radius + ASTEROIDS[asteroid.tier].radius;
-  }) ?? null;
+  asteroid.body.setVelocity(asteroidVelocity.x, asteroidVelocity.y);
 }
 
 export function damageAsteroid(projectile: ProjectileEntity, asteroid: AsteroidEntity): boolean {
@@ -33,13 +26,15 @@ export type ProjectileCombatEvent =
   | { asteroid: AsteroidEntity; projectile: ProjectileEntity; type: 'projectileHitAsteroid' }
   | { asteroid: AsteroidEntity; projectile: ProjectileEntity; type: 'asteroidDestroyed' };
 
-export function resolveProjectileCombat(projectiles: ProjectileEntity[], asteroids: AsteroidEntity[]): ProjectileCombatEvent[] {
+export function resolveProjectileContactCombat(
+  contacts: Array<{ asteroid: AsteroidEntity; projectile: ProjectileEntity }>,
+): ProjectileCombatEvent[] {
   const events: ProjectileCombatEvent[] = [];
   const destroyed = new Set<AsteroidEntity>();
-  for (const projectile of projectiles) {
-    const candidates = asteroids.filter((asteroid) => !destroyed.has(asteroid));
-    const asteroid = getProjectileAsteroidHit(projectile, candidates);
-    if (asteroid) {
+  const handledProjectiles = new Set<ProjectileEntity>();
+  for (const { asteroid, projectile } of contacts) {
+    if (projectile.kind !== 'blackHole' && !destroyed.has(asteroid) && !handledProjectiles.has(projectile)) {
+      handledProjectiles.add(projectile);
       applyProjectileImpulse(projectile, asteroid);
       events.push({ asteroid, projectile, type: 'projectileHitAsteroid' });
       if (damageAsteroid(projectile, asteroid)) {
@@ -160,7 +155,7 @@ function getShieldBounce(
   const normal = { x: dx / safeDistance, y: dy / safeDistance };
   const asteroidConfig = ASTEROIDS[input.asteroid.tier];
   const asteroidVelocity = input.asteroid.velocity ?? { x: 0, y: 0 };
-  const bounceForce = 480;
+  const bounceForce = 8;
   const shipInfluence = asteroidConfig.mass / (1 + asteroidConfig.mass);
   const overlap = shieldCollisionDistance - distance;
   return {

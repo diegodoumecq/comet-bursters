@@ -1,10 +1,7 @@
-import type Phaser from 'phaser';
-
-import type { AsteroidEntity, FuelBlobEntity, ParticleEntity, ProjectileEntity, ProjectileKind, Vector, WeaponKind } from '../model';
+import type { AsteroidEntity, FuelBlobEntity, MatterArc, ParticleEntity, ProjectileEntity, ProjectileKind, Vector, WeaponKind } from '../model';
 import { MAX_FUEL } from './fuel';
 import { addFuel, consumeTractorFuel } from './fuel';
 import { getNextWaveState, RESPAWN_DELAY_MS } from './gameSession';
-import { updatePlayerMotion } from './playerMotion';
 import { fireWeapon } from './weaponFire';
 
 export class GameWorld {
@@ -12,7 +9,6 @@ export class GameWorld {
   fuelBlobs: FuelBlobEntity[] = [];
   particles: ParticleEntity[] = [];
   projectiles: ProjectileEntity[] = [];
-  playerVelocity: Vector = { x: 0, y: 0 };
   lastAim: Vector = { x: 0, y: -1 };
   lastShotAt: Record<ProjectileKind, number> = { blackHole: 0, pusher: 0, shotgun: 0, small: 0 };
   primaryWeapon: WeaponKind = 'small';
@@ -34,13 +30,15 @@ export class GameWorld {
     kind: WeaponKind,
     direction: Vector,
     now: number,
-    createShape: (kind: ProjectileKind, angle: number) => Phaser.GameObjects.Arc,
-  ): void {
-    const result = fireWeapon(kind, direction, now, this.fuel, this.lastShotAt, this.playerVelocity);
+    shooterVelocity: Vector,
+    createShape: (kind: ProjectileKind, angle: number) => MatterArc,
+  ): { projectiles: ProjectileEntity[]; recoil: Vector } {
+    const result = fireWeapon(kind, direction, now, this.fuel, this.lastShotAt, shooterVelocity);
     this.fuel = result.fuel;
     this.lastShotAt = result.lastShotAt;
+    const created: ProjectileEntity[] = [];
     for (const shot of result.shots) {
-      this.projectiles.push({
+      const projectile = {
         absorbedFuel: 0,
         collapseStartedAt: null,
         createdAt: now,
@@ -48,10 +46,12 @@ export class GameWorld {
         lifetimeMs: shot.lifetimeMs,
         shape: createShape(shot.kind, shot.angle),
         velocity: shot.velocity,
-      });
+      };
+      projectile.shape.setVelocity(shot.velocity.x, shot.velocity.y);
+      created.push(projectile);
+      this.projectiles.push(projectile);
     }
-    this.playerVelocity.x += result.recoil.x;
-    this.playerVelocity.y += result.recoil.y;
+    return { projectiles: created, recoil: result.recoil };
   }
 
   updateAim(aim: Vector): void {
@@ -70,11 +70,8 @@ export class GameWorld {
         (this.secondaryWeapon === 'tractor' && input.fireSecondary));
   }
 
-  applyPlayerMotion(move: Vector, deltaSeconds: number): ReturnType<typeof updatePlayerMotion> {
-    const motion = updatePlayerMotion(this.playerVelocity, move, this.fuel, deltaSeconds);
-    this.fuel = motion.fuel;
-    this.playerVelocity = motion.velocity;
-    return motion;
+  applyThrustFuel(fuel: number): void {
+    this.fuel = fuel;
   }
 
   spendTractorFuel(deltaSeconds: number, active: boolean): void {
@@ -101,9 +98,8 @@ export class GameWorld {
     this.fuel = addFuel(this.fuel, amount);
   }
 
-  applyPlayerCombatState(result: { fuel: number; playerVelocity: Vector; shieldHitUntil: number }): void {
+  applyPlayerCombatState(result: { fuel: number; shieldHitUntil: number }): void {
     this.fuel = result.fuel;
-    this.playerVelocity = result.playerVelocity;
     this.shieldHitUntil = result.shieldHitUntil;
   }
 

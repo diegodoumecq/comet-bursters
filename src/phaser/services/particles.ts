@@ -47,8 +47,8 @@ export function updateParticle(particle: ParticleEntity, deltaMs: number): boole
   particle.velocity.x *= drag;
   particle.velocity.y *= drag;
   particle.shape.setPosition(
-    particle.shape.x + particle.velocity.x * deltaSeconds,
-    particle.shape.y + particle.velocity.y * deltaSeconds,
+    particle.shape.x + particle.velocity.x * deltaMs / (1000 / 60),
+    particle.shape.y + particle.velocity.y * deltaMs / (1000 / 60),
   );
   particle.shape.setAlpha(Math.max(0, particle.shape.alpha - particle.alphaDecayPerSecond * deltaSeconds));
   return particle.lifetimeMs > 0;

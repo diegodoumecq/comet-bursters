@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { ActionReader } from '../services/actions';
 import { createAsteroid, createAsteroidTextures } from '../services/asteroids';
 import { updateBlackHoles } from '../services/blackHoles';
+import { createProjectileShape } from '../services/weaponRender';
 import { getTimeScale } from '../services/time';
 import { drawTractorBeam } from '../services/tractorBeam';
 import { PROJECTILES } from '../services/weapons';
@@ -103,7 +104,7 @@ export class PhaserDemoScene extends Phaser.Scene {
 
   private fireProjectile(kind: ProjectileKind, direction: Vector, now: number): void {
     const spec = PROJECTILES[kind];
-    const shape = this.add.circle(this.player.x, this.player.y, spec.radius, 0xffffff);
+    const shape = createProjectileShape(this, this.player, kind, Math.atan2(direction.y, direction.x));
     this.projectiles.push({
       absorbedFuel: 0,
       collapseStartedAt: null,

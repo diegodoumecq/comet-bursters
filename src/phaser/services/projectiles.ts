@@ -4,7 +4,7 @@ import { wrapPoint } from './world';
 export function updateProjectiles(
   projectiles: ProjectileEntity[],
   now: number,
-  deltaSeconds: number,
+  _deltaSeconds: number,
   world: WorldSize,
 ): ProjectileEntity[] {
   const expired: ProjectileEntity[] = [];
@@ -13,10 +13,6 @@ export function updateProjectiles(
     if (shouldExpire) {
       expired.push(projectile);
     } else {
-      projectile.shape.setPosition(
-        projectile.shape.x + projectile.velocity.x * deltaSeconds,
-        projectile.shape.y + projectile.velocity.y * deltaSeconds,
-      );
       wrapPoint(projectile.shape, world);
     }
   }

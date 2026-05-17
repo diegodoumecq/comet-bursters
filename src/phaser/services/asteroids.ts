@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 
-import type { AsteroidEntity, AsteroidTier, Vector, WorldSize } from '../model';
+import type { AsteroidEntity, AsteroidTier, MatterImage, Vector, WorldSize } from '../model';
 
 export const ASTEROIDS: Record<AsteroidTier, {
   child: AsteroidTier | null;
@@ -12,10 +12,10 @@ export const ASTEROIDS: Record<AsteroidTier, {
   speed: number;
   splitCount: number;
 }> = {
-  mega: { child: 'big', color: 0xff6b6b, hits: 30, mass: 10, points: 10, radius: 100, speed: 45, splitCount: 3 },
-  big: { child: 'medium', color: 0xffd93d, hits: 10, mass: 5, points: 20, radius: 70, speed: 80, splitCount: 2 },
-  medium: { child: 'small', color: 0x6bcb77, hits: 3, mass: 2, points: 50, radius: 45, speed: 150, splitCount: 2 },
-  small: { child: null, color: 0x4d96ff, hits: 1, mass: 1, points: 100, radius: 25, speed: 260, splitCount: 0 },
+  mega: { child: 'big', color: 0xff6b6b, hits: 30, mass: 10, points: 10, radius: 100, speed: 0.75, splitCount: 3 },
+  big: { child: 'medium', color: 0xffd93d, hits: 10, mass: 5, points: 20, radius: 70, speed: 1.3333, splitCount: 2 },
+  medium: { child: 'small', color: 0x6bcb77, hits: 3, mass: 2, points: 50, radius: 45, speed: 2.5, splitCount: 2 },
+  small: { child: null, color: 0x4d96ff, hits: 1, mass: 1, points: 100, radius: 25, speed: 4.3333, splitCount: 0 },
 };
 
 export function chooseWaveTier(wave: number): AsteroidTier {
@@ -28,14 +28,6 @@ export function chooseWaveTier(wave: number): AsteroidTier {
   return 'small';
 }
 
-export function resolveAsteroidCollisions(asteroids: AsteroidEntity[], world: WorldSize): void {
-  for (let i = 0; i < asteroids.length; i += 1) {
-    for (let j = i + 1; j < asteroids.length; j += 1) {
-      resolvePair(asteroids[i], asteroids[j], world);
-    }
-  }
-}
-
 export function wrapAsteroid(asteroid: AsteroidEntity, world: WorldSize): void {
   const radius = ASTEROIDS[asteroid.tier].radius;
   if (asteroid.body.x < -radius) asteroid.body.x = world.width + radius;
@@ -44,50 +36,12 @@ export function wrapAsteroid(asteroid: AsteroidEntity, world: WorldSize): void {
   if (asteroid.body.y > world.height + radius) asteroid.body.y = -radius;
 }
 
-export function updateAsteroids(asteroids: AsteroidEntity[], deltaSeconds: number, world: WorldSize): void {
+export function updateAsteroids(asteroids: AsteroidEntity[], _deltaSeconds: number, world: WorldSize): void {
   for (const asteroid of asteroids) {
-    const velocity = asteroid.velocity ?? { x: 0, y: 0 };
-    asteroid.body.setPosition(
-      asteroid.body.x + velocity.x * deltaSeconds,
-      asteroid.body.y + velocity.y * deltaSeconds,
-    );
+    const velocity = asteroid.body.body.velocity;
+    asteroid.velocity = { x: velocity.x, y: velocity.y };
     wrapAsteroid(asteroid, world);
   }
-}
-
-function resolvePair(left: AsteroidEntity, right: AsteroidEntity, world: WorldSize): void {
-  const leftConfig = ASTEROIDS[left.tier];
-  const rightConfig = ASTEROIDS[right.tier];
-  let dx = right.body.x - left.body.x;
-  let dy = right.body.y - left.body.y;
-  if (dx > world.width * 0.5) dx -= world.width;
-  if (dx < -world.width * 0.5) dx += world.width;
-  if (dy > world.height * 0.5) dy -= world.height;
-  if (dy < -world.height * 0.5) dy += world.height;
-  const distance = Math.max(0.001, Math.hypot(dx, dy));
-  const minDistance = leftConfig.radius + rightConfig.radius;
-  if (distance >= minDistance) return;
-  const nx = dx / distance;
-  const ny = dy / distance;
-  const overlap = minDistance - distance;
-  const totalMass = leftConfig.mass + rightConfig.mass;
-  left.body.x -= nx * overlap * (rightConfig.mass / totalMass);
-  left.body.y -= ny * overlap * (rightConfig.mass / totalMass);
-  right.body.x += nx * overlap * (leftConfig.mass / totalMass);
-  right.body.y += ny * overlap * (leftConfig.mass / totalMass);
-  const leftVelocity = left.velocity ?? { x: 0, y: 0 };
-  const rightVelocity = right.velocity ?? { x: 0, y: 0 };
-  const relativeX = rightVelocity.x - leftVelocity.x;
-  const relativeY = rightVelocity.y - leftVelocity.y;
-  const velocityAlongNormal = relativeX * nx + relativeY * ny;
-  if (velocityAlongNormal > 0) return;
-  const impulse = (-1.05 * velocityAlongNormal) / (1 / leftConfig.mass + 1 / rightConfig.mass);
-  leftVelocity.x -= (impulse / leftConfig.mass) * nx;
-  leftVelocity.y -= (impulse / leftConfig.mass) * ny;
-  rightVelocity.x += (impulse / rightConfig.mass) * nx;
-  rightVelocity.y += (impulse / rightConfig.mass) * ny;
-  left.velocity = leftVelocity;
-  right.velocity = rightVelocity;
 }
 
 export function createAsteroid(
@@ -97,9 +51,12 @@ export function createAsteroid(
   velocity: Vector,
 ): AsteroidEntity {
   const config = ASTEROIDS[tier];
-  const body = scene.matter.add.image(position.x, position.y, `phaser-asteroid-${tier}`);
-  body.setStatic(true);
+  const body = scene.matter.add.image(position.x, position.y, `phaser-asteroid-${tier}`) as MatterImage;
   body.setCircle(config.radius);
+  body.setMass(config.mass);
+  body.setFrictionAir(0);
+  body.setBounce(1);
+  body.setVelocity(velocity.x, velocity.y);
   return { body, hits: config.hits, tier, velocity };
 }
 

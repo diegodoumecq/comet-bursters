@@ -32,6 +32,7 @@ export function updateBlackHoles(
           projectile.collapseStartedAt = now;
           projectile.velocity.x = 0;
           projectile.velocity.y = 0;
+          projectile.shape.setVelocity(0, 0);
         }
         if (projectile.collapseStartedAt !== null) {
           const collapse = (now - projectile.collapseStartedAt) / COLLAPSE_DURATION_MS;
