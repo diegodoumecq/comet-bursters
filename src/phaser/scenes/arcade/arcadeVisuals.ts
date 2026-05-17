@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
 import type { Vector, WorldSize } from '../../model';
-import { createAsteroidTextures } from '../../services/asteroids';
+import { createAsteroidTextures } from '../../services/asteroidTextures';
 import { SHIELD_RADIUS } from '../../services/fuel';
 
 export function createArcadeBackground(scene: Phaser.Scene, world: WorldSize): void {

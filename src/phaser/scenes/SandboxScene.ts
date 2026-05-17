@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 
 import type { PlanetEntity, Vector, WorldSize } from '../model';
 import { ActionReader } from '../services/actions';
-import { createAsteroid, createAsteroidTextures } from '../services/asteroids';
+import { createAsteroid } from '../services/asteroids';
+import { createAsteroidTextures } from '../services/asteroidTextures';
 import { consumeThrustFuel, FUELLESS_THRUST_SCALE } from '../services/fuel';
 import { applyPlanetGravity } from '../services/gravity';
 import { mainGameState } from '../services/mainGameState';

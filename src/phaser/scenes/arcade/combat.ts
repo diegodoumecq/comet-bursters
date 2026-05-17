@@ -62,7 +62,7 @@ export function resolvePlayerAsteroidCollision(input: {
   playerVelocity: Vector;
   shieldHitUntil: number;
 } {
-  const asteroidRadius = ASTEROIDS[input.asteroid.tier].radius;
+  const asteroidRadius = ASTEROIDS[input.asteroid.tier].collisionRadius;
   const dx = input.playerPosition.x - input.asteroid.body.x;
   const dy = input.playerPosition.y - input.asteroid.body.y;
   const distance = Math.hypot(dx, dy);

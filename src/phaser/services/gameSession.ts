@@ -65,7 +65,7 @@ export function chooseSafePlayerPosition(asteroids: AsteroidEntity[], world: Wor
     };
     const blocked = asteroids.some((asteroid) =>
       Phaser.Math.Distance.Between(candidate.x, candidate.y, asteroid.body.x, asteroid.body.y) <=
-        18 + ASTEROIDS[asteroid.tier].radius + 80,
+        18 + ASTEROIDS[asteroid.tier].collisionRadius + 80,
     );
     if (!blocked) return candidate;
   }

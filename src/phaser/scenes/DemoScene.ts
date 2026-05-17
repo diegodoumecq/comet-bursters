@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 
 import { ActionReader } from '../services/actions';
-import { createAsteroid, createAsteroidTextures } from '../services/asteroids';
+import { createAsteroid } from '../services/asteroids';
+import { createAsteroidTextures } from '../services/asteroidTextures';
 import { updateBlackHoles } from '../services/blackHoles';
 import { createProjectileShape } from '../services/weaponRender';
 import { getTimeScale } from '../services/time';

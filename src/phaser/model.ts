@@ -40,6 +40,7 @@ export type AsteroidEntity = {
   hits?: number;
   tier: AsteroidTier;
   velocity?: Vector;
+  visualVariant: number;
 };
 
 export type PlanetEntity = {
