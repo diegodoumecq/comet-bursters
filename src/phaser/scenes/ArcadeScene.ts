@@ -65,9 +65,11 @@ export class PhaserArcadeScene extends Phaser.Scene {
       this.scene.restart();
       return;
     }
-    const deltaSeconds = (delta / 1000) * getTimeScale(action.timeDilation);
+    const timeScale = getTimeScale(action.timeDilation);
+    this.matter.world.engine.timing.timeScale = timeScale;
+    const deltaSeconds = (delta / 1000) * timeScale;
     this.updateInputPhase(action, deltaSeconds, time);
-    this.updateWorldMotionPhase(time, delta, deltaSeconds);
+    this.updateWorldMotionPhase(delta, deltaSeconds);
     this.updateCombatPhase(time, action.shield);
     this.updateLifecyclePhase(time);
     this.updatePresentationPhase(time, action);
@@ -89,11 +91,11 @@ export class PhaserArcadeScene extends Phaser.Scene {
     updateShieldSensor(this.shieldSensor, this.player, action.shield && this.playerIsAlive() && this.session.ship.fuel > 0);
   }
 
-  private updateWorldMotionPhase(time: number, deltaMs: number, deltaSeconds: number): void {
+  private updateWorldMotionPhase(deltaMs: number, deltaSeconds: number): void {
     updateAsteroids(this.session.world.asteroids, deltaSeconds, this.worldSize);
     this.collectFuelBlobs(deltaSeconds);
     this.removeExpiredParticles(deltaMs);
-    for (const projectile of updateProjectiles(this.session.world.projectiles, time, deltaSeconds, this.worldSize)) {
+    for (const projectile of updateProjectiles(this.session.world.projectiles, deltaSeconds, this.worldSize)) {
       this.removeProjectile(projectile);
     }
   }
@@ -104,7 +106,6 @@ export class PhaserArcadeScene extends Phaser.Scene {
       this.session.world.projectiles,
       this.session.world.asteroids,
       [],
-      time,
       (projectile) => this.removeProjectile(projectile),
       (asteroid) => this.removeAsteroid(asteroid),
       (asteroid) => {

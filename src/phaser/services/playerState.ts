@@ -27,6 +27,7 @@ export class PlayerState {
       projectiles: result.shots.map((shot) => {
         const projectile = {
           absorbedFuel: 0,
+          ageMs: 0,
           collapseStartedAt: null,
           createdAt: now,
           kind: shot.kind,

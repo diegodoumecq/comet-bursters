@@ -90,12 +90,11 @@ export class PhaserDemoScene extends Phaser.Scene {
 
     wrapPoint(this.player, WORLD);
     this.player.setPosition(this.player.x, this.player.y);
-    this.updateProjectiles(time, (delta / 1000) * timeScale);
+    this.updateProjectiles((delta / 1000) * timeScale);
     updateBlackHoles(
       this.projectiles,
       this.asteroids,
       this.planets,
-      time,
       (projectile) => this.removeProjectile(projectile),
       (asteroid) => this.removeAsteroid(asteroid),
     );
@@ -107,6 +106,7 @@ export class PhaserDemoScene extends Phaser.Scene {
     const shape = createProjectileShape(this, this.player, kind, Math.atan2(direction.y, direction.x));
     this.projectiles.push({
       absorbedFuel: 0,
+      ageMs: 0,
       collapseStartedAt: null,
       createdAt: now,
       kind,
@@ -119,10 +119,11 @@ export class PhaserDemoScene extends Phaser.Scene {
     });
   }
 
-  private updateProjectiles(now: number, deltaSeconds: number): void {
+  private updateProjectiles(deltaSeconds: number): void {
     for (let i = this.projectiles.length - 1; i >= 0; i -= 1) {
       const projectile = this.projectiles[i];
-      if (now - projectile.createdAt >= projectile.lifetimeMs) {
+      projectile.ageMs += deltaSeconds * 1000;
+      if (projectile.ageMs >= projectile.lifetimeMs) {
         this.removeProjectile(projectile);
       } else {
         projectile.shape.setPosition(

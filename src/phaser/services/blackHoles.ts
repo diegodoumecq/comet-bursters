@@ -10,7 +10,6 @@ export function updateBlackHoles(
   projectiles: ProjectileEntity[],
   asteroids: AsteroidEntity[],
   planets: PlanetEntity[],
-  now: number,
   removeProjectile: (projectile: ProjectileEntity) => void,
   removeAsteroid: (asteroid: AsteroidEntity) => void,
   onAsteroidAbsorbed?: (asteroid: AsteroidEntity) => void,
@@ -18,7 +17,7 @@ export function updateBlackHoles(
 ): void {
   for (const projectile of projectiles) {
     if (projectile.kind === 'blackHole') {
-      const age = now - projectile.createdAt;
+      const age = projectile.ageMs;
       const mature = age >= MATURE_AFTER_MS;
       const radius = mature ? 42 : 14 + (age / MATURE_AFTER_MS) * 28;
       projectile.shape.setRadius(radius);
@@ -29,13 +28,13 @@ export function updateBlackHoles(
         removeProjectile(projectile);
       } else {
         if (age >= COLLAPSE_AFTER_MS && projectile.collapseStartedAt === null) {
-          projectile.collapseStartedAt = now;
+          projectile.collapseStartedAt = age;
           projectile.velocity.x = 0;
           projectile.velocity.y = 0;
           projectile.shape.setVelocity(0, 0);
         }
         if (projectile.collapseStartedAt !== null) {
-          const collapse = (now - projectile.collapseStartedAt) / COLLAPSE_DURATION_MS;
+          const collapse = (age - projectile.collapseStartedAt) / COLLAPSE_DURATION_MS;
           projectile.shape.setRadius(Math.max(0, radius * (1 - collapse)));
           if (collapse >= 1) {
             onFuelBurst?.(projectile);

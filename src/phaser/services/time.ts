@@ -1,3 +1,3 @@
 export function getTimeScale(timeDilation: boolean): number {
-  return timeDilation ? 0.5 : 1;
+  return timeDilation ? 0.1 : 1;
 }

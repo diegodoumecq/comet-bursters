@@ -50,6 +50,7 @@ export type PlanetEntity = {
 
 export type ProjectileEntity = {
   absorbedFuel: number;
+  ageMs: number;
   collapseStartedAt: number | null;
   createdAt: number;
   kind: ProjectileKind;
