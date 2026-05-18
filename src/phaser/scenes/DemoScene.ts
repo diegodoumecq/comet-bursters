@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { ActionReader } from '../services/actions';
 import { createAsteroid } from '../services/asteroids';
 import { createAsteroidTextures } from '../services/asteroidTextures';
+import { createPlayerTexture, PLAYER_TURRET_TEXTURE_KEY } from '../services/playerTextures';
 import { updateBlackHoles } from '../services/blackHoles';
 import { createProjectileShape } from '../services/weaponRender';
 import { getTimeScale } from '../services/time';
@@ -20,7 +21,7 @@ const PLAYER_MAX_SPEED = 1500;
 export class PhaserDemoScene extends Phaser.Scene {
   private actions!: ActionReader;
   private player!: Phaser.Physics.Matter.Image;
-  private turret!: Phaser.GameObjects.Line;
+  private turret!: Phaser.GameObjects.Image;
   private beam!: Phaser.GameObjects.Graphics;
   private hud!: Hud;
   private projectiles: ProjectileEntity[] = [];
@@ -46,7 +47,7 @@ export class PhaserDemoScene extends Phaser.Scene {
     this.player.setCircle(18);
     this.player.setStatic(true);
     this.player.setMass(18);
-    this.turret = this.add.line(620, 760, 0, 0, 0, -52, 0xffffff).setLineWidth(3, 3);
+    this.turret = this.add.image(620, 760, PLAYER_TURRET_TEXTURE_KEY).setDepth(3);
     this.beam = this.add.graphics();
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
     this.hud = new Hud(this);
@@ -81,7 +82,7 @@ export class PhaserDemoScene extends Phaser.Scene {
       this.player.y + this.playerVelocity.y * scaledDeltaSeconds,
     );
     this.turret.setPosition(this.player.x, this.player.y);
-    this.turret.setRotation(Math.atan2(this.lastAim.y, this.lastAim.x) + Math.PI * 0.5);
+    this.turret.setRotation(Math.atan2(this.lastAim.y, this.lastAim.x));
 
     if (action.firePrimary && time - this.lastShotAt >= 140) {
       this.fireProjectile(action.timeDilation ? 'blackHole' : 'small', this.lastAim, time);
@@ -156,17 +157,7 @@ export class PhaserDemoScene extends Phaser.Scene {
   }
 
   private createTextures(): void {
-    const graphics = this.make.graphics({ x: 0, y: 0 }, false);
-    graphics.fillStyle(0xf4f7ff, 1);
-    graphics.beginPath();
-    graphics.moveTo(24, 0);
-    graphics.lineTo(40, 44);
-    graphics.lineTo(24, 36);
-    graphics.lineTo(8, 44);
-    graphics.closePath();
-    graphics.fillPath();
-    graphics.generateTexture('phaser-ship', 48, 48);
-    graphics.destroy();
+    createPlayerTexture(this);
     createAsteroidTextures(this);
   }
 

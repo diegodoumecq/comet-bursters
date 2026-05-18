@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 
 import type { MatterImage, Vector, WeaponKind, WorldSize } from '../../model';
 import { drawTractorBeam } from '../../services/tractorBeam';
+import { PlayerFuelOverlay } from '../../services/playerFuelOverlay';
+import { PLAYER_TURRET_TEXTURE_KEY } from '../../services/playerTextures';
 import type { SceneWeaponPolicy } from '../../services/sceneWeaponPolicy';
 import { Hud } from '../../ui/Hud';
 import { WeaponMenu } from '../../ui/WeaponMenu';
@@ -24,9 +26,10 @@ type PresentationState = {
 };
 
 export class ArcadePresentation {
-  private readonly turret: Phaser.GameObjects.Line;
+  private readonly turret: Phaser.GameObjects.Image;
   private readonly beam: Phaser.GameObjects.Graphics;
   private readonly shield: Phaser.GameObjects.Graphics;
+  private readonly fuelOverlay: PlayerFuelOverlay;
   private readonly hud: Hud;
   private readonly weaponMenu: WeaponMenu;
   private gameOverText: Phaser.GameObjects.Text | null = null;
@@ -40,9 +43,10 @@ export class ArcadePresentation {
     weaponPolicy: SceneWeaponPolicy,
   ) {
     createArcadeBackground(scene, world);
-    this.turret = scene.add.line(player.x, player.y, 0, 0, 0, -52, 0xffffff).setLineWidth(3, 3);
+    this.turret = scene.add.image(player.x, player.y, PLAYER_TURRET_TEXTURE_KEY).setDepth(3);
     this.beam = scene.add.graphics();
     this.shield = scene.add.graphics();
+    this.fuelOverlay = new PlayerFuelOverlay(scene, 2);
     this.hud = new Hud(scene);
     this.weaponMenu = new WeaponMenu(scene, weaponPolicy.allowedWeapons);
   }
@@ -55,6 +59,7 @@ export class ArcadePresentation {
     this.updateTurret(aim, state.playerAlive);
     drawTractorBeam(this.beam, this.player, aim, state.tractorActive);
     drawShield(this.shield, this.player, state.shieldActive, state.playerAlive && state.fuel > 0);
+    this.fuelOverlay.update(this.player, state.fuel, now, state.playerAlive);
     this.weaponMenu.draw(this.player, aim, state.primary, state.secondary, state.timeDilation);
     updatePlayerBlink(this.player, state.playerAlive, state.invulnerableUntil, now);
     this.shakeIntensity = updateCameraShake(
@@ -89,6 +94,6 @@ export class ArcadePresentation {
   private updateTurret(aim: Vector, playerAlive: boolean): void {
     this.turret.setVisible(playerAlive);
     this.turret.setPosition(this.player.x, this.player.y);
-    this.turret.setRotation(Math.atan2(aim.y, aim.x) + Math.PI * 0.5);
+    this.turret.setRotation(Math.atan2(aim.y, aim.x));
   }
 }

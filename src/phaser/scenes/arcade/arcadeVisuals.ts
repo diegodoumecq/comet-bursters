@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import type { Vector, WorldSize } from '../../model';
 import { createAsteroidTextures } from '../../services/asteroidTextures';
 import { SHIELD_RADIUS } from '../../services/fuel';
+import { createPlayerTexture } from '../../services/playerTextures';
 
 export function createArcadeBackground(scene: Phaser.Scene, world: WorldSize): void {
   const graphics = scene.add.graphics();
@@ -12,18 +13,7 @@ export function createArcadeBackground(scene: Phaser.Scene, world: WorldSize): v
 }
 
 export function createArcadeTextures(scene: Phaser.Scene): void {
-  if (scene.textures.exists('phaser-ship')) return;
-  const graphics = scene.make.graphics({ x: 0, y: 0 }, false);
-  graphics.fillStyle(0xf4f7ff, 1);
-  graphics.beginPath();
-  graphics.moveTo(24, 0);
-  graphics.lineTo(40, 44);
-  graphics.lineTo(24, 36);
-  graphics.lineTo(8, 44);
-  graphics.closePath();
-  graphics.fillPath();
-  graphics.generateTexture('phaser-ship', 48, 48);
-  graphics.destroy();
+  createPlayerTexture(scene);
   createAsteroidTextures(scene);
 }
 

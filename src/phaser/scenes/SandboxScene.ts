@@ -5,6 +5,8 @@ import { ActionReader } from '../services/actions';
 import { createAsteroid } from '../services/asteroids';
 import { createAsteroidTextures } from '../services/asteroidTextures';
 import { consumeThrustFuel, FUELLESS_THRUST_SCALE } from '../services/fuel';
+import { PlayerFuelOverlay } from '../services/playerFuelOverlay';
+import { createPlayerTexture, PLAYER_TURRET_TEXTURE_KEY } from '../services/playerTextures';
 import { applyPlanetGravity } from '../services/gravity';
 import { mainGameState } from '../services/mainGameState';
 import { createSandboxPlanets } from './sandbox/sandboxPlanets';
@@ -22,7 +24,8 @@ export class PhaserSandboxScene extends Phaser.Scene {
   private actions!: ActionReader;
   private hud!: Hud;
   private player!: Phaser.Physics.Matter.Image;
-  private turret!: Phaser.GameObjects.Line;
+  private fuelOverlay!: PlayerFuelOverlay;
+  private turret!: Phaser.GameObjects.Image;
   private planets: PlanetEntity[] = [];
   private readonly runtime = new PlayerRuntimeState();
   private readonly ship = mainGameState.ship;
@@ -42,13 +45,14 @@ export class PhaserSandboxScene extends Phaser.Scene {
     this.player = this.matter.add.image(WORLD.width * 0.5, WORLD.height * 0.5, 'phaser-ship');
     this.player.setStatic(true);
     this.player.setCircle(18);
-    this.turret = this.add.line(this.player.x, this.player.y, 0, 0, 0, -52, 0xffffff).setLineWidth(3, 3);
+    this.fuelOverlay = new PlayerFuelOverlay(this, 2);
+    this.turret = this.add.image(this.player.x, this.player.y, PLAYER_TURRET_TEXTURE_KEY).setDepth(3);
     this.cameras.main.setBounds(0, 0, WORLD.width, WORLD.height);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
     this.hud = new Hud(this);
   }
 
-  update(_time: number, delta: number): void {
+  update(time: number, delta: number): void {
     const action = this.actions.read(this.player);
     const deltaSeconds = (delta / 1000) * getTimeScale(action.timeDilation);
     const aim = normalize(action.aim);
@@ -76,7 +80,8 @@ export class PhaserSandboxScene extends Phaser.Scene {
     );
     wrapPoint(this.player, WORLD);
     this.turret.setPosition(this.player.x, this.player.y);
-    this.turret.setRotation(Math.atan2(this.runtime.lastAim.y, this.runtime.lastAim.x) + Math.PI * 0.5);
+    this.turret.setRotation(Math.atan2(this.runtime.lastAim.y, this.runtime.lastAim.x));
+    this.fuelOverlay.update(this.player, this.ship.fuel, time);
     this.hud.update({
       asteroids: 4,
       fuel: this.ship.fuel,
@@ -95,18 +100,7 @@ export class PhaserSandboxScene extends Phaser.Scene {
   }
 
   private createTextures(): void {
-    if (this.textures.exists('phaser-ship')) return;
-    const graphics = this.make.graphics({ x: 0, y: 0 }, false);
-    graphics.fillStyle(0xf4f7ff, 1);
-    graphics.beginPath();
-    graphics.moveTo(24, 0);
-    graphics.lineTo(40, 44);
-    graphics.lineTo(24, 36);
-    graphics.lineTo(8, 44);
-    graphics.closePath();
-    graphics.fillPath();
-    graphics.generateTexture('phaser-ship', 48, 48);
-    graphics.destroy();
+    createPlayerTexture(this);
     createAsteroidTextures(this);
   }
 
