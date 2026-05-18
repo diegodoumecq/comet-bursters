@@ -37,6 +37,7 @@ import { BaseGameScene } from './BaseGameScene';
 import { createSandboxPlanets } from './sandbox/sandboxPlanets';
 import { SandboxRenderer } from './sandbox/SandboxRenderer';
 import { createAsteroidTextures } from '../asteroids/textures';
+import { SandboxDiscovery } from './sandbox/discovery';
 
 const WORLD: WorldSize = { width: 12000, height: 12000 };
 const INITIAL_ASTEROIDS = 22;
@@ -55,6 +56,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private readonly player = new PlayerState();
   private readonly ship = mainGameState.ship;
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: ALL_WEAPONS };
+  private readonly discovery = new SandboxDiscovery();
   private planets: PlanetEntity[] = [];
   private asteroids: AsteroidEntity[] = [];
   private projectiles: ProjectileEntity[] = [];
@@ -104,6 +106,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.updateWorld(delta, deltaSeconds);
     this.resolveCombat(time, action.shield);
     this.updateRespawn(time);
+    this.discovery.update(this.player.position, this.planets, WORLD);
   }
 
   protected renderState(action: ReturnType<ActionReader['read']>, time: number): void {
@@ -116,6 +119,9 @@ export class PhaserSandboxScene extends BaseGameScene {
       ship: this.ship,
       timeDilation: action.timeDilation,
       tractorActive: this.getTractorActive(action),
+      discovery: this.discovery,
+      planets: this.planets,
+      world: WORLD,
     });
   }
 

@@ -10,6 +10,10 @@ import { WeaponMenu } from '../../ui/WeaponMenu';
 import type { SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { drawTractorBeam } from '../../weapons/tractorBeam';
 import type { WeaponKind } from '../../weapons/types';
+import type { PlanetEntity } from '../../planets/types';
+import type { WorldSize } from '../../core/types';
+import type { SandboxDiscovery } from './discovery';
+import { SandboxMinimap } from './SandboxMinimap';
 
 export class SandboxRenderer {
   private readonly beam: Phaser.GameObjects.Graphics;
@@ -21,9 +25,10 @@ export class SandboxRenderer {
   private readonly playerThruster: Phaser.GameObjects.Graphics;
   private readonly hud: Hud;
   private readonly weaponMenu: WeaponMenu;
+  private readonly minimap: SandboxMinimap;
 
   constructor(
-    scene: Phaser.Scene,
+    private readonly scene: Phaser.Scene,
     private readonly player: Phaser.Physics.Matter.Image,
     weaponPolicy: SceneWeaponPolicy,
   ) {
@@ -37,6 +42,7 @@ export class SandboxRenderer {
     this.playerThruster = scene.add.graphics().setDepth(0);
     this.hud = new Hud(scene);
     this.weaponMenu = new WeaponMenu(scene, weaponPolicy.allowedWeapons);
+    this.minimap = new SandboxMinimap(scene);
   }
 
   getSelectedWeapon(aim: Vector): WeaponKind {
@@ -52,6 +58,9 @@ export class SandboxRenderer {
     ship: ShipState;
     timeDilation: boolean;
     tractorActive: boolean;
+    discovery: SandboxDiscovery;
+    planets: PlanetEntity[];
+    world: WorldSize;
   }): void {
     const visible = getPlayerVisible(input.player.visible, input.player.invulnerableUntil, input.now);
     renderPlayerThruster(this.playerThruster, this.player, input.player.lastThrustMove, input.ship.fuel > 0, visible && input.player.thrusting);
@@ -67,6 +76,14 @@ export class SandboxRenderer {
       projectiles: input.projectileCount,
       secondary: input.ship.secondaryWeapon,
       timeDilation: input.timeDilation,
+    });
+    this.minimap.render({
+      camera: this.scene.cameras.main,
+      discovery: input.discovery,
+      planets: input.planets,
+      player: input.player.position,
+      playerAim: input.player.lastAim,
+      world: input.world,
     });
   }
 }
