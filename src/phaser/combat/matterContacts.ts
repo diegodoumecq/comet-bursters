@@ -51,6 +51,7 @@ export class MatterContacts {
     }
     this.playerAsteroids.delete(asteroid);
     this.shieldAsteroids.delete(asteroid);
+    this.removeQueuedProjectileAsteroidContacts((contact) => contact.asteroid === asteroid);
   }
 
   addProjectile(projectile: ProjectileEntity, runtime: ProjectileBodies): void {
@@ -65,6 +66,7 @@ export class MatterContacts {
       this.projectilesByBodyId.delete(bodyId);
       this.projectileBodyIds.delete(projectile);
     }
+    this.removeQueuedProjectileAsteroidContacts((contact) => contact.projectile === projectile);
   }
 
   consumePlayerAsteroids(): AsteroidEntity[] {
@@ -102,6 +104,16 @@ export class MatterContacts {
     if (this.shieldBody && left.id === this.shieldBody.id) {
       const asteroid = this.asteroidsByBodyId.get(right.id);
       if (asteroid) this.shieldAsteroids.add(asteroid);
+    }
+  }
+
+  private removeQueuedProjectileAsteroidContacts(
+    shouldRemove: (contact: { asteroid: AsteroidEntity; projectile: ProjectileEntity }) => boolean,
+  ): void {
+    for (let index = this.projectileAsteroids.length - 1; index >= 0; index -= 1) {
+      if (shouldRemove(this.projectileAsteroids[index])) {
+        this.projectileAsteroids.splice(index, 1);
+      }
     }
   }
 }
