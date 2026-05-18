@@ -1,6 +1,9 @@
 import type Phaser from 'phaser';
 
-import type { AsteroidEntity, ProjectileEntity } from '../../model';
+import type { AsteroidEntity } from '../../asteroids/types';
+import type { ProjectileEntity } from '../../projectiles/types';
+import type { AsteroidBodies } from '../../asteroids/bodies';
+import type { ProjectileBodies } from '../../projectiles/bodies';
 
 export class MatterContacts {
   private readonly playerAsteroids = new Set<AsteroidEntity>();
@@ -34,8 +37,8 @@ export class MatterContacts {
     this.shieldBody = body;
   }
 
-  addAsteroid(asteroid: AsteroidEntity): void {
-    const bodyId = asteroid.body.body.id;
+  addAsteroid(asteroid: AsteroidEntity, runtime: AsteroidBodies): void {
+    const bodyId = runtime.get(asteroid).body.id;
     this.asteroidsByBodyId.set(bodyId, asteroid);
     this.asteroidBodyIds.set(asteroid, bodyId);
   }
@@ -50,8 +53,8 @@ export class MatterContacts {
     this.shieldAsteroids.delete(asteroid);
   }
 
-  addProjectile(projectile: ProjectileEntity): void {
-    const bodyId = projectile.shape.body.id;
+  addProjectile(projectile: ProjectileEntity, runtime: ProjectileBodies): void {
+    const bodyId = runtime.get(projectile).body.id;
     this.projectilesByBodyId.set(bodyId, projectile);
     this.projectileBodyIds.set(projectile, bodyId);
   }

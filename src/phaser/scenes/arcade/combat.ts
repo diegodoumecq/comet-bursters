@@ -1,10 +1,13 @@
-import type { AsteroidEntity, ProjectileEntity, Vector } from '../../model';
-import { ASTEROIDS } from '../../services/asteroids';
-import { SHIELD_HIT_COOLDOWN_MS, SHIELD_RADIUS, spendShieldFuel } from '../../services/fuel';
-import { PROJECTILES } from '../../services/weapons';
+import type { AsteroidEntity } from '../../asteroids/types';
+import type { ProjectileEntity } from '../../projectiles/types';
+import type { Vector } from '../../core/types';
+import { ASTEROIDS } from '../../asteroids/logic';
+import { SHIELD_HIT_COOLDOWN_MS, SHIELD_RADIUS, spendShieldFuel } from '../../fuel/rules';
+import { PROJECTILES } from '../../weapons/config';
+import type { AsteroidBodies } from '../../asteroids/bodies';
 
-export function applyProjectileImpulse(projectile: ProjectileEntity, asteroid: AsteroidEntity): void {
-  const asteroidVelocity = asteroid.velocity ?? { x: 0, y: 0 };
+export function applyProjectileImpulse(projectile: ProjectileEntity, asteroid: AsteroidEntity, runtime: AsteroidBodies): void {
+  const asteroidVelocity = asteroid.velocity;
   const config = ASTEROIDS[asteroid.tier];
   const projectileSpeed = Math.hypot(projectile.velocity.x, projectile.velocity.y);
   if (projectileSpeed === 0) return;
@@ -14,7 +17,7 @@ export function applyProjectileImpulse(projectile: ProjectileEntity, asteroid: A
   asteroidVelocity.x += normalX * impulse;
   asteroidVelocity.y += normalY * impulse;
   asteroid.velocity = asteroidVelocity;
-  asteroid.body.setVelocity(asteroidVelocity.x, asteroidVelocity.y);
+  runtime.get(asteroid).setVelocity(asteroidVelocity.x, asteroidVelocity.y);
 }
 
 export function damageAsteroid(projectile: ProjectileEntity, asteroid: AsteroidEntity): boolean {
@@ -28,6 +31,7 @@ export type ProjectileCombatEvent =
 
 export function resolveProjectileContactCombat(
   contacts: Array<{ asteroid: AsteroidEntity; projectile: ProjectileEntity }>,
+  runtime: AsteroidBodies,
 ): ProjectileCombatEvent[] {
   const events: ProjectileCombatEvent[] = [];
   const destroyed = new Set<AsteroidEntity>();
@@ -35,7 +39,7 @@ export function resolveProjectileContactCombat(
   for (const { asteroid, projectile } of contacts) {
     if (projectile.kind !== 'blackHole' && !destroyed.has(asteroid) && !handledProjectiles.has(projectile)) {
       handledProjectiles.add(projectile);
-      applyProjectileImpulse(projectile, asteroid);
+      applyProjectileImpulse(projectile, asteroid, runtime);
       events.push({ asteroid, projectile, type: 'projectileHitAsteroid' });
       if (damageAsteroid(projectile, asteroid)) {
         destroyed.add(asteroid);
@@ -63,8 +67,8 @@ export function resolvePlayerAsteroidCollision(input: {
   shieldHitUntil: number;
 } {
   const asteroidRadius = ASTEROIDS[input.asteroid.tier].collisionRadius;
-  const dx = input.playerPosition.x - input.asteroid.body.x;
-  const dy = input.playerPosition.y - input.asteroid.body.y;
+  const dx = input.playerPosition.x - input.asteroid.position.x;
+  const dy = input.playerPosition.y - input.asteroid.position.y;
   const distance = Math.hypot(dx, dy);
   const shieldCollisionDistance = SHIELD_RADIUS + asteroidRadius;
   if (input.shieldActive && input.fuel > 0 && distance <= shieldCollisionDistance && input.now >= input.shieldHitUntil) {
@@ -160,8 +164,8 @@ function getShieldBounce(
   const overlap = shieldCollisionDistance - distance;
   return {
     asteroidPosition: {
-      x: input.asteroid.body.x - normal.x * overlap,
-      y: input.asteroid.body.y - normal.y * overlap,
+      x: input.asteroid.position.x - normal.x * overlap,
+      y: input.asteroid.position.y - normal.y * overlap,
     },
     asteroidVelocity: {
       x: asteroidVelocity.x - normal.x * bounceForce * (1 - shipInfluence),

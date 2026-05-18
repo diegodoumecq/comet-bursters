@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 
-import type { AsteroidEntity, AsteroidTier, WorldSize } from '../../model';
-import { ASTEROIDS, createAsteroid } from '../../services/asteroids';
+import type { AsteroidEntity, AsteroidTier } from '../../asteroids/types';
+import type { WorldSize } from '../../core/types';
+import { ASTEROIDS, createAsteroid } from '../../asteroids/logic';
 
-export function createWaveAsteroids(scene: Phaser.Scene, wave: number, world: WorldSize): AsteroidEntity[] {
+export function createWaveAsteroids(wave: number, world: WorldSize): AsteroidEntity[] {
   const asteroids: AsteroidEntity[] = [];
   for (let index = 0; index < wave + 2; index += 1) {
     const tier = chooseWaveTier(wave);
@@ -16,7 +17,7 @@ export function createWaveAsteroids(scene: Phaser.Scene, wave: number, world: Wo
     const centerAngle = Math.atan2(world.height * 0.5 - position.y, world.width * 0.5 - position.x);
     const angle = centerAngle + Phaser.Math.FloatBetween(-Math.PI * 0.5, Math.PI * 0.5);
     const speed = config.speed * Phaser.Math.FloatBetween(0.8, 1.2);
-    asteroids.push(createAsteroid(scene, tier, position, { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed }));
+    asteroids.push(createAsteroid(tier, position, { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed }));
   }
   return asteroids;
 }

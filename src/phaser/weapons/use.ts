@@ -1,0 +1,131 @@
+import type { Vector } from '../core/types';
+import { consumeTractorFuel } from '../fuel/rules';
+import type { PlayerState } from '../player/state';
+import type { ShipState } from '../player/shipState';
+import type { ProjectileEntity } from '../projectiles/types';
+import { fireWeapon } from './fire';
+import { allowsWeapon, type SceneWeaponPolicy } from './scenePolicy';
+import type { WeaponKind } from './types';
+
+export type WeaponActionInput = {
+  firePrimary: boolean;
+  fireSecondary: boolean;
+  playerActive: boolean;
+  timeDilation: boolean;
+};
+
+export type WeaponUseResult = {
+  fuel: number;
+  nextProjectileId: number;
+  primaryWeapon: WeaponKind;
+  projectiles: ProjectileEntity[];
+  recoil: Vector;
+  secondaryWeapon: WeaponKind;
+  tractorActive: boolean;
+};
+
+export function updateWeapons(input: {
+  action: WeaponActionInput;
+  deltaSeconds: number;
+  nextProjectileId: number;
+  now: number;
+  origin: Vector;
+  player: PlayerState;
+  policy: SceneWeaponPolicy;
+  selectedWeapon: WeaponKind;
+  ship: ShipState;
+  shooterVelocity: Vector;
+}): WeaponUseResult {
+  if (input.action.timeDilation) {
+    return assignSelectedWeapon(input);
+  }
+
+  const primary = input.action.playerActive && input.action.firePrimary
+    ? fireSelectedWeapon(input, input.ship.primaryWeapon, input.nextProjectileId)
+    : noWeaponFire(input.nextProjectileId);
+  const secondary = input.action.playerActive && input.action.fireSecondary
+    ? fireSelectedWeapon(input, input.ship.secondaryWeapon, primary.nextProjectileId)
+    : noWeaponFire(primary.nextProjectileId);
+  const tractorActive = isTractorActive(input.policy, input.ship, input.action);
+  const fuelAfterTractor = consumeTractorFuel(input.ship.fuel, input.deltaSeconds, tractorActive);
+
+  return {
+    fuel: fuelAfterTractor,
+    nextProjectileId: secondary.nextProjectileId,
+    primaryWeapon: input.ship.primaryWeapon,
+    projectiles: [...primary.projectiles, ...secondary.projectiles],
+    recoil: {
+      x: primary.recoil.x + secondary.recoil.x,
+      y: primary.recoil.y + secondary.recoil.y,
+    },
+    secondaryWeapon: input.ship.secondaryWeapon,
+    tractorActive,
+  };
+}
+
+function assignSelectedWeapon(input: Parameters<typeof updateWeapons>[0]): WeaponUseResult {
+  const primaryWeapon = input.action.firePrimary ? input.selectedWeapon : input.ship.primaryWeapon;
+  const secondaryWeapon = input.action.fireSecondary ? input.selectedWeapon : input.ship.secondaryWeapon;
+  return {
+    fuel: input.ship.fuel,
+    nextProjectileId: input.nextProjectileId,
+    primaryWeapon,
+    projectiles: [],
+    recoil: { x: 0, y: 0 },
+    secondaryWeapon,
+    tractorActive: false,
+  };
+}
+
+function fireSelectedWeapon(
+  input: Parameters<typeof updateWeapons>[0],
+  weapon: WeaponKind,
+  nextProjectileId: number,
+): {
+  fuel?: number;
+  nextProjectileId: number;
+  projectiles: ProjectileEntity[];
+  recoil: Vector;
+} {
+  if (!allowsWeapon(input.policy, weapon)) return noWeaponFire(nextProjectileId);
+  const result = fireWeapon(
+    weapon,
+    input.player.lastAim,
+    input.now,
+    input.ship.fuel,
+    input.player.lastShotAt,
+    input.shooterVelocity,
+  );
+  input.player.lastShotAt = result.lastShotAt;
+  const projectiles = result.shots.map((shot, index) => ({
+    absorbedFuel: 0,
+    ageMs: 0,
+    angle: shot.angle,
+    collapseStartedAt: null,
+    createdAt: input.now,
+    id: nextProjectileId + index,
+    kind: shot.kind,
+    lifetimeMs: shot.lifetimeMs,
+    position: { x: input.origin.x, y: input.origin.y },
+    velocity: shot.velocity,
+  }));
+  input.ship.setFuel(result.fuel);
+  return {
+    fuel: result.fuel,
+    nextProjectileId: nextProjectileId + projectiles.length,
+    projectiles,
+    recoil: result.recoil,
+  };
+}
+
+export function isTractorActive(policy: SceneWeaponPolicy, ship: ShipState, action: WeaponActionInput): boolean {
+  return allowsWeapon(policy, 'tractor') &&
+    !action.timeDilation &&
+    action.playerActive &&
+    ((ship.primaryWeapon === 'tractor' && action.firePrimary) ||
+      (ship.secondaryWeapon === 'tractor' && action.fireSecondary));
+}
+
+function noWeaponFire(nextProjectileId: number) {
+  return { nextProjectileId, projectiles: [], recoil: { x: 0, y: 0 } };
+}

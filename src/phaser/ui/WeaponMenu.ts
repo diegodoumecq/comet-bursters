@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
-import type { Vector, WeaponKind } from '../model';
+import type { Vector } from '../core/types';
+import type { WeaponKind } from '../weapons/types';
 
 export class WeaponMenu {
   private readonly graphics: Phaser.GameObjects.Graphics;

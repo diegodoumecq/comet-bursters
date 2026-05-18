@@ -1,9 +1,8 @@
 import Phaser from 'phaser';
 
-import type { Vector, WorldSize } from '../../model';
-import { createAsteroidTextures } from '../../services/asteroidTextures';
-import { SHIELD_RADIUS } from '../../services/fuel';
-import { createPlayerTexture } from '../../services/playerTextures';
+import type { WorldSize } from '../../core/types';
+import { createAsteroidTextures } from '../../asteroids/textures';
+import { createPlayerTexture } from '../../player/textures';
 
 export function createArcadeBackground(scene: Phaser.Scene, world: WorldSize): void {
   const graphics = scene.add.graphics();
@@ -15,24 +14,6 @@ export function createArcadeBackground(scene: Phaser.Scene, world: WorldSize): v
 export function createArcadeTextures(scene: Phaser.Scene): void {
   createPlayerTexture(scene);
   createAsteroidTextures(scene);
-}
-
-export function drawShield(
-  graphics: Phaser.GameObjects.Graphics,
-  center: Vector,
-  active: boolean,
-  visible: boolean,
-): void {
-  graphics.clear();
-  if (!active || !visible) return;
-  graphics.lineStyle(3, 0x64c8ff, 0.75);
-  graphics.strokeCircle(center.x, center.y, SHIELD_RADIUS);
-}
-
-export function updatePlayerBlink(player: Phaser.GameObjects.Components.Visible, alive: boolean, invulnerableUntil: number, now: number): void {
-  if (!alive) return;
-  const invulnerable = now < invulnerableUntil;
-  player.setVisible(!invulnerable || Math.floor(now / 120) % 2 === 0);
 }
 
 export function updateCameraShake(

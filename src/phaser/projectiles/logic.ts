@@ -1,0 +1,24 @@
+import type { WorldSize } from '../core/types';
+import { wrapPoint } from '../world/geometry';
+import type { ProjectileEntity } from './types';
+import type { ProjectileBodies } from './bodies';
+
+export function updateProjectiles(
+  projectiles: ProjectileEntity[],
+  runtime: ProjectileBodies,
+  deltaSeconds: number,
+  world: WorldSize,
+): ProjectileEntity[] {
+  const expired: ProjectileEntity[] = [];
+  for (const projectile of projectiles) {
+    projectile.ageMs += deltaSeconds * 1000;
+    const shouldExpire = projectile.ageMs >= projectile.lifetimeMs && projectile.kind !== 'blackHole';
+    if (shouldExpire) {
+      expired.push(projectile);
+    } else {
+      wrapPoint(runtime.get(projectile), world);
+      runtime.sync(projectile);
+    }
+  }
+  return expired;
+}

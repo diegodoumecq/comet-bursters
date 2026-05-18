@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
-import { ASTEROID_TEXTURES, createAsteroidTextures } from '../services/asteroidTextures';
-import { ASTEROIDS } from '../services/asteroids';
+import { ASTEROID_TEXTURES, createAsteroidTextures } from '../asteroids/textures';
+import { ASTEROIDS } from '../asteroids/logic';
 
 export class AsteroidDebugScene extends Phaser.Scene {
   constructor() {
