@@ -1,9 +1,9 @@
 import type Phaser from 'phaser';
 
-import type { AsteroidEntity } from '../../asteroids/types';
-import type { ProjectileEntity } from '../../projectiles/types';
-import type { AsteroidBodies } from '../../asteroids/bodies';
-import type { ProjectileBodies } from '../../projectiles/bodies';
+import type { AsteroidEntity } from '../asteroids/types';
+import type { ProjectileEntity } from '../projectiles/types';
+import type { AsteroidBodies } from '../asteroids/bodies';
+import type { ProjectileBodies } from '../projectiles/bodies';
 
 export class MatterContacts {
   private readonly playerAsteroids = new Set<AsteroidEntity>();

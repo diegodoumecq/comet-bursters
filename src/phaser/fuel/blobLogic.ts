@@ -55,6 +55,7 @@ export function updateFuelBlob(
   attractsToPlayer: boolean,
   deltaSeconds: number,
   world: WorldSize,
+  wrap = true,
 ): void {
   if (attractsToPlayer) {
     const dx = player.x - blob.position.x;
@@ -78,7 +79,7 @@ export function updateFuelBlob(
   }
   blob.position.x += blob.velocity.x * deltaSeconds;
   blob.position.y += blob.velocity.y * deltaSeconds;
-  wrapPoint(blob.position, world);
+  if (wrap) wrapPoint(blob.position, world);
 }
 
 export function updateFuelBlobs(
@@ -87,10 +88,11 @@ export function updateFuelBlobs(
   canCollect: boolean,
   deltaSeconds: number,
   world: WorldSize,
+  wrap = true,
 ): { collected: FuelBlobEntity[]; fuelGain: number } {
   const collected: FuelBlobEntity[] = [];
   for (const blob of blobs) {
-    updateFuelBlob(blob, player, canCollect, deltaSeconds, world);
+    updateFuelBlob(blob, player, canCollect, deltaSeconds, world, wrap);
     const distance = Phaser.Math.Distance.Between(player.x, player.y, blob.position.x, blob.position.y);
     if (canCollect && distance <= 18 + FUEL_BLOB_RADIUS) collected.push(blob);
   }

@@ -23,7 +23,6 @@ export class PlayerBody {
     this.state.position = { x: this.body.x, y: this.body.y };
     this.state.velocity = { x: this.body.body.velocity.x, y: this.body.body.velocity.y };
     this.state.rotation = this.body.rotation;
-    this.state.visible = this.body.visible;
   }
 
   updateShieldSensor(active: boolean): void {

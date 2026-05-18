@@ -17,6 +17,7 @@ export function updatePlayerMotion(input: {
   player: PlayerState;
   ship: ShipState;
   world: WorldSize;
+  wrap?: boolean;
 }): { thrustScale: number; thrusting: boolean } {
   if (Math.hypot(input.move.x, input.move.y) > 0) {
     input.body.setRotation(Math.atan2(input.move.y, input.move.x) + Math.PI * 0.5);
@@ -24,7 +25,7 @@ export function updatePlayerMotion(input: {
   const motion = applyPlayerThrust(input.body.body, input.move, input.ship.fuel, input.deltaSeconds);
   input.ship.setFuel(motion.fuel);
   input.player.updateThrust(input.move, motion.thrusting);
-  wrapPoint(input.body.body, input.world);
+  if (input.wrap ?? true) wrapPoint(input.body.body, input.world);
   input.body.syncState();
   return motion;
 }

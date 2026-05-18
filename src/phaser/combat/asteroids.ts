@@ -1,10 +1,10 @@
-import type { AsteroidEntity } from '../../asteroids/types';
-import type { ProjectileEntity } from '../../projectiles/types';
-import type { Vector } from '../../core/types';
-import { ASTEROIDS } from '../../asteroids/logic';
-import { SHIELD_HIT_COOLDOWN_MS, SHIELD_RADIUS, spendShieldFuel } from '../../fuel/rules';
-import { PROJECTILES } from '../../weapons/config';
-import type { AsteroidBodies } from '../../asteroids/bodies';
+import type { AsteroidEntity } from '../asteroids/types';
+import type { ProjectileEntity } from '../projectiles/types';
+import type { Vector } from '../core/types';
+import { ASTEROIDS } from '../asteroids/logic';
+import { SHIELD_HIT_COOLDOWN_MS, SHIELD_RADIUS, spendShieldFuel } from '../fuel/rules';
+import { PROJECTILES } from '../weapons/config';
+import type { AsteroidBodies } from '../asteroids/bodies';
 
 export function applyProjectileImpulse(projectile: ProjectileEntity, asteroid: AsteroidEntity, runtime: AsteroidBodies): void {
   const asteroidVelocity = asteroid.velocity;

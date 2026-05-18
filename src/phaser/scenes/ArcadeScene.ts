@@ -6,14 +6,15 @@ import type { ParticleEntity } from '../particles/types';
 import type { ProjectileEntity } from '../projectiles/types';
 import type { Vector, WorldSize } from '../core/types';
 import { ActionReader } from '../input/actions';
-import { ASTEROIDS, splitAsteroid, wrapAsteroid } from '../asteroids/logic';
+import { ASTEROIDS, wrapAsteroid } from '../asteroids/logic';
+import { destroyAsteroidWithWeapon } from '../combat/asteroidDestruction';
 import { updateBlackHoles } from '../projectiles/blackHoles';
-import { resolvePlayerCombat, resolveProjectileContactCombat } from './arcade/combat';
-import { createAsteroidExplosion, createExplosionBurst, createShipExplosion, createThrusterParticles, type EffectResult } from './arcade/effects';
+import { resolvePlayerCombat, resolveProjectileContactCombat } from '../combat/asteroids';
+import { createAsteroidExplosion, createExplosionBurst, createShipExplosion, createThrusterParticles, type EffectResult } from '../combat/effects';
 import { MAX_FUEL } from '../fuel/rules';
-import { spawnAsteroidFuelDrops, spawnFuelBlobs, updateFuelBlobs } from '../fuel/blobLogic';
+import { spawnFuelBlobs, updateFuelBlobs } from '../fuel/blobLogic';
 import { chooseSafePlayerPosition } from './arcade/runFlow';
-import { MatterContacts } from './arcade/matterContacts';
+import { MatterContacts } from '../combat/matterContacts';
 import { updateParticles } from '../particles/logic';
 import { updatePlayerMotion } from '../player/motion';
 import { updateProjectiles } from '../projectiles/logic';
@@ -201,10 +202,11 @@ export class PhaserArcadeScene extends BaseGameScene {
       if (event.type === 'projectileHitAsteroid') {
         this.removeProjectile(event.projectile);
       } else {
+        const destruction = destroyAsteroidWithWeapon(event.asteroid);
         this.session.awardAsteroidScore(ASTEROIDS[event.asteroid.tier].points);
-        this.applyEffect(createAsteroidExplosion(event.asteroid, 1));
-        this.addFuelBlobs(spawnAsteroidFuelDrops(event.asteroid));
-        this.addAsteroids(splitAsteroid(event.asteroid));
+        this.addParticles(destruction.particles);
+        this.addFuelBlobs(destruction.fuelBlobs);
+        this.addAsteroids(destruction.children);
         this.removeAsteroid(event.asteroid);
       }
     }

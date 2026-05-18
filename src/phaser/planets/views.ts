@@ -17,4 +17,10 @@ export class PlanetViews {
     this.shapes.set(planet.id, shape);
     return shape;
   }
+
+  sync(planet: PlanetEntity): void {
+    const shape = this.shapes.get(planet.id);
+    if (!shape) throw new Error(`Missing planet shape ${planet.id}`);
+    shape.setPosition(planet.position.x, planet.position.y);
+  }
 }

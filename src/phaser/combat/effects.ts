@@ -1,8 +1,8 @@
-import type { AsteroidEntity } from '../../asteroids/types';
-import type { ParticleEntity } from '../../particles/types';
-import type { Vector } from '../../core/types';
-import { ASTEROIDS } from '../../asteroids/logic';
-import { spawnBurst, spawnThrusterParticle } from '../../particles/logic';
+import type { AsteroidEntity } from '../asteroids/types';
+import type { ParticleEntity } from '../particles/types';
+import type { Vector } from '../core/types';
+import { ASTEROIDS } from '../asteroids/logic';
+import { spawnBurst, spawnThrusterParticle } from '../particles/logic';
 
 export type EffectResult = {
   particles: ParticleEntity[];

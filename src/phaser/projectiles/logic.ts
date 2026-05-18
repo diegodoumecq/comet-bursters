@@ -8,6 +8,7 @@ export function updateProjectiles(
   runtime: ProjectileBodies,
   deltaSeconds: number,
   world: WorldSize,
+  wrap = true,
 ): ProjectileEntity[] {
   const expired: ProjectileEntity[] = [];
   for (const projectile of projectiles) {
@@ -16,7 +17,7 @@ export function updateProjectiles(
     if (shouldExpire) {
       expired.push(projectile);
     } else {
-      wrapPoint(runtime.get(projectile), world);
+      if (wrap) wrapPoint(runtime.get(projectile), world);
       runtime.sync(projectile);
     }
   }

@@ -17,6 +17,11 @@ export function wrappedDelta(from: Vector, to: Vector, world: WorldSize): Vector
   return { x, y };
 }
 
+export function nearestWrappedPosition(origin: Vector, target: Vector, world: WorldSize): Vector {
+  const delta = wrappedDelta(origin, target, world);
+  return { x: origin.x + delta.x, y: origin.y + delta.y };
+}
+
 export function normalize(vector: Vector): Vector {
   const length = Math.hypot(vector.x, vector.y);
   return length > 0 ? { x: vector.x / length, y: vector.y / length } : { x: 0, y: 0 };
