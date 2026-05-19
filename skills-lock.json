@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "phaser-gamedev": {
+      "source": "bazhand/ai-agent-skills",
+      "sourceType": "github",
+      "skillPath": "phaser-gamedev/SKILL.md",
+      "computedHash": "c890fe132bacc3fb60e89b2ad3ff6d3a5f7b06a341a740dd1be0f3cfad273254"
+    }
+  }
+}
