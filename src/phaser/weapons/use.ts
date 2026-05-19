@@ -21,6 +21,7 @@ export type WeaponUseResult = {
   projectiles: ProjectileEntity[];
   recoil: Vector;
   secondaryWeapon: WeaponKind;
+  inspectionProbes: number;
   tractorActive: boolean;
 };
 
@@ -35,17 +36,18 @@ export function updateWeapons(input: {
   selectedWeapon: WeaponKind;
   ship: ShipState;
   shooterVelocity: Vector;
+  inspectionProbes?: number;
 }): WeaponUseResult {
   if (input.action.timeDilation) {
     return assignSelectedWeapon(input);
   }
 
   const primary = input.action.playerActive && input.action.firePrimary
-    ? fireSelectedWeapon(input, input.ship.primaryWeapon, input.nextProjectileId)
-    : noWeaponFire(input.nextProjectileId);
+    ? fireSelectedWeapon(input, input.ship.primaryWeapon, input.nextProjectileId, input.inspectionProbes ?? 0)
+    : noWeaponFire(input.nextProjectileId, input.inspectionProbes ?? 0);
   const secondary = input.action.playerActive && input.action.fireSecondary
-    ? fireSelectedWeapon(input, input.ship.secondaryWeapon, primary.nextProjectileId)
-    : noWeaponFire(primary.nextProjectileId);
+    ? fireSelectedWeapon(input, input.ship.secondaryWeapon, primary.nextProjectileId, primary.inspectionProbes)
+    : noWeaponFire(primary.nextProjectileId, primary.inspectionProbes);
   const tractorActive = isTractorActive(input.policy, input.ship, input.action);
   const fuelAfterTractor = consumeTractorFuel(input.ship.fuel, input.deltaSeconds, tractorActive);
 
@@ -59,6 +61,7 @@ export function updateWeapons(input: {
       y: primary.recoil.y + secondary.recoil.y,
     },
     secondaryWeapon: input.ship.secondaryWeapon,
+    inspectionProbes: secondary.inspectionProbes,
     tractorActive,
   };
 }
@@ -73,6 +76,7 @@ function assignSelectedWeapon(input: Parameters<typeof updateWeapons>[0]): Weapo
     projectiles: [],
     recoil: { x: 0, y: 0 },
     secondaryWeapon,
+    inspectionProbes: input.inspectionProbes ?? 0,
     tractorActive: false,
   };
 }
@@ -81,13 +85,16 @@ function fireSelectedWeapon(
   input: Parameters<typeof updateWeapons>[0],
   weapon: WeaponKind,
   nextProjectileId: number,
+  inspectionProbes: number,
 ): {
   fuel?: number;
   nextProjectileId: number;
   projectiles: ProjectileEntity[];
   recoil: Vector;
+  inspectionProbes: number;
 } {
-  if (!allowsWeapon(input.policy, weapon)) return noWeaponFire(nextProjectileId);
+  if (!allowsWeapon(input.policy, weapon)) return noWeaponFire(nextProjectileId, inspectionProbes);
+  if (weapon === 'inspectionProbe' && inspectionProbes <= 0) return noWeaponFire(nextProjectileId, inspectionProbes);
   const result = fireWeapon(
     weapon,
     input.player.lastAim,
@@ -115,6 +122,7 @@ function fireSelectedWeapon(
     nextProjectileId: nextProjectileId + projectiles.length,
     projectiles,
     recoil: result.recoil,
+    inspectionProbes: weapon === 'inspectionProbe' ? inspectionProbes - projectiles.length : inspectionProbes,
   };
 }
 
@@ -126,6 +134,6 @@ export function isTractorActive(policy: SceneWeaponPolicy, ship: ShipState, acti
       (ship.secondaryWeapon === 'tractor' && action.fireSecondary));
 }
 
-function noWeaponFire(nextProjectileId: number) {
-  return { nextProjectileId, projectiles: [], recoil: { x: 0, y: 0 } };
+function noWeaponFire(nextProjectileId: number, inspectionProbes: number) {
+  return { nextProjectileId, projectiles: [], recoil: { x: 0, y: 0 }, inspectionProbes };
 }

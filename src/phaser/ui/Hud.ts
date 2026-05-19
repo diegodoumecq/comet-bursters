@@ -10,7 +10,7 @@ export class Hud {
       .setDepth(100);
   }
 
-  update(values: { asteroids: number; fuel?: number; lives?: number; primary?: string; projectiles: number; score?: number; secondary?: string; timeDilation: boolean; wave?: number }): void {
+  update(values: { asteroids: number; fuel?: number; lives?: number; primary?: string; probes?: number; projectiles: number; score?: number; secondary?: string; timeDilation: boolean; wave?: number }): void {
     this.text.setText([
       values.wave === undefined ? 'Phaser Demo Scene' : 'Phaser Arcade Scene',
       ...(values.wave === undefined ? [] : [
@@ -21,6 +21,7 @@ export class Hud {
         `${values.primary ?? 'small'} / ${values.secondary ?? 'pusher'}`,
       ]),
       `Asteroids ${values.asteroids}`,
+      ...(values.probes === undefined ? [] : [`Probes ${values.probes}`]),
       `Projectiles ${values.projectiles}`,
       `Time ${values.timeDilation ? '0.5x' : '1x'}`,
     ]);

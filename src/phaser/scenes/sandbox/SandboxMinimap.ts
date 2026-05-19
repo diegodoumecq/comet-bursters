@@ -88,9 +88,34 @@ export class SandboxMinimap {
         const drawX = x + boxX + offsetX;
         const drawY = y + boxY + offsetY;
         if (drawX < x + WIDTH && drawX + boxWidth > x && drawY < y + HEIGHT && drawY + boxHeight > y) {
-          this.graphics.strokeRect(drawX, drawY, boxWidth, boxHeight);
+          this.strokeClippedRect(drawX, drawY, boxWidth, boxHeight, x, y, WIDTH, HEIGHT);
         }
       }
+    }
+  }
+
+  private strokeClippedRect(
+    rectX: number,
+    rectY: number,
+    rectWidth: number,
+    rectHeight: number,
+    clipX: number,
+    clipY: number,
+    clipWidth: number,
+    clipHeight: number,
+  ): void {
+    const left = Math.max(rectX, clipX);
+    const right = Math.min(rectX + rectWidth, clipX + clipWidth);
+    const top = Math.max(rectY, clipY);
+    const bottom = Math.min(rectY + rectHeight, clipY + clipHeight);
+
+    if (rectY >= clipY && rectY <= clipY + clipHeight) this.graphics.lineBetween(left, rectY, right, rectY);
+    if (rectY + rectHeight >= clipY && rectY + rectHeight <= clipY + clipHeight) {
+      this.graphics.lineBetween(left, rectY + rectHeight, right, rectY + rectHeight);
+    }
+    if (rectX >= clipX && rectX <= clipX + clipWidth) this.graphics.lineBetween(rectX, top, rectX, bottom);
+    if (rectX + rectWidth >= clipX && rectX + rectWidth <= clipX + clipWidth) {
+      this.graphics.lineBetween(rectX + rectWidth, top, rectX + rectWidth, bottom);
     }
   }
 

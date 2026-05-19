@@ -9,6 +9,8 @@ const RANGE = 360;
 const HALF_ANGLE = Math.PI / 6;
 const FOCUS_RADIUS = 120;
 
+export const TRACTOR_FUEL_COST_PER_FRAME = 0.08;
+
 export function getTractorFocus(origin: Vector, aim: Vector): Vector {
   const direction = normalize(aim);
   return { x: origin.x + direction.x * RANGE, y: origin.y + direction.y * RANGE };

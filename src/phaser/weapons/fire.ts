@@ -2,7 +2,7 @@ import type { FireMode } from '../fuel/rules';
 import type { Vector } from '../core/types';
 import type { ProjectileKind, WeaponKind } from './types';
 import { getFireMode, spendWeaponFuel } from '../fuel/rules';
-import { FIRE_INTERVAL_MS, PROJECTILES } from './config';
+import { PROJECTILES } from './config';
 
 export type ProjectileShot = {
   angle: number;
@@ -25,11 +25,11 @@ export function fireWeapon(
   shots: ProjectileShot[];
 } {
   if (kind === 'tractor') return noShot(fuel, lastShotAt);
-  if (now - lastShotAt[kind] < FIRE_INTERVAL_MS[kind]) return noShot(fuel, lastShotAt);
+  const spec = PROJECTILES[kind];
+  if (now - lastShotAt[kind] < spec.fireIntervalMs) return noShot(fuel, lastShotAt);
   const mode = getFireMode(fuel, kind);
   if (!mode) return noShot(fuel, lastShotAt);
 
-  const spec = PROJECTILES[kind];
   const degradedSmall = isDegradedSmall(kind, mode);
   const baseAngle = Math.atan2(direction.y, direction.x);
   const shots: ProjectileShot[] = [];

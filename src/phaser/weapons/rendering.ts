@@ -13,6 +13,8 @@ export function createProjectileShape(
   const spec = PROJECTILES[kind];
   const fill = kind === 'blackHole'
     ? 0x000000
+    : kind === 'inspectionProbe'
+      ? 0x67e8f9
     : kind === 'pusher'
       ? 0x67e8f9
       : kind === 'shotgun'
@@ -26,6 +28,8 @@ export function createProjectileShape(
   const matterShape = shape as MatterArc;
   if (kind === 'blackHole') {
     matterShape.setStrokeStyle(2, 0xffffff);
+  } else if (kind === 'inspectionProbe') {
+    matterShape.setScale(2.2, 0.72).setRotation(angle).setStrokeStyle(1.5, 0xecfeff);
   } else if (kind === 'pusher') {
     matterShape.setScale(2.8, 0.72).setRotation(angle);
   } else if (kind === 'small') {

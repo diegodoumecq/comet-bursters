@@ -16,6 +16,15 @@ import { wrapPoint } from '../world/geometry';
 
 let nextFuelBlobId = 1;
 
+export function createFuelBlob(position: Vector, velocity: Vector): FuelBlobEntity {
+  return {
+    id: nextFuelBlobId++,
+    position: { ...position },
+    velocity: { ...velocity },
+    wobbleSeed: Math.random(),
+  };
+}
+
 export function spawnFuelBlobs(
   position: Vector,
   baseVelocity: Vector,
@@ -26,18 +35,16 @@ export function spawnFuelBlobs(
     const angle = Math.random() * Math.PI * 2;
     const distance = Phaser.Math.FloatBetween(8, 28);
     const speed = Phaser.Math.FloatBetween(21, 66);
-    blobs.push({
-      id: nextFuelBlobId++,
-      position: {
+    blobs.push(createFuelBlob(
+      {
         x: position.x + Math.cos(angle) * distance,
         y: position.y + Math.sin(angle) * distance,
       },
-      velocity: {
+      {
         x: baseVelocity.x * 0.12 + Math.cos(angle) * speed,
         y: baseVelocity.y * 0.12 + Math.sin(angle) * speed,
       },
-      wobbleSeed: Math.random(),
-    });
+    ));
   }
   return blobs;
 }

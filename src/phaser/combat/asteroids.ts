@@ -37,7 +37,7 @@ export function resolveProjectileContactCombat(
   const destroyed = new Set<AsteroidEntity>();
   const handledProjectiles = new Set<ProjectileEntity>();
   for (const { asteroid, projectile } of contacts) {
-    if (projectile.kind !== 'blackHole' && !destroyed.has(asteroid) && !handledProjectiles.has(projectile)) {
+    if (projectile.kind !== 'blackHole' && projectile.kind !== 'inspectionProbe' && !destroyed.has(asteroid) && !handledProjectiles.has(projectile)) {
       handledProjectiles.add(projectile);
       applyProjectileImpulse(projectile, asteroid, runtime);
       events.push({ asteroid, projectile, type: 'projectileHitAsteroid' });

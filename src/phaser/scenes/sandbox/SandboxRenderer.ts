@@ -10,10 +10,11 @@ import { WeaponMenu } from '../../ui/WeaponMenu';
 import type { SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { drawTractorBeam } from '../../weapons/tractorBeam';
 import type { WeaponKind } from '../../weapons/types';
-import type { PlanetEntity } from '../../planets/types';
 import type { WorldSize } from '../../core/types';
 import type { SandboxDiscovery } from './discovery';
 import { SandboxMinimap } from './SandboxMinimap';
+import { SandboxPlanetOverlay } from './SandboxPlanetOverlay';
+import type { SandboxPlanetEntity } from './planetFuel';
 
 export class SandboxRenderer {
   private readonly beam: Phaser.GameObjects.Graphics;
@@ -26,6 +27,7 @@ export class SandboxRenderer {
   private readonly hud: Hud;
   private readonly weaponMenu: WeaponMenu;
   private readonly minimap: SandboxMinimap;
+  private readonly planetOverlay: SandboxPlanetOverlay;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -43,10 +45,21 @@ export class SandboxRenderer {
     this.hud = new Hud(scene);
     this.weaponMenu = new WeaponMenu(scene, weaponPolicy.allowedWeapons);
     this.minimap = new SandboxMinimap(scene);
+    this.planetOverlay = new SandboxPlanetOverlay(scene);
   }
 
   getSelectedWeapon(aim: Vector): WeaponKind {
     return this.weaponMenu.getSelected(aim);
+  }
+
+  setPlayerDocked(docked: boolean): void {
+    const playerDepth = docked ? 1 : 6;
+    this.player.setDepth(playerDepth);
+    this.playerThruster.setDepth(playerDepth - 1);
+    this.playerFuelBase.setDepth(playerDepth + 1);
+    this.playerFuelFill.setDepth(playerDepth + 1);
+    this.playerTurret.setDepth(playerDepth + 2);
+    this.playerShield.setDepth(playerDepth + 2);
   }
 
   render(input: {
@@ -58,8 +71,9 @@ export class SandboxRenderer {
     ship: ShipState;
     timeDilation: boolean;
     tractorActive: boolean;
+    inspectionProbes: number;
     discovery: SandboxDiscovery;
-    planets: PlanetEntity[];
+    planets: SandboxPlanetEntity[];
     world: WorldSize;
   }): void {
     const visible = getPlayerVisible(input.player.visible, input.player.invulnerableUntil, input.now);
@@ -75,6 +89,7 @@ export class SandboxRenderer {
       primary: input.ship.primaryWeapon,
       projectiles: input.projectileCount,
       secondary: input.ship.secondaryWeapon,
+      probes: input.inspectionProbes,
       timeDilation: input.timeDilation,
     });
     this.minimap.render({
@@ -85,5 +100,6 @@ export class SandboxRenderer {
       playerAim: input.player.lastAim,
       world: input.world,
     });
+    this.planetOverlay.render(input.planets, input.now);
   }
 }
