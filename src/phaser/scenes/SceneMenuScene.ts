@@ -4,6 +4,7 @@ const MENU_ITEMS = [
   { key: 'demo', label: 'Demo Scene' },
   { key: 'arcade', label: 'Arcade Scene' },
   { key: 'sandbox', label: 'Sandbox Scene' },
+  { key: 'ship-interior', label: 'Ship Interior' },
   { key: 'asteroid-debug', label: 'Asteroid Debug' },
 ] as const;
 

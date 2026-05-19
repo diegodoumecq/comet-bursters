@@ -5,6 +5,7 @@ import { AsteroidDebugScene } from '../scenes/AsteroidDebugScene';
 import { BootScene } from '../scenes/BootScene';
 import { PhaserDemoScene } from '../scenes/DemoScene';
 import { PhaserSandboxScene } from '../scenes/SandboxScene';
+import { PhaserShipInteriorScene } from '../scenes/ShipInteriorScene';
 import { SceneMenuScene } from '../scenes/SceneMenuScene';
 
 export function createPhaserConfig(parent: string): Phaser.Types.Core.GameConfig {
@@ -28,6 +29,6 @@ export function createPhaserConfig(parent: string): Phaser.Types.Core.GameConfig
         debug: false,
       },
     },
-    scene: [BootScene, SceneMenuScene, PhaserDemoScene, PhaserArcadeScene, PhaserSandboxScene, AsteroidDebugScene],
+    scene: [BootScene, SceneMenuScene, PhaserDemoScene, PhaserArcadeScene, PhaserSandboxScene, PhaserShipInteriorScene, AsteroidDebugScene],
   };
 }
