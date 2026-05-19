@@ -1,16 +1,17 @@
-import { ActionReader } from '../input/actions';
-import { createAsteroid } from '../asteroids/logic';
 import { AsteroidBodies } from '../asteroids/bodies';
+import { createAsteroid } from '../asteroids/logic';
 import { createAsteroidTextures } from '../asteroids/textures';
-import { createPlayerTexture } from '../player/textures';
-import { DemoRenderer } from './demo/DemoRenderer';
 import type { AsteroidEntity } from '../asteroids/types';
-import type { PlanetEntity } from '../planets/types';
 import type { Vector, WorldSize } from '../core/types';
+import { ActionReader } from '../input/actions';
+import { createPlanet, PLANET_SPECS } from '../planets/logic';
+import type { PlanetEntity } from '../planets/types';
 import { PlanetViews } from '../planets/views';
 import { PlayerBody } from '../player/body';
 import { PlayerState } from '../player/state';
+import { createPlayerTexture } from '../player/textures';
 import { BaseGameScene } from './BaseGameScene';
+import { DemoRenderer } from './demo/DemoRenderer';
 
 const WORLD: WorldSize = { width: 4600, height: 3400 };
 export class PhaserDemoScene extends BaseGameScene {
@@ -49,7 +50,11 @@ export class PhaserDemoScene extends BaseGameScene {
     return this.actions.read(this.playerState.position);
   }
 
-  protected updateState(_action: ReturnType<ActionReader['read']>, _time: number, _delta: number): void {}
+  protected updateState(
+    _action: ReturnType<ActionReader['read']>,
+    _time: number,
+    _delta: number,
+  ): void {}
 
   protected renderState(_action: ReturnType<ActionReader['read']>, time: number): void {
     this.sceneRenderer.render({
@@ -72,19 +77,13 @@ export class PhaserDemoScene extends BaseGameScene {
   }
 
   private createPlanets(): void {
-    const layouts: Array<[number, number, number, number]> = [
-      [980, 980, 130, 0x4ade80],
-      [1660, 930, 150, 0xf59e0b],
-      [2320, 1130, 120, 0x7dd3fc],
-      [2940, 1560, 140, 0xa78bfa],
+    const layouts: Array<[number, number, keyof typeof PLANET_SPECS]> = [
+      [980, 980, 'lush'],
+      [1660, 930, 'desert'],
+      [2320, 1130, 'ice'],
+      [2940, 1560, 'crystal'],
     ];
-    this.planets = layouts.map(([x, y, radius, color], index) => ({
-      color,
-      gravityStrength: 0.5,
-      id: index + 1,
-      position: { x, y },
-      radius,
-    }));
+    this.planets = layouts.map(([x, y, kind]) => createPlanet(x, y, PLANET_SPECS[kind]));
     for (const planet of this.planets) this.planetViews.add(planet);
   }
 

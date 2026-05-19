@@ -1,26 +1,28 @@
 import Phaser from 'phaser';
 
+import { getPlanetTextureKey, getPlanetTextureSize } from './textures';
 import type { PlanetEntity } from './types';
 
 export class PlanetViews {
-  private readonly shapes = new Map<number, Phaser.GameObjects.Arc>();
+  private readonly sprites = new Map<number, Phaser.GameObjects.Image>();
 
   constructor(private readonly scene: Phaser.Scene) {}
 
-  add(planet: PlanetEntity): Phaser.GameObjects.Arc {
-    const shape = this.scene.add.circle(
-      planet.position.x,
-      planet.position.y,
-      planet.radius,
-      planet.color,
-    ).setStrokeStyle(4, 0xffffff, 0.18);
-    this.shapes.set(planet.id, shape);
-    return shape;
+  add(planet: PlanetEntity): Phaser.GameObjects.Image {
+    const textureKey = getPlanetTextureKey(this.scene, planet);
+    const size = getPlanetTextureSize(planet);
+    const sprite = this.scene.add
+      .image(planet.position.x, planet.position.y, textureKey)
+      .setDisplaySize(size, size)
+      .setRotation(planet.rotation);
+    this.sprites.set(planet.id, sprite);
+    return sprite;
   }
 
   sync(planet: PlanetEntity): void {
-    const shape = this.shapes.get(planet.id);
-    if (!shape) throw new Error(`Missing planet shape ${planet.id}`);
-    shape.setPosition(planet.position.x, planet.position.y);
+    const sprite = this.sprites.get(planet.id);
+    if (!sprite) throw new Error(`Missing planet sprite ${planet.id}`);
+    sprite.setPosition(planet.position.x, planet.position.y);
+    sprite.setRotation(planet.rotation);
   }
 }

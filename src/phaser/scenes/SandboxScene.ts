@@ -256,7 +256,8 @@ export class PhaserSandboxScene extends BaseGameScene {
       false,
     ))
       this.removeProjectile(projectile);
-    updatePlanetFuel(this.planets, this.time.now);
+    updatePlanetFuel(this.planets, this.time.now, deltaSeconds);
+    for (const planet of this.planets) this.planetViews.sync(planet);
     for (const blob of this.runtime.world.fuelBlobs) {
       applyPlanetGravity(blob.velocity, blob.position, this.planets, WORLD, deltaSeconds);
     }

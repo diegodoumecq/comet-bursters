@@ -25,14 +25,22 @@ export type SandboxPlanetEntity = PlanetEntity & {
   visualSeed: number;
 };
 
-export function updatePlanetFuel(planets: SandboxPlanetEntity[], now: number): void {
+export function updatePlanetFuel(
+  planets: SandboxPlanetEntity[],
+  now: number,
+  deltaSeconds: number,
+): void {
   for (const planet of planets) {
+    planet.rotation += planet.rotationSpeed * deltaSeconds * 1000;
     if (planet.extractor.nextExtractAt === 0) {
       planet.extractor.nextExtractAt = now + Math.random() * EXTRACT_INTERVAL_MS;
     }
     if (now >= planet.extractor.nextExtractAt) {
       planet.extractor.nextExtractAt = now + EXTRACT_INTERVAL_MS;
-      if (planet.fuelReserve >= FUEL_BLOB_AMOUNT && planet.extractor.blobs.length < MAX_EXTRACTOR_BLOBS) {
+      if (
+        planet.fuelReserve >= FUEL_BLOB_AMOUNT &&
+        planet.extractor.blobs.length < MAX_EXTRACTOR_BLOBS
+      ) {
         planet.fuelReserve -= FUEL_BLOB_AMOUNT;
         planet.extractor.blobs.push({
           localOffsetX: (Math.random() - 0.5) * 54,
