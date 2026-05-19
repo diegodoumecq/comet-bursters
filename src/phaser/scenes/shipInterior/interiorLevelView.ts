@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 
-import type { LoadedShipInteriorLayer, ShipInteriorLevel } from '../../../scenes/ShipInteriorScene/level';
+import type { LoadedShipInteriorLayer, ShipInteriorLevel } from './levelAdapter';
 
 export function renderShipInteriorLayers(
   scene: Phaser.Scene,
@@ -28,7 +28,8 @@ function renderLayer(scene: Phaser.Scene, layer: LoadedShipInteriorLayer, depth:
     const height = tile.height ?? layer.tilemap.tileHeight;
     const x = (layer.tilemap.offsetX ?? 0) + tile.tileX * layer.tilemap.tileWidth;
     const y = (layer.tilemap.offsetY ?? 0) + tile.tileY * layer.tilemap.tileHeight;
-    scene.add.image(x + width * 0.5, y + height * 0.5, textureKey)
+    scene.add
+      .image(x + width * 0.5, y + height * 0.5, textureKey)
       .setOrigin(0.5)
       .setCrop(frame.x, frame.y, frame.width, frame.height)
       .setDisplaySize(width, height)

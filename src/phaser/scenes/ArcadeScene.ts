@@ -1,39 +1,46 @@
 import Phaser from 'phaser';
 
-import type { AsteroidEntity } from '../asteroids/types';
-import type { FuelBlobEntity } from '../fuel/types';
-import type { ParticleEntity } from '../particles/types';
-import type { ProjectileEntity } from '../projectiles/types';
-import type { Vector, WorldSize } from '../core/types';
-import { ActionReader } from '../input/actions';
-import { ASTEROIDS, wrapAsteroid } from '../asteroids/logic';
-import { destroyAsteroidWithWeapon } from '../combat/asteroidDestruction';
-import { updateBlackHoles } from '../projectiles/blackHoles';
-import { resolvePlayerCombat, resolveProjectileContactCombat } from '../combat/asteroids';
-import { createAsteroidExplosion, createExplosionBurst, createShipExplosion, createThrusterParticles, type EffectResult } from '../combat/effects';
-import { MAX_FUEL } from '../fuel/rules';
-import { spawnFuelBlobs, updateFuelBlobs } from '../fuel/blobLogic';
-import { chooseSafePlayerPosition } from './arcade/runFlow';
-import { MatterContacts } from '../combat/matterContacts';
-import { updateParticles } from '../particles/logic';
-import { updatePlayerMotion } from '../player/motion';
-import { updateProjectiles } from '../projectiles/logic';
-import { getTimeScale } from '../core/time';
-import { applyTractorBeam } from '../weapons/tractorBeam';
-import { normalize } from '../world/geometry';
-import { getStartingWave } from '../runtime/startup';
-import { ArcadeRenderer } from './arcade/ArcadeRenderer';
-import { createArcadeTextures } from './arcade/arcadeVisuals';
-import { ArcadeRunState } from './arcade/arcadeRunState';
-import { createWaveAsteroids } from './arcade/waves';
-import { ALL_WEAPONS, type SceneWeaponPolicy } from '../weapons/scenePolicy';
 import { AsteroidBodies } from '../asteroids/bodies';
-import { ProjectileBodies } from '../projectiles/bodies';
+import { ASTEROIDS, wrapAsteroid } from '../asteroids/logic';
+import type { AsteroidEntity } from '../asteroids/types';
+import { destroyAsteroidWithWeapon } from '../combat/asteroidDestruction';
+import { resolvePlayerCombat, resolveProjectileContactCombat } from '../combat/asteroids';
+import {
+  createAsteroidExplosion,
+  createExplosionBurst,
+  createShipExplosion,
+  createThrusterParticles,
+  type EffectResult,
+} from '../combat/effects';
+import { MatterContacts } from '../combat/matterContacts';
+import { getTimeScale } from '../core/time';
+import type { Vector, WorldSize } from '../core/types';
+import { spawnFuelBlobs, updateFuelBlobs } from '../fuel/blobLogic';
 import { FuelBlobViews } from '../fuel/blobViews';
+import { MAX_FUEL } from '../fuel/rules';
+import type { FuelBlobEntity } from '../fuel/types';
+import { ActionReader } from '../input/actions';
+import { updateParticles } from '../particles/logic';
+import type { ParticleEntity } from '../particles/types';
 import { ParticleViews } from '../particles/views';
 import { PlayerBody } from '../player/body';
-import { BaseGameScene } from './BaseGameScene';
+import { updatePlayerMotion } from '../player/motion';
+import { updateBlackHoles } from '../projectiles/blackHoles';
+import { ProjectileBodies } from '../projectiles/bodies';
+import { updateProjectiles } from '../projectiles/logic';
+import type { ProjectileEntity } from '../projectiles/types';
+import { getStartingWave } from '../runtime/startup';
+import { ALL_WEAPONS, type SceneWeaponPolicy } from '../weapons/scenePolicy';
+import { applyTractorBeam } from '../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../weapons/use';
+import { normalize } from '../world/geometry';
+import { GameWorldRuntime } from '../world/runtime';
+import { ArcadeRenderer } from './arcade/ArcadeRenderer';
+import { ArcadeRunState } from './arcade/arcadeRunState';
+import { createArcadeTextures } from './arcade/arcadeVisuals';
+import { chooseSafePlayerPosition } from './arcade/runFlow';
+import { createWaveAsteroids } from './arcade/waves';
+import { BaseGameScene } from './BaseGameScene';
 
 export class PhaserArcadeScene extends BaseGameScene {
   private actions!: ActionReader;
@@ -46,6 +53,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   private projectileBodies!: ProjectileBodies;
   private fuelBlobViews!: FuelBlobViews;
   private particleViews!: ParticleViews;
+  private runtime!: GameWorldRuntime;
   private lastThrusterAt = 0;
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: ALL_WEAPONS };
 
@@ -58,7 +66,11 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.worldSize = { width: this.scale.width, height: this.scale.height };
     this.actions = new ActionReader(this);
     createArcadeTextures(this);
-    this.playerBody = new PlayerBody(this, { x: this.worldSize.width / 2, y: this.worldSize.height / 2 }, this.session.player);
+    this.playerBody = new PlayerBody(
+      this,
+      { x: this.worldSize.width / 2, y: this.worldSize.height / 2 },
+      this.session.player,
+    );
     this.playerBody.body.setMass(18);
     this.playerBody.body.setFrictionAir(0);
     this.playerBody.body.setBounce(0.8);
@@ -67,9 +79,22 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.projectileBodies = new ProjectileBodies(this);
     this.fuelBlobViews = new FuelBlobViews(this);
     this.particleViews = new ParticleViews(this);
+    this.runtime = new GameWorldRuntime(
+      this.asteroidBodies,
+      this.projectileBodies,
+      this.fuelBlobViews,
+      this.particleViews,
+      this.contacts,
+      this.session.world,
+    );
     this.contacts.setPlayer(this.playerBody.body.body);
     this.contacts.setShield(this.playerBody.shieldSensor.body);
-    this.sceneRenderer = new ArcadeRenderer(this, this.playerBody.body, this.worldSize, this.weaponPolicy);
+    this.sceneRenderer = new ArcadeRenderer(
+      this,
+      this.playerBody.body,
+      this.worldSize,
+      this.weaponPolicy,
+    );
     this.spawnWave();
     this.scale.on('resize', this.handleResize, this);
   }
@@ -78,7 +103,11 @@ export class PhaserArcadeScene extends BaseGameScene {
     return this.actions.read(this.session.player.position);
   }
 
-  protected updateState(action: ReturnType<ActionReader['read']>, time: number, delta: number): void {
+  protected updateState(
+    action: ReturnType<ActionReader['read']>,
+    time: number,
+    delta: number,
+  ): void {
     if (this.session.lives <= 0 && (action.firePrimary || action.fireSecondary)) {
       this.scene.restart();
       return;
@@ -92,7 +121,11 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.updateLifecycle(time);
   }
 
-  private updatePlayerActions(action: ReturnType<ActionReader['read']>, deltaSeconds: number, time: number): void {
+  private updatePlayerActions(
+    action: ReturnType<ActionReader['read']>,
+    deltaSeconds: number,
+    time: number,
+  ): void {
     this.session.player.updateAim(normalize(action.aim));
     const move = normalize(action.move);
     this.session.player.updateThrust(move, false);
@@ -120,12 +153,23 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.session.ship.setFuel(weaponResult.fuel);
     if (weaponResult.recoil.x !== 0 || weaponResult.recoil.y !== 0) {
       const velocity = this.session.player.velocity;
-      this.playerBody.setVelocity({ x: velocity.x + weaponResult.recoil.x, y: velocity.y + weaponResult.recoil.y });
+      this.playerBody.setVelocity({
+        x: velocity.x + weaponResult.recoil.x,
+        y: velocity.y + weaponResult.recoil.y,
+      });
     }
     for (const projectile of weaponResult.projectiles) this.addProjectile(projectile);
     const tractorActive = weaponResult.tractorActive;
-    applyTractorBeam(this.session.player.position, this.session.player.lastAim, this.session.world.asteroids, this.asteroidBodies, tractorActive);
-    this.playerBody.updateShieldSensor(action.shield && this.playerIsAlive() && this.session.ship.fuel > 0);
+    applyTractorBeam(
+      this.session.player.position,
+      this.session.player.lastAim,
+      this.session.world.asteroids,
+      this.asteroidBodies,
+      tractorActive,
+    );
+    this.playerBody.updateShieldSensor(
+      action.shield && this.playerIsAlive() && this.session.ship.fuel > 0,
+    );
   }
 
   private getTractorActive(action: ReturnType<ActionReader['read']>): boolean {
@@ -138,11 +182,17 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private updateWorldState(deltaMs: number, deltaSeconds: number): void {
-    for (const asteroid of this.session.world.asteroids) wrapAsteroid(asteroid, this.asteroidBodies, this.worldSize);
+    for (const asteroid of this.session.world.asteroids)
+      wrapAsteroid(asteroid, this.asteroidBodies, this.worldSize);
     this.asteroidBodies.syncAll(this.session.world.asteroids);
     this.collectFuelBlobs(deltaSeconds);
     this.removeExpiredParticles(deltaMs);
-    for (const projectile of updateProjectiles(this.session.world.projectiles, this.projectileBodies, deltaSeconds, this.worldSize)) {
+    for (const projectile of updateProjectiles(
+      this.session.world.projectiles,
+      this.projectileBodies,
+      deltaSeconds,
+      this.worldSize,
+    )) {
       this.removeProjectile(projectile);
     }
   }
@@ -163,9 +213,17 @@ export class PhaserArcadeScene extends BaseGameScene {
       },
       (projectile) => {
         if (projectile.absorbedFuel > 0) {
-          this.addFuelBlobs(spawnFuelBlobs(projectile.position, projectile.velocity, projectile.absorbedFuel));
+          this.addFuelBlobs(
+            spawnFuelBlobs(projectile.position, projectile.velocity, projectile.absorbedFuel),
+          );
         }
-        this.applyEffect(createExplosionBurst(projectile.position, projectile.velocity, Math.max(0.6, projectile.absorbedFuel * 0.12)));
+        this.applyEffect(
+          createExplosionBurst(
+            projectile.position,
+            projectile.velocity,
+            Math.max(0.6, projectile.absorbedFuel * 0.12),
+          ),
+        );
       },
     );
     this.applyPlayerCombat(time, shieldActive);
@@ -198,7 +256,10 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private applyProjectileCombat(): void {
-    for (const event of resolveProjectileContactCombat(this.contacts.consumeProjectileAsteroids(), this.asteroidBodies)) {
+    for (const event of resolveProjectileContactCombat(
+      this.contacts.consumeProjectileAsteroids(),
+      this.asteroidBodies,
+    )) {
       if (event.type === 'projectileHitAsteroid') {
         this.removeProjectile(event.projectile);
       } else {
@@ -214,7 +275,9 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private applyPlayerCombat(now: number, shieldActive: boolean): void {
     const result = resolvePlayerCombat({
-      asteroids: shieldActive ? this.contacts.consumeShieldAsteroids() : this.contacts.consumePlayerAsteroids(),
+      asteroids: shieldActive
+        ? this.contacts.consumeShieldAsteroids()
+        : this.contacts.consumePlayerAsteroids(),
       fuel: this.session.ship.fuel,
       invulnerable: now < this.session.player.invulnerableUntil,
       now,
@@ -230,19 +293,34 @@ export class PhaserArcadeScene extends BaseGameScene {
     for (const mutation of result.asteroidMutations) {
       if (mutation.velocity) {
         mutation.asteroid.velocity = mutation.velocity;
-        this.asteroidBodies.get(mutation.asteroid).setVelocity(mutation.velocity.x, mutation.velocity.y);
+        this.asteroidBodies
+          .get(mutation.asteroid)
+          .setVelocity(mutation.velocity.x, mutation.velocity.y);
       }
-      if (mutation.position) this.asteroidBodies.get(mutation.asteroid).setPosition(mutation.position.x, mutation.position.y);
+      if (mutation.position)
+        this.asteroidBodies
+          .get(mutation.asteroid)
+          .setPosition(mutation.position.x, mutation.position.y);
     }
     if (result.playerDestroyed) {
       this.session.destroyPlayer(now);
-      for (const effect of createShipExplosion(this.session.player.position, this.session.player.velocity)) this.applyEffect(effect);
+      for (const effect of createShipExplosion(
+        this.session.player.position,
+        this.session.player.velocity,
+      ))
+        this.applyEffect(effect);
       this.playerBody.setVisible(false);
     }
   }
 
   private collectFuelBlobs(deltaSeconds: number): void {
-    const result = updateFuelBlobs(this.session.world.fuelBlobs, this.session.player.position, this.playerIsAlive() && this.session.ship.fuel < MAX_FUEL, deltaSeconds, this.worldSize);
+    const result = updateFuelBlobs(
+      this.session.world.fuelBlobs,
+      this.session.player.position,
+      this.playerIsAlive() && this.session.ship.fuel < MAX_FUEL,
+      deltaSeconds,
+      this.worldSize,
+    );
     for (const blob of this.session.world.fuelBlobs) this.fuelBlobViews.sync(blob);
     this.session.ship.collectFuel(result.fuelGain);
     for (const blob of result.collected) this.removeFuelBlob(blob);
@@ -297,31 +375,23 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private removeProjectile(projectile: ProjectileEntity): void {
-    this.contacts.removeProjectile(projectile);
-    this.projectileBodies.remove(projectile);
-    this.session.world.removeProjectile(projectile);
+    this.runtime.removeProjectile(projectile);
   }
 
   private addProjectile(projectile: ProjectileEntity): void {
-    this.session.world.projectiles.push(projectile);
-    this.projectileBodies.add(projectile);
-    this.contacts.addProjectile(projectile, this.projectileBodies);
+    this.runtime.addProjectile(projectile);
   }
 
   private removeAsteroid(asteroid: AsteroidEntity): void {
-    this.contacts.removeAsteroid(asteroid);
-    this.asteroidBodies.remove(asteroid);
-    this.session.world.removeAsteroid(asteroid);
+    this.runtime.removeAsteroid(asteroid);
   }
 
   private removeFuelBlob(blob: FuelBlobEntity): void {
-    this.fuelBlobViews.remove(blob);
-    this.session.world.removeFuelBlob(blob);
+    this.runtime.removeFuelBlob(blob);
   }
 
   private removeParticle(particle: ParticleEntity): void {
-    this.particleViews.remove(particle);
-    this.session.world.removeParticle(particle);
+    this.runtime.removeParticle(particle);
   }
 
   private playerIsAlive(): boolean {
@@ -329,21 +399,15 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private addAsteroids(asteroids: AsteroidEntity[]): void {
-    this.session.world.addAsteroids(asteroids);
-    for (const asteroid of asteroids) {
-      this.asteroidBodies.add(asteroid);
-      this.contacts.addAsteroid(asteroid, this.asteroidBodies);
-    }
+    this.runtime.addAsteroids(asteroids);
   }
 
   private addFuelBlobs(blobs: FuelBlobEntity[]): void {
-    this.session.world.addFuelBlobs(blobs);
-    for (const blob of blobs) this.fuelBlobViews.add(blob);
+    this.runtime.addFuelBlobs(blobs);
   }
 
   private addParticles(particles: ParticleEntity[]): void {
-    this.session.world.addParticles(particles);
-    for (const particle of particles) this.particleViews.add(particle);
+    this.runtime.addParticles(particles);
   }
 
   private handleResize(gameSize: Phaser.Structs.Size): void {

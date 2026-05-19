@@ -6,8 +6,11 @@ import { PlayerState } from '../player/state';
 import { createPlayerTexture } from '../player/textures';
 import { normalize } from '../world/geometry';
 import { BaseGameScene } from './BaseGameScene';
-import { buildShipInteriorCollision, renderShipInteriorLayers } from './shipInterior/interiorLevelView';
-import { loadShipInteriorLevel } from '../../scenes/ShipInteriorScene/level';
+import {
+  buildShipInteriorCollision,
+  renderShipInteriorLayers,
+} from './shipInterior/interiorLevelView';
+import { loadShipInteriorLevel } from './shipInterior/levelAdapter';
 
 const PLAYER_SPEED = 4.5;
 const FALLBACK_SPAWN = { x: 210, y: 210 };
@@ -27,11 +30,15 @@ export class PhaserShipInteriorScene extends BaseGameScene {
   create(): void {
     this.actions = new ActionReader(this);
     createPlayerTexture(this);
-    this.statusText = this.add.text(this.scale.width * 0.5, this.scale.height * 0.5, 'Loading ship interior...', {
-      color: '#e2e8f0',
-      fontFamily: 'monospace',
-      fontSize: '18px',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(1000);
+    this.statusText = this.add
+      .text(this.scale.width * 0.5, this.scale.height * 0.5, 'Loading ship interior...', {
+        color: '#e2e8f0',
+        fontFamily: 'monospace',
+        fontSize: '18px',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(1000);
     void this.loadLevel();
   }
 
@@ -78,6 +85,7 @@ export class PhaserShipInteriorScene extends BaseGameScene {
     this.player.updateAim(normalize(action.aim));
     this.player.updateThrust(move, Math.hypot(move.x, move.y) > 0);
     this.playerBody.setVelocity({ x: move.x * PLAYER_SPEED, y: move.y * PLAYER_SPEED });
-    if (Math.hypot(move.x, move.y) > 0) this.playerBody.setRotation(Math.atan2(move.y, move.x) + Math.PI * 0.5);
+    if (Math.hypot(move.x, move.y) > 0)
+      this.playerBody.setRotation(Math.atan2(move.y, move.x) + Math.PI * 0.5);
   }
 }
