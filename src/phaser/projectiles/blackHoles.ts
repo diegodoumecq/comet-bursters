@@ -21,7 +21,7 @@ export const DISTORTION_RADIUS = 200;
 export const DISTORTION_STRENGTH = 0.8;
 export const MAX_BLACK_HOLES = 10;
 export const BLACK_HOLE_ASTEROID_MASS_SCALE = 0.25;
-export const BLACK_HOLE_FUEL_BLOB_MASS_SCALE = 0.1;
+export const BLACK_HOLE_FUEL_BLOB_MASS_SCALE = BLACK_HOLE_ASTEROID_MASS_SCALE;
 
 const BLACK_HOLE_ABSORBED_FUEL_BLOBS: Record<AsteroidEntity['tier'], number> = {
   small: 1,
@@ -377,7 +377,7 @@ function absorbAsteroids(input: BlackHoleLifecycleOptions): void {
           projectile.absorbedFuel += BLACK_HOLE_ABSORBED_FUEL_BLOBS[asteroid.tier];
           projectile.blackHoleMass =
             getBlackHoleMass(projectile) +
-            ASTEROIDS[asteroid.tier].mass * BLACK_HOLE_ASTEROID_MASS_SCALE;
+            BLACK_HOLE_ABSORBED_FUEL_BLOBS[asteroid.tier] * BLACK_HOLE_FUEL_BLOB_MASS_SCALE;
           input.onAsteroidAbsorbed(asteroid);
           input.onAsteroidRemoved(asteroid);
         }

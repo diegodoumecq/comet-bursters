@@ -75,6 +75,7 @@ function update(input: {
   asteroids?: AsteroidEntity[];
   blackHole: ProjectileEntity;
   fuelBlob?: FuelBlobEntity;
+  fuelBlobs?: FuelBlobEntity[];
   onBlackHoleRemoved?: (blackHole: ProjectileEntity) => void;
   onFuelBlobAbsorbed?: (blob: FuelBlobEntity) => void;
   onPlayerAbsorbed?: (blackHole: ProjectileEntity) => void;
@@ -97,7 +98,7 @@ function update(input: {
     asteroids,
     asteroidBodies,
     distance: (fromX, fromY, toX, toY) => Math.hypot(toX - fromX, toY - fromY),
-    fuelBlobs: input.fuelBlob ? [input.fuelBlob] : [],
+    fuelBlobs: input.fuelBlobs ?? (input.fuelBlob ? [input.fuelBlob] : []),
     getDelta: (fromX, fromY, toX, toY) => ({ x: toX - fromX, y: toY - fromY }),
     now: input.blackHole.ageMs,
     onAsteroidAbsorbed: vi.fn(),
@@ -277,6 +278,28 @@ describe('black-hole fuel absorption', () => {
     update({ asteroids: [], blackHole, fuelBlob });
 
     expect(getBlackHoleRenderRadius(blackHole, ageMs)).toBeGreaterThan(radiusBefore);
+  });
+
+  it('grows the same from an asteroid and its equivalent absorbed fuel blobs', () => {
+    const asteroidBlackHole = createBlackHole();
+    const fuelBlackHole = createBlackHole();
+    const asteroid = createAsteroid();
+    asteroid.tier = 'big';
+    asteroid.position = { x: 100, y: 0 };
+    const fuelBlobs = Array.from({ length: 4 }, (_, index) => ({
+      id: index + 1,
+      position: { x: 100, y: 0 },
+      velocity: { x: 0, y: 0 },
+      wobbleSeed: 0,
+    }));
+
+    update({ asteroid, blackHole: asteroidBlackHole });
+    update({ asteroids: [], blackHole: fuelBlackHole, fuelBlobs });
+
+    expect(asteroidBlackHole.absorbedFuel).toBe(4);
+    expect(fuelBlackHole.absorbedFuel).toBe(4);
+    expect(asteroidBlackHole.blackHoleMass).toBe(fuelBlackHole.blackHoleMass);
+    expect(getBlackHoleRenderRadius(asteroidBlackHole)).toBe(getBlackHoleRenderRadius(fuelBlackHole));
   });
 
   it('does not consume fuel blobs outside the render radius', () => {
