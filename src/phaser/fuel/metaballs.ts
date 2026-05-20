@@ -9,6 +9,7 @@ export type FuelMetaball = {
 
 const MAX_METABALLS = 96;
 const RENDER_SCALE = 0.75;
+const METABALL_SCISSOR_RADIUS_MULTIPLIER = 8;
 
 const vertexShader = `
 varying vec2 vUv;
@@ -103,7 +104,7 @@ export class FuelMetaballRenderer {
       const x = metaballs[index].x * RENDER_SCALE;
       const y = metaballs[index].y * RENDER_SCALE;
       const radius = metaballs[index].radius * RENDER_SCALE;
-      const influenceRadius = radius * 4;
+      const influenceRadius = radius * METABALL_SCISSOR_RADIUS_MULTIPLIER;
       minX = Math.min(minX, x - influenceRadius);
       minY = Math.min(minY, y - influenceRadius);
       maxX = Math.max(maxX, x + influenceRadius);
