@@ -26,9 +26,10 @@ import { mainGameState } from '../mainGame/state';
 import { updateParticles } from '../particles/logic';
 import type { ParticleEntity } from '../particles/types';
 import { ParticleViews } from '../particles/views';
-import { applyPlanetGravity } from '../planets/gravity';
+import { applyPlanetGravity, applyPlanetGravityToFuelBlobs } from '../planets/gravity';
 import { PlanetViews } from '../planets/views';
 import { PlayerBody } from '../player/body';
+import { PLAYER_COLLISION_RADIUS, PLAYER_MASS } from '../player/config';
 import { updatePlayerMotion } from '../player/motion';
 import { PlayerState } from '../player/state';
 import { createPlayerTexture } from '../player/textures';
@@ -116,7 +117,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.mothership = new Mothership(this, spawnPoint);
     this.playerBody = new PlayerBody(this, spawnPoint, this.player);
     this.playerBody.setRotation(Math.PI * 0.5);
-    this.playerBody.body.setMass(18);
+    this.playerBody.body.setMass(PLAYER_MASS);
     this.playerBody.body.setFrictionAir(0);
     this.contacts.setPlayer(this.playerBody.body.body);
     this.contacts.setShield(this.playerBody.shieldSensor.body);
@@ -280,9 +281,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.removeProjectile(projectile);
     updatePlanetFuel(this.planets, this.time.now, deltaSeconds);
     for (const planet of this.planets) this.planetViews.sync(planet);
-    for (const blob of this.runtime.world.fuelBlobs) {
-      applyPlanetGravity(blob.velocity, blob.position, this.planets, WORLD, deltaSeconds);
-    }
+    applyPlanetGravityToFuelBlobs(this.runtime.world.fuelBlobs, this.planets, WORLD, deltaSeconds);
     const fuel = updateFuelBlobs(
       this.runtime.world.fuelBlobs,
       this.player.position,
@@ -319,6 +318,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       asteroidBodies: this.asteroidBodies,
       distance: (fromX, fromY, toX, toY) =>
         getWrappedDistance({ x: fromX, y: fromY }, { x: toX, y: toY }, WORLD),
+      fuelBlobs: this.runtime.world.fuelBlobs,
       getDelta: (fromX, fromY, toX, toY) =>
         wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, WORLD),
       now,
@@ -338,7 +338,15 @@ export class PhaserSandboxScene extends BaseGameScene {
           ),
         );
       },
+      onFuelBlobAbsorbed: (blob) => this.removeFuelBlob(blob),
+      onPlayerAbsorbed: () => this.killPlayer(now),
       planets: this.planets,
+      player: {
+        active: this.player.visible,
+        body: this.playerBody.body,
+        position: this.player.position,
+        velocity: this.player.velocity,
+      },
       projectileBodies: this.projectileBodies,
       projectiles: this.runtime.world.projectiles,
       timeScale: deltaSeconds * 60,
@@ -409,7 +417,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       )
         this.removeProjectile(projectile);
     }
-    if (this.player.visible && this.collidesWithPlanet(this.player.position, 18))
+    if (this.player.visible && this.collidesWithPlanet(this.player.position, PLAYER_COLLISION_RADIUS))
       this.killPlayer(this.time.now);
   }
 

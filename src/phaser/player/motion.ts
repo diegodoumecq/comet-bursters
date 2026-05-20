@@ -2,13 +2,11 @@ import Phaser from 'phaser';
 
 import type { MatterImage, Vector, WorldSize } from '../core/types';
 import { FUELLESS_THRUST_SCALE, consumeThrustFuel } from '../fuel/rules';
+import { PLAYER_ACCELERATION, PLAYER_MAX_SPEED } from './config';
 import type { PlayerState } from './state';
 import type { ShipState } from './shipState';
 import type { PlayerBody } from './body';
 import { wrapPoint } from '../world/geometry';
-
-export const PLAYER_ACCELERATION = 360;
-export const PLAYER_MAX_SPEED = 25;
 
 export function updatePlayerMotion(input: {
   body: PlayerBody;

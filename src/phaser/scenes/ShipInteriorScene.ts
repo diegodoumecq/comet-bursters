@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import { ActionReader, type ActionState } from '../input/actions';
 import { PlayerBody } from '../player/body';
+import { PLAYER_MASS } from '../player/config';
 import { PlayerState } from '../player/state';
 import { createPlayerTexture } from '../player/textures';
 import { normalize } from '../world/geometry';
@@ -63,7 +64,7 @@ export class PhaserShipInteriorScene extends BaseGameScene {
       renderShipInteriorLayers(this, level, false, 0);
       this.playerBody = new PlayerBody(this, level.playerSpawn ?? FALLBACK_SPAWN, this.player);
       this.playerBody.body.setDepth(10);
-      this.playerBody.body.setMass(18);
+      this.playerBody.body.setMass(PLAYER_MASS);
       this.playerBody.body.setFrictionAir(0.22);
       this.playerBody.body.setFixedRotation();
       buildShipInteriorCollision(this, level);

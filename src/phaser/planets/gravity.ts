@@ -1,4 +1,5 @@
-import type { Vector, WorldSize } from '../core/types';
+import type { MatterImage, Vector, WorldSize } from '../core/types';
+import type { FuelBlobEntity } from '../fuel/types';
 import type { PlanetEntity } from './types';
 import { wrappedDelta } from '../world/geometry';
 
@@ -30,5 +31,27 @@ export function applyPlanetGravity(
       velocity.x += (delta.x / distance) * force * deltaSeconds * 60;
       velocity.y += (delta.y / distance) * force * deltaSeconds * 60;
     }
+  }
+}
+
+export function applyPlanetGravityToBody(
+  body: MatterImage,
+  planets: PlanetEntity[],
+  world: WorldSize,
+  deltaSeconds: number,
+): void {
+  const velocity = { x: body.body.velocity.x, y: body.body.velocity.y };
+  applyPlanetGravity(velocity, body, planets, world, deltaSeconds);
+  body.setVelocity(velocity.x, velocity.y);
+}
+
+export function applyPlanetGravityToFuelBlobs(
+  blobs: FuelBlobEntity[],
+  planets: PlanetEntity[],
+  world: WorldSize,
+  deltaSeconds: number,
+): void {
+  for (const blob of blobs) {
+    applyPlanetGravity(blob.velocity, blob.position, planets, world, deltaSeconds);
   }
 }

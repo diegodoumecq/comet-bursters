@@ -8,6 +8,7 @@ import { createPlanet, PLANET_SPECS } from '../planets/logic';
 import type { PlanetEntity } from '../planets/types';
 import { PlanetViews } from '../planets/views';
 import { PlayerBody } from '../player/body';
+import { PLAYER_MASS } from '../player/config';
 import { updatePlayerMotion } from '../player/motion';
 import { ShipState } from '../player/shipState';
 import { PlayerState } from '../player/state';
@@ -43,7 +44,7 @@ export class PhaserDemoScene extends BaseGameScene {
     this.createPlanets();
     this.createAsteroids();
     this.playerBody = new PlayerBody(this, { x: 620, y: 760 }, this.playerState);
-    this.playerBody.body.setMass(18);
+    this.playerBody.body.setMass(PLAYER_MASS);
     this.playerBody.body.setFrictionAir(0);
     this.playerBody.body.setBounce(0.8);
     this.sceneRenderer = new DemoRenderer(this, this.playerBody.body);

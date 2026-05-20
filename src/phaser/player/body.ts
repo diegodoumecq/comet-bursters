@@ -4,6 +4,7 @@ import { getAsteroidCollisionMask } from '../combat/collisionCategories';
 import type { MatterImage, Vector } from '../core/types';
 import { SHIELD_RADIUS } from '../fuel/rules';
 import type { PlayerState } from './state';
+import { PLAYER_COLLISION_RADIUS } from './config';
 
 export class PlayerBody {
   readonly body: MatterImage;
@@ -11,7 +12,7 @@ export class PlayerBody {
 
   constructor(scene: Phaser.Scene, position: Vector, private readonly state: PlayerState) {
     this.body = scene.matter.add.image(position.x, position.y, 'phaser-ship') as MatterImage;
-    this.body.setCircle(18);
+    this.body.setCircle(PLAYER_COLLISION_RADIUS);
     this.shieldSensor = scene.matter.add.image(position.x, position.y, '__DEFAULT') as MatterImage;
     this.shieldSensor.setCircle(SHIELD_RADIUS);
     this.shieldSensor.setSensor(true);

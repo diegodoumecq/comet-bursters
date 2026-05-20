@@ -1,0 +1,4 @@
+export const PLAYER_COLLISION_RADIUS = 18;
+export const PLAYER_MASS = 18;
+export const PLAYER_ACCELERATION = 360;
+export const PLAYER_MAX_SPEED = 25;

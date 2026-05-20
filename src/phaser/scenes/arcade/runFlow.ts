@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 
 import { ASTEROIDS } from '../../asteroids/logic';
 import type { AsteroidEntity } from '../../asteroids/types';
+import { circlesOverlap } from '../../core/collision';
 import type { Vector, WorldSize } from '../../core/types';
+import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 
 export const RESPAWN_DELAY_MS = 1800;
 
@@ -25,8 +27,16 @@ export function chooseSafePlayerPosition(asteroids: AsteroidEntity[], world: Wor
       y: Phaser.Math.Between(32, Math.max(32, world.height - 32)),
     };
     const blocked = asteroids.some((asteroid) =>
-      Phaser.Math.Distance.Between(candidate.x, candidate.y, asteroid.position.x, asteroid.position.y) <=
-        18 + ASTEROIDS[asteroid.tier].collisionRadius + 80,
+      circlesOverlap(
+        Phaser.Math.Distance.Between(
+          candidate.x,
+          candidate.y,
+          asteroid.position.x,
+          asteroid.position.y,
+        ),
+        PLAYER_COLLISION_RADIUS + 80,
+        ASTEROIDS[asteroid.tier].collisionRadius,
+      ),
     );
     if (!blocked) return candidate;
   }

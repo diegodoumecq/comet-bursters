@@ -1,7 +1,11 @@
 import type { AsteroidBodies } from '../asteroids/bodies';
 import { ASTEROIDS } from '../asteroids/logic';
 import type { AsteroidEntity } from '../asteroids/types';
+import { circleContains, circlesOverlap } from '../core/collision';
+import type { MatterImage, Vector } from '../core/types';
+import type { FuelBlobEntity } from '../fuel/types';
 import type { PlanetEntity } from '../planets/types';
+import { PLAYER_COLLISION_RADIUS } from '../player/config';
 import type { ProjectileBodies } from './bodies';
 import type { ProjectileEntity } from './types';
 
@@ -26,13 +30,22 @@ export type BlackHoleLifecycleOptions = {
   asteroids: AsteroidEntity[];
   asteroidBodies: AsteroidBodies;
   distance: (fromX: number, fromY: number, toX: number, toY: number) => number;
+  fuelBlobs?: FuelBlobEntity[];
   getDelta: (fromX: number, fromY: number, toX: number, toY: number) => { x: number; y: number };
   now: number;
   onAsteroidAbsorbed: (asteroid: AsteroidEntity) => void;
   onAsteroidRemoved: (asteroid: AsteroidEntity) => void;
   onBlackHoleRemoved: (blackHole: ProjectileEntity) => void;
   onFuelBurst: (blackHole: ProjectileEntity) => void;
+  onFuelBlobAbsorbed: (blob: FuelBlobEntity) => void;
+  onPlayerAbsorbed?: (blackHole: ProjectileEntity) => void;
   planets?: PlanetEntity[];
+  player?: {
+    active: boolean;
+    body: MatterImage;
+    position: Vector;
+    velocity: Vector;
+  };
   projectileBodies: ProjectileBodies;
   projectiles: ProjectileEntity[];
   timeScale?: number;
@@ -70,6 +83,8 @@ export function getBlackHoleRenderRadius(
 export function updateBlackHoles(input: BlackHoleLifecycleOptions): void {
   removeBlackHolesCollidingWithPlanets(input);
   applyBlackHoleGravity(input);
+  absorbFuelBlobs(input);
+  absorbPlayer(input);
   updateBlackHoleCollapse(input);
   absorbAsteroids(input);
 }
@@ -109,22 +124,63 @@ function applyBlackHoleGravity(input: BlackHoleLifecycleOptions): void {
     const radius = getMatureBlackHoleRadius(blackHole);
     const gravityRange = radius * 6;
     for (const asteroid of input.asteroids) {
-      const delta = input.getDelta(
-        asteroid.position.x,
-        asteroid.position.y,
-        blackHole.position.x,
-        blackHole.position.y,
-      );
-      const distSq = delta.x * delta.x + delta.y * delta.y;
-      const dist = Math.sqrt(distSq);
-      if (dist > 0 && dist < gravityRange) {
-        const force = (BLACK_HOLE_GRAVITY_STRENGTH * 0.5 * radius * radius) / distSq;
-        asteroid.velocity.x += (delta.x / dist) * force * timeScale;
-        asteroid.velocity.y += (delta.y / dist) * force * timeScale;
+      if (applyBlackHoleGravityToVelocity(
+        asteroid.velocity,
+        asteroid.position,
+        blackHole.position,
+        gravityRange,
+        radius,
+        input.getDelta,
+        timeScale,
+      )) {
         input.asteroidBodies.get(asteroid).setVelocity(asteroid.velocity.x, asteroid.velocity.y);
       }
     }
+    if (input.player?.active) {
+      applyBlackHoleGravityToVelocity(
+        input.player.velocity,
+        input.player.position,
+        blackHole.position,
+        gravityRange,
+        radius,
+        input.getDelta,
+        timeScale,
+      );
+      input.player.body.setVelocity(input.player.velocity.x, input.player.velocity.y);
+    }
+    for (const blob of input.fuelBlobs ?? []) {
+      applyBlackHoleGravityToVelocity(
+        blob.velocity,
+        blob.position,
+        blackHole.position,
+        gravityRange,
+        radius,
+        input.getDelta,
+        timeScale,
+      );
+    }
   }
+}
+
+function applyBlackHoleGravityToVelocity(
+  velocity: Vector,
+  position: Vector,
+  blackHolePosition: Vector,
+  gravityRange: number,
+  radius: number,
+  getDelta: BlackHoleLifecycleOptions['getDelta'],
+  timeScale: number,
+): boolean {
+  const delta = getDelta(position.x, position.y, blackHolePosition.x, blackHolePosition.y);
+  const distSq = delta.x * delta.x + delta.y * delta.y;
+  const dist = Math.sqrt(distSq);
+  if (dist > 0 && dist < gravityRange) {
+    const force = (BLACK_HOLE_GRAVITY_STRENGTH * 0.5 * radius * radius) / distSq;
+    velocity.x += (delta.x / dist) * force * timeScale;
+    velocity.y += (delta.y / dist) * force * timeScale;
+    return true;
+  }
+  return false;
 }
 
 function updateBlackHoleCollapse(input: BlackHoleLifecycleOptions): void {
@@ -149,6 +205,58 @@ function updateBlackHoleCollapse(input: BlackHoleLifecycleOptions): void {
   }
 }
 
+function absorbFuelBlobs(input: BlackHoleLifecycleOptions): void {
+  const fuelBlobs = input.fuelBlobs ?? [];
+  if (fuelBlobs.length === 0) return;
+
+  for (const projectile of [...input.projectiles]) {
+    if (
+      projectile.kind === 'blackHole' &&
+      projectile.collapseStartedAt === null &&
+      isMatureBlackHole(projectile)
+    ) {
+      const radius = getBlackHoleRenderRadius(projectile);
+      for (const blob of [...fuelBlobs]) {
+        const hitDistance = input.distance(
+          projectile.position.x,
+          projectile.position.y,
+          blob.position.x,
+          blob.position.y,
+        );
+        if (circleContains(hitDistance, radius)) {
+          projectile.absorbedFuel += 1;
+          input.onFuelBlobAbsorbed(blob);
+        }
+      }
+    }
+  }
+}
+
+function absorbPlayer(input: BlackHoleLifecycleOptions): void {
+  if (!input.player?.active || !input.onPlayerAbsorbed) return;
+
+  for (const projectile of [...input.projectiles]) {
+    if (
+      projectile.kind === 'blackHole' &&
+      projectile.collapseStartedAt === null &&
+      isMatureBlackHole(projectile)
+    ) {
+      const hitDistance = input.distance(
+        projectile.position.x,
+        projectile.position.y,
+        input.player.position.x,
+        input.player.position.y,
+      );
+      if (
+        circlesOverlap(hitDistance, getBlackHoleRenderRadius(projectile), PLAYER_COLLISION_RADIUS)
+      ) {
+        input.onPlayerAbsorbed(projectile);
+        return;
+      }
+    }
+  }
+}
+
 function absorbAsteroids(input: BlackHoleLifecycleOptions): void {
   for (const projectile of [...input.projectiles]) {
     if (projectile.kind === 'blackHole' && projectile.collapseStartedAt === null) {
@@ -160,8 +268,11 @@ function absorbAsteroids(input: BlackHoleLifecycleOptions): void {
           asteroid.position.y,
         );
         if (
-          hitDistance <=
-          getBlackHoleRenderRadius(projectile) + ASTEROIDS[asteroid.tier].collisionRadius
+          circlesOverlap(
+            hitDistance,
+            getBlackHoleRenderRadius(projectile),
+            ASTEROIDS[asteroid.tier].collisionRadius,
+          )
         ) {
           projectile.absorbedFuel += BLACK_HOLE_ABSORBED_FUEL_BLOBS[asteroid.tier];
           input.onAsteroidAbsorbed(asteroid);

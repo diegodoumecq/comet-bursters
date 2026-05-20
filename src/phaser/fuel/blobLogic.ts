@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 
 import type { AsteroidEntity } from '../asteroids/types';
+import { circlesOverlap } from '../core/collision';
 import type { Vector, WorldSize } from '../core/types';
+import { PLAYER_COLLISION_RADIUS } from '../player/config';
 import type { FuelBlobEntity } from './types';
 import {
   FUEL_BLOB_AMOUNT,
@@ -101,7 +103,8 @@ export function updateFuelBlobs(
   for (const blob of blobs) {
     updateFuelBlob(blob, player, canCollect, deltaSeconds, world, wrap);
     const distance = Phaser.Math.Distance.Between(player.x, player.y, blob.position.x, blob.position.y);
-    if (canCollect && distance <= 18 + FUEL_BLOB_RADIUS) collected.push(blob);
+    if (canCollect && circlesOverlap(distance, PLAYER_COLLISION_RADIUS, FUEL_BLOB_RADIUS))
+      collected.push(blob);
   }
   return { collected, fuelGain: collected.length * FUEL_BLOB_AMOUNT };
 }

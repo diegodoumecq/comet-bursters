@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { MatterImage } from '../core/types';
-import { applyPlayerThrust, PLAYER_ACCELERATION, PLAYER_MAX_SPEED } from './motion';
+import { PLAYER_ACCELERATION, PLAYER_MAX_SPEED } from './config';
+import { applyPlayerThrust } from './motion';
 
 vi.mock('phaser', () => ({
   default: {

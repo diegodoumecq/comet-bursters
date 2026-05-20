@@ -25,6 +25,7 @@ import { updateParticles } from '../particles/logic';
 import type { ParticleEntity } from '../particles/types';
 import { ParticleViews } from '../particles/views';
 import { PlayerBody } from '../player/body';
+import { PLAYER_MASS } from '../player/config';
 import { updatePlayerMotion } from '../player/motion';
 import { updateBlackHoles } from '../projectiles/blackHoles';
 import { ProjectileBodies } from '../projectiles/bodies';
@@ -74,7 +75,7 @@ export class PhaserArcadeScene extends BaseGameScene {
       { x: this.worldSize.width / 2, y: this.worldSize.height / 2 },
       this.session.player,
     );
-    this.playerBody.body.setMass(18);
+    this.playerBody.body.setMass(PLAYER_MASS);
     this.playerBody.body.setFrictionAir(0);
     this.playerBody.body.setBounce(0.8);
     this.contacts = new MatterContacts(this);
@@ -215,6 +216,7 @@ export class PhaserArcadeScene extends BaseGameScene {
         const delta = wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize);
         return Math.hypot(delta.x, delta.y);
       },
+      fuelBlobs: this.session.world.fuelBlobs,
       getDelta: (fromX, fromY, toX, toY) =>
         wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize),
       now: time,
@@ -237,6 +239,14 @@ export class PhaserArcadeScene extends BaseGameScene {
             Math.max(0.6, projectile.absorbedFuel * 0.12),
           ),
         );
+      },
+      onFuelBlobAbsorbed: (blob) => this.removeFuelBlob(blob),
+      onPlayerAbsorbed: () => this.killPlayer(time),
+      player: {
+        active: this.playerIsAlive(),
+        body: this.playerBody.body,
+        position: this.session.player.position,
+        velocity: this.session.player.velocity,
       },
       projectileBodies: this.projectileBodies,
       projectiles: this.session.world.projectiles,
@@ -320,15 +330,18 @@ export class PhaserArcadeScene extends BaseGameScene {
           .get(mutation.asteroid)
           .setPosition(mutation.position.x, mutation.position.y);
     }
-    if (result.playerDestroyed) {
-      this.session.destroyPlayer(now);
-      for (const effect of createShipExplosion(
-        this.session.player.position,
-        this.session.player.velocity,
-      ))
-        this.applyEffect(effect);
-      this.playerBody.setVisible(false);
-    }
+    if (result.playerDestroyed) this.killPlayer(now);
+  }
+
+  private killPlayer(now: number): void {
+    if (!this.playerIsAlive()) return;
+    this.session.destroyPlayer(now);
+    for (const effect of createShipExplosion(
+      this.session.player.position,
+      this.session.player.velocity,
+    ))
+      this.applyEffect(effect);
+    this.playerBody.setVisible(false);
   }
 
   private playerCanCollideWithAsteroids(): boolean {

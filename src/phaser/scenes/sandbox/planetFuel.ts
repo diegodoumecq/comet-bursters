@@ -1,5 +1,7 @@
 import type { Vector } from '../../core/types';
+import { circlesOverlap } from '../../core/collision';
 import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../../fuel/rules';
+import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import type { FuelBlobEntity } from '../../fuel/types';
 import type { PlanetEntity } from '../../planets/types';
 import { wrappedDelta } from '../../world/geometry';
@@ -109,7 +111,13 @@ export function collectExtractorFuel(
     const remaining: ExtractorFuelBlob[] = [];
     for (const blob of planet.extractor.blobs) {
       const position = getExtractorBlobPosition(planet, blob, now);
-      if (Math.hypot(player.x - position.x, player.y - position.y) <= 18 + FUEL_BLOB_RADIUS) {
+      if (
+        circlesOverlap(
+          Math.hypot(player.x - position.x, player.y - position.y),
+          PLAYER_COLLISION_RADIUS,
+          FUEL_BLOB_RADIUS,
+        )
+      ) {
         fuelGain += FUEL_BLOB_AMOUNT;
       } else {
         remaining.push(blob);

@@ -2,7 +2,9 @@ import type { AsteroidEntity } from '../asteroids/types';
 import type { ProjectileEntity } from '../projectiles/types';
 import type { Vector } from '../core/types';
 import { ASTEROIDS } from '../asteroids/config';
+import { circlesOverlap } from '../core/collision';
 import { SHIELD_HIT_COOLDOWN_MS, SHIELD_RADIUS, spendShieldFuel } from '../fuel/rules';
+import { PLAYER_COLLISION_RADIUS } from '../player/config';
 import { PROJECTILES } from '../weapons/config';
 import type { AsteroidBodies } from '../asteroids/bodies';
 
@@ -87,7 +89,8 @@ export function resolvePlayerAsteroidCollision(input: {
   }
   return {
     fuel: input.fuel,
-    hitPlayer: !input.shieldActive && distance <= 18 + asteroidRadius,
+    hitPlayer:
+      !input.shieldActive && circlesOverlap(distance, PLAYER_COLLISION_RADIUS, asteroidRadius),
     playerVelocity: input.playerVelocity,
     shieldHitUntil: input.shieldHitUntil,
   };
