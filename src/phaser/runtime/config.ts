@@ -5,8 +5,8 @@ import { AsteroidDebugScene } from '../scenes/AsteroidDebugScene';
 import { BootScene } from '../scenes/BootScene';
 import { PhaserDemoScene } from '../scenes/DemoScene';
 import { PhaserSandboxScene } from '../scenes/SandboxScene';
-import { PhaserShipInteriorScene } from '../scenes/ShipInteriorScene';
 import { SceneMenuScene } from '../scenes/SceneMenuScene';
+import { PhaserShipInteriorScene } from '../scenes/ShipInteriorScene';
 
 export function createPhaserConfig(parent: string): Phaser.Types.Core.GameConfig {
   return {
@@ -22,6 +22,9 @@ export function createPhaserConfig(parent: string): Phaser.Types.Core.GameConfig
     input: {
       gamepad: true,
     },
+    render: {
+      preserveDrawingBuffer: true,
+    },
     physics: {
       default: 'matter',
       matter: {
@@ -29,6 +32,14 @@ export function createPhaserConfig(parent: string): Phaser.Types.Core.GameConfig
         debug: false,
       },
     },
-    scene: [BootScene, SceneMenuScene, PhaserDemoScene, PhaserArcadeScene, PhaserSandboxScene, PhaserShipInteriorScene, AsteroidDebugScene],
+    scene: [
+      BootScene,
+      SceneMenuScene,
+      PhaserDemoScene,
+      PhaserArcadeScene,
+      PhaserSandboxScene,
+      PhaserShipInteriorScene,
+      AsteroidDebugScene,
+    ],
   };
 }

@@ -35,6 +35,7 @@ import { applyTractorBeam } from '../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../weapons/use';
 import { normalize } from '../world/geometry';
 import { GameWorldRuntime } from '../world/runtime';
+import { ArcadeRenderEffects } from './arcade/ArcadeRenderEffects';
 import { ArcadeRenderer } from './arcade/ArcadeRenderer';
 import { ArcadeRunState } from './arcade/arcadeRunState';
 import { createArcadeTextures } from './arcade/arcadeVisuals';
@@ -54,6 +55,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   private fuelBlobViews!: FuelBlobViews;
   private particleViews!: ParticleViews;
   private runtime!: GameWorldRuntime;
+  private renderEffects!: ArcadeRenderEffects;
   private lastThrusterAt = 0;
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: ALL_WEAPONS };
 
@@ -77,7 +79,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.contacts = new MatterContacts(this);
     this.asteroidBodies = new AsteroidBodies(this);
     this.projectileBodies = new ProjectileBodies(this);
-    this.fuelBlobViews = new FuelBlobViews(this);
+    this.fuelBlobViews = new FuelBlobViews();
     this.particleViews = new ParticleViews(this);
     this.runtime = new GameWorldRuntime(
       this.asteroidBodies,
@@ -95,6 +97,8 @@ export class PhaserArcadeScene extends BaseGameScene {
       this.worldSize,
       this.weaponPolicy,
     );
+    this.renderEffects = new ArcadeRenderEffects(this.game.canvas, this.game.canvas.parentElement);
+    this.events.once('shutdown', this.disposeRenderEffects, this);
     this.spawnWave();
     this.scale.on('resize', this.handleResize, this);
   }
@@ -117,7 +121,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     const deltaSeconds = (delta / 1000) * timeScale;
     this.updatePlayerActions(action, deltaSeconds, time);
     this.updateWorldState(delta, deltaSeconds);
-    this.resolveCombat(time, action.shield);
+    this.resolveCombat(time, action.shield, deltaSeconds);
     this.updateLifecycle(time);
   }
 
@@ -197,21 +201,21 @@ export class PhaserArcadeScene extends BaseGameScene {
     }
   }
 
-  private resolveCombat(time: number, shieldActive: boolean): void {
+  private resolveCombat(time: number, shieldActive: boolean, deltaSeconds: number): void {
     this.applyProjectileCombat();
-    updateBlackHoles(
-      this.session.world.projectiles,
-      this.projectileBodies,
-      this.session.world.asteroids,
-      this.asteroidBodies,
-      [],
-      (projectile) => this.removeProjectile(projectile),
-      (asteroid) => this.removeAsteroid(asteroid),
-      (asteroid) => {
+    updateBlackHoles({
+      asteroids: this.session.world.asteroids,
+      asteroidBodies: this.asteroidBodies,
+      distance: (fromX, fromY, toX, toY) => Phaser.Math.Distance.Between(fromX, fromY, toX, toY),
+      getDelta: (fromX, fromY, toX, toY) => ({ x: toX - fromX, y: toY - fromY }),
+      now: time,
+      onAsteroidAbsorbed: (asteroid) => {
         this.session.awardAsteroidScore(ASTEROIDS[asteroid.tier].points);
         this.applyEffect(createAsteroidExplosion(asteroid, 0.7));
       },
-      (projectile) => {
+      onAsteroidRemoved: (asteroid) => this.removeAsteroid(asteroid),
+      onBlackHoleRemoved: (projectile) => this.removeProjectile(projectile),
+      onFuelBurst: (projectile) => {
         if (projectile.absorbedFuel > 0) {
           this.addFuelBlobs(
             spawnFuelBlobs(projectile.position, projectile.velocity, projectile.absorbedFuel),
@@ -225,7 +229,10 @@ export class PhaserArcadeScene extends BaseGameScene {
           ),
         );
       },
-    );
+      projectileBodies: this.projectileBodies,
+      projectiles: this.session.world.projectiles,
+      timeScale: deltaSeconds * 60,
+    });
     this.applyPlayerCombat(time, shieldActive);
   }
 
@@ -236,6 +243,7 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   protected renderState(action: ReturnType<ActionReader['read']>, time: number): void {
     this.sceneRenderer.render(time, this.session, action, this.getTractorActive(action));
+    this.renderEffects.render(this.session, time, this.worldSize);
   }
 
   private updatePlayer(move: Vector, deltaSeconds: number, now: number): void {
@@ -412,5 +420,9 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private handleResize(gameSize: Phaser.Structs.Size): void {
     this.worldSize = { width: gameSize.width, height: gameSize.height };
+  }
+
+  private disposeRenderEffects(): void {
+    this.renderEffects.dispose();
   }
 }

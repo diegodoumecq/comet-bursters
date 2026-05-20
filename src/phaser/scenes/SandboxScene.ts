@@ -50,7 +50,9 @@ import {
   type SandboxPlanetEntity,
 } from './sandbox/planetFuel';
 import { createSandboxPlanets } from './sandbox/sandboxPlanets';
+import { SandboxRenderEffects } from './sandbox/SandboxRenderEffects';
 import { SandboxRenderer } from './sandbox/SandboxRenderer';
+import { getWrappedDistance } from './sandbox/screenWrapping';
 import { keepMovingEntitiesNearPlayer, rebaseWorldAroundPlayer } from './sandbox/worldPositioning';
 
 const WORLD: WorldSize = { width: 12000, height: 12000 };
@@ -70,6 +72,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private planetViews!: PlanetViews;
   private contacts!: MatterContacts;
   private runtime!: GameWorldRuntime;
+  private renderEffects!: SandboxRenderEffects;
   private readonly player = new PlayerState();
   private readonly ship = mainGameState.ship;
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: SANDBOX_WEAPONS };
@@ -95,7 +98,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.drawBackground();
     this.asteroidBodies = new AsteroidBodies(this);
     this.projectileBodies = new ProjectileBodies(this);
-    this.fuelBlobViews = new FuelBlobViews(this);
+    this.fuelBlobViews = new FuelBlobViews();
     this.particleViews = new ParticleViews(this);
     this.planetViews = new PlanetViews(this);
     this.contacts = new MatterContacts(this);
@@ -117,6 +120,8 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.contacts.setPlayer(this.playerBody.body.body);
     this.contacts.setShield(this.playerBody.shieldSensor.body);
     this.sceneRenderer = new SandboxRenderer(this, this.playerBody.body, this.weaponPolicy);
+    this.renderEffects = new SandboxRenderEffects(this.game.canvas, this.game.canvas.parentElement);
+    this.events.once('shutdown', this.disposeRenderEffects, this);
     this.mothership.startReveal(this.time.now);
     this.sceneRenderer.setPlayerDocked(true);
     this.addAsteroids(createInitialAsteroids());
@@ -137,7 +142,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     const deltaSeconds = (delta / 1000) * timeScale;
     this.updatePlayer(action, time, deltaSeconds);
     this.updateWorld(delta, deltaSeconds);
-    this.resolveCombat(time, action.shield);
+    this.resolveCombat(time, action.shield, deltaSeconds);
     this.updateRespawn(time);
     this.updateMothership(time);
     this.discovery.update(this.player.position, this.planets, WORLD);
@@ -156,6 +161,15 @@ export class PhaserSandboxScene extends BaseGameScene {
       inspectionProbes: this.inspectionProbes,
       discovery: this.discovery,
       planets: this.planets,
+      world: WORLD,
+    });
+    this.renderEffects.render({
+      camera: this.cameras.main,
+      fuelBlobs: this.runtime.world.fuelBlobs,
+      now: time,
+      planets: this.planets,
+      projectiles: this.runtime.world.projectiles,
+      screen: { width: this.scale.width, height: this.scale.height },
       world: WORLD,
     });
   }
@@ -288,20 +302,22 @@ export class PhaserSandboxScene extends BaseGameScene {
     keepMovingEntitiesNearPlayer(this.getWorldPositioningInput());
   }
 
-  private resolveCombat(now: number, shieldActive: boolean): void {
+  private resolveCombat(now: number, shieldActive: boolean, deltaSeconds: number): void {
     this.resolveProjectileCombat();
     this.resolveInspectionProbeHits(now);
     this.resolvePlanetCollisions();
-    updateBlackHoles(
-      this.runtime.world.projectiles,
-      this.projectileBodies,
-      this.runtime.world.asteroids,
-      this.asteroidBodies,
-      this.planets,
-      (projectile) => this.removeProjectile(projectile),
-      (asteroid) => this.removeAsteroid(asteroid),
-      (asteroid) => this.applyEffect(createAsteroidExplosion(asteroid, 0.7)),
-      (projectile) => {
+    updateBlackHoles({
+      asteroids: this.runtime.world.asteroids,
+      asteroidBodies: this.asteroidBodies,
+      distance: (fromX, fromY, toX, toY) =>
+        getWrappedDistance({ x: fromX, y: fromY }, { x: toX, y: toY }, WORLD),
+      getDelta: (fromX, fromY, toX, toY) =>
+        wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, WORLD),
+      now,
+      onAsteroidAbsorbed: (asteroid) => this.applyEffect(createAsteroidExplosion(asteroid, 0.7)),
+      onAsteroidRemoved: (asteroid) => this.removeAsteroid(asteroid),
+      onBlackHoleRemoved: (projectile) => this.removeProjectile(projectile),
+      onFuelBurst: (projectile) => {
         if (projectile.absorbedFuel > 0)
           this.addFuelBlobs(
             spawnFuelBlobs(projectile.position, projectile.velocity, projectile.absorbedFuel),
@@ -314,7 +330,11 @@ export class PhaserSandboxScene extends BaseGameScene {
           ),
         );
       },
-    );
+      planets: this.planets,
+      projectileBodies: this.projectileBodies,
+      projectiles: this.runtime.world.projectiles,
+      timeScale: deltaSeconds * 60,
+    });
     this.resolvePlayerAsteroidCombat(now, shieldActive);
   }
 
@@ -534,6 +554,10 @@ export class PhaserSandboxScene extends BaseGameScene {
 
   private removeParticle(particle: ParticleEntity): void {
     this.runtime.removeParticle(particle);
+  }
+
+  private disposeRenderEffects(): void {
+    this.renderEffects.dispose();
   }
 }
 

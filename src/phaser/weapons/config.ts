@@ -44,9 +44,9 @@ export const PROJECTILES: Record<Exclude<WeaponKind, 'tractor'>, ProjectileSpec>
     fuelCost: 12,
     impact: 0,
     lifetimeMs: 10000,
-    radius: 14,
-    recoil: 1.2,
-    speed: 2,
+    radius: 6,
+    recoil: 4,
+    speed: 1,
     spread: 0,
   },
   inspectionProbe: {
