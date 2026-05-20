@@ -92,6 +92,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     );
     this.contacts.setPlayer(this.playerBody.body.body);
     this.contacts.setShield(this.playerBody.shieldSensor.body);
+    this.playerBody.setAsteroidCollisionEnabled(true);
     this.sceneRenderer = new ArcadeRenderer(
       this,
       this.playerBody.body,
@@ -172,8 +173,11 @@ export class PhaserArcadeScene extends BaseGameScene {
       this.asteroidBodies,
       tractorActive,
     );
+    const asteroidCollisionEnabled = this.playerCanCollideWithAsteroids();
+    this.playerBody.setAsteroidCollisionEnabled(asteroidCollisionEnabled);
     this.playerBody.updateShieldSensor(
       action.shield && this.playerIsAlive() && this.session.ship.fuel > 0,
+      asteroidCollisionEnabled,
     );
   }
 
@@ -324,6 +328,10 @@ export class PhaserArcadeScene extends BaseGameScene {
         this.applyEffect(effect);
       this.playerBody.setVisible(false);
     }
+  }
+
+  private playerCanCollideWithAsteroids(): boolean {
+    return this.playerIsAlive() && this.time.now >= this.session.player.invulnerableUntil;
   }
 
   private collectFuelBlobs(deltaSeconds: number): void {

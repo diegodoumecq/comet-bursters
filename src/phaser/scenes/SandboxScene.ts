@@ -242,7 +242,12 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.asteroidBodies,
       weaponResult.tractorActive,
     );
-    this.playerBody.updateShieldSensor(action.shield && this.player.visible && this.ship.fuel > 0);
+    const asteroidCollisionEnabled = this.playerCanCollideWithAsteroids();
+    this.playerBody.setAsteroidCollisionEnabled(asteroidCollisionEnabled);
+    this.playerBody.updateShieldSensor(
+      action.shield && this.player.visible && this.ship.fuel > 0,
+      asteroidCollisionEnabled,
+    );
   }
 
   private updateWorld(deltaMs: number, deltaSeconds: number): void {
@@ -384,6 +389,10 @@ export class PhaserSandboxScene extends BaseGameScene {
           .setPosition(mutation.position.x, mutation.position.y);
     }
     if (result.playerDestroyed) this.killPlayer(now);
+  }
+
+  private playerCanCollideWithAsteroids(): boolean {
+    return this.player.visible && this.time.now >= this.player.invulnerableUntil;
   }
 
   private resolvePlanetCollisions(): void {

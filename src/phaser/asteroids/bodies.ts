@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { ASTEROID_COLLISION_CATEGORY } from '../combat/collisionCategories';
 import type { MatterImage, Vector, WorldSize } from '../core/types';
 import { ASTEROIDS } from './logic';
 import { ASTEROID_TEXTURES } from './textures';
@@ -39,6 +40,7 @@ export class AsteroidBodies {
     body.setMass(config.mass);
     body.setFrictionAir(0);
     body.setBounce(1);
+    body.body.collisionFilter.category = ASTEROID_COLLISION_CATEGORY;
     body.setVelocity(asteroid.velocity.x, asteroid.velocity.y);
     this.bodies.set(asteroid.id, body);
     this.syncCollisionFilter(asteroid);
@@ -194,6 +196,7 @@ export class AsteroidBodies {
     body.setMass(config.mass);
     body.setFrictionAir(0);
     body.setBounce(1);
+    body.body.collisionFilter.category = ASTEROID_COLLISION_CATEGORY;
     body.setVelocity(asteroid.velocity.x, asteroid.velocity.y);
     return body;
   }
