@@ -182,7 +182,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     deltaSeconds: number,
   ): void {
     this.player.updateAim(normalize(action.aim));
-    const move = normalize(action.move);
+    const move = action.timeDilation ? { x: 0, y: 0 } : normalize(action.move);
     this.player.updateThrust(move, false);
     if (this.player.visible) {
       const motion = updatePlayerMotion({

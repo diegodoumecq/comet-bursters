@@ -133,7 +133,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     time: number,
   ): void {
     this.session.player.updateAim(normalize(action.aim));
-    const move = normalize(action.move);
+    const move = action.timeDilation ? { x: 0, y: 0 } : normalize(action.move);
     this.session.player.updateThrust(move, false);
     if (this.playerIsAlive()) this.updatePlayer(move, deltaSeconds, time);
     const weaponResult = updateWeapons({

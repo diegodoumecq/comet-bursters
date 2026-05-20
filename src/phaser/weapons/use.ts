@@ -1,5 +1,6 @@
 import type { Vector } from '../core/types';
 import { consumeTractorFuel } from '../fuel/rules';
+import { PLAYER_TURRET_MUZZLE_OFFSET } from '../player/textures';
 import type { PlayerState } from '../player/state';
 import type { ShipState } from '../player/shipState';
 import type { ProjectileEntity } from '../projectiles/types';
@@ -104,6 +105,7 @@ function fireSelectedWeapon(
     input.shooterVelocity,
   );
   input.player.lastShotAt = result.lastShotAt;
+  const projectileOrigin = getProjectileSpawnPosition(input.origin, input.player.lastAim);
   const projectiles = result.shots.map((shot, index) => ({
     absorbedFuel: 0,
     ageMs: 0,
@@ -113,7 +115,7 @@ function fireSelectedWeapon(
     id: nextProjectileId + index,
     kind: shot.kind,
     lifetimeMs: shot.lifetimeMs,
-    position: { x: input.origin.x, y: input.origin.y },
+    position: { ...projectileOrigin },
     velocity: shot.velocity,
   }));
   input.ship.setFuel(result.fuel);
@@ -123,6 +125,15 @@ function fireSelectedWeapon(
     projectiles,
     recoil: result.recoil,
     inspectionProbes: weapon === 'inspectionProbe' ? inspectionProbes - projectiles.length : inspectionProbes,
+  };
+}
+
+export function getProjectileSpawnPosition(origin: Vector, direction: Vector): Vector {
+  const magnitude = Math.hypot(direction.x, direction.y);
+  if (magnitude <= 0) return { ...origin };
+  return {
+    x: origin.x + (direction.x / magnitude) * PLAYER_TURRET_MUZZLE_OFFSET,
+    y: origin.y + (direction.y / magnitude) * PLAYER_TURRET_MUZZLE_OFFSET,
   };
 }
 

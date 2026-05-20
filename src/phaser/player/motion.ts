@@ -7,8 +7,8 @@ import type { ShipState } from './shipState';
 import type { PlayerBody } from './body';
 import { wrapPoint } from '../world/geometry';
 
-export const PLAYER_ACCELERATION = 1600;
-export const PLAYER_MAX_SPEED = 13.6667;
+export const PLAYER_ACCELERATION = 360;
+export const PLAYER_MAX_SPEED = 25;
 
 export function updatePlayerMotion(input: {
   body: PlayerBody;

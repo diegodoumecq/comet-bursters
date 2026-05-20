@@ -1,8 +1,9 @@
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 
 export const PLAYER_TEXTURE_KEY = 'phaser-ship';
 export const PLAYER_TURRET_TEXTURE_KEY = 'phaser-player-turret';
 export const PLAYER_VISUAL_SIZE = 60;
+export const PLAYER_TURRET_MUZZLE_OFFSET = PLAYER_VISUAL_SIZE * 0.5 * 0.68;
 
 export function createPlayerTexture(scene: Phaser.Scene): void {
   if (!scene.textures.exists(PLAYER_TEXTURE_KEY)) {
