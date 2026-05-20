@@ -56,10 +56,7 @@ void main() {
   }
 
   vec3 color = weightedColor / max(field, 0.001);
-  float bands = 0.5 + 0.5 * sin((pixelPos.x + pixelPos.y) * 0.055 + u_time * 0.006);
-  float filaments = smoothstep(0.58, 1.0, bands) * body;
   color = mix(color, vec3(0.65, 1.0, 1.0), body * 0.45);
-  color += vec3(0.15, 0.85, 1.0) * filaments * 0.28;
   color += vec3(0.75, 1.0, 1.0) * rim * 0.95;
   float alpha = body * 0.78 + rim * 0.52;
   gl_FragColor = vec4(color, alpha);
