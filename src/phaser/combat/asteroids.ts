@@ -1,12 +1,16 @@
 import type { AsteroidEntity } from '../asteroids/types';
 import type { ProjectileEntity } from '../projectiles/types';
 import type { Vector } from '../core/types';
-import { ASTEROIDS } from '../asteroids/logic';
+import { ASTEROIDS } from '../asteroids/config';
 import { SHIELD_HIT_COOLDOWN_MS, SHIELD_RADIUS, spendShieldFuel } from '../fuel/rules';
 import { PROJECTILES } from '../weapons/config';
 import type { AsteroidBodies } from '../asteroids/bodies';
 
-export function applyProjectileImpulse(projectile: ProjectileEntity, asteroid: AsteroidEntity, runtime: AsteroidBodies): void {
+export function applyProjectileImpulse(
+  projectile: ProjectileEntity,
+  asteroid: AsteroidEntity,
+  runtime: AsteroidBodies,
+): void {
   const asteroidVelocity = asteroid.velocity;
   const config = ASTEROIDS[asteroid.tier];
   const projectileSpeed = Math.hypot(projectile.velocity.x, projectile.velocity.y);
@@ -53,6 +57,7 @@ export function resolveProjectileContactCombat(
 export function resolvePlayerAsteroidCollision(input: {
   asteroid: AsteroidEntity;
   fuel: number;
+  getDelta?: (from: Vector, to: Vector) => Vector;
   now: number;
   playerPosition: Vector;
   playerVelocity: Vector;
@@ -67,8 +72,14 @@ export function resolvePlayerAsteroidCollision(input: {
   shieldHitUntil: number;
 } {
   const asteroidRadius = ASTEROIDS[input.asteroid.tier].collisionRadius;
-  const dx = input.playerPosition.x - input.asteroid.position.x;
-  const dy = input.playerPosition.y - input.asteroid.position.y;
+  const delta = input.getDelta
+    ? input.getDelta(input.asteroid.position, input.playerPosition)
+    : {
+        x: input.playerPosition.x - input.asteroid.position.x,
+        y: input.playerPosition.y - input.asteroid.position.y,
+      };
+  const dx = delta.x;
+  const dy = delta.y;
   const distance = Math.hypot(dx, dy);
   const shieldCollisionDistance = SHIELD_RADIUS + asteroidRadius;
   if (input.shieldActive && input.fuel > 0 && distance <= shieldCollisionDistance && input.now >= input.shieldHitUntil) {
@@ -93,6 +104,7 @@ export type PlayerCombatResult = {
 export function resolvePlayerCombat(input: {
   asteroids: AsteroidEntity[];
   fuel: number;
+  getDelta?: (from: Vector, to: Vector) => Vector;
   invulnerable: boolean;
   now: number;
   playerAlive: boolean;
@@ -119,6 +131,7 @@ export function resolvePlayerCombat(input: {
     const result = resolvePlayerAsteroidCollision({
       asteroid,
       fuel,
+      getDelta: input.getDelta,
       now: input.now,
       playerPosition: input.playerPosition,
       playerVelocity,

@@ -296,6 +296,7 @@ export class PhaserArcadeScene extends BaseGameScene {
         ? this.contacts.consumeShieldAsteroids()
         : this.contacts.consumePlayerAsteroids(),
       fuel: this.session.ship.fuel,
+      getDelta: (from, to) => wrappedDelta(from, to, this.worldSize),
       invulnerable: now < this.session.player.invulnerableUntil,
       now,
       playerAlive: this.playerIsAlive(),

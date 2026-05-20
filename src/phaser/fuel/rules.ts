@@ -1,7 +1,6 @@
 import type { AsteroidTier } from '../asteroids/types';
 import type { ProjectileKind, WeaponKind } from '../weapons/types';
-import { PROJECTILES } from '../weapons/config';
-import { TRACTOR_FUEL_COST_PER_FRAME } from '../weapons/tractorBeam';
+import { PROJECTILES, TRACTOR_FUEL_COST_PER_FRAME } from '../weapons/config';
 
 export const MAX_FUEL = 100;
 export const LOW_FUEL_THRESHOLD = MAX_FUEL * 0.1;

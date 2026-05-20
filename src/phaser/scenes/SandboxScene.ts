@@ -365,6 +365,7 @@ export class PhaserSandboxScene extends BaseGameScene {
         ? this.contacts.consumeShieldAsteroids()
         : this.contacts.consumePlayerAsteroids(),
       fuel: this.ship.fuel,
+      getDelta: (from, to) => wrappedDelta(from, to, WORLD),
       invulnerable: now < this.player.invulnerableUntil,
       now,
       playerAlive: this.player.visible,
