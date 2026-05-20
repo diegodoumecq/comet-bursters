@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
 import { AsteroidBodies } from '../asteroids/bodies';
-import { ASTEROIDS, wrapAsteroid } from '../asteroids/logic';
+import { ASTEROIDS } from '../asteroids/logic';
 import { updateAsteroidSplitCollisions } from '../asteroids/splitCollisions';
 import type { AsteroidEntity } from '../asteroids/types';
 import { destroyAsteroidWithWeapon } from '../combat/asteroidDestruction';
@@ -34,7 +34,7 @@ import { getStartingWave } from '../runtime/startup';
 import { ALL_WEAPONS, type SceneWeaponPolicy } from '../weapons/scenePolicy';
 import { applyTractorBeam } from '../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../weapons/use';
-import { normalize } from '../world/geometry';
+import { normalize, wrappedDelta } from '../world/geometry';
 import { GameWorldRuntime } from '../world/runtime';
 import { ArcadeRenderEffects } from './arcade/ArcadeRenderEffects';
 import { ArcadeRenderer } from './arcade/ArcadeRenderer';
@@ -187,9 +187,8 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private updateWorldState(deltaMs: number, deltaSeconds: number): void {
-    for (const asteroid of this.session.world.asteroids)
-      wrapAsteroid(asteroid, this.asteroidBodies, this.worldSize);
-    this.asteroidBodies.syncAll(this.session.world.asteroids);
+    this.asteroidBodies.syncToroidalAll(this.session.world.asteroids, this.worldSize);
+    this.contacts.syncAsteroids(this.session.world.asteroids, this.asteroidBodies);
     updateAsteroidSplitCollisions(this.session.world.asteroids, this.asteroidBodies);
     this.collectFuelBlobs(deltaSeconds);
     this.removeExpiredParticles(deltaMs);
@@ -208,8 +207,12 @@ export class PhaserArcadeScene extends BaseGameScene {
     updateBlackHoles({
       asteroids: this.session.world.asteroids,
       asteroidBodies: this.asteroidBodies,
-      distance: (fromX, fromY, toX, toY) => Phaser.Math.Distance.Between(fromX, fromY, toX, toY),
-      getDelta: (fromX, fromY, toX, toY) => ({ x: toX - fromX, y: toY - fromY }),
+      distance: (fromX, fromY, toX, toY) => {
+        const delta = wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize);
+        return Math.hypot(delta.x, delta.y);
+      },
+      getDelta: (fromX, fromY, toX, toY) =>
+        wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize),
       now: time,
       onAsteroidAbsorbed: (asteroid) => {
         this.session.awardAsteroidScore(ASTEROIDS[asteroid.tier].points);
