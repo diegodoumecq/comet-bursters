@@ -7,6 +7,7 @@ import type { FuelBlobEntity } from '../fuel/types';
 import type { ProjectileBodies } from './bodies';
 import {
   BLACK_HOLE_ASTEROID_MASS_SCALE,
+  BLACK_HOLE_FUEL_BLOB_MASS_SCALE,
   BLACK_HOLE_GROWTH_DURATION_MS,
   BLACK_HOLE_MATURE_AFTER_MS,
   BLACK_HOLE_MATURE_RADIUS,
@@ -166,6 +167,28 @@ describe('black-hole gravity', () => {
     expect(fuelBlob.velocity.x).toBeGreaterThan(0);
   });
 
+  it('pulls other active black holes when mature', () => {
+    const source = createBlackHole({
+      ageMs: BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS,
+      id: 1,
+      position: { x: 100, y: 0 },
+    });
+    const target = createBlackHole({
+      ageMs: BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS,
+      id: 2,
+      position: { x: 200, y: 0 },
+    });
+
+    update({
+      asteroids: [],
+      blackHole: source,
+      projectiles: [source, target],
+    });
+
+    expect(target.velocity.x).toBeLessThan(0);
+    expect(source.velocity.x).toBeGreaterThan(0);
+  });
+
   it('does not pull targets before the black hole matures', () => {
     const fuelBlob = {
       id: 1,
@@ -188,6 +211,7 @@ describe('black-hole gravity', () => {
     const playerVelocity = { x: 0, y: 0 };
 
     const { asteroid } = update({
+      asteroids: [],
       blackHole: createBlackHole({ collapseStartedAt: BLACK_HOLE_MATURE_AFTER_MS }),
       playerBody,
       playerVelocity,
@@ -196,6 +220,28 @@ describe('black-hole gravity', () => {
     expect(asteroid.velocity).toEqual({ x: 0, y: 0 });
     expect(playerVelocity).toEqual({ x: 0, y: 0 });
     expect(playerBody.setVelocity).not.toHaveBeenCalled();
+  });
+
+  it('does not pull collapsing black holes', () => {
+    const source = createBlackHole({
+      ageMs: BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS,
+      id: 1,
+      position: { x: 100, y: 0 },
+    });
+    const collapsingTarget = createBlackHole({
+      ageMs: BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS,
+      collapseStartedAt: BLACK_HOLE_MATURE_AFTER_MS,
+      id: 2,
+      position: { x: 200, y: 0 },
+    });
+
+    update({
+      asteroids: [],
+      blackHole: source,
+      projectiles: [source, collapsingTarget],
+    });
+
+    expect(collapsingTarget.velocity).toEqual({ x: 0, y: 0 });
   });
 });
 
@@ -213,7 +259,24 @@ describe('black-hole fuel absorption', () => {
     update({ asteroids: [], blackHole, fuelBlob, onFuelBlobAbsorbed });
 
     expect(blackHole.absorbedFuel).toBe(1);
+    expect(blackHole.blackHoleMass).toBe(1 + BLACK_HOLE_FUEL_BLOB_MASS_SCALE);
     expect(onFuelBlobAbsorbed).toHaveBeenCalledWith(fuelBlob);
+  });
+
+  it('uses absorbed fuel blob mass for the black hole radius', () => {
+    const ageMs = BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS;
+    const blackHole = createBlackHole({ ageMs });
+    const fuelBlob = {
+      id: 1,
+      position: { x: 100, y: 0 },
+      velocity: { x: 0, y: 0 },
+      wobbleSeed: 0,
+    };
+    const radiusBefore = getBlackHoleRenderRadius(blackHole, ageMs);
+
+    update({ asteroids: [], blackHole, fuelBlob });
+
+    expect(getBlackHoleRenderRadius(blackHole, ageMs)).toBeGreaterThan(radiusBefore);
   });
 
   it('does not consume fuel blobs outside the render radius', () => {
@@ -321,17 +384,21 @@ describe('black-hole merging', () => {
   it('merges overlapping black holes into the larger survivor', () => {
     const smaller = createBlackHole({
       absorbedFuel: 3,
+      ageMs: BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS,
       blackHoleMass: 4,
       createdAt: 0,
       id: 1,
+      lifetimeMs: 11000,
       position: { x: 100, y: 0 },
       velocity: { x: 4, y: 0 },
     });
     const larger = createBlackHole({
       absorbedFuel: 5,
+      ageMs: BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS,
       blackHoleMass: 9,
       createdAt: 10,
       id: 2,
+      lifetimeMs: 12000,
       position: { x: 105, y: 0 },
       velocity: { x: 0, y: 6 },
     });
@@ -350,6 +417,56 @@ describe('black-hole merging', () => {
     expect(larger.absorbedFuel).toBe(8);
     expect(larger.velocity.x).toBeCloseTo(16 / 13);
     expect(larger.velocity.y).toBeCloseTo(54 / 13);
+  });
+
+  it('keeps the visibly larger expanded black hole over a heavier pre-expanding one', () => {
+    const expanded = createBlackHole({
+      ageMs: BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS,
+      blackHoleMass: 1,
+      id: 1,
+      position: { x: 100, y: 0 },
+    });
+    const preExpanding = createBlackHole({
+      ageMs: BLACK_HOLE_MATURE_AFTER_MS,
+      blackHoleMass: 9,
+      id: 2,
+      position: { x: 105, y: 0 },
+    });
+
+    const { projectiles } = update({
+      asteroids: [],
+      blackHole: expanded,
+      projectiles: [preExpanding, expanded],
+    });
+
+    expect(projectiles).toEqual([expanded]);
+    expect(expanded.blackHoleMass).toBe(10);
+  });
+
+  it('sums remaining active lifespans while preserving the survivor age', () => {
+    const expanded = createBlackHole({
+      ageMs: BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS,
+      blackHoleMass: 1,
+      id: 1,
+      lifetimeMs: 9000,
+      position: { x: 100, y: 0 },
+    });
+    const preExpanding = createBlackHole({
+      ageMs: BLACK_HOLE_MATURE_AFTER_MS,
+      blackHoleMass: 9,
+      id: 2,
+      lifetimeMs: 8000,
+      position: { x: 105, y: 0 },
+    });
+
+    update({
+      asteroids: [],
+      blackHole: expanded,
+      projectiles: [preExpanding, expanded],
+    });
+
+    expect(expanded.ageMs).toBe(BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS);
+    expect(expanded.lifetimeMs).toBe(14000);
   });
 
   it('uses the summed mass for the merged black hole radius', () => {

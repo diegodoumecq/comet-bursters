@@ -21,6 +21,7 @@ export const DISTORTION_RADIUS = 200;
 export const DISTORTION_STRENGTH = 0.8;
 export const MAX_BLACK_HOLES = 10;
 export const BLACK_HOLE_ASTEROID_MASS_SCALE = 0.25;
+export const BLACK_HOLE_FUEL_BLOB_MASS_SCALE = 0.1;
 
 const BLACK_HOLE_ABSORBED_FUEL_BLOBS: Record<AsteroidEntity['tier'], number> = {
   small: 1,
@@ -160,6 +161,23 @@ function applyBlackHoleGravity(input: BlackHoleLifecycleOptions): void {
       );
       input.player.body.setVelocity(input.player.velocity.x, input.player.velocity.y);
     }
+    for (const targetBlackHole of getActiveBlackHoles(input.projectiles)) {
+      if (targetBlackHole !== blackHole) {
+        if (applyBlackHoleGravityToVelocity(
+          targetBlackHole.velocity,
+          targetBlackHole.position,
+          blackHole.position,
+          gravityRange,
+          radius,
+          input.getDelta,
+          timeScale,
+        )) {
+          input.projectileBodies
+            .get(targetBlackHole)
+            .setVelocity(targetBlackHole.velocity.x, targetBlackHole.velocity.y);
+        }
+      }
+    }
     for (const blob of input.fuelBlobs ?? []) {
       applyBlackHoleGravityToVelocity(
         blob.velocity,
@@ -211,6 +229,11 @@ function chooseMergeSurvivor(
   left: ProjectileEntity,
   right: ProjectileEntity,
 ): { absorbed: ProjectileEntity; survivor: ProjectileEntity } {
+  const leftRadius = getBlackHoleRenderRadius(left);
+  const rightRadius = getBlackHoleRenderRadius(right);
+  if (leftRadius > rightRadius) return { survivor: left, absorbed: right };
+  if (rightRadius > leftRadius) return { survivor: right, absorbed: left };
+
   const leftMass = getBlackHoleMass(left);
   const rightMass = getBlackHoleMass(right);
   if (leftMass > rightMass) return { survivor: left, absorbed: right };
@@ -224,14 +247,16 @@ function mergeBlackHoleInto(survivor: ProjectileEntity, absorbed: ProjectileEnti
   const survivorMass = getBlackHoleMass(survivor);
   const absorbedMass = getBlackHoleMass(absorbed);
   const totalMass = survivorMass + absorbedMass;
+  const remainingLifetime =
+    Math.max(0, survivor.lifetimeMs - survivor.ageMs) +
+    Math.max(0, absorbed.lifetimeMs - absorbed.ageMs);
   survivor.blackHoleMass = totalMass;
   survivor.absorbedFuel += absorbed.absorbedFuel;
   survivor.velocity = {
     x: (survivor.velocity.x * survivorMass + absorbed.velocity.x * absorbedMass) / totalMass,
     y: (survivor.velocity.y * survivorMass + absorbed.velocity.y * absorbedMass) / totalMass,
   };
-  survivor.lifetimeMs = Math.max(survivor.lifetimeMs, absorbed.lifetimeMs);
-  survivor.ageMs = Math.min(survivor.ageMs, absorbed.ageMs);
+  survivor.lifetimeMs = survivor.ageMs + remainingLifetime;
 }
 
 function applyBlackHoleGravityToVelocity(
@@ -299,6 +324,7 @@ function absorbFuelBlobs(input: BlackHoleLifecycleOptions): void {
         );
         if (circleContains(hitDistance, radius)) {
           projectile.absorbedFuel += 1;
+          projectile.blackHoleMass = getBlackHoleMass(projectile) + BLACK_HOLE_FUEL_BLOB_MASS_SCALE;
           input.onFuelBlobAbsorbed(blob);
         }
       }
