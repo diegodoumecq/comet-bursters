@@ -13,7 +13,7 @@ export class SandboxPlanetOverlay {
   render(planets: SandboxPlanetEntity[], now: number): void {
     this.graphics.clear();
     for (const planet of planets) {
-      if (now < planet.inspectedUntil) this.drawInspectionOverlay(planet, now);
+      if (now < planet.inspectedUntil) this.drawInspectionOverlay(planet);
       this.drawExtractor(planet, now);
     }
   }
@@ -60,6 +60,5 @@ export class SandboxPlanetOverlay {
     this.graphics.lineStyle(3, 0x67e8f9, pulse);
     this.graphics.lineBetween(-8, -53, 8, -53);
     this.graphics.restore();
-
   }
 }

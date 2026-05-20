@@ -20,6 +20,7 @@ type SandboxRenderEffectsInput = {
   fuelBlobs: FuelBlobEntity[];
   now: number;
   planets: SandboxPlanetEntity[];
+  playerPosition: Vector;
   projectiles: ProjectileEntity[];
   screen: WorldSize;
   world: WorldSize;
@@ -40,6 +41,7 @@ export class SandboxRenderEffects {
   render(input: SandboxRenderEffectsInput): void {
     const project = createWrappedScreenProjector({
       camera: input.camera,
+      center: input.playerPosition,
       screen: input.screen,
       world: input.world,
     });

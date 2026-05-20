@@ -3,7 +3,6 @@ import Phaser from 'phaser';
 import mothershipBackUrl from '@/assets/mothership-back.png';
 import mothershipDoorUrl from '@/assets/mothership-door.png';
 import mothershipFrontUrl from '@/assets/mothership-front.png';
-
 import type { Vector, WorldSize } from '../../core/types';
 import { nearestWrappedPosition, wrappedDelta } from '../../world/geometry';
 
@@ -16,11 +15,17 @@ const FRONT_TEXTURE_KEY = 'sandbox-mothership-front';
 const DOOR_TEXTURE_KEY = 'sandbox-mothership-door';
 const BACK_TEXTURE_KEY = 'sandbox-mothership-back';
 const PLAYER_DOCKED_DISTANCE = 30;
+const BODY_BACK_DEPTH = -4;
+const BODY_FRONT_DEPTH = -3;
+const DOOR_DEPTH = 4;
 
 export function preloadMothershipTextures(scene: Phaser.Scene): void {
-  if (!scene.textures.exists(FRONT_TEXTURE_KEY)) scene.load.image(FRONT_TEXTURE_KEY, mothershipFrontUrl);
-  if (!scene.textures.exists(DOOR_TEXTURE_KEY)) scene.load.image(DOOR_TEXTURE_KEY, mothershipDoorUrl);
-  if (!scene.textures.exists(BACK_TEXTURE_KEY)) scene.load.image(BACK_TEXTURE_KEY, mothershipBackUrl);
+  if (!scene.textures.exists(FRONT_TEXTURE_KEY))
+    scene.load.image(FRONT_TEXTURE_KEY, mothershipFrontUrl);
+  if (!scene.textures.exists(DOOR_TEXTURE_KEY))
+    scene.load.image(DOOR_TEXTURE_KEY, mothershipDoorUrl);
+  if (!scene.textures.exists(BACK_TEXTURE_KEY))
+    scene.load.image(BACK_TEXTURE_KEY, mothershipBackUrl);
 }
 
 export class Mothership {
@@ -30,10 +35,13 @@ export class Mothership {
   private doorOpenedAt = 0;
   private undocked = false;
 
-  constructor(scene: Phaser.Scene, readonly position: Vector) {
-    this.front = createLayer(scene, position, FRONT_TEXTURE_KEY, 0);
-    this.door = createLayer(scene, position, DOOR_TEXTURE_KEY, 4);
-    this.back = createLayer(scene, position, BACK_TEXTURE_KEY, 5);
+  constructor(
+    scene: Phaser.Scene,
+    readonly position: Vector,
+  ) {
+    this.back = createLayer(scene, position, BACK_TEXTURE_KEY, BODY_BACK_DEPTH);
+    this.front = createLayer(scene, position, FRONT_TEXTURE_KEY, BODY_FRONT_DEPTH);
+    this.door = createLayer(scene, position, DOOR_TEXTURE_KEY, DOOR_DEPTH);
   }
 
   startReveal(now: number): void {
@@ -81,7 +89,8 @@ function createLayer(
   texture: string,
   depth: number,
 ): Phaser.GameObjects.Image {
-  return scene.add.image(position.x, position.y, texture)
+  return scene.add
+    .image(position.x, position.y, texture)
     .setDisplaySize(MOTHERSHIP_WIDTH, MOTHERSHIP_HEIGHT)
     .setDepth(depth);
 }

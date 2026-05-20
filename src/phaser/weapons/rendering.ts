@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 
 import type { MatterArc, Vector } from '../core/types';
-import type { ProjectileKind } from './types';
 import { PROJECTILES } from './config';
+import type { ProjectileKind } from './types';
 
 export function createProjectileShape(
   scene: Phaser.Scene,
@@ -11,15 +11,16 @@ export function createProjectileShape(
   angle: number,
 ): MatterArc {
   const spec = PROJECTILES[kind];
-  const fill = kind === 'blackHole'
-    ? 0x000000
-    : kind === 'inspectionProbe'
-      ? 0x67e8f9
-    : kind === 'pusher'
-      ? 0x67e8f9
-      : kind === 'shotgun'
-        ? 0xffd166
-        : 0xffffff;
+  const fill =
+    kind === 'blackHole'
+      ? 0x000000
+      : kind === 'inspectionProbe'
+        ? 0x67e8f9
+        : kind === 'pusher'
+          ? 0x67e8f9
+          : kind === 'shotgun'
+            ? 0xffd166
+            : 0xffffff;
   const shape = scene.add.circle(origin.x, origin.y, spec.radius, fill);
   scene.matter.add.gameObject(shape, {
     circleRadius: spec.radius,
@@ -27,7 +28,7 @@ export function createProjectileShape(
   });
   const matterShape = shape as MatterArc;
   if (kind === 'blackHole') {
-    matterShape.setStrokeStyle(2, 0xffffff);
+    matterShape.setVisible(false);
   } else if (kind === 'inspectionProbe') {
     matterShape.setScale(2.2, 0.72).setRotation(angle).setStrokeStyle(1.5, 0xecfeff);
   } else if (kind === 'pusher') {

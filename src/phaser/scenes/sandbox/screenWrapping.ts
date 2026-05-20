@@ -5,22 +5,28 @@ import { wrappedDelta } from '../../world/geometry';
 
 type WrappedScreenProjectorInput = {
   camera: Phaser.Cameras.Scene2D.Camera;
+  center?: Vector;
   screen: WorldSize;
   world: WorldSize;
 };
 
 export function createWrappedScreenProjector({
   camera,
+  center,
   screen,
   world,
 }: WrappedScreenProjectorInput): (position: Vector, radius: number) => Vector[] {
   return (position, radius) => {
-    const center = {
+    const viewportCenter = center ?? {
       x: camera.worldView.x + screen.width * 0.5,
       y: camera.worldView.y + screen.height * 0.5,
     };
-    const baseDelta = wrappedDelta(center, position, world);
-    const base = { x: center.x + baseDelta.x, y: center.y + baseDelta.y };
+    const viewport = {
+      x: viewportCenter.x - screen.width * 0.5,
+      y: viewportCenter.y - screen.height * 0.5,
+    };
+    const baseDelta = wrappedDelta(viewportCenter, position, world);
+    const base = { x: viewportCenter.x + baseDelta.x, y: viewportCenter.y + baseDelta.y };
     const positions: Vector[] = [];
 
     for (let offsetX = -world.width; offsetX <= world.width; offsetX += world.width) {
@@ -28,14 +34,14 @@ export function createWrappedScreenProjector({
         const drawX = base.x + offsetX;
         const drawY = base.y + offsetY;
         if (
-          drawX + radius >= camera.worldView.x &&
-          drawX - radius <= camera.worldView.x + screen.width &&
-          drawY + radius >= camera.worldView.y &&
-          drawY - radius <= camera.worldView.y + screen.height
+          drawX + radius >= viewport.x &&
+          drawX - radius <= viewport.x + screen.width &&
+          drawY + radius >= viewport.y &&
+          drawY - radius <= viewport.y + screen.height
         ) {
           positions.push({
-            x: drawX - camera.worldView.x,
-            y: drawY - camera.worldView.y,
+            x: drawX - viewport.x,
+            y: drawY - viewport.y,
           });
         }
       }

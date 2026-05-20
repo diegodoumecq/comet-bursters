@@ -2,15 +2,23 @@ import Phaser from 'phaser';
 
 import type { ParticleEntity } from './types';
 
+const THRUSTER_PARTICLE_DEPTH = 5;
+
 export class ParticleViews {
   private readonly shapes = new Map<number, Phaser.GameObjects.Shape | Phaser.GameObjects.Image>();
 
   constructor(private readonly scene: Phaser.Scene) {}
 
   add(particle: ParticleEntity): Phaser.GameObjects.Shape | Phaser.GameObjects.Image {
-    const shape = particle.kind === 'circle'
-      ? this.scene.add.circle(particle.position.x, particle.position.y, particle.radius ?? 1, particle.color)
-      : this.createThrusterShape(particle);
+    const shape =
+      particle.kind === 'circle'
+        ? this.scene.add.circle(
+            particle.position.x,
+            particle.position.y,
+            particle.radius ?? 1,
+            particle.color,
+          )
+        : this.createThrusterShape(particle);
     this.shapes.set(particle.id, shape);
     return shape;
   }
@@ -40,9 +48,14 @@ export class ParticleViews {
 
   private createThrusterShape(particle: ParticleEntity): Phaser.GameObjects.Image {
     createThrusterTexture(this.scene);
-    const shape = this.scene.add.image(particle.position.x, particle.position.y, 'phaser-thruster-particle');
+    const shape = this.scene.add.image(
+      particle.position.x,
+      particle.position.y,
+      'phaser-thruster-particle',
+    );
     shape.setTint(particle.color);
     shape.setDisplaySize((particle.size ?? 1) * 2.4, (particle.size ?? 1) * 2.4);
+    shape.setDepth(THRUSTER_PARTICLE_DEPTH);
     shape.setRotation(particle.rotation);
     return shape;
   }

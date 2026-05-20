@@ -168,6 +168,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       fuelBlobs: this.runtime.world.fuelBlobs,
       now: time,
       planets: this.planets,
+      playerPosition: this.player.position,
       projectiles: this.runtime.world.projectiles,
       screen: { width: this.scale.width, height: this.scale.height },
       world: WORLD,
