@@ -3,8 +3,9 @@ import Phaser from 'phaser';
 import type { PlanetEntity, PlanetSpriteSource } from './types';
 import { drawStyledPlanet } from './visuals/planetVisuals';
 
-const PLANET_CACHE_PADDING = 40;
-const PLANET_TEXTURE_VERSION = 'legacy-render-v5';
+const PLANET_CACHE_PADDING = 80;
+const PLANET_TEXTURE_EXTENT_SCALE = 1.7;
+const PLANET_TEXTURE_VERSION = 'legacy-render-v6';
 const textureKeys = new Map<string, string>();
 
 export function getPlanetTextureKey(scene: Phaser.Scene, planet: PlanetEntity): string {
@@ -26,7 +27,7 @@ export function getPlanetTextureKey(scene: Phaser.Scene, planet: PlanetEntity): 
 }
 
 export function getPlanetTextureSize(planet: PlanetEntity): number {
-  const extent = planet.radius * 1.3 + PLANET_CACHE_PADDING;
+  const extent = planet.radius * PLANET_TEXTURE_EXTENT_SCALE + PLANET_CACHE_PADDING;
   return Math.ceil(extent * 2);
 }
 

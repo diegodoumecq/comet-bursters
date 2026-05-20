@@ -2,18 +2,21 @@ import { AsteroidBodies } from '../asteroids/bodies';
 import { createAsteroid } from '../asteroids/logic';
 import { createAsteroidTextures } from '../asteroids/textures';
 import type { AsteroidEntity } from '../asteroids/types';
-import type { Vector, WorldSize } from '../core/types';
+import type { WorldSize } from '../core/types';
 import { ActionReader } from '../input/actions';
 import { createPlanet, PLANET_SPECS } from '../planets/logic';
 import type { PlanetEntity } from '../planets/types';
 import { PlanetViews } from '../planets/views';
 import { PlayerBody } from '../player/body';
+import { updatePlayerMotion } from '../player/motion';
+import { ShipState } from '../player/shipState';
 import { PlayerState } from '../player/state';
 import { createPlayerTexture } from '../player/textures';
+import { normalize } from '../world/geometry';
 import { BaseGameScene } from './BaseGameScene';
 import { DemoRenderer } from './demo/DemoRenderer';
 
-const WORLD: WorldSize = { width: 4600, height: 3400 };
+const WORLD: WorldSize = { width: 7600, height: 5000 };
 export class PhaserDemoScene extends BaseGameScene {
   private actions!: ActionReader;
   private playerBody!: PlayerBody;
@@ -22,8 +25,8 @@ export class PhaserDemoScene extends BaseGameScene {
   private asteroids: AsteroidEntity[] = [];
   private asteroidBodies!: AsteroidBodies;
   private planetViews!: PlanetViews;
-  private lastAim: Vector = { x: 0, y: -1 };
   private readonly playerState = new PlayerState();
+  private readonly ship = new ShipState();
 
   constructor() {
     super('demo');
@@ -40,10 +43,11 @@ export class PhaserDemoScene extends BaseGameScene {
     this.createPlanets();
     this.createAsteroids();
     this.playerBody = new PlayerBody(this, { x: 620, y: 760 }, this.playerState);
-    this.playerBody.body.setStatic(true);
     this.playerBody.body.setMass(18);
+    this.playerBody.body.setFrictionAir(0);
+    this.playerBody.body.setBounce(0.8);
     this.sceneRenderer = new DemoRenderer(this, this.playerBody.body);
-    this.cameras.main.startFollow(this.playerBody.body, true, 0.08, 0.08);
+    this.cameras.main.startFollow(this.playerBody.body, true, 1, 1);
   }
 
   protected readFrameInput(): ReturnType<ActionReader['read']> {
@@ -51,16 +55,29 @@ export class PhaserDemoScene extends BaseGameScene {
   }
 
   protected updateState(
-    _action: ReturnType<ActionReader['read']>,
+    action: ReturnType<ActionReader['read']>,
     _time: number,
-    _delta: number,
-  ): void {}
+    delta: number,
+  ): void {
+    const move = normalize(action.move);
+    this.playerState.updateAim(normalize(action.aim));
+    updatePlayerMotion({
+      body: this.playerBody,
+      deltaSeconds: delta / 1000,
+      move,
+      player: this.playerState,
+      ship: this.ship,
+      world: WORLD,
+      wrap: false,
+    });
+  }
 
   protected renderState(_action: ReturnType<ActionReader['read']>, time: number): void {
     this.sceneRenderer.render({
-      aim: this.lastAim,
       asteroids: this.asteroids,
       now: time,
+      player: this.playerState,
+      ship: this.ship,
     });
   }
 
@@ -78,10 +95,13 @@ export class PhaserDemoScene extends BaseGameScene {
 
   private createPlanets(): void {
     const layouts: Array<[number, number, keyof typeof PLANET_SPECS]> = [
-      [980, 980, 'lush'],
-      [1660, 930, 'desert'],
-      [2320, 1130, 'ice'],
-      [2940, 1560, 'crystal'],
+      [1150, 1050, 'lush'],
+      [2200, 1000, 'desert'],
+      [3250, 1050, 'ice'],
+      [4700, 1350, 'lava'],
+      [6250, 1650, 'gas'],
+      [2250, 3400, 'toxic'],
+      [3900, 3400, 'crystal'],
     ];
     this.planets = layouts.map(([x, y, kind]) => createPlanet(x, y, PLANET_SPECS[kind]));
     for (const planet of this.planets) this.planetViews.add(planet);
@@ -89,10 +109,10 @@ export class PhaserDemoScene extends BaseGameScene {
 
   private createAsteroids(): void {
     const positions: Array<[number, number]> = [
-      [1100, 2620],
-      [1940, 2740],
-      [2820, 2650],
-      [3660, 2480],
+      [1150, 4400],
+      [2950, 4400],
+      [4850, 4300],
+      [6500, 4050],
     ];
     const tiers = ['mega', 'big', 'medium', 'small'] as const;
     this.asteroids = positions.map(([x, y], index) => {

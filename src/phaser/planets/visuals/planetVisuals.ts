@@ -4,8 +4,9 @@ import { PLANET_SHELL_STYLES } from './planetStyles';
 import { drawPlanetSurface } from './planetSurfaces';
 import { polarPoint, tintColor } from './planetSurfaces/shared';
 
-const PLANET_CACHE_PADDING = 40;
-const PLANET_RENDER_VERSION = 'v5-static-rotation';
+const PLANET_CACHE_PADDING = 80;
+const PLANET_TEXTURE_EXTENT_SCALE = 1.7;
+const PLANET_RENDER_VERSION = 'v6-expanded-atmosphere';
 const planetSpriteCache = new Map<string, HTMLCanvasElement>();
 
 function withAlpha(color: string, alpha: number): string {
@@ -188,7 +189,7 @@ function getPlanetSprite(planet: Planet): HTMLCanvasElement {
   }
 
   const radius = planet.getRadius();
-  const extent = radius * 1.3 + PLANET_CACHE_PADDING;
+  const extent = radius * PLANET_TEXTURE_EXTENT_SCALE + PLANET_CACHE_PADDING;
   const size = Math.ceil(extent * 2);
   const canvas = document.createElement('canvas');
   canvas.width = size;
