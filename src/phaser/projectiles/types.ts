@@ -5,6 +5,7 @@ export type ProjectileEntity = {
   absorbedFuel: number;
   ageMs: number;
   angle: number;
+  blackHoleMass?: number;
   collapseStartedAt: number | null;
   createdAt: number;
   id: number;

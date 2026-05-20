@@ -110,6 +110,7 @@ function fireSelectedWeapon(
     absorbedFuel: 0,
     ageMs: 0,
     angle: shot.angle,
+    blackHoleMass: shot.kind === 'blackHole' ? 1 : undefined,
     collapseStartedAt: null,
     createdAt: input.now,
     id: nextProjectileId + index,

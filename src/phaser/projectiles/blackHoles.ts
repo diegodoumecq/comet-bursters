@@ -18,6 +18,7 @@ export const BLACK_HOLE_COLLAPSE_DURATION_MS = 700;
 export const DISTORTION_RADIUS = 200;
 export const DISTORTION_STRENGTH = 0.8;
 export const MAX_BLACK_HOLES = 10;
+export const BLACK_HOLE_ASTEROID_MASS_SCALE = 0.25;
 
 const BLACK_HOLE_ABSORBED_FUEL_BLOBS: Record<AsteroidEntity['tier'], number> = {
   small: 1,
@@ -59,11 +60,12 @@ export function getMatureBlackHoleRadius(
   blackHole: ProjectileEntity,
   now = blackHole.ageMs,
 ): number {
+  const targetRadius = BLACK_HOLE_MATURE_RADIUS * Math.sqrt(getBlackHoleMass(blackHole));
   const growthProgress = Math.min(
     1,
     Math.max(0, (now - BLACK_HOLE_MATURE_AFTER_MS) / BLACK_HOLE_GROWTH_DURATION_MS),
   );
-  return BLACK_HOLE_RADIUS + (BLACK_HOLE_MATURE_RADIUS - BLACK_HOLE_RADIUS) * growthProgress;
+  return BLACK_HOLE_RADIUS + (targetRadius - BLACK_HOLE_RADIUS) * growthProgress;
 }
 
 export function getBlackHoleRenderRadius(
@@ -82,11 +84,22 @@ export function getBlackHoleRenderRadius(
 
 export function updateBlackHoles(input: BlackHoleLifecycleOptions): void {
   removeBlackHolesCollidingWithPlanets(input);
+  mergeBlackHoles(input);
   applyBlackHoleGravity(input);
   absorbFuelBlobs(input);
   absorbPlayer(input);
   updateBlackHoleCollapse(input);
   absorbAsteroids(input);
+}
+
+function getBlackHoleMass(blackHole: ProjectileEntity): number {
+  return blackHole.blackHoleMass ?? 1;
+}
+
+function getActiveBlackHoles(projectiles: ProjectileEntity[]): ProjectileEntity[] {
+  return projectiles.filter(
+    (projectile) => projectile.kind === 'blackHole' && projectile.collapseStartedAt === null,
+  );
 }
 
 function removeBlackHolesCollidingWithPlanets(input: BlackHoleLifecycleOptions): void {
@@ -111,11 +124,8 @@ function removeBlackHolesCollidingWithPlanets(input: BlackHoleLifecycleOptions):
 }
 
 function applyBlackHoleGravity(input: BlackHoleLifecycleOptions): void {
-  const activeBlackHoles = input.projectiles.filter(
-    (projectile) =>
-      projectile.kind === 'blackHole' &&
-      projectile.collapseStartedAt === null &&
-      isMatureBlackHole(projectile),
+  const activeBlackHoles = getActiveBlackHoles(input.projectiles).filter((projectile) =>
+    isMatureBlackHole(projectile),
   );
   if (activeBlackHoles.length === 0) return;
 
@@ -160,6 +170,65 @@ function applyBlackHoleGravity(input: BlackHoleLifecycleOptions): void {
       );
     }
   }
+}
+
+function mergeBlackHoles(input: BlackHoleLifecycleOptions): void {
+  const removed = new Set<ProjectileEntity>();
+  const activeBlackHoles = getActiveBlackHoles(input.projectiles);
+  for (let leftIndex = 0; leftIndex < activeBlackHoles.length; leftIndex += 1) {
+    const left = activeBlackHoles[leftIndex];
+    if (!removed.has(left)) {
+      for (let rightIndex = leftIndex + 1; rightIndex < activeBlackHoles.length; rightIndex += 1) {
+        const right = activeBlackHoles[rightIndex];
+        if (!removed.has(right) && blackHolesOverlap(left, right, input.distance)) {
+          const { survivor, absorbed } = chooseMergeSurvivor(left, right);
+          mergeBlackHoleInto(survivor, absorbed);
+          removed.add(absorbed);
+          input.onBlackHoleRemoved(absorbed);
+          if (absorbed === left) break;
+        }
+      }
+    }
+  }
+}
+
+function blackHolesOverlap(
+  left: ProjectileEntity,
+  right: ProjectileEntity,
+  distance: BlackHoleLifecycleOptions['distance'],
+): boolean {
+  return circlesOverlap(
+    distance(left.position.x, left.position.y, right.position.x, right.position.y),
+    getBlackHoleRenderRadius(left),
+    getBlackHoleRenderRadius(right),
+  );
+}
+
+function chooseMergeSurvivor(
+  left: ProjectileEntity,
+  right: ProjectileEntity,
+): { absorbed: ProjectileEntity; survivor: ProjectileEntity } {
+  const leftMass = getBlackHoleMass(left);
+  const rightMass = getBlackHoleMass(right);
+  if (leftMass > rightMass) return { survivor: left, absorbed: right };
+  if (rightMass > leftMass) return { survivor: right, absorbed: left };
+  return left.createdAt <= right.createdAt
+    ? { survivor: left, absorbed: right }
+    : { survivor: right, absorbed: left };
+}
+
+function mergeBlackHoleInto(survivor: ProjectileEntity, absorbed: ProjectileEntity): void {
+  const survivorMass = getBlackHoleMass(survivor);
+  const absorbedMass = getBlackHoleMass(absorbed);
+  const totalMass = survivorMass + absorbedMass;
+  survivor.blackHoleMass = totalMass;
+  survivor.absorbedFuel += absorbed.absorbedFuel;
+  survivor.velocity = {
+    x: (survivor.velocity.x * survivorMass + absorbed.velocity.x * absorbedMass) / totalMass,
+    y: (survivor.velocity.y * survivorMass + absorbed.velocity.y * absorbedMass) / totalMass,
+  };
+  survivor.lifetimeMs = Math.max(survivor.lifetimeMs, absorbed.lifetimeMs);
+  survivor.ageMs = Math.min(survivor.ageMs, absorbed.ageMs);
 }
 
 function applyBlackHoleGravityToVelocity(
@@ -275,6 +344,9 @@ function absorbAsteroids(input: BlackHoleLifecycleOptions): void {
           )
         ) {
           projectile.absorbedFuel += BLACK_HOLE_ABSORBED_FUEL_BLOBS[asteroid.tier];
+          projectile.blackHoleMass =
+            getBlackHoleMass(projectile) +
+            ASTEROIDS[asteroid.tier].mass * BLACK_HOLE_ASTEROID_MASS_SCALE;
           input.onAsteroidAbsorbed(asteroid);
           input.onAsteroidRemoved(asteroid);
         }

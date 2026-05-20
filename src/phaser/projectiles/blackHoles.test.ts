@@ -6,7 +6,11 @@ import type { MatterImage } from '../core/types';
 import type { FuelBlobEntity } from '../fuel/types';
 import type { ProjectileBodies } from './bodies';
 import {
+  BLACK_HOLE_ASTEROID_MASS_SCALE,
+  BLACK_HOLE_GROWTH_DURATION_MS,
   BLACK_HOLE_MATURE_AFTER_MS,
+  BLACK_HOLE_MATURE_RADIUS,
+  getBlackHoleRenderRadius,
   updateBlackHoles,
 } from './blackHoles';
 import type { ProjectileEntity } from './types';
@@ -70,15 +74,18 @@ function update(input: {
   asteroids?: AsteroidEntity[];
   blackHole: ProjectileEntity;
   fuelBlob?: FuelBlobEntity;
+  onBlackHoleRemoved?: (blackHole: ProjectileEntity) => void;
   onFuelBlobAbsorbed?: (blob: FuelBlobEntity) => void;
   onPlayerAbsorbed?: (blackHole: ProjectileEntity) => void;
   playerActive?: boolean;
   playerPosition?: { x: number; y: number };
   playerBody?: MatterImage;
   playerVelocity?: { x: number; y: number };
+  projectiles?: ProjectileEntity[];
 }) {
   const asteroids = input.asteroids ?? [input.asteroid ?? createAsteroid()];
   const asteroid = asteroids[0] ?? createAsteroid();
+  const projectiles = input.projectiles ?? [input.blackHole];
   const asteroidBody = {
     setVelocity: vi.fn(),
   };
@@ -94,7 +101,11 @@ function update(input: {
     now: input.blackHole.ageMs,
     onAsteroidAbsorbed: vi.fn(),
     onAsteroidRemoved: vi.fn(),
-    onBlackHoleRemoved: vi.fn(),
+    onBlackHoleRemoved: (blackHole) => {
+      input.onBlackHoleRemoved?.(blackHole);
+      const index = projectiles.indexOf(blackHole);
+      if (index !== -1) projectiles.splice(index, 1);
+    },
     onFuelBurst: vi.fn(),
     onFuelBlobAbsorbed: input.onFuelBlobAbsorbed ?? vi.fn(),
     onPlayerAbsorbed: input.onPlayerAbsorbed,
@@ -105,10 +116,10 @@ function update(input: {
       velocity: input.playerVelocity,
     } : undefined,
     projectileBodies: createProjectileBodies(),
-    projectiles: [input.blackHole],
+    projectiles,
     timeScale: 1,
   });
-  return { asteroid, asteroidBody };
+  return { asteroid, asteroidBody, projectiles };
 }
 
 describe('black-hole gravity', () => {
@@ -284,5 +295,105 @@ describe('black-hole player absorption', () => {
     });
 
     expect(onPlayerAbsorbed).not.toHaveBeenCalled();
+  });
+});
+
+describe('black-hole merging', () => {
+  it('merges overlapping black holes into the larger survivor', () => {
+    const smaller = createBlackHole({
+      absorbedFuel: 3,
+      blackHoleMass: 4,
+      createdAt: 0,
+      id: 1,
+      position: { x: 100, y: 0 },
+      velocity: { x: 4, y: 0 },
+    });
+    const larger = createBlackHole({
+      absorbedFuel: 5,
+      blackHoleMass: 9,
+      createdAt: 10,
+      id: 2,
+      position: { x: 105, y: 0 },
+      velocity: { x: 0, y: 6 },
+    });
+    const onBlackHoleRemoved = vi.fn();
+
+    const { projectiles } = update({
+      asteroids: [],
+      blackHole: larger,
+      onBlackHoleRemoved,
+      projectiles: [smaller, larger],
+    });
+
+    expect(projectiles).toEqual([larger]);
+    expect(onBlackHoleRemoved).toHaveBeenCalledWith(smaller);
+    expect(larger.blackHoleMass).toBe(13);
+    expect(larger.absorbedFuel).toBe(8);
+    expect(larger.velocity.x).toBeCloseTo(16 / 13);
+    expect(larger.velocity.y).toBeCloseTo(54 / 13);
+  });
+
+  it('uses the summed mass for the merged black hole radius', () => {
+    const ageMs = BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS;
+    const left = createBlackHole({
+      ageMs,
+      blackHoleMass: 4,
+      id: 1,
+      position: { x: 100, y: 0 },
+    });
+    const right = createBlackHole({
+      ageMs,
+      blackHoleMass: 9,
+      id: 2,
+      position: { x: 120, y: 0 },
+    });
+    const largestSourceRadius = Math.max(
+      getBlackHoleRenderRadius(left, ageMs),
+      getBlackHoleRenderRadius(right, ageMs),
+    );
+
+    update({ asteroids: [], blackHole: right, projectiles: [left, right] });
+
+    expect(right.blackHoleMass).toBe(13);
+    expect(getBlackHoleRenderRadius(right, ageMs)).toBeGreaterThan(largestSourceRadius);
+    expect(getBlackHoleRenderRadius(right, ageMs)).toBeCloseTo(BLACK_HOLE_MATURE_RADIUS * Math.sqrt(13));
+  });
+
+  it('does not merge separated or collapsing black holes', () => {
+    const separatedLeft = createBlackHole({ blackHoleMass: 4, id: 1, position: { x: 100, y: 0 } });
+    const separatedRight = createBlackHole({ blackHoleMass: 9, id: 2, position: { x: 300, y: 0 } });
+    const collapsingLeft = createBlackHole({
+      blackHoleMass: 4,
+      collapseStartedAt: BLACK_HOLE_MATURE_AFTER_MS,
+      id: 3,
+      position: { x: 100, y: 0 },
+    });
+    const collapsingRight = createBlackHole({ blackHoleMass: 9, id: 4, position: { x: 105, y: 0 } });
+    const onBlackHoleRemoved = vi.fn();
+
+    const separated = update({
+      asteroids: [],
+      blackHole: separatedLeft,
+      onBlackHoleRemoved,
+      projectiles: [separatedLeft, separatedRight],
+    });
+    const collapsing = update({
+      asteroids: [],
+      blackHole: collapsingLeft,
+      onBlackHoleRemoved,
+      projectiles: [collapsingLeft, collapsingRight],
+    });
+
+    expect(separated.projectiles).toEqual([separatedLeft, separatedRight]);
+    expect(collapsing.projectiles).toEqual([collapsingLeft, collapsingRight]);
+    expect(onBlackHoleRemoved).not.toHaveBeenCalled();
+  });
+
+  it('grows when it absorbs asteroids', () => {
+    const blackHole = createBlackHole();
+
+    update({ blackHole });
+
+    expect(blackHole.blackHoleMass).toBe(1 + BLACK_HOLE_ASTEROID_MASS_SCALE);
   });
 });
