@@ -12,11 +12,13 @@ import { drawTractorBeam } from '../../weapons/tractorBeam';
 import type { WeaponKind } from '../../weapons/types';
 import type { WorldSize } from '../../core/types';
 import type { SandboxDiscovery } from './discovery';
+import { SandboxBackground } from './SandboxBackground';
 import { SandboxMinimap } from './SandboxMinimap';
 import { SandboxPlanetOverlay } from './SandboxPlanetOverlay';
 import type { SandboxPlanetEntity } from './planetFuel';
 
 export class SandboxRenderer {
+  private readonly background: SandboxBackground;
   private readonly beam: Phaser.GameObjects.Graphics;
   private readonly playerTurret: Phaser.GameObjects.Image;
   private readonly playerShield: Phaser.GameObjects.Graphics;
@@ -33,7 +35,9 @@ export class SandboxRenderer {
     private readonly scene: Phaser.Scene,
     private readonly player: Phaser.Physics.Matter.Image,
     weaponPolicy: SceneWeaponPolicy,
+    world: WorldSize,
   ) {
+    this.background = new SandboxBackground(scene, world);
     this.beam = scene.add.graphics();
     this.playerTurret = scene.add.image(player.x, player.y, PLAYER_TURRET_TEXTURE_KEY).setDepth(3);
     this.playerShield = scene.add.graphics();
@@ -76,6 +80,7 @@ export class SandboxRenderer {
     planets: SandboxPlanetEntity[];
     world: WorldSize;
   }): void {
+    this.background.render();
     const visible = getPlayerVisible(input.player.visible, input.player.invulnerableUntil, input.now);
     renderPlayerThruster(this.playerThruster, this.player, input.player.lastThrustMove, input.ship.fuel > 0, visible && input.player.thrusting);
     renderPlayerTurret(this.player, this.playerTurret, input.player.lastAim, visible);

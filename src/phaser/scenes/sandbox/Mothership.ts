@@ -8,6 +8,7 @@ import { nearestWrappedPosition, wrappedDelta } from '../../world/geometry';
 
 export const MOTHERSHIP_WIDTH = 980;
 export const MOTHERSHIP_HEIGHT = 277;
+export const MOTHERSHIP_CARGO_BAY_OFFSET: Vector = { x: 100, y: 0 };
 
 const DOOR_OPEN_DURATION_MS = 900;
 const DOOR_SLIDE_DISTANCE = MOTHERSHIP_WIDTH * 0.162;
@@ -32,7 +33,7 @@ export class Mothership {
   private readonly front: Phaser.GameObjects.Image;
   private readonly door: Phaser.GameObjects.Image;
   private readonly back: Phaser.GameObjects.Image;
-  private doorOpenedAt = 0;
+  private doorOpenedAt: number | null = null;
   private undocked = false;
 
   constructor(
@@ -50,11 +51,16 @@ export class Mothership {
     this.sync(now);
   }
 
+  closeDoor(now: number): void {
+    this.doorOpenedAt = null;
+    this.undocked = false;
+    this.sync(now);
+  }
+
   update(playerPosition: Vector, now: number, world: WorldSize): boolean {
-    const playerDelta = wrappedDelta(this.position, playerPosition, world);
+    const playerDelta = wrappedDelta(this.getCargoBayPosition(), playerPosition, world);
     const movedFromBay = Math.hypot(playerDelta.x, playerDelta.y) > PLAYER_DOCKED_DISTANCE;
-    const doorFullyOpen = this.getDoorOpenProgress(now) >= 1;
-    if (!this.undocked && (movedFromBay || doorFullyOpen)) this.undocked = true;
+    if (!this.undocked && movedFromBay) this.undocked = true;
     this.sync(now);
     return this.undocked;
   }
@@ -77,8 +83,15 @@ export class Mothership {
     this.door.setPosition(this.position.x + progress * DOOR_SLIDE_DISTANCE, this.position.y);
   }
 
+  getCargoBayPosition(): Vector {
+    return {
+      x: this.position.x + MOTHERSHIP_CARGO_BAY_OFFSET.x,
+      y: this.position.y + MOTHERSHIP_CARGO_BAY_OFFSET.y,
+    };
+  }
+
   private getDoorOpenProgress(now: number): number {
-    if (this.doorOpenedAt === 0) return 1;
+    if (this.doorOpenedAt === null) return 0;
     return Phaser.Math.Clamp((now - this.doorOpenedAt) / DOOR_OPEN_DURATION_MS, 0, 1);
   }
 }

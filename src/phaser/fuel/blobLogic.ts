@@ -98,12 +98,13 @@ export function updateFuelBlobs(
   deltaSeconds: number,
   world: WorldSize,
   wrap = true,
+  playerCollisionRadius = PLAYER_COLLISION_RADIUS,
 ): { collected: FuelBlobEntity[]; fuelGain: number } {
   const collected: FuelBlobEntity[] = [];
   for (const blob of blobs) {
     updateFuelBlob(blob, player, canCollect, deltaSeconds, world, wrap);
     const distance = Phaser.Math.Distance.Between(player.x, player.y, blob.position.x, blob.position.y);
-    if (canCollect && circlesOverlap(distance, PLAYER_COLLISION_RADIUS, FUEL_BLOB_RADIUS))
+    if (canCollect && circlesOverlap(distance, playerCollisionRadius, FUEL_BLOB_RADIUS))
       collected.push(blob);
   }
   return { collected, fuelGain: collected.length * FUEL_BLOB_AMOUNT };

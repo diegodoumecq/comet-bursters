@@ -3,8 +3,7 @@ import type { ProjectileEntity } from '../projectiles/types';
 import type { Vector } from '../core/types';
 import { ASTEROIDS } from '../asteroids/config';
 import { circlesOverlap } from '../core/collision';
-import { SHIELD_HIT_COOLDOWN_MS, SHIELD_RADIUS, spendShieldFuel } from '../fuel/rules';
-import { PLAYER_COLLISION_RADIUS } from '../player/config';
+import { SHIELD_HIT_COOLDOWN_MS, spendShieldFuel } from '../fuel/rules';
 import { PROJECTILES } from '../weapons/config';
 import type { AsteroidBodies } from '../asteroids/bodies';
 
@@ -62,8 +61,10 @@ export function resolvePlayerAsteroidCollision(input: {
   getDelta?: (from: Vector, to: Vector) => Vector;
   now: number;
   playerPosition: Vector;
+  playerRadius: number;
   playerVelocity: Vector;
   shieldActive: boolean;
+  shieldRadius: number;
   shieldHitUntil: number;
 }): {
   asteroidPosition?: Vector;
@@ -83,14 +84,15 @@ export function resolvePlayerAsteroidCollision(input: {
   const dx = delta.x;
   const dy = delta.y;
   const distance = Math.hypot(dx, dy);
-  const shieldCollisionDistance = SHIELD_RADIUS + asteroidRadius;
+  const shieldCollisionDistance = input.shieldRadius + asteroidRadius;
   if (input.shieldActive && input.fuel > 0 && distance <= shieldCollisionDistance && input.now >= input.shieldHitUntil) {
     return getShieldBounce(input, dx, dy, distance, shieldCollisionDistance);
   }
   return {
     fuel: input.fuel,
     hitPlayer:
-      !input.shieldActive && circlesOverlap(distance, PLAYER_COLLISION_RADIUS, asteroidRadius),
+      !input.shieldActive &&
+      circlesOverlap(distance, input.playerRadius, asteroidRadius),
     playerVelocity: input.playerVelocity,
     shieldHitUntil: input.shieldHitUntil,
   };
@@ -112,8 +114,10 @@ export function resolvePlayerCombat(input: {
   now: number;
   playerAlive: boolean;
   playerPosition: Vector;
+  playerRadius: number;
   playerVelocity: Vector;
   shieldActive: boolean;
+  shieldRadius: number;
   shieldHitUntil: number;
 }): PlayerCombatResult {
   if (!input.playerAlive || input.invulnerable) {
@@ -137,8 +141,10 @@ export function resolvePlayerCombat(input: {
       getDelta: input.getDelta,
       now: input.now,
       playerPosition: input.playerPosition,
+      playerRadius: input.playerRadius,
       playerVelocity,
       shieldActive: input.shieldActive,
+      shieldRadius: input.shieldRadius,
       shieldHitUntil,
     });
     fuel = result.fuel;

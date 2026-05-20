@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { updateFuelBlob } from './blobLogic';
+import { updateFuelBlob, updateFuelBlobs } from './blobLogic';
 
 vi.mock('phaser', () => ({
   default: {
@@ -41,5 +41,22 @@ describe('fuel blob movement', () => {
     updateFuelBlob(blob, { x: 0, y: 0 }, false, 1 / 60, world);
 
     expect(blob.velocity.x).toBe(0);
+  });
+
+  it('uses scaled player collision radius for collection', () => {
+    const blobs = [
+      {
+        id: 1,
+        position: { x: 35, y: 0 },
+        velocity: { x: 0, y: 0 },
+        wobbleSeed: 0,
+      },
+    ];
+
+    const normal = updateFuelBlobs(blobs.map((blob) => ({ ...blob, position: { ...blob.position }, velocity: { ...blob.velocity } })), { x: 0, y: 0 }, true, 0, world, false);
+    const scaled = updateFuelBlobs(blobs, { x: 0, y: 0 }, true, 0, world, false, 36);
+
+    expect(normal.collected).toHaveLength(0);
+    expect(scaled.collected).toHaveLength(1);
   });
 });

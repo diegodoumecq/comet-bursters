@@ -36,8 +36,9 @@ export function drawFuelContour(
   rotation: number,
   fuelRatio: number,
   now: number,
+  scale = 1,
 ): void {
-  const size = PLAYER_VISUAL_SIZE * 0.5;
+  const size = PLAYER_VISUAL_SIZE * 0.5 * scale;
   const renderRotation = rotation - Math.PI / 2;
   base.clear();
   fill.clear();

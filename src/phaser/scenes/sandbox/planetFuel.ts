@@ -104,6 +104,7 @@ export function collectExtractorFuel(
   player: Vector,
   canCollect: boolean,
   now: number,
+  playerCollisionRadius = PLAYER_COLLISION_RADIUS,
 ): number {
   if (!canCollect) return 0;
   let fuelGain = 0;
@@ -114,7 +115,7 @@ export function collectExtractorFuel(
       if (
         circlesOverlap(
           Math.hypot(player.x - position.x, player.y - position.y),
-          PLAYER_COLLISION_RADIUS,
+          playerCollisionRadius,
           FUEL_BLOB_RADIUS,
         )
       ) {

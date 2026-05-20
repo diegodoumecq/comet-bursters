@@ -9,6 +9,7 @@ import { PLAYER_COLLISION_RADIUS } from './config';
 export class PlayerBody {
   readonly body: MatterImage;
   readonly shieldSensor: MatterImage;
+  private scale = 1;
 
   constructor(scene: Phaser.Scene, position: Vector, private readonly state: PlayerState) {
     this.body = scene.matter.add.image(position.x, position.y, 'phaser-ship') as MatterImage;
@@ -25,6 +26,7 @@ export class PlayerBody {
     this.state.position = { x: this.body.x, y: this.body.y };
     this.state.velocity = { x: this.body.body.velocity.x, y: this.body.body.velocity.y };
     this.state.rotation = this.body.rotation;
+    this.state.scale = this.scale;
   }
 
   setAsteroidCollisionEnabled(enabled: boolean): void {
@@ -38,6 +40,23 @@ export class PlayerBody {
     this.shieldSensor.body.collisionFilter.mask = active
       ? getAsteroidCollisionMask(asteroidCollisionEnabled)
       : 0;
+  }
+
+  setScale(scale: number): void {
+    this.scale = scale;
+    const bodyPosition = { x: this.body.x, y: this.body.y };
+    const bodyVelocity = { x: this.body.body.velocity.x, y: this.body.body.velocity.y };
+    const bodyRotation = this.body.rotation;
+    const shieldPosition = { x: this.shieldSensor.x, y: this.shieldSensor.y };
+    this.body.setScale(scale);
+    this.resizeCircle(this.body, PLAYER_COLLISION_RADIUS * scale);
+    this.resizeCircle(this.shieldSensor, SHIELD_RADIUS * scale);
+    this.body.setPosition(bodyPosition.x, bodyPosition.y);
+    this.body.setRotation(bodyRotation);
+    this.body.setVelocity(bodyVelocity.x, bodyVelocity.y);
+    this.shieldSensor.setPosition(shieldPosition.x, shieldPosition.y);
+    this.shieldSensor.setVisible(false);
+    this.syncState();
   }
 
   setPosition(position: Vector): void {
@@ -58,5 +77,23 @@ export class PlayerBody {
   setVisible(visible: boolean): void {
     this.body.setVisible(visible);
     this.state.visible = visible;
+  }
+
+  private resizeCircle(target: MatterImage, radius: number): void {
+    const filter = { ...target.body.collisionFilter };
+    const friction = target.body.friction;
+    const frictionAir = target.body.frictionAir;
+    const frictionStatic = target.body.frictionStatic;
+    const isSensor = target.body.isSensor;
+    const isStatic = target.body.isStatic;
+    const mass = target.body.mass;
+    target.setCircle(radius);
+    target.setSensor(isSensor);
+    target.setStatic(isStatic);
+    target.setFriction(friction, frictionAir, frictionStatic);
+    target.setMass(mass);
+    target.body.collisionFilter.category = filter.category;
+    target.body.collisionFilter.mask = filter.mask;
+    target.body.collisionFilter.group = filter.group;
   }
 }

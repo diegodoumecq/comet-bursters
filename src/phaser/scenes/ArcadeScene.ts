@@ -18,14 +18,14 @@ import { getTimeScale } from '../core/time';
 import type { Vector, WorldSize } from '../core/types';
 import { spawnFuelBlobs, updateFuelBlobs } from '../fuel/blobLogic';
 import { FuelBlobViews } from '../fuel/blobViews';
-import { MAX_FUEL } from '../fuel/rules';
+import { MAX_FUEL, SHIELD_RADIUS } from '../fuel/rules';
 import type { FuelBlobEntity } from '../fuel/types';
 import { ActionReader } from '../input/actions';
 import { updateParticles } from '../particles/logic';
 import type { ParticleEntity } from '../particles/types';
 import { ParticleViews } from '../particles/views';
 import { PlayerBody } from '../player/body';
-import { PLAYER_MASS } from '../player/config';
+import { PLAYER_COLLISION_RADIUS, PLAYER_MASS } from '../player/config';
 import { updatePlayerMotion } from '../player/motion';
 import { updateBlackHoles } from '../projectiles/blackHoles';
 import { ProjectileBodies } from '../projectiles/bodies';
@@ -311,8 +311,10 @@ export class PhaserArcadeScene extends BaseGameScene {
       now,
       playerAlive: this.playerIsAlive(),
       playerPosition: this.session.player.position,
+      playerRadius: PLAYER_COLLISION_RADIUS,
       playerVelocity: this.session.player.velocity,
       shieldActive,
+      shieldRadius: SHIELD_RADIUS,
       shieldHitUntil: this.session.player.shieldHitUntil,
     });
     this.session.ship.setFuel(result.fuel);

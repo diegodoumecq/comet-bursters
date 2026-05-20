@@ -5,6 +5,7 @@ export class PlayerState {
   position: Vector = { x: 0, y: 0 };
   velocity: Vector = { x: 0, y: 0 };
   rotation = 0;
+  scale = 1;
   visible = true;
   lastAim: Vector = { x: 0, y: -1 };
   lastThrustMove: Vector = { x: 0, y: -1 };

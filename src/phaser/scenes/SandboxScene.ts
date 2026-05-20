@@ -19,7 +19,7 @@ import { getTimeScale } from '../core/time';
 import type { Vector, WorldSize } from '../core/types';
 import { spawnAsteroidFuelDrops, spawnFuelBlobs, updateFuelBlobs } from '../fuel/blobLogic';
 import { FuelBlobViews } from '../fuel/blobViews';
-import { MAX_FUEL } from '../fuel/rules';
+import { MAX_FUEL, SHIELD_RADIUS } from '../fuel/rules';
 import type { FuelBlobEntity } from '../fuel/types';
 import { ActionReader } from '../input/actions';
 import { mainGameState } from '../mainGame/state';
@@ -62,6 +62,14 @@ const INITIAL_ASTEROIDS = 22;
 const RESPAWN_DELAY_MS = 1800;
 const STARTING_INSPECTION_PROBES = 300;
 const INSPECTION_DURATION_MS = 15000;
+const MOTHERSHIP_LAUNCH_CLOSED_MS = 1000;
+const MOTHERSHIP_LAUNCH_DOOR_MS = 900;
+const MOTHERSHIP_LAUNCH_SCALE_MS = 1500;
+const MOTHERSHIP_LAUNCH_TOTAL_MS =
+  MOTHERSHIP_LAUNCH_CLOSED_MS + MOTHERSHIP_LAUNCH_DOOR_MS + MOTHERSHIP_LAUNCH_SCALE_MS;
+const MOTHERSHIP_LAUNCH_START_SCALE = 0.18;
+const MOTHERSHIP_SPAWN_PLAYER_ROTATION = -Math.PI * 0.5;
+const MOTHERSHIP_SPAWN_PLAYER_AIM: Vector = { x: -1, y: 0 };
 
 export class PhaserSandboxScene extends BaseGameScene {
   private actions!: ActionReader;
@@ -81,6 +89,9 @@ export class PhaserSandboxScene extends BaseGameScene {
   private readonly discovery = new SandboxDiscovery();
   private planets: SandboxPlanetEntity[] = [];
   private mothership!: Mothership;
+  private launchStartedAt = 0;
+  private launchDoorOpened = false;
+  private controlsEnabled = false;
   private nextProjectileId = 1;
   private inspectionProbes = STARTING_INSPECTION_PROBES;
   private lastThrusterAt = 0;
@@ -97,7 +108,6 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.actions = new ActionReader(this);
     createPlayerTexture(this);
     createAsteroidTextures(this);
-    this.drawBackground();
     this.asteroidBodies = new AsteroidBodies(this);
     this.projectileBodies = new ProjectileBodies(this);
     this.fuelBlobViews = new FuelBlobViews();
@@ -116,15 +126,15 @@ export class PhaserSandboxScene extends BaseGameScene {
     const spawnPoint = this.chooseSafeSpawn();
     this.mothership = new Mothership(this, spawnPoint);
     this.playerBody = new PlayerBody(this, spawnPoint, this.player);
-    this.playerBody.setRotation(Math.PI * 0.5);
+    this.playerBody.setRotation(MOTHERSHIP_SPAWN_PLAYER_ROTATION);
     this.playerBody.body.setMass(PLAYER_MASS);
     this.playerBody.body.setFrictionAir(0);
     this.contacts.setPlayer(this.playerBody.body.body);
     this.contacts.setShield(this.playerBody.shieldSensor.body);
-    this.sceneRenderer = new SandboxRenderer(this, this.playerBody.body, this.weaponPolicy);
+    this.sceneRenderer = new SandboxRenderer(this, this.playerBody.body, this.weaponPolicy, WORLD);
     this.renderEffects = new SandboxRenderEffects(this.game.canvas, this.game.canvas.parentElement);
     this.events.once('shutdown', this.disposeRenderEffects, this);
-    this.mothership.startReveal(this.time.now);
+    this.startLaunchSequence(this.time.now);
     this.sceneRenderer.setPlayerDocked(true);
     this.addAsteroids(createInitialAsteroids());
     this.cameras.main.startFollow(this.playerBody.body, true, 1, 1);
@@ -144,7 +154,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     const deltaSeconds = (delta / 1000) * timeScale;
     this.updatePlayer(action, time, deltaSeconds);
     this.updateWorld(delta, deltaSeconds);
-    this.resolveCombat(time, action.shield, deltaSeconds);
+    this.resolveCombat(time, this.controlsEnabled && action.shield, deltaSeconds);
     this.updateFuelBlobs(deltaSeconds);
     this.updateRespawn(time);
     this.updateMothership(time);
@@ -184,9 +194,10 @@ export class PhaserSandboxScene extends BaseGameScene {
     deltaSeconds: number,
   ): void {
     this.player.updateAim(normalize(action.aim));
-    const move = action.timeDilation ? { x: 0, y: 0 } : normalize(action.move);
+    const controlsEnabled = this.controlsEnabled;
+    const move = !controlsEnabled || action.timeDilation ? { x: 0, y: 0 } : normalize(action.move);
     this.player.updateThrust(move, false);
-    if (this.player.visible) {
+    if (this.player.visible && controlsEnabled) {
       const motion = updatePlayerMotion({
         body: this.playerBody,
         deltaSeconds,
@@ -209,9 +220,9 @@ export class PhaserSandboxScene extends BaseGameScene {
     }
     const weaponResult = updateWeapons({
       action: {
-        firePrimary: action.firePrimary,
-        fireSecondary: action.fireSecondary,
-        playerActive: this.player.visible,
+        firePrimary: controlsEnabled && action.firePrimary,
+        fireSecondary: controlsEnabled && action.fireSecondary,
+        playerActive: controlsEnabled && this.player.visible,
         timeDilation: action.timeDilation,
       },
       deltaSeconds,
@@ -247,7 +258,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     const asteroidCollisionEnabled = this.playerCanCollideWithAsteroids();
     this.playerBody.setAsteroidCollisionEnabled(asteroidCollisionEnabled);
     this.playerBody.updateShieldSensor(
-      action.shield && this.player.visible && this.ship.fuel > 0,
+      controlsEnabled && action.shield && this.player.visible && this.ship.fuel > 0,
       asteroidCollisionEnabled,
     );
   }
@@ -297,6 +308,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       deltaSeconds,
       WORLD,
       false,
+      this.getPlayerCollisionRadius(),
     );
     this.ship.collectFuel(fuel.fuelGain);
     this.ship.collectFuel(
@@ -305,6 +317,7 @@ export class PhaserSandboxScene extends BaseGameScene {
         this.player.position,
         this.player.visible && this.ship.fuel < MAX_FUEL,
         this.time.now,
+        this.getPlayerCollisionRadius(),
       ),
     );
     this.runtime.syncFuelBlobs();
@@ -382,8 +395,10 @@ export class PhaserSandboxScene extends BaseGameScene {
       now,
       playerAlive: this.player.visible,
       playerPosition: this.player.position,
+      playerRadius: this.getPlayerCollisionRadius(),
       playerVelocity: this.player.velocity,
       shieldActive,
+      shieldRadius: this.getShieldRadius(),
       shieldHitUntil: this.player.shieldHitUntil,
     });
     this.ship.setFuel(result.fuel);
@@ -421,7 +436,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       )
         this.removeProjectile(projectile);
     }
-    if (this.player.visible && this.collidesWithPlanet(this.player.position, PLAYER_COLLISION_RADIUS))
+    if (this.player.visible && this.collidesWithPlanet(this.player.position, this.getPlayerCollisionRadius()))
       this.killPlayer(this.time.now);
   }
 
@@ -472,19 +487,19 @@ export class PhaserSandboxScene extends BaseGameScene {
 
   private updateRespawn(now: number): void {
     if (this.player.visible || now < this.player.respawnAt) return;
-    this.playerBody.setPosition(this.mothership.position);
-    this.playerBody.setRotation(Math.PI * 0.5);
+    this.startLaunchSequence(now);
+    this.playerBody.setRotation(MOTHERSHIP_SPAWN_PLAYER_ROTATION);
     this.playerBody.setVelocity({ x: 0, y: 0 });
     this.playerBody.setVisible(true);
     this.player.visible = true;
     this.player.respawnAt = 0;
     this.player.invulnerableUntil = now + 2200;
     this.ship.resetFuel();
-    this.mothership.startReveal(now);
     this.sceneRenderer.setPlayerDocked(true);
   }
 
   private getTractorActive(action: ReturnType<ActionReader['read']>): boolean {
+    if (!this.controlsEnabled) return false;
     return isTractorActive(this.weaponPolicy, this.ship, {
       firePrimary: action.firePrimary,
       fireSecondary: action.fireSecondary,
@@ -505,8 +520,53 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   private updateMothership(now: number): void {
+    if (!this.controlsEnabled) {
+      this.updateLaunchSequence(now);
+    }
     const undocked = this.mothership.update(this.player.position, now, WORLD);
     this.sceneRenderer.setPlayerDocked(!undocked);
+  }
+
+  private startLaunchSequence(now: number): void {
+    this.launchStartedAt = now;
+    this.launchDoorOpened = false;
+    this.controlsEnabled = false;
+    this.mothership.closeDoor(now);
+    this.player.updateAim(MOTHERSHIP_SPAWN_PLAYER_AIM);
+    this.playerBody.setScale(MOTHERSHIP_LAUNCH_START_SCALE);
+    this.playerBody.setPosition(this.mothership.getCargoBayPosition());
+    this.playerBody.setVelocity({ x: 0, y: 0 });
+  }
+
+  private updateLaunchSequence(now: number): void {
+    const elapsed = now - this.launchStartedAt;
+    this.playerBody.setScale(this.getLaunchScale(elapsed));
+    this.playerBody.setPosition(this.mothership.getCargoBayPosition());
+    this.playerBody.setVelocity({ x: 0, y: 0 });
+    if (!this.launchDoorOpened && elapsed >= MOTHERSHIP_LAUNCH_CLOSED_MS) {
+      this.launchDoorOpened = true;
+      this.mothership.startReveal(this.launchStartedAt + MOTHERSHIP_LAUNCH_CLOSED_MS);
+    }
+    if (elapsed >= MOTHERSHIP_LAUNCH_TOTAL_MS) {
+      this.controlsEnabled = true;
+      this.playerBody.setScale(1);
+      this.playerBody.setPosition(this.mothership.getCargoBayPosition());
+    }
+  }
+
+  private getLaunchScale(elapsed: number): number {
+    const scaleElapsed = elapsed - MOTHERSHIP_LAUNCH_CLOSED_MS - MOTHERSHIP_LAUNCH_DOOR_MS;
+    const progress = Phaser.Math.Clamp(scaleElapsed / MOTHERSHIP_LAUNCH_SCALE_MS, 0, 1);
+    const eased = progress * progress * (3 - 2 * progress);
+    return Phaser.Math.Linear(MOTHERSHIP_LAUNCH_START_SCALE, 1, eased);
+  }
+
+  private getPlayerCollisionRadius(): number {
+    return PLAYER_COLLISION_RADIUS * this.player.scale;
+  }
+
+  private getShieldRadius(): number {
+    return SHIELD_RADIUS * this.player.scale;
   }
 
   private getWorldPositioningInput(): Parameters<typeof rebaseWorldAroundPlayer>[0] {
@@ -524,13 +584,6 @@ export class PhaserSandboxScene extends BaseGameScene {
       runtime: this.runtime,
       world: WORLD,
     };
-  }
-
-  private drawBackground(): void {
-    const graphics = this.add.graphics();
-    graphics.lineStyle(1, 0x152033, 0.9);
-    for (let x = 0; x <= WORLD.width; x += 240) graphics.lineBetween(x, 0, x, WORLD.height);
-    for (let y = 0; y <= WORLD.height; y += 240) graphics.lineBetween(0, y, WORLD.width, y);
   }
 
   private spawnThrusterParticle(move: Vector, now: number, thrustScale: number): void {

@@ -6,6 +6,7 @@ import { drawFuelContour, PLAYER_VISUAL_SIZE } from './textures';
 
 type PlayerRenderTarget = {
   rotation: number;
+  scale?: number;
   setVisible(visible: boolean): unknown;
   x: number;
   y: number;
@@ -27,6 +28,7 @@ export function renderPlayerTurret(
   turret.setVisible(visible);
   turret.setPosition(player.x, player.y);
   turret.setRotation(Math.atan2(aim.y, aim.x));
+  turret.setScale(player.scale ?? 1);
 }
 
 export function renderPlayerShield(
@@ -39,7 +41,7 @@ export function renderPlayerShield(
   graphics.clear();
   if (!active || !visible || fuel <= 0) return;
   graphics.lineStyle(3, 0x64c8ff, 0.75);
-  graphics.strokeCircle(player.x, player.y, SHIELD_RADIUS);
+  graphics.strokeCircle(player.x, player.y, SHIELD_RADIUS * (player.scale ?? 1));
 }
 
 export function renderPlayerFuel(
@@ -64,6 +66,7 @@ export function renderPlayerFuel(
     player.rotation,
     Math.max(0, Math.min(1, fuel / MAX_FUEL)),
     now,
+    player.scale ?? 1,
   );
 }
 
@@ -78,7 +81,7 @@ export function renderPlayerThruster(
   graphics.setVisible(visible);
   if (!visible) return;
 
-  const size = PLAYER_VISUAL_SIZE * 0.5;
+  const size = PLAYER_VISUAL_SIZE * 0.5 * (player.scale ?? 1);
   const flameLength = fuelAvailable
     ? size * Phaser.Math.FloatBetween(1.2, 1.5)
     : size * Phaser.Math.FloatBetween(0.58, 0.74);
