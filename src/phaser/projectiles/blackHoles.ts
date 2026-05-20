@@ -13,6 +13,8 @@ export const BLACK_HOLE_RADIUS = 6;
 export const BLACK_HOLE_MATURE_AFTER_MS = 3000;
 export const BLACK_HOLE_MATURE_RADIUS = 25;
 export const BLACK_HOLE_GRAVITY_STRENGTH = 1.5;
+export const BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER = 12;
+export const BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER = 24;
 export const BLACK_HOLE_GROWTH_DURATION_MS = 1000;
 export const BLACK_HOLE_COLLAPSE_DURATION_MS = 700;
 export const DISTORTION_RADIUS = 200;
@@ -163,10 +165,11 @@ function applyBlackHoleGravity(input: BlackHoleLifecycleOptions): void {
         blob.velocity,
         blob.position,
         blackHole.position,
-        gravityRange,
+        radius * BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
         radius,
         input.getDelta,
         timeScale,
+        BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
       );
     }
   }
@@ -239,12 +242,14 @@ function applyBlackHoleGravityToVelocity(
   radius: number,
   getDelta: BlackHoleLifecycleOptions['getDelta'],
   timeScale: number,
+  strengthMultiplier = 1,
 ): boolean {
   const delta = getDelta(position.x, position.y, blackHolePosition.x, blackHolePosition.y);
   const distSq = delta.x * delta.x + delta.y * delta.y;
   const dist = Math.sqrt(distSq);
   if (dist > 0 && dist < gravityRange) {
-    const force = (BLACK_HOLE_GRAVITY_STRENGTH * 0.5 * radius * radius) / distSq;
+    const force =
+      (BLACK_HOLE_GRAVITY_STRENGTH * strengthMultiplier * 0.5 * radius * radius) / distSq;
     velocity.x += (delta.x / dist) * force * timeScale;
     velocity.y += (delta.y / dist) * force * timeScale;
     return true;

@@ -147,6 +147,25 @@ describe('black-hole gravity', () => {
     expect(fuelBlob.velocity.x).toBeGreaterThan(0);
   });
 
+  it('pulls fuel blobs from beyond the asteroid gravity range', () => {
+    const fuelBlob = {
+      id: 1,
+      position: { x: -100, y: 0 },
+      velocity: { x: 0, y: 0 },
+      wobbleSeed: 0,
+    };
+
+    update({
+      asteroids: [],
+      blackHole: createBlackHole({
+        ageMs: BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS,
+      }),
+      fuelBlob,
+    });
+
+    expect(fuelBlob.velocity.x).toBeGreaterThan(0);
+  });
+
   it('does not pull targets before the black hole matures', () => {
     const fuelBlob = {
       id: 1,

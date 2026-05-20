@@ -145,6 +145,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.updatePlayer(action, time, deltaSeconds);
     this.updateWorld(delta, deltaSeconds);
     this.resolveCombat(time, action.shield, deltaSeconds);
+    this.updateFuelBlobs(deltaSeconds);
     this.updateRespawn(time);
     this.updateMothership(time);
     this.discovery.update(this.player.position, this.planets, WORLD);
@@ -281,6 +282,13 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.removeProjectile(projectile);
     updatePlanetFuel(this.planets, this.time.now, deltaSeconds);
     for (const planet of this.planets) this.planetViews.sync(planet);
+    for (const particle of updateParticles(this.runtime.world.particles, deltaMs))
+      this.removeParticle(particle);
+    this.runtime.syncParticles();
+    keepMovingEntitiesNearPlayer(this.getWorldPositioningInput());
+  }
+
+  private updateFuelBlobs(deltaSeconds: number): void {
     applyPlanetGravityToFuelBlobs(this.runtime.world.fuelBlobs, this.planets, WORLD, deltaSeconds);
     const fuel = updateFuelBlobs(
       this.runtime.world.fuelBlobs,
@@ -303,10 +311,6 @@ export class PhaserSandboxScene extends BaseGameScene {
     for (const blob of fuel.collected) this.removeFuelBlob(blob);
     for (const blob of absorbFuelIntoPlanets(this.runtime.world.fuelBlobs, this.planets, WORLD))
       this.removeFuelBlob(blob);
-    for (const particle of updateParticles(this.runtime.world.particles, deltaMs))
-      this.removeParticle(particle);
-    this.runtime.syncParticles();
-    keepMovingEntitiesNearPlayer(this.getWorldPositioningInput());
   }
 
   private resolveCombat(now: number, shieldActive: boolean, deltaSeconds: number): void {

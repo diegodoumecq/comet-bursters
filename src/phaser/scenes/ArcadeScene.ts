@@ -125,6 +125,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.updatePlayerActions(action, deltaSeconds, time);
     this.updateWorldState(delta, deltaSeconds);
     this.resolveCombat(time, action.shield, deltaSeconds);
+    this.collectFuelBlobs(deltaSeconds);
     this.updateLifecycle(time);
   }
 
@@ -195,7 +196,6 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.asteroidBodies.syncToroidalAll(this.session.world.asteroids, this.worldSize);
     this.contacts.syncAsteroids(this.session.world.asteroids, this.asteroidBodies);
     updateAsteroidSplitCollisions(this.session.world.asteroids, this.asteroidBodies);
-    this.collectFuelBlobs(deltaSeconds);
     this.removeExpiredParticles(deltaMs);
     for (const projectile of updateProjectiles(
       this.session.world.projectiles,
