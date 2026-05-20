@@ -1,10 +1,7 @@
 import Phaser from 'phaser';
 
 import type { MatterImage, Vector, WorldSize } from '../../core/types';
-import type { WeaponKind } from '../../weapons/types';
 import type { ActionState } from '../../input/actions';
-import { drawTractorBeam } from '../../weapons/tractorBeam';
-import { PLAYER_TURRET_TEXTURE_KEY } from '../../player/textures';
 import {
   getPlayerVisible,
   renderPlayerFuel,
@@ -12,13 +9,18 @@ import {
   renderPlayerThruster,
   renderPlayerTurret,
 } from '../../player/rendering';
-import type { SceneWeaponPolicy } from '../../weapons/scenePolicy';
+import { PLAYER_TURRET_TEXTURE_KEY } from '../../player/textures';
 import { Hud } from '../../ui/Hud';
 import { WeaponMenu } from '../../ui/WeaponMenu';
+import type { SceneWeaponPolicy } from '../../weapons/scenePolicy';
+import { drawTractorBeam } from '../../weapons/tractorBeam';
+import type { WeaponKind } from '../../weapons/types';
 import type { ArcadeRunState } from './arcadeRunState';
-import { createArcadeBackground, createArcadeGameOverText, updateCameraShake } from './arcadeVisuals';
+import { ArcadeSpaceBackground } from './ArcadeSpaceBackground';
+import { createArcadeGameOverText, updateCameraShake } from './arcadeVisuals';
 
 export class ArcadeRenderer {
+  private readonly background: ArcadeSpaceBackground;
   private readonly beam: Phaser.GameObjects.Graphics;
   private readonly playerTurret: Phaser.GameObjects.Image;
   private readonly playerShield: Phaser.GameObjects.Graphics;
@@ -38,7 +40,7 @@ export class ArcadeRenderer {
     world: WorldSize,
     weaponPolicy: SceneWeaponPolicy,
   ) {
-    createArcadeBackground(scene, world);
+    this.background = new ArcadeSpaceBackground(scene, world);
     this.beam = scene.add.graphics();
     this.playerTurret = scene.add.image(player.x, player.y, PLAYER_TURRET_TEXTURE_KEY).setDepth(3);
     this.playerShield = scene.add.graphics();
@@ -56,12 +58,33 @@ export class ArcadeRenderer {
   }
 
   render(now: number, session: ArcadeRunState, action: ActionState, tractorActive: boolean): void {
+    this.background.render(now, session.player.velocity);
     const playerAlive = session.playerAlive;
     const playerVisible = getPlayerVisible(playerAlive, session.player.invulnerableUntil, now);
-    renderPlayerThruster(this.playerThruster, this.player, session.player.lastThrustMove, session.ship.fuel > 0, playerVisible && session.player.thrusting);
+    renderPlayerThruster(
+      this.playerThruster,
+      this.player,
+      session.player.lastThrustMove,
+      session.ship.fuel > 0,
+      playerVisible && session.player.thrusting,
+    );
     renderPlayerTurret(this.player, this.playerTurret, session.player.lastAim, playerVisible);
-    renderPlayerFuel(this.playerFuelBase, this.playerFuelFill, this.playerFuelMask, this.player, session.ship.fuel, now, playerVisible);
-    renderPlayerShield(this.playerShield, this.player, action.shield, session.ship.fuel, playerVisible);
+    renderPlayerFuel(
+      this.playerFuelBase,
+      this.playerFuelFill,
+      this.playerFuelMask,
+      this.player,
+      session.ship.fuel,
+      now,
+      playerVisible,
+    );
+    renderPlayerShield(
+      this.playerShield,
+      this.player,
+      action.shield,
+      session.ship.fuel,
+      playerVisible,
+    );
     drawTractorBeam(this.beam, this.player, session.player.lastAim, tractorActive);
     this.weaponMenu.draw(
       this.player,
@@ -97,5 +120,9 @@ export class ArcadeRenderer {
   showGameOver(world: WorldSize): void {
     if (this.gameOverText) return;
     this.gameOverText = createArcadeGameOverText(this.scene, world);
+  }
+
+  resize(world: WorldSize): void {
+    this.background.resize(world);
   }
 }

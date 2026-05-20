@@ -420,6 +420,7 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private handleResize(gameSize: Phaser.Structs.Size): void {
     this.worldSize = { width: gameSize.width, height: gameSize.height };
+    this.sceneRenderer.resize(this.worldSize);
   }
 
   private disposeRenderEffects(): void {
