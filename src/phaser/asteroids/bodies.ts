@@ -1,9 +1,11 @@
 import Phaser from 'phaser';
 
 import type { MatterImage } from '../core/types';
-import type { AsteroidEntity } from './types';
 import { ASTEROIDS } from './logic';
 import { ASTEROID_TEXTURES } from './textures';
+import type { AsteroidEntity } from './types';
+
+const SPLIT_GROUP_MULTIPLIER = -1;
 
 export class AsteroidBodies {
   private readonly bodies = new Map<number, MatterImage>();
@@ -23,6 +25,7 @@ export class AsteroidBodies {
     body.setBounce(1);
     body.setVelocity(asteroid.velocity.x, asteroid.velocity.y);
     this.bodies.set(asteroid.id, body);
+    this.syncCollisionFilter(asteroid);
     return body;
   }
 
@@ -45,5 +48,12 @@ export class AsteroidBodies {
 
   syncAll(asteroids: AsteroidEntity[]): void {
     for (const asteroid of asteroids) this.sync(asteroid);
+  }
+
+  syncCollisionFilter(asteroid: AsteroidEntity): void {
+    const body = this.get(asteroid);
+    body.body.collisionFilter.group = asteroid.splitGroupId
+      ? asteroid.splitGroupId * SPLIT_GROUP_MULTIPLIER
+      : 0;
   }
 }

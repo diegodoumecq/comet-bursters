@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import { AsteroidBodies } from '../asteroids/bodies';
 import { ASTEROIDS, wrapAsteroid } from '../asteroids/logic';
+import { updateAsteroidSplitCollisions } from '../asteroids/splitCollisions';
 import type { AsteroidEntity } from '../asteroids/types';
 import { destroyAsteroidWithWeapon } from '../combat/asteroidDestruction';
 import { resolvePlayerCombat, resolveProjectileContactCombat } from '../combat/asteroids';
@@ -189,6 +190,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     for (const asteroid of this.session.world.asteroids)
       wrapAsteroid(asteroid, this.asteroidBodies, this.worldSize);
     this.asteroidBodies.syncAll(this.session.world.asteroids);
+    updateAsteroidSplitCollisions(this.session.world.asteroids, this.asteroidBodies);
     this.collectFuelBlobs(deltaSeconds);
     this.removeExpiredParticles(deltaMs);
     for (const projectile of updateProjectiles(

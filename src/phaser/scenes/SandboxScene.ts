@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import { AsteroidBodies } from '../asteroids/bodies';
 import { ASTEROIDS, createAsteroid } from '../asteroids/logic';
+import { updateAsteroidSplitCollisions } from '../asteroids/splitCollisions';
 import { createAsteroidTextures } from '../asteroids/textures';
 import type { AsteroidEntity, AsteroidTier } from '../asteroids/types';
 import { destroyAsteroidWithWeapon } from '../combat/asteroidDestruction';
@@ -250,6 +251,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.asteroidBodies.get(asteroid).setVelocity(asteroid.velocity.x, asteroid.velocity.y);
     }
     this.asteroidBodies.syncAll(this.runtime.world.asteroids);
+    updateAsteroidSplitCollisions(this.runtime.world.asteroids, this.asteroidBodies);
     for (const projectile of this.runtime.world.projectiles) {
       if (projectile.kind !== 'blackHole')
         applyPlanetGravity(
