@@ -11,7 +11,7 @@ export const MOTHERSHIP_HEIGHT = 277;
 export const MOTHERSHIP_CARGO_BAY_OFFSET: Vector = { x: 100, y: 0 };
 
 const DOOR_OPEN_DURATION_MS = 900;
-const DOOR_SLIDE_DISTANCE = MOTHERSHIP_WIDTH * 0.162;
+export const MOTHERSHIP_DOOR_SLIDE_DISTANCE = MOTHERSHIP_WIDTH * 0.162;
 const FRONT_TEXTURE_KEY = 'sandbox-mothership-front';
 const DOOR_TEXTURE_KEY = 'sandbox-mothership-door';
 const BACK_TEXTURE_KEY = 'sandbox-mothership-back';
@@ -80,7 +80,7 @@ export class Mothership {
     const progress = this.getDoorOpenProgress(now);
     this.front.setPosition(this.position.x, this.position.y);
     this.back.setPosition(this.position.x, this.position.y);
-    this.door.setPosition(this.position.x + progress * DOOR_SLIDE_DISTANCE, this.position.y);
+    this.door.setPosition(this.position.x + progress * MOTHERSHIP_DOOR_SLIDE_DISTANCE, this.position.y);
   }
 
   getCargoBayPosition(): Vector {

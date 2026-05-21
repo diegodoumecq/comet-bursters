@@ -44,7 +44,7 @@ import { normalize, wrappedDelta } from '../world/geometry';
 import { GameWorldRuntime } from '../world/runtime';
 import { BaseGameScene } from './BaseGameScene';
 import { SandboxDiscovery } from './sandbox/discovery';
-import { Mothership, preloadMothershipTextures } from './sandbox/Mothership';
+import { MOTHERSHIP_DOOR_SLIDE_DISTANCE, Mothership, preloadMothershipTextures } from './sandbox/Mothership';
 import {
   absorbFuelIntoPlanets,
   collectExtractorFuel,
@@ -68,6 +68,7 @@ const MOTHERSHIP_LAUNCH_SCALE_MS = 1500;
 const MOTHERSHIP_LAUNCH_TOTAL_MS =
   MOTHERSHIP_LAUNCH_CLOSED_MS + MOTHERSHIP_LAUNCH_DOOR_MS + MOTHERSHIP_LAUNCH_SCALE_MS;
 const MOTHERSHIP_LAUNCH_START_SCALE = 0.18;
+const MOTHERSHIP_LAUNCH_START_OFFSET: Vector = { x: MOTHERSHIP_DOOR_SLIDE_DISTANCE * 0.55, y: 0 };
 const MOTHERSHIP_SPAWN_PLAYER_ROTATION = -Math.PI * 0.5;
 const MOTHERSHIP_SPAWN_PLAYER_AIM: Vector = { x: -1, y: 0 };
 
@@ -522,6 +523,9 @@ export class PhaserSandboxScene extends BaseGameScene {
   private updateMothership(now: number): void {
     if (!this.controlsEnabled) {
       this.updateLaunchSequence(now);
+      this.mothership.sync(now);
+      this.sceneRenderer.setPlayerDocked(true);
+      return;
     }
     const undocked = this.mothership.update(this.player.position, now, WORLD);
     this.sceneRenderer.setPlayerDocked(!undocked);
@@ -534,14 +538,14 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.mothership.closeDoor(now);
     this.player.updateAim(MOTHERSHIP_SPAWN_PLAYER_AIM);
     this.playerBody.setScale(MOTHERSHIP_LAUNCH_START_SCALE);
-    this.playerBody.setPosition(this.mothership.getCargoBayPosition());
+    this.playerBody.setPosition(this.getLaunchPosition(0));
     this.playerBody.setVelocity({ x: 0, y: 0 });
   }
 
   private updateLaunchSequence(now: number): void {
     const elapsed = now - this.launchStartedAt;
     this.playerBody.setScale(this.getLaunchScale(elapsed));
-    this.playerBody.setPosition(this.mothership.getCargoBayPosition());
+    this.playerBody.setPosition(this.getLaunchPosition(elapsed));
     this.playerBody.setVelocity({ x: 0, y: 0 });
     if (!this.launchDoorOpened && elapsed >= MOTHERSHIP_LAUNCH_CLOSED_MS) {
       this.launchDoorOpened = true;
@@ -559,6 +563,17 @@ export class PhaserSandboxScene extends BaseGameScene {
     const progress = Phaser.Math.Clamp(scaleElapsed / MOTHERSHIP_LAUNCH_SCALE_MS, 0, 1);
     const eased = progress * progress * (3 - 2 * progress);
     return Phaser.Math.Linear(MOTHERSHIP_LAUNCH_START_SCALE, 1, eased);
+  }
+
+  private getLaunchPosition(elapsed: number): Vector {
+    const center = this.mothership.getCargoBayPosition();
+    const moveElapsed = elapsed - MOTHERSHIP_LAUNCH_CLOSED_MS - MOTHERSHIP_LAUNCH_DOOR_MS;
+    const progress = Phaser.Math.Clamp(moveElapsed / (MOTHERSHIP_LAUNCH_SCALE_MS * 0.42), 0, 1);
+    const eased = progress * progress * (3 - 2 * progress);
+    return {
+      x: center.x + MOTHERSHIP_LAUNCH_START_OFFSET.x * (1 - eased),
+      y: center.y + MOTHERSHIP_LAUNCH_START_OFFSET.y * (1 - eased),
+    };
   }
 
   private getPlayerCollisionRadius(): number {
