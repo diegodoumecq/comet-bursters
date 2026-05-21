@@ -11,5 +11,6 @@ export type ProjectileSpec = {
   radius: number;
   recoil: number;
   speed: number;
+  speedVariance: number;
   spread: number;
 };

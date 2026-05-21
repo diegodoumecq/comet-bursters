@@ -32,28 +32,64 @@ export function fireWeapon(
 
   const degradedSmall = isDegradedSmall(kind, mode);
   const baseAngle = Math.atan2(direction.y, direction.x);
-  const shots: ProjectileShot[] = [];
-  for (let index = 0; index < spec.count; index += 1) {
-    const offset = spec.count === 1 ? 0 : (index / (spec.count - 1) - 0.5) * spec.spread;
-    const angle = baseAngle + offset;
-    const shotDirection = { x: Math.cos(angle), y: Math.sin(angle) };
-    const scale = degradedSmall ? 0.5 : 1;
-    shots.push({
-      angle,
-      kind,
-      lifetimeMs: spec.lifetimeMs * scale,
-      velocity: {
-        x: shooterVelocity.x + shotDirection.x * spec.speed * scale,
-        y: shooterVelocity.y + shotDirection.y * spec.speed * scale,
-      },
-    });
-  }
+  const shots = createShots(kind, baseAngle, shooterVelocity, degradedSmall);
   return {
     fuel: spendWeaponFuel(fuel, kind, mode),
     lastShotAt: { ...lastShotAt, [kind]: now },
     recoil: { x: -direction.x * spec.recoil, y: -direction.y * spec.recoil },
     shots,
   };
+}
+
+function createShots(
+  kind: ProjectileKind,
+  baseAngle: number,
+  shooterVelocity: Vector,
+  degradedSmall: boolean,
+): ProjectileShot[] {
+  const shots: ProjectileShot[] = [];
+  const volleys = kind === 'shotgun' ? 2 : 1;
+  for (let volley = 0; volley < volleys; volley += 1) {
+    shots.push(...createShotVolley(kind, baseAngle, shooterVelocity, degradedSmall));
+  }
+  return shots;
+}
+
+function createShotVolley(
+  kind: ProjectileKind,
+  baseAngle: number,
+  shooterVelocity: Vector,
+  degradedSmall: boolean,
+): ProjectileShot[] {
+  const spec = PROJECTILES[kind];
+  const scale = degradedSmall ? 0.5 : 1;
+  const shots: ProjectileShot[] = [];
+  for (let index = 0; index < spec.count; index += 1) {
+    const offset = spec.count === 1 ? 0 : (index / (spec.count - 1) - 0.5) * spec.spread;
+    const angle = baseAngle + offset;
+    const shotDirection = { x: Math.cos(angle), y: Math.sin(angle) };
+    const speed = getProjectileSpeed(spec.speed, spec.speedVariance) * scale;
+    shots.push({
+      angle,
+      kind,
+      lifetimeMs: getProjectileLifetime(spec.lifetimeMs, spec.speedVariance) * scale,
+      velocity: {
+        x: shooterVelocity.x + shotDirection.x * speed,
+        y: shooterVelocity.y + shotDirection.y * speed,
+      },
+    });
+  }
+  return shots;
+}
+
+function getProjectileSpeed(speed: number, variance: number): number {
+  if (variance <= 0) return speed;
+  return speed * (1 - variance + Math.random() * variance * 2);
+}
+
+function getProjectileLifetime(lifetimeMs: number, variance: number): number {
+  if (variance <= 0) return lifetimeMs;
+  return lifetimeMs * (0.7 + Math.random() * 0.3);
 }
 
 function isDegradedSmall(kind: ProjectileKind, mode: FireMode): boolean {

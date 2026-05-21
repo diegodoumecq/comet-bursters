@@ -45,6 +45,8 @@ import { chooseSafePlayerPosition } from './arcade/runFlow';
 import { createWaveAsteroids } from './arcade/waves';
 import { BaseGameScene } from './BaseGameScene';
 
+const GAME_OVER_RESTART_DELAY_MS = 3000;
+
 export class PhaserArcadeScene extends BaseGameScene {
   private actions!: ActionReader;
   private sceneRenderer!: ArcadeRenderer;
@@ -58,6 +60,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   private particleViews!: ParticleViews;
   private runtime!: GameWorldRuntime;
   private renderEffects!: ArcadeRenderEffects;
+  private gameOverAt = 0;
   private lastThrusterAt = 0;
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: ALL_WEAPONS };
 
@@ -115,7 +118,12 @@ export class PhaserArcadeScene extends BaseGameScene {
     time: number,
     delta: number,
   ): void {
-    if (this.session.lives <= 0 && (action.firePrimary || action.fireSecondary)) {
+    if (
+      this.session.lives <= 0 &&
+      this.gameOverAt > 0 &&
+      time - this.gameOverAt >= GAME_OVER_RESTART_DELAY_MS &&
+      (action.firePrimary || action.fireSecondary)
+    ) {
       this.scene.restart();
       return;
     }
@@ -404,6 +412,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private showGameOver(): void {
+    if (this.gameOverAt === 0) this.gameOverAt = this.time.now;
     this.sceneRenderer.showGameOver(this.worldSize);
   }
 

@@ -13,6 +13,7 @@ export const PROJECTILES: Record<Exclude<WeaponKind, 'tractor'>, ProjectileSpec>
     radius: 4,
     recoil: 0.3,
     speed: 15,
+    speedVariance: 0,
     spread: 0,
   },
   pusher: {
@@ -25,6 +26,7 @@ export const PROJECTILES: Record<Exclude<WeaponKind, 'tractor'>, ProjectileSpec>
     radius: 6,
     recoil: 0.1333,
     speed: 8,
+    speedVariance: 0,
     spread: 0,
   },
   shotgun: {
@@ -35,8 +37,9 @@ export const PROJECTILES: Record<Exclude<WeaponKind, 'tractor'>, ProjectileSpec>
     impact: 0.02,
     lifetimeMs: 250,
     radius: 3,
-    recoil: 0.9,
+    recoil: 2,
     speed: 12,
+    speedVariance: 0.3,
     spread: Math.PI / 4,
   },
   blackHole: {
@@ -49,6 +52,7 @@ export const PROJECTILES: Record<Exclude<WeaponKind, 'tractor'>, ProjectileSpec>
     radius: 6,
     recoil: 4,
     speed: 1,
+    speedVariance: 0,
     spread: 0,
   },
   inspectionProbe: {
@@ -61,6 +65,7 @@ export const PROJECTILES: Record<Exclude<WeaponKind, 'tractor'>, ProjectileSpec>
     radius: 5,
     recoil: 0,
     speed: 18,
+    speedVariance: 0,
     spread: 0,
   },
 };
