@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
 
 import { AsteroidBodies } from '../asteroids/bodies';
-import { ASTEROIDS, createAsteroid } from '../asteroids/logic';
+import { ASTEROIDS } from '../asteroids/logic';
 import { updateAsteroidSplitCollisions } from '../asteroids/splitCollisions';
 import { createAsteroidTextures } from '../asteroids/textures';
-import type { AsteroidEntity, AsteroidTier } from '../asteroids/types';
+import type { AsteroidEntity } from '../asteroids/types';
 import { destroyAsteroidWithWeapon } from '../combat/asteroidDestruction';
 import { resolvePlayerCombat, resolveProjectileContactCombat } from '../combat/asteroids';
 import {
@@ -51,9 +51,9 @@ import {
   updatePlanetFuel,
   type SandboxPlanetEntity,
 } from './sandbox/planetFuel';
-import { createSandboxPlanets } from './sandbox/sandboxPlanets';
 import { SandboxRenderEffects } from './sandbox/SandboxRenderEffects';
 import { SandboxRenderer } from './sandbox/SandboxRenderer';
+import { createSandboxStartup } from './sandbox/sandboxSpawns';
 import { getWrappedDistance } from './sandbox/screenWrapping';
 import { keepMovingEntitiesNearPlayer, rebaseWorldAroundPlayer } from './sandbox/worldPositioning';
 
@@ -122,9 +122,10 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.particleViews,
       this.contacts,
     );
-    this.planets = createSandboxPlanets(WORLD);
+    const startup = createSandboxStartup(WORLD, INITIAL_ASTEROIDS);
+    this.planets = startup.planets;
     for (const planet of this.planets) this.planetViews.add(planet);
-    const spawnPoint = this.chooseSafeSpawn();
+    const spawnPoint = startup.spawnPoint;
     this.mothership = new Mothership(this, spawnPoint);
     this.playerBody = new PlayerBody(this, spawnPoint, this.player);
     this.playerBody.setRotation(MOTHERSHIP_SPAWN_PLAYER_ROTATION);
@@ -137,7 +138,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.events.once('shutdown', this.disposeRenderEffects, this);
     this.startLaunchSequence(this.time.now);
     this.sceneRenderer.setPlayerDocked(true);
-    this.addAsteroids(createInitialAsteroids());
+    this.addAsteroids(startup.asteroids);
     this.cameras.main.startFollow(this.playerBody.body, true, 1, 1);
   }
 
@@ -509,17 +510,6 @@ export class PhaserSandboxScene extends BaseGameScene {
     });
   }
 
-  private chooseSafeSpawn(): Vector {
-    for (let attempt = 0; attempt < 60; attempt += 1) {
-      const candidate = {
-        x: WORLD.width * 0.5 + Phaser.Math.Between(-700, 700),
-        y: WORLD.height * 0.5 + Phaser.Math.Between(-700, 700),
-      };
-      if (!this.collidesWithPlanet(candidate, 220)) return candidate;
-    }
-    return { x: WORLD.width * 0.5, y: WORLD.height * 0.5 };
-  }
-
   private updateMothership(now: number): void {
     if (!this.controlsEnabled) {
       this.updateLaunchSequence(now);
@@ -652,25 +642,4 @@ export class PhaserSandboxScene extends BaseGameScene {
   private disposeRenderEffects(): void {
     this.renderEffects.dispose();
   }
-}
-
-function createInitialAsteroids(): AsteroidEntity[] {
-  const tiers: AsteroidTier[] = ['small', 'medium', 'big', 'mega'];
-  const asteroids: AsteroidEntity[] = [];
-  for (let index = 0; index < INITIAL_ASTEROIDS; index += 1) {
-    const tier = tiers[Phaser.Math.Between(0, tiers.length - 1)];
-    const angle = Math.random() * Math.PI * 2;
-    const speed = ASTEROIDS[tier].speed * Phaser.Math.FloatBetween(0.35, 0.8);
-    asteroids.push(
-      createAsteroid(
-        tier,
-        {
-          x: Phaser.Math.Between(200, WORLD.width - 200),
-          y: Phaser.Math.Between(200, WORLD.height - 200),
-        },
-        { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
-      ),
-    );
-  }
-  return asteroids;
 }
