@@ -36,8 +36,8 @@ const PLANET_SHAPE_STYLES: Record<PlanetKind, PlanetShapeStyle> = {
   },
   gas: {
     mode: 'ellipse',
-    xScale: 1.035,
-    yScale: 0.965,
+    xScale: 1,
+    yScale: 1,
     rotationOffset: -0.08,
   },
   toxic: {
