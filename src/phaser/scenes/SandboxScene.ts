@@ -63,10 +63,9 @@ const RESPAWN_DELAY_MS = 1800;
 const STARTING_INSPECTION_PROBES = 300;
 const INSPECTION_DURATION_MS = 15000;
 const MOTHERSHIP_LAUNCH_CLOSED_MS = 1000;
-const MOTHERSHIP_LAUNCH_DOOR_MS = 900;
-const MOTHERSHIP_LAUNCH_SCALE_MS = 1500;
+const MOTHERSHIP_LAUNCH_ACTIVE_MS = 900;
 const MOTHERSHIP_LAUNCH_TOTAL_MS =
-  MOTHERSHIP_LAUNCH_CLOSED_MS + MOTHERSHIP_LAUNCH_DOOR_MS + MOTHERSHIP_LAUNCH_SCALE_MS;
+  MOTHERSHIP_LAUNCH_CLOSED_MS + MOTHERSHIP_LAUNCH_ACTIVE_MS;
 const MOTHERSHIP_LAUNCH_START_SCALE = 0.18;
 const MOTHERSHIP_LAUNCH_START_OFFSET: Vector = { x: MOTHERSHIP_DOOR_SLIDE_DISTANCE * 0.55, y: 0 };
 const MOTHERSHIP_SPAWN_PLAYER_ROTATION = -Math.PI * 0.5;
@@ -549,21 +548,27 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   private getLaunchScale(elapsed: number): number {
-    const scaleElapsed = elapsed - MOTHERSHIP_LAUNCH_CLOSED_MS - MOTHERSHIP_LAUNCH_DOOR_MS;
-    const progress = Phaser.Math.Clamp(scaleElapsed / MOTHERSHIP_LAUNCH_SCALE_MS, 0, 1);
+    const progress = this.getLaunchProgress(elapsed);
     const eased = progress * progress * (3 - 2 * progress);
     return Phaser.Math.Linear(MOTHERSHIP_LAUNCH_START_SCALE, 1, eased);
   }
 
   private getLaunchPosition(elapsed: number): Vector {
     const center = this.mothership.getCargoBayPosition();
-    const moveElapsed = elapsed - MOTHERSHIP_LAUNCH_CLOSED_MS - MOTHERSHIP_LAUNCH_DOOR_MS;
-    const progress = Phaser.Math.Clamp(moveElapsed / (MOTHERSHIP_LAUNCH_SCALE_MS * 0.42), 0, 1);
+    const progress = this.getLaunchProgress(elapsed);
     const eased = progress * progress * (3 - 2 * progress);
     return {
       x: center.x + MOTHERSHIP_LAUNCH_START_OFFSET.x * (1 - eased),
       y: center.y + MOTHERSHIP_LAUNCH_START_OFFSET.y * (1 - eased),
     };
+  }
+
+  private getLaunchProgress(elapsed: number): number {
+    return Phaser.Math.Clamp(
+      (elapsed - MOTHERSHIP_LAUNCH_CLOSED_MS) / MOTHERSHIP_LAUNCH_ACTIVE_MS,
+      0,
+      1,
+    );
   }
 
   private getPlayerCollisionRadius(): number {
