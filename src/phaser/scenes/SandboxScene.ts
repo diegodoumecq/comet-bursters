@@ -92,6 +92,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private launchStartedAt = 0;
   private launchDoorOpened = false;
   private controlsEnabled = false;
+  private shipCollisionsDisabledForIntro = false;
   private nextProjectileId = 1;
   private inspectionProbes = STARTING_INSPECTION_PROBES;
   private lastThrusterAt = 0;
@@ -130,8 +131,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.playerBody.setRotation(MOTHERSHIP_SPAWN_PLAYER_ROTATION);
     this.playerBody.body.setMass(PLAYER_MASS);
     this.playerBody.body.setFrictionAir(0);
-    this.contacts.setPlayer(this.playerBody.body.body);
-    this.contacts.setShield(this.playerBody.shieldSensor.body);
+    this.syncPlayerContactBodies();
     this.sceneRenderer = new SandboxRenderer(this, this.playerBody.body, this.weaponPolicy, WORLD);
     this.renderEffects = new SandboxRenderEffects(this.game.canvas, this.game.canvas.parentElement);
     this.events.once('shutdown', this.disposeRenderEffects, this);
@@ -155,7 +155,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     const deltaSeconds = (delta / 1000) * timeScale;
     this.updatePlayer(action, time, deltaSeconds);
     this.updateWorld(delta, deltaSeconds);
-    this.resolveCombat(time, this.controlsEnabled && action.shield, deltaSeconds);
+    this.resolveCombat(time, this.isShieldActive(action), deltaSeconds);
     this.updateFuelBlobs(deltaSeconds);
     this.updateRespawn(time);
     this.updateMothership(time);
@@ -168,7 +168,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       now: time,
       player: this.player,
       projectileCount: this.runtime.world.projectiles.length,
-      shieldActive: action.shield,
+      shieldActive: this.isShieldActive(action),
       ship: this.ship,
       timeDilation: action.timeDilation,
       tractorActive: this.getTractorActive(action),
@@ -256,12 +256,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.asteroidBodies,
       weaponResult.tractorActive,
     );
-    const asteroidCollisionEnabled = this.playerCanCollideWithAsteroids();
-    this.playerBody.setAsteroidCollisionEnabled(asteroidCollisionEnabled);
-    this.playerBody.updateShieldSensor(
-      controlsEnabled && action.shield && this.player.visible && this.ship.fuel > 0,
-      asteroidCollisionEnabled,
-    );
+    this.updatePlayerCollisionFilters(action);
   }
 
   private updateWorld(deltaMs: number, deltaSeconds: number): void {
@@ -424,6 +419,24 @@ export class PhaserSandboxScene extends BaseGameScene {
     return this.player.visible && this.time.now >= this.player.invulnerableUntil;
   }
 
+  private isShieldActive(action: ReturnType<ActionReader['read']>): boolean {
+    return this.controlsEnabled && action.shield && this.player.visible && this.ship.fuel > 0;
+  }
+
+  private updatePlayerCollisionFilters(action: ReturnType<ActionReader['read']>): void {
+    if (this.shipCollisionsDisabledForIntro) {
+      this.playerBody.setCollisionEnabled(false);
+      this.playerBody.updateShieldSensor(false, false);
+      return;
+    }
+    const asteroidCollisionEnabled = this.playerCanCollideWithAsteroids();
+    this.playerBody.setAsteroidCollisionEnabled(asteroidCollisionEnabled);
+    this.playerBody.updateShieldSensor(
+      this.isShieldActive(action),
+      asteroidCollisionEnabled,
+    );
+  }
+
   private resolvePlanetCollisions(): void {
     for (const asteroid of [...this.runtime.world.asteroids]) {
       if (this.collidesWithPlanet(asteroid.position, ASTEROIDS[asteroid.tier].collisionRadius))
@@ -437,7 +450,11 @@ export class PhaserSandboxScene extends BaseGameScene {
       )
         this.removeProjectile(projectile);
     }
-    if (this.player.visible && this.collidesWithPlanet(this.player.position, this.getPlayerCollisionRadius()))
+    if (
+      this.player.visible &&
+      !this.shipCollisionsDisabledForIntro &&
+      this.collidesWithPlanet(this.player.position, this.getPlayerCollisionRadius())
+    )
       this.killPlayer(this.time.now);
   }
 
@@ -524,9 +541,12 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.launchStartedAt = now;
     this.launchDoorOpened = false;
     this.controlsEnabled = false;
+    this.shipCollisionsDisabledForIntro = true;
     this.mothership.closeDoor(now);
     this.player.updateAim(MOTHERSHIP_SPAWN_PLAYER_AIM);
     this.playerBody.setScale(MOTHERSHIP_LAUNCH_START_SCALE);
+    this.syncPlayerContactBodies();
+    this.playerBody.setCollisionEnabled(false);
     this.playerBody.setPosition(this.getLaunchPosition(0));
     this.playerBody.setVelocity({ x: 0, y: 0 });
   }
@@ -534,6 +554,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private updateLaunchSequence(now: number): void {
     const elapsed = now - this.launchStartedAt;
     this.playerBody.setScale(this.getLaunchScale(elapsed));
+    this.syncPlayerContactBodies();
     this.playerBody.setPosition(this.getLaunchPosition(elapsed));
     this.playerBody.setVelocity({ x: 0, y: 0 });
     if (!this.launchDoorOpened && elapsed >= MOTHERSHIP_LAUNCH_CLOSED_MS) {
@@ -542,7 +563,10 @@ export class PhaserSandboxScene extends BaseGameScene {
     }
     if (elapsed >= MOTHERSHIP_LAUNCH_TOTAL_MS) {
       this.controlsEnabled = true;
+      this.shipCollisionsDisabledForIntro = false;
       this.playerBody.setScale(1);
+      this.syncPlayerContactBodies();
+      this.playerBody.setCollisionEnabled(true);
       this.playerBody.setPosition(this.mothership.getCargoBayPosition());
     }
   }
@@ -577,6 +601,11 @@ export class PhaserSandboxScene extends BaseGameScene {
 
   private getShieldRadius(): number {
     return SHIELD_RADIUS * this.player.scale;
+  }
+
+  private syncPlayerContactBodies(): void {
+    this.contacts.setPlayer(this.playerBody.body.body);
+    this.contacts.setShield(this.playerBody.shieldSensor.body);
   }
 
   private getWorldPositioningInput(): Parameters<typeof rebaseWorldAroundPlayer>[0] {

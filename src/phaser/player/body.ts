@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 
-import { getAsteroidCollisionMask } from '../combat/collisionCategories';
+import { ALL_COLLISION_CATEGORIES, getAsteroidCollisionMask } from '../combat/collisionCategories';
 import type { MatterImage, Vector } from '../core/types';
 import { SHIELD_RADIUS } from '../fuel/rules';
 import type { PlayerState } from './state';
@@ -31,6 +31,10 @@ export class PlayerBody {
 
   setAsteroidCollisionEnabled(enabled: boolean): void {
     this.body.body.collisionFilter.mask = getAsteroidCollisionMask(enabled);
+  }
+
+  setCollisionEnabled(enabled: boolean): void {
+    this.body.body.collisionFilter.mask = enabled ? ALL_COLLISION_CATEGORIES : 0;
   }
 
   updateShieldSensor(active: boolean, asteroidCollisionEnabled = true): void {
