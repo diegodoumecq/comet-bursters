@@ -5,7 +5,6 @@ const MENU_ITEMS = [
   { key: 'arcade', label: 'Arcade Scene' },
   { key: 'sandbox', label: 'Sandbox Scene' },
   { key: 'ship-interior', label: 'Ship Interior' },
-  { key: 'asteroid-debug', label: 'Asteroid Debug' },
 ] as const;
 
 export class SceneMenuScene extends Phaser.Scene {

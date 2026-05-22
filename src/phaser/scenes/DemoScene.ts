@@ -1,8 +1,9 @@
 import { AsteroidBodies } from '../asteroids/bodies';
-import { createAsteroid } from '../asteroids/logic';
-import { createAsteroidTextures } from '../asteroids/textures';
+import { ASTEROIDS, createAsteroid } from '../asteroids/logic';
+import { ASTEROID_TEXTURES, createAsteroidTextures } from '../asteroids/textures';
 import type { AsteroidEntity } from '../asteroids/types';
 import type { WorldSize } from '../core/types';
+import { MAX_FUEL } from '../fuel/rules';
 import { ActionReader } from '../input/actions';
 import { createPlanet, PLANET_SPECS } from '../planets/logic';
 import type { PlanetEntity } from '../planets/types';
@@ -17,7 +18,13 @@ import { normalize } from '../world/geometry';
 import { BaseGameScene } from './BaseGameScene';
 import { DemoRenderer } from './demo/DemoRenderer';
 
-const WORLD: WorldSize = { width: 7600, height: 5000 };
+const WORLD: WorldSize = { width: 5000, height: 5000 };
+const DEMO_PLAYER_ACCELERATION = 2880;
+const DEMO_PLAYER_MAX_SPEED = 42;
+const DEMO_PLAYER_FRICTION_AIR = 0.045;
+const DEMO_PLANET_ROW_START = { x: 520, y: 1180 };
+const DEMO_PLANET_GAP = 110;
+
 export class PhaserDemoScene extends BaseGameScene {
   private actions!: ActionReader;
   private playerBody!: PlayerBody;
@@ -45,9 +52,9 @@ export class PhaserDemoScene extends BaseGameScene {
     this.createAsteroids();
     this.playerBody = new PlayerBody(this, { x: 620, y: 760 }, this.playerState);
     this.playerBody.body.setMass(PLAYER_MASS);
-    this.playerBody.body.setFrictionAir(0);
+    this.playerBody.body.setFrictionAir(DEMO_PLAYER_FRICTION_AIR);
     this.playerBody.body.setBounce(0.8);
-    this.sceneRenderer = new DemoRenderer(this, this.playerBody.body);
+    this.sceneRenderer = new DemoRenderer(this, this.playerBody.body, this.asteroidBodies, WORLD);
     this.cameras.main.startFollow(this.playerBody.body, true, 1, 1);
   }
 
@@ -68,9 +75,14 @@ export class PhaserDemoScene extends BaseGameScene {
       move,
       player: this.playerState,
       ship: this.ship,
+      tuning: {
+        acceleration: DEMO_PLAYER_ACCELERATION,
+        maxSpeed: DEMO_PLAYER_MAX_SPEED,
+      },
       world: WORLD,
       wrap: false,
     });
+    this.ship.setFuel(MAX_FUEL);
   }
 
   protected renderState(_action: ReturnType<ActionReader['read']>, time: number): void {
@@ -78,6 +90,7 @@ export class PhaserDemoScene extends BaseGameScene {
       asteroids: this.asteroids,
       now: time,
       player: this.playerState,
+      planets: this.planets,
       ship: this.ship,
     });
   }
@@ -95,30 +108,50 @@ export class PhaserDemoScene extends BaseGameScene {
   }
 
   private createPlanets(): void {
-    const layouts: Array<[number, number, keyof typeof PLANET_SPECS]> = [
-      [1150, 1050, 'lush'],
-      [2200, 1000, 'desert'],
-      [3250, 1050, 'ice'],
-      [4700, 1350, 'lava'],
-      [6250, 1650, 'gas'],
-      [2250, 3400, 'toxic'],
-      [3900, 3400, 'crystal'],
-    ];
-    this.planets = layouts.map(([x, y, kind]) => createPlanet(x, y, PLANET_SPECS[kind]));
-    for (const planet of this.planets) this.planetViews.add(planet);
+    let nextLeft = DEMO_PLANET_ROW_START.x;
+    let nextTop = DEMO_PLANET_ROW_START.y;
+    this.planets = Object.values(PLANET_SPECS).map((spec) => {
+      const rawX = nextLeft + spec.radius * 1.5;
+      if (rawX + spec.radius > WORLD.width) {
+        nextLeft = DEMO_PLANET_ROW_START.x;
+        nextTop += DEMO_PLANET_ROW_START.y;
+      }
+      const x = nextLeft + spec.radius * 1.5;
+      nextLeft = x + spec.radius + DEMO_PLANET_GAP;
+      return createPlanet(x, nextTop, spec);
+    });
+    for (const planet of this.planets) {
+      this.planetViews.add(planet);
+      this.add
+        .text(planet.position.x, planet.position.y + planet.radius * 1.1, planet.kind, {
+          color: '#ffffff',
+          fontFamily: 'monospace',
+          fontSize: '16px',
+        })
+        .setOrigin(0.5);
+    }
   }
 
   private createAsteroids(): void {
-    const positions: Array<[number, number]> = [
-      [1150, 4400],
-      [2950, 4400],
-      [4850, 4300],
-      [6500, 4050],
-    ];
-    const tiers = ['mega', 'big', 'medium', 'small'] as const;
-    this.asteroids = positions.map(([x, y], index) => {
-      const asteroid = createAsteroid(tiers[index], { x, y }, { x: 0, y: 0 });
+    const layouts = (Object.keys(ASTEROIDS) as Array<keyof typeof ASTEROIDS>).flatMap((tier, row) =>
+      ASTEROID_TEXTURES[tier].map((_, visualVariant) => ({
+        tier,
+        visualVariant,
+        x: 400 + visualVariant * 280,
+        y: 1800 + row * 220,
+      })),
+    );
+    this.asteroids = layouts.map(({ tier, visualVariant, x, y }) => {
+      const asteroid = createAsteroid(tier, { x, y }, { x: 0, y: 0 });
+      asteroid.visualVariant = visualVariant;
       this.asteroidBodies.add(asteroid).setStatic(true);
+      this.add
+        .text(x, y + ASTEROIDS[tier].radius + 18, `${tier} / variant ${visualVariant}`, {
+          color: '#ffffff',
+          fontFamily: 'monospace',
+          fontSize: '16px',
+        })
+        .setOrigin(0.5);
       return asteroid;
     });
   }

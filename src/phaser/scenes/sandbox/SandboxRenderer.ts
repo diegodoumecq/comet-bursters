@@ -1,19 +1,20 @@
 import Phaser from 'phaser';
 
+import type { AsteroidEntity } from '../../asteroids/types';
 import type { Vector } from '../../core/types';
 import { getPlayerVisible, renderPlayerFuel, renderPlayerShield, renderPlayerThruster, renderPlayerTurret } from '../../player/rendering';
 import type { PlayerState } from '../../player/state';
 import type { ShipState } from '../../player/shipState';
 import { PLAYER_TURRET_TEXTURE_KEY } from '../../player/textures';
 import { Hud } from '../../ui/Hud';
+import { Minimap } from '../../ui/Minimap';
 import { WeaponMenu } from '../../ui/WeaponMenu';
 import type { SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { drawTractorBeam } from '../../weapons/tractorBeam';
 import type { WeaponKind } from '../../weapons/types';
 import type { WorldSize } from '../../core/types';
-import type { SandboxDiscovery } from './discovery';
+import { MINIMAP_COLUMNS, MINIMAP_ROWS, type SandboxDiscovery } from './discovery';
 import { SandboxBackground } from './SandboxBackground';
-import { SandboxMinimap } from './SandboxMinimap';
 import { SandboxPlanetOverlay } from './SandboxPlanetOverlay';
 import type { SandboxPlanetEntity } from './planetFuel';
 
@@ -28,7 +29,7 @@ export class SandboxRenderer {
   private readonly playerThruster: Phaser.GameObjects.Graphics;
   private readonly hud: Hud;
   private readonly weaponMenu: WeaponMenu;
-  private readonly minimap: SandboxMinimap;
+  private readonly minimap: Minimap;
   private readonly planetOverlay: SandboxPlanetOverlay;
 
   constructor(
@@ -48,7 +49,7 @@ export class SandboxRenderer {
     this.playerThruster = scene.add.graphics().setDepth(0);
     this.hud = new Hud(scene);
     this.weaponMenu = new WeaponMenu(scene, weaponPolicy.allowedWeapons);
-    this.minimap = new SandboxMinimap(scene);
+    this.minimap = new Minimap(scene);
     this.planetOverlay = new SandboxPlanetOverlay(scene);
   }
 
@@ -68,6 +69,7 @@ export class SandboxRenderer {
 
   render(input: {
     asteroidCount: number;
+    asteroids: AsteroidEntity[];
     now: number;
     player: PlayerState;
     projectileCount: number;
@@ -98,11 +100,19 @@ export class SandboxRenderer {
       timeDilation: input.timeDilation,
     });
     this.minimap.render({
+      asteroids: input.asteroids,
       camera: this.scene.cameras.main,
-      discovery: input.discovery,
+      fog: {
+        columns: MINIMAP_COLUMNS,
+        discoveredPlanetIds: input.discovery.discoveredPlanetIds,
+        exploredCells: input.discovery.exploredCells,
+        rows: MINIMAP_ROWS,
+        visibleCells: input.discovery.visibleCells,
+      },
       planets: input.planets,
       player: input.player.position,
       playerAim: input.player.lastAim,
+      viewportMode: 'wrapped',
       world: input.world,
     });
     this.planetOverlay.render(input.planets, input.now);

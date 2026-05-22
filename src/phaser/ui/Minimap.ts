@@ -1,14 +1,23 @@
 import Phaser from 'phaser';
 
-import type { Vector, WorldSize } from '../../core/types';
-import type { PlanetEntity } from '../../planets/types';
-import { MINIMAP_COLUMNS, MINIMAP_ROWS, type SandboxDiscovery } from './discovery';
+import { ASTEROIDS } from '../asteroids/config';
+import type { AsteroidEntity } from '../asteroids/types';
+import type { Vector, WorldSize } from '../core/types';
+import type { PlanetEntity } from '../planets/types';
 
 const WIDTH = 220;
 const HEIGHT = 220;
 const PADDING = 20;
 
-export class SandboxMinimap {
+export type MinimapFog = {
+  columns: number;
+  discoveredPlanetIds: Set<number>;
+  exploredCells: Uint8Array;
+  rows: number;
+  visibleCells: Uint8Array;
+};
+
+export class Minimap {
   private readonly graphics: Phaser.GameObjects.Graphics;
 
   constructor(private readonly scene: Phaser.Scene) {
@@ -16,19 +25,19 @@ export class SandboxMinimap {
   }
 
   render(input: {
+    asteroids?: AsteroidEntity[];
     camera: Phaser.Cameras.Scene2D.Camera;
-    discovery: SandboxDiscovery;
+    fog?: MinimapFog;
     planets: PlanetEntity[];
     player: Vector;
     playerAim: Vector;
+    viewportMode: 'bounded' | 'wrapped';
     world: WorldSize;
   }): void {
     const x = this.scene.scale.width - WIDTH - PADDING;
     const y = PADDING;
     const scaleX = WIDTH / input.world.width;
     const scaleY = HEIGHT / input.world.height;
-    const cellWidth = WIDTH / MINIMAP_COLUMNS;
-    const cellHeight = HEIGHT / MINIMAP_ROWS;
 
     this.graphics.clear();
     this.graphics.fillStyle(0x020617, 0.96);
@@ -36,17 +45,35 @@ export class SandboxMinimap {
     this.graphics.lineStyle(2, 0xffffff, 0.18);
     this.graphics.strokeRect(x, y, WIDTH, HEIGHT);
 
-    for (let row = 0; row < MINIMAP_ROWS; row += 1) {
-      for (let col = 0; col < MINIMAP_COLUMNS; col += 1) {
-        const index = row * MINIMAP_COLUMNS + col;
-        if (input.discovery.exploredCells[index]) {
-          const alpha = input.discovery.visibleCells[index] ? 0.9 : 0.42;
-          this.graphics.fillStyle(input.discovery.visibleCells[index] ? 0x102338 : 0x0a1322, alpha);
+    if (input.fog) this.drawFog(input.fog, x, y);
+    this.drawGrid(x, y);
+    this.drawPlanets(input.planets, input.fog, input.world, x, y, scaleX, scaleY);
+    this.drawAsteroids(input.asteroids ?? [], input.fog, input.world, x, y, scaleX, scaleY);
+    if (input.viewportMode === 'wrapped') {
+      this.drawWrappedViewport(input.camera, input.world, x, y, scaleX, scaleY);
+    } else {
+      this.drawBoundedViewport(input.camera, x, y, scaleX, scaleY);
+    }
+    this.drawPlayer(input.player, input.playerAim, input.world, x, y, scaleX, scaleY);
+  }
+
+  private drawFog(fog: MinimapFog, x: number, y: number): void {
+    const cellWidth = WIDTH / fog.columns;
+    const cellHeight = HEIGHT / fog.rows;
+    for (let row = 0; row < fog.rows; row += 1) {
+      for (let col = 0; col < fog.columns; col += 1) {
+        const index = row * fog.columns + col;
+        if (fog.exploredCells[index]) {
+          const visible = fog.visibleCells[index];
+          const alpha = visible ? 0.9 : 0.42;
+          this.graphics.fillStyle(visible ? 0x102338 : 0x0a1322, alpha);
           this.graphics.fillRect(x + col * cellWidth, y + row * cellHeight, cellWidth + 0.5, cellHeight + 0.5);
         }
       }
     }
+  }
 
+  private drawGrid(x: number, y: number): void {
     this.graphics.lineStyle(1, 0xffffff, 0.08);
     for (let index = 1; index < 4; index += 1) {
       const gridX = x + (WIDTH / 4) * index;
@@ -54,20 +81,73 @@ export class SandboxMinimap {
       this.graphics.lineBetween(gridX, y, gridX, y + HEIGHT);
       this.graphics.lineBetween(x, gridY, x + WIDTH, gridY);
     }
+  }
 
-    for (const planet of input.planets) {
-      if (input.discovery.discoveredPlanetIds.has(planet.id)) {
+  private drawPlanets(
+    planets: PlanetEntity[],
+    fog: MinimapFog | undefined,
+    world: WorldSize,
+    x: number,
+    y: number,
+    scaleX: number,
+    scaleY: number,
+  ): void {
+    for (const planet of planets) {
+      const discovered = !fog || fog.discoveredPlanetIds.has(planet.id);
+      if (discovered) {
         this.graphics.fillStyle(planet.color, 0.9);
         this.graphics.fillCircle(
-          x + positiveModulo(planet.position.x, input.world.width) * scaleX,
-          y + positiveModulo(planet.position.y, input.world.height) * scaleY,
+          x + positiveModulo(planet.position.x, world.width) * scaleX,
+          y + positiveModulo(planet.position.y, world.height) * scaleY,
           Math.max(3, planet.radius * scaleX),
         );
       }
     }
+  }
 
-    this.drawWrappedViewport(input.camera, input.world, x, y, scaleX, scaleY);
-    this.drawPlayer(input.player, input.playerAim, input.world, x, y, scaleX, scaleY);
+  private drawAsteroids(
+    asteroids: AsteroidEntity[],
+    fog: MinimapFog | undefined,
+    world: WorldSize,
+    x: number,
+    y: number,
+    scaleX: number,
+    scaleY: number,
+  ): void {
+    for (const asteroid of asteroids) {
+      if (this.isVisibleOnMinimap(asteroid.position, fog, world)) {
+        this.graphics.fillStyle(ASTEROIDS[asteroid.tier].color, 0.82);
+        this.graphics.fillCircle(
+          x + positiveModulo(asteroid.position.x, world.width) * scaleX,
+          y + positiveModulo(asteroid.position.y, world.height) * scaleY,
+          Math.max(2, ASTEROIDS[asteroid.tier].collisionRadius * scaleX),
+        );
+      }
+    }
+  }
+
+  private isVisibleOnMinimap(position: Vector, fog: MinimapFog | undefined, world: WorldSize): boolean {
+    if (!fog) return true;
+    const col = Math.floor((positiveModulo(position.x, world.width) / world.width) * fog.columns);
+    const row = Math.floor((positiveModulo(position.y, world.height) / world.height) * fog.rows);
+    const index = Phaser.Math.Clamp(row, 0, fog.rows - 1) * fog.columns +
+      Phaser.Math.Clamp(col, 0, fog.columns - 1);
+    return Boolean(fog.visibleCells[index]);
+  }
+
+  private drawBoundedViewport(
+    camera: Phaser.Cameras.Scene2D.Camera,
+    x: number,
+    y: number,
+    scaleX: number,
+    scaleY: number,
+  ): void {
+    const boxX = camera.scrollX * scaleX;
+    const boxY = camera.scrollY * scaleY;
+    const boxWidth = Math.min(WIDTH, camera.width * scaleX);
+    const boxHeight = Math.min(HEIGHT, camera.height * scaleY);
+    this.graphics.lineStyle(1.5, 0xffffff, 0.72);
+    this.strokeClippedRect(x + boxX, y + boxY, boxWidth, boxHeight, x, y, WIDTH, HEIGHT);
   }
 
   private drawWrappedViewport(

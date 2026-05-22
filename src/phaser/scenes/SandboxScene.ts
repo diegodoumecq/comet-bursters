@@ -165,6 +165,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   protected renderState(action: ReturnType<ActionReader['read']>, time: number): void {
     this.sceneRenderer.render({
       asteroidCount: this.runtime.world.asteroids.length,
+      asteroids: this.runtime.world.asteroids,
       now: time,
       player: this.player,
       projectileCount: this.runtime.world.projectiles.length,

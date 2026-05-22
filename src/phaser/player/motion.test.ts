@@ -55,4 +55,18 @@ describe('Phaser player motion tuning', () => {
     expect(body.body.velocity.y).toBeCloseTo(20);
     expect(Math.hypot(body.body.velocity.x, body.body.velocity.y)).toBeCloseTo(PLAYER_MAX_SPEED);
   });
+
+  it('supports scene-local motion tuning overrides', () => {
+    const { body, forces } = createBody({ mass: 2, velocity: { x: 60, y: 80 } });
+
+    applyPlayerThrust(body, { x: 1, y: 0 }, 100, 1 / 60, {
+      acceleration: 720,
+      maxSpeed: 50,
+    });
+
+    expect(forces).toEqual([{ x: 720 * 2 * 0.000001, y: 0 }]);
+    expect(body.body.velocity.x).toBeCloseTo(30);
+    expect(body.body.velocity.y).toBeCloseTo(40);
+    expect(Math.hypot(body.body.velocity.x, body.body.velocity.y)).toBeCloseTo(50);
+  });
 });
