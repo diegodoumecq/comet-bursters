@@ -10,7 +10,6 @@ import {
   renderPlayerTurret,
 } from '../../player/rendering';
 import { PLAYER_TURRET_TEXTURE_KEY } from '../../player/textures';
-import { Hud } from '../../ui/Hud';
 import { WeaponMenu } from '../../ui/WeaponMenu';
 import type { SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { drawTractorBeam } from '../../weapons/tractorBeam';
@@ -28,7 +27,6 @@ export class ArcadeRenderer {
   private readonly playerFuelFill: Phaser.GameObjects.Graphics;
   private readonly playerFuelMask: Phaser.GameObjects.Graphics;
   private readonly playerThruster: Phaser.GameObjects.Graphics;
-  private readonly hud: Hud;
   private readonly weaponMenu: WeaponMenu;
   private gameOverText: Phaser.GameObjects.Text | null = null;
   private shakeUntil = 0;
@@ -49,7 +47,6 @@ export class ArcadeRenderer {
     this.playerFuelMask = scene.make.graphics({ x: 0, y: 0 }, false);
     this.playerFuelFill.setMask(this.playerFuelMask.createGeometryMask());
     this.playerThruster = scene.add.graphics().setDepth(0);
-    this.hud = new Hud(scene);
     this.weaponMenu = new WeaponMenu(scene, weaponPolicy.allowedWeapons);
   }
 
@@ -99,17 +96,6 @@ export class ArcadeRenderer {
       this.shakeUntil,
       this.shakeIntensity,
     ).shakeIntensity;
-    this.hud.update({
-      asteroids: session.world.asteroids.length,
-      fuel: session.ship.fuel,
-      lives: session.lives,
-      primary: session.ship.primaryWeapon,
-      projectiles: session.world.projectiles.length,
-      score: session.score,
-      secondary: session.ship.secondaryWeapon,
-      timeDilation: action.timeDilation,
-      wave: session.wave,
-    });
   }
 
   startShake(intensity: number, durationMs: number): void {

@@ -16,9 +16,9 @@ const FRONT_TEXTURE_KEY = 'sandbox-mothership-front';
 const DOOR_TEXTURE_KEY = 'sandbox-mothership-door';
 const BACK_TEXTURE_KEY = 'sandbox-mothership-back';
 const PLAYER_DOCKED_DISTANCE = 30;
-const BODY_BACK_DEPTH = -4;
-const BODY_FRONT_DEPTH = -3;
-const DOOR_DEPTH = 4;
+const BODY_BACK_DEPTH = -6;
+const BODY_FRONT_DEPTH = -5;
+const DOOR_DEPTH = -1;
 
 export function preloadMothershipTextures(scene: Phaser.Scene): void {
   if (!scene.textures.exists(FRONT_TEXTURE_KEY))
@@ -55,6 +55,10 @@ export class Mothership {
     this.doorOpenedAt = null;
     this.undocked = false;
     this.sync(now);
+  }
+
+  releasePlayer(): void {
+    this.undocked = true;
   }
 
   update(playerPosition: Vector, now: number, world: WorldSize): boolean {

@@ -7,7 +7,6 @@ import type { PlanetEntity } from '../../planets/types';
 import { renderPlayerFuel } from '../../player/rendering';
 import type { ShipState } from '../../player/shipState';
 import type { PlayerState } from '../../player/state';
-import { Hud } from '../../ui/Hud';
 import { Minimap } from '../../ui/Minimap';
 
 export class DemoRenderer {
@@ -15,7 +14,6 @@ export class DemoRenderer {
   private readonly playerFuelFill: Phaser.GameObjects.Graphics;
   private readonly playerFuelMask: Phaser.GameObjects.Graphics;
   private readonly collisionMasks: Phaser.GameObjects.Graphics;
-  private readonly hud: Hud;
   private readonly minimap: Minimap;
 
   constructor(
@@ -29,7 +27,6 @@ export class DemoRenderer {
     this.playerFuelMask = scene.make.graphics({ x: 0, y: 0 }, false);
     this.playerFuelFill.setMask(this.playerFuelMask.createGeometryMask());
     this.collisionMasks = scene.add.graphics().setDepth(20);
-    this.hud = new Hud(scene);
     this.minimap = new Minimap(scene);
   }
 
@@ -58,11 +55,6 @@ export class DemoRenderer {
       playerAim: input.player.lastAim,
       viewportMode: 'bounded',
       world: this.world,
-    });
-    this.hud.update({
-      asteroids: input.asteroids.length,
-      projectiles: 0,
-      timeDilation: false,
     });
   }
 

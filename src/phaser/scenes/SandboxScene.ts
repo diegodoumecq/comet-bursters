@@ -531,7 +531,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     if (!this.controlsEnabled) {
       this.updateLaunchSequence(now);
       this.mothership.sync(now);
-      this.sceneRenderer.setPlayerDocked(true);
+      this.sceneRenderer.setPlayerDocked(!this.controlsEnabled);
       return;
     }
     const undocked = this.mothership.update(this.player.position, now, WORLD);
@@ -569,6 +569,8 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.syncPlayerContactBodies();
       this.playerBody.setCollisionEnabled(true);
       this.playerBody.setPosition(this.mothership.getCargoBayPosition());
+      this.mothership.releasePlayer();
+      this.sceneRenderer.setPlayerDocked(false);
     }
   }
 
