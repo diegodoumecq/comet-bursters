@@ -4,7 +4,7 @@ import type { AsteroidBodies } from '../../asteroids/bodies';
 import type { AsteroidEntity } from '../../asteroids/types';
 import type { MatterImage, WorldSize } from '../../core/types';
 import type { PlanetEntity } from '../../planets/types';
-import { renderPlayerFuel, renderPlayerTurret } from '../../player/rendering';
+import { renderPlayerFuel } from '../../player/rendering';
 import type { ShipState } from '../../player/shipState';
 import type { PlayerState } from '../../player/state';
 import { Hud } from '../../ui/Hud';

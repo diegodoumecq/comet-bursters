@@ -3,8 +3,8 @@ import Phaser from 'phaser';
 import { ALL_COLLISION_CATEGORIES, getAsteroidCollisionMask } from '../combat/collisionCategories';
 import type { MatterImage, Vector } from '../core/types';
 import { SHIELD_RADIUS } from '../fuel/rules';
+import { setPlayerCollisionCircle } from './collision';
 import type { PlayerState } from './state';
-import { PLAYER_COLLISION_RADIUS } from './config';
 
 export class PlayerBody {
   readonly body: MatterImage;
@@ -13,7 +13,8 @@ export class PlayerBody {
 
   constructor(scene: Phaser.Scene, position: Vector, private readonly state: PlayerState) {
     this.body = scene.matter.add.image(position.x, position.y, 'phaser-ship') as MatterImage;
-    this.body.setCircle(PLAYER_COLLISION_RADIUS);
+    setPlayerCollisionCircle(this.body, this.scale);
+    this.body.setPosition(position.x, position.y);
     this.shieldSensor = scene.matter.add.image(position.x, position.y, '__DEFAULT') as MatterImage;
     this.shieldSensor.setCircle(SHIELD_RADIUS);
     this.shieldSensor.setSensor(true);
@@ -53,7 +54,7 @@ export class PlayerBody {
     const bodyRotation = this.body.rotation;
     const shieldPosition = { x: this.shieldSensor.x, y: this.shieldSensor.y };
     this.body.setScale(scale);
-    this.resizeCircle(this.body, PLAYER_COLLISION_RADIUS * scale);
+    this.resizePlayerCircle(this.body, scale);
     this.resizeCircle(this.shieldSensor, SHIELD_RADIUS * scale);
     this.body.setPosition(bodyPosition.x, bodyPosition.y);
     this.body.setRotation(bodyRotation);
@@ -84,6 +85,14 @@ export class PlayerBody {
   }
 
   private resizeCircle(target: MatterImage, radius: number): void {
+    this.applyCircle(target, () => target.setCircle(radius));
+  }
+
+  private resizePlayerCircle(target: MatterImage, scale: number): void {
+    this.applyCircle(target, () => setPlayerCollisionCircle(target, scale));
+  }
+
+  private applyCircle(target: MatterImage, applyShape: () => void): void {
     const filter = { ...target.body.collisionFilter };
     const friction = target.body.friction;
     const frictionAir = target.body.frictionAir;
@@ -91,7 +100,7 @@ export class PlayerBody {
     const isSensor = target.body.isSensor;
     const isStatic = target.body.isStatic;
     const mass = target.body.mass;
-    target.setCircle(radius);
+    applyShape();
     target.setSensor(isSensor);
     target.setStatic(isStatic);
     target.setFriction(friction, frictionAir, frictionStatic);
