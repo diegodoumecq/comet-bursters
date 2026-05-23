@@ -7,13 +7,15 @@ type SpaceBackgroundMode = 'arcade' | 'sandbox';
 type SpaceBackgroundInput = {
   mode: SpaceBackgroundMode;
   now: number;
+  cameraScroll?: Vector;
+  cameraZoom?: number;
   playerPosition: Vector;
   playerVelocity?: Vector;
   screen: WorldSize;
   world?: WorldSize;
 };
 
-const RENDER_SCALE = 0.75;
+const RENDER_SCALE = 1;
 
 const vertexShader = `
 varying vec2 vUv;
@@ -28,8 +30,11 @@ const fragmentShader = `
 precision highp float;
 
 uniform vec2 u_camera;
+uniform vec2 u_camera_scroll;
+uniform float u_camera_zoom;
 uniform int u_mode;
 uniform vec2 u_resolution;
+uniform vec2 u_screen;
 uniform float u_seed;
 uniform float u_time;
 uniform vec2 u_world;
@@ -77,14 +82,15 @@ float star(vec2 uv, float scale, float threshold) {
 }
 
 void main() {
-  vec2 pixel = vUv * u_resolution;
-  vec2 aspectUv = (pixel - u_resolution * 0.5) / min(u_resolution.x, u_resolution.y);
-  vec2 camera = u_mode == 0
-    ? u_camera * 0.00075
-    : vec2(u_camera.x / max(u_world.x, 1.0), u_camera.y / max(u_world.y, 1.0)) * 7.0;
+  vec2 screenPixel = vec2(vUv.x, 1.0 - vUv.y) * u_screen;
+  vec2 renderPixel = vec2(vUv.x, 1.0 - vUv.y) * u_resolution;
+  vec2 aspectUv = (renderPixel - u_resolution * 0.5) / min(u_resolution.x, u_resolution.y);
+  vec2 camera = u_camera * 0.00075;
+  vec2 wrappedWorld = mod(u_camera_scroll + screenPixel / max(u_camera_zoom, 0.001), u_world);
+  vec2 worldUv = wrappedWorld * 0.00042;
 
-  float morph = u_time * 0.000018;
-  vec2 p = aspectUv * 2.0 + camera;
+  float morph = u_mode == 0 ? u_time * 0.000018 : 0.0;
+  vec2 p = u_mode == 0 ? aspectUv * 2.0 + camera : worldUv;
   vec2 warp = vec2(
     fbm(p * 1.15 + vec2(7.2 + morph, 1.9 - morph * 0.7)),
     fbm(p * 1.15 + vec2(2.4 - morph * 0.8, 9.1 + morph * 0.6))
@@ -108,9 +114,15 @@ void main() {
   float starB = star(aspectUv + camera * 0.26 + 9.7, 250.0, 0.994) * 0.62;
   float starGlow = star(aspectUv + camera * 0.12 + 3.2, 70.0, 0.993) * 0.22;
   vec3 stars = vec3(starA + starB) + vec3(0.55, 0.72, 1.0) * starGlow;
+  if (u_mode == 1) {
+    stars *= 0.0;
+  }
 
-  float modeStrength = u_mode == 0 ? 0.72 : 0.32;
-  vec3 color = deep + nebulaColor * nebula * modeStrength + vec3(0.18, 0.32, 0.62) * core * 0.08 * modeStrength;
+  float modeStrength = u_mode == 0 ? 0.72 : 0.62;
+  float sandboxLift = u_mode == 0 ? 0.0 : 0.018;
+  float sandboxGlow = u_mode == 0 ? 0.08 : 0.18;
+  vec3 color = deep + nebulaColor * nebula * modeStrength + vec3(0.18, 0.32, 0.62) * core * sandboxGlow * modeStrength;
+  color += nebulaColor * nebula * sandboxLift;
   color += stars;
   color = pow(color, vec3(1.06));
   gl_FragColor = vec4(color, 1.0);
@@ -135,9 +147,15 @@ export class SpaceBackgroundRenderer {
     if (!this.renderer || !this.scene || !this.camera || !this.material || !this.canvas) return;
 
     this.resize(input.screen.width, input.screen.height);
+    this.material.uniforms.u_screen.value.set(input.screen.width, input.screen.height);
     this.material.uniforms.u_time.value = input.now;
     this.material.uniforms.u_mode.value = input.mode === 'arcade' ? 0 : 1;
     this.material.uniforms.u_camera.value.set(input.playerPosition.x, input.playerPosition.y);
+    this.material.uniforms.u_camera_scroll.value.set(
+      input.cameraScroll?.x ?? input.playerPosition.x,
+      input.cameraScroll?.y ?? input.playerPosition.y,
+    );
+    this.material.uniforms.u_camera_zoom.value = input.cameraZoom ?? 1;
     this.material.uniforms.u_world.value.set(
       input.world?.width ?? input.screen.width,
       input.world?.height ?? input.screen.height,
@@ -181,8 +199,11 @@ export class SpaceBackgroundRenderer {
     this.material = new THREE.ShaderMaterial({
       uniforms: {
         u_camera: { value: new THREE.Vector2(0, 0) },
+        u_camera_scroll: { value: new THREE.Vector2(0, 0) },
+        u_camera_zoom: { value: 1 },
         u_mode: { value: 0 },
         u_resolution: { value: new THREE.Vector2(1, 1) },
+        u_screen: { value: new THREE.Vector2(1, 1) },
         u_seed: { value: this.seed },
         u_time: { value: 0 },
         u_world: { value: new THREE.Vector2(1, 1) },
