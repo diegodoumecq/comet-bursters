@@ -12,6 +12,7 @@ export function createPhaserConfig(parent: string): Phaser.Types.Core.GameConfig
     type: Phaser.AUTO,
     parent,
     backgroundColor: '#05070d',
+    transparent: true,
     width: window.innerWidth,
     height: window.innerHeight,
     scale: {

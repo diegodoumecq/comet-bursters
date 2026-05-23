@@ -92,7 +92,7 @@ export class SandboxRenderer {
     planets: SandboxPlanetEntity[];
     world: WorldSize;
   }): void {
-    this.background.render();
+    this.background.render(input.player.position, input.world);
     const visible = getPlayerVisible(
       input.player.visible,
       input.player.invulnerableUntil,
