@@ -20,20 +20,25 @@ export type SandboxStartup = {
 const ASTEROID_TIERS: AsteroidTier[] = ['small', 'medium', 'big', 'mega'];
 const DEFAULT_ATTEMPTS = 120;
 const MOTHERSHIP_RESERVE_RADIUS = MOTHERSHIP_WIDTH * 0.5;
-const PLANET_COUNT = 8;
+export const PLANET_COUNT = 40;
 const PLANET_MARGIN = 900;
 const PLANET_PADDING = 500;
+const PLANET_GRID_STEP = 1800;
 const ASTEROID_MARGIN = 200;
 const ASTEROID_PADDING = 80;
 const PLAYER_GRAVITY_SAFE_PADDING = 240;
 
-export function createSandboxStartup(world: WorldSize, asteroidCount: number): SandboxStartup {
+export function createSandboxStartup(
+  world: WorldSize,
+  asteroidCount: number,
+  planetCount = PLANET_COUNT,
+): SandboxStartup {
   const spawnPoint = chooseMothershipSpawn(world);
   const reservations: SpawnCircle[] = [
     { position: spawnPoint, radius: MOTHERSHIP_RESERVE_RADIUS },
     { position: getCargoBayPosition(spawnPoint), radius: PLAYER_COLLISION_RADIUS + 120 },
   ];
-  const planets = createStartupPlanets(world, getCargoBayPosition(spawnPoint), reservations);
+  const planets = createStartupPlanets(world, getCargoBayPosition(spawnPoint), reservations, planetCount);
   for (const planet of planets) reservations.push({ position: planet.position, radius: planet.radius });
   const asteroids = createStartupAsteroids(world, asteroidCount, reservations);
   return { asteroids, planets, spawnPoint };
@@ -69,9 +74,10 @@ function createStartupPlanets(
   world: WorldSize,
   playerSpawn: Vector,
   reservations: SpawnCircle[],
+  planetCount: number,
 ): SandboxPlanetEntity[] {
   const planets: SandboxPlanetEntity[] = [];
-  for (let index = 0; index < PLANET_COUNT; index += 1) {
+  for (let index = 0; index < planetCount; index += 1) {
     const planet = createSeparatedPlanet(planets, world, playerSpawn, reservations);
     planets.push(planet);
   }
@@ -95,11 +101,42 @@ function createSeparatedPlanet(
         Phaser.Math.Between(PLANET_MARGIN, world.height - PLANET_MARGIN),
       ),
     );
-    const circle = { position: candidate.position, radius: candidate.radius };
-    const separated = !overlapsAnySpawnCircle(circle, allReservations, PLANET_PADDING, { type: 'wrapped', world });
-    if (separated && !planetInfluencesPlayerAtSpawn(candidate, playerSpawn, world)) return candidate;
+    if (planetPlacementIsValid(candidate, allReservations, playerSpawn, world)) return candidate;
   }
-  return withSandboxFuel(createPlanet(world.width * 0.5, world.height * 0.5));
+  return createGridSeparatedPlanet(allReservations, world, playerSpawn);
+}
+
+function createGridSeparatedPlanet(
+  reservations: SpawnCircle[],
+  world: WorldSize,
+  playerSpawn: Vector,
+): SandboxPlanetEntity {
+  let bestCandidate: SandboxPlanetEntity | null = null;
+  let y = PLANET_MARGIN;
+  while (!bestCandidate && y <= world.height - PLANET_MARGIN) {
+    let x = PLANET_MARGIN;
+    while (!bestCandidate && x <= world.width - PLANET_MARGIN) {
+      const candidate = withSandboxFuel(createPlanet(x, y));
+      if (planetPlacementIsValid(candidate, reservations, playerSpawn, world)) {
+        bestCandidate = candidate;
+      }
+      x += PLANET_GRID_STEP;
+    }
+    y += PLANET_GRID_STEP;
+  }
+  if (bestCandidate) return bestCandidate;
+  throw new Error(`Unable to place sandbox planet ${reservations.length + 1}`);
+}
+
+function planetPlacementIsValid(
+  planet: SandboxPlanetEntity,
+  reservations: SpawnCircle[],
+  playerSpawn: Vector,
+  world: WorldSize,
+): boolean {
+  const circle = { position: planet.position, radius: planet.radius };
+  const separated = !overlapsAnySpawnCircle(circle, reservations, PLANET_PADDING, { type: 'wrapped', world });
+  return separated && !planetInfluencesPlayerAtSpawn(planet, playerSpawn, world);
 }
 
 function createStartupAsteroids(

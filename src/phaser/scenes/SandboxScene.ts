@@ -29,7 +29,7 @@ import { ParticleViews } from '../particles/views';
 import { applyPlanetGravity, applyPlanetGravityToFuelBlobs } from '../planets/gravity';
 import { PlanetViews } from '../planets/views';
 import { PlayerBody } from '../player/body';
-import { PLAYER_COLLISION_RADIUS, PLAYER_MASS } from '../player/config';
+import { PLAYER_ACCELERATION, PLAYER_COLLISION_RADIUS, PLAYER_MASS } from '../player/config';
 import { updatePlayerMotion } from '../player/motion';
 import { PlayerState } from '../player/state';
 import { createPlayerTexture } from '../player/textures';
@@ -57,7 +57,12 @@ import { createSandboxStartup } from './sandbox/sandboxSpawns';
 import { getWrappedDistance } from './sandbox/screenWrapping';
 import { keepMovingEntitiesNearPlayer, rebaseWorldAroundPlayer } from './sandbox/worldPositioning';
 
-const WORLD: WorldSize = { width: 12000, height: 12000 };
+const WORLD: WorldSize = { width: 48000, height: 48000 };
+const SANDBOX_PLAYER_MAX_SPEED = 50;
+const SANDBOX_MAX_SPEED_TRAIL_THRESHOLD = SANDBOX_PLAYER_MAX_SPEED * 0.96;
+const SANDBOX_MAX_SPEED_TRAIL_INTERVAL_MS = 45;
+const SANDBOX_MAX_SPEED_TRAIL_OFFSET = 34;
+const SANDBOX_MAX_SPEED_TRAIL_SPREAD = 9;
 const INITIAL_ASTEROIDS = 22;
 const RESPAWN_DELAY_MS = 1800;
 const STARTING_INSPECTION_PROBES = 300;
@@ -96,6 +101,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private nextProjectileId = 1;
   private inspectionProbes = STARTING_INSPECTION_PROBES;
   private lastThrusterAt = 0;
+  private lastMaxSpeedTrailAt = 0;
 
   constructor() {
     super('sandbox');
@@ -213,6 +219,10 @@ export class PhaserSandboxScene extends BaseGameScene {
         move,
         player: this.player,
         ship: this.ship,
+        tuning: {
+          acceleration: PLAYER_ACCELERATION,
+          maxSpeed: SANDBOX_PLAYER_MAX_SPEED,
+        },
         world: WORLD,
         wrap: false,
       });
@@ -225,6 +235,7 @@ export class PhaserSandboxScene extends BaseGameScene {
         deltaSeconds,
       );
       this.playerBody.setVelocity(this.player.velocity);
+      this.spawnMaxSpeedTrail(now);
       rebaseWorldAroundPlayer(this.getWorldPositioningInput());
     }
     const weaponResult = updateWeapons({
@@ -645,6 +656,48 @@ export class PhaserSandboxScene extends BaseGameScene {
       y: this.player.position.y + exhaustDirection.y * 30,
     };
     this.addParticles(createThrusterParticles(emitter, exhaustDirection, thrustScale));
+  }
+
+  private spawnMaxSpeedTrail(now: number): void {
+    if (now - this.lastMaxSpeedTrailAt < SANDBOX_MAX_SPEED_TRAIL_INTERVAL_MS) return;
+    const speed = Math.hypot(this.player.velocity.x, this.player.velocity.y);
+    if (speed < SANDBOX_MAX_SPEED_TRAIL_THRESHOLD) return;
+    this.lastMaxSpeedTrailAt = now;
+
+    const travelDirection = {
+      x: this.player.velocity.x / speed,
+      y: this.player.velocity.y / speed,
+    };
+    const exhaustDirection = {
+      x: -travelDirection.x,
+      y: -travelDirection.y,
+    };
+    const side = {
+      x: -travelDirection.y,
+      y: travelDirection.x,
+    };
+    const center = {
+      x: this.player.position.x + exhaustDirection.x * SANDBOX_MAX_SPEED_TRAIL_OFFSET,
+      y: this.player.position.y + exhaustDirection.y * SANDBOX_MAX_SPEED_TRAIL_OFFSET,
+    };
+    this.addParticles([
+      ...createThrusterParticles(
+        {
+          x: center.x + side.x * SANDBOX_MAX_SPEED_TRAIL_SPREAD,
+          y: center.y + side.y * SANDBOX_MAX_SPEED_TRAIL_SPREAD,
+        },
+        exhaustDirection,
+        0.45,
+      ),
+      ...createThrusterParticles(
+        {
+          x: center.x - side.x * SANDBOX_MAX_SPEED_TRAIL_SPREAD,
+          y: center.y - side.y * SANDBOX_MAX_SPEED_TRAIL_SPREAD,
+        },
+        exhaustDirection,
+        0.45,
+      ),
+    ]);
   }
 
   private applyEffect(effect: EffectResult): void {

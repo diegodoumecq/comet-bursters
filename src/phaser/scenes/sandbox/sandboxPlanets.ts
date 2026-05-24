@@ -5,8 +5,8 @@ import { createPlanet, getFuelReserveForPlanet } from '../../planets/logic';
 import type { PlanetEntity } from '../../planets/types';
 import type { SandboxPlanetEntity } from './planetFuel';
 
-const PLANET_COUNT = 8;
-const PLANET_MARGIN = 900;
+const PLANET_COUNT = 40;
+const PLANET_MARGIN = 2000;
 
 export function createSandboxPlanets(world: WorldSize): SandboxPlanetEntity[] {
   const planets: SandboxPlanetEntity[] = [];

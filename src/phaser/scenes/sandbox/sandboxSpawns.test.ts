@@ -20,13 +20,14 @@ import { ASTEROIDS } from '../../asteroids/logic';
 import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import { wrappedDelta } from '../../world/geometry';
 import { MOTHERSHIP_CARGO_BAY_OFFSET, MOTHERSHIP_WIDTH } from './Mothership';
-import { circlesOverlapWrapped, createSandboxStartup, planetInfluencesPlayerAtSpawn } from './sandboxSpawns';
+import { circlesOverlapWrapped, createSandboxStartup, PLANET_COUNT, planetInfluencesPlayerAtSpawn } from './sandboxSpawns';
 
-const world = { width: 12000, height: 12000 };
+const world = { width: 48000, height: 48000 };
 
 describe('sandbox startup spawns', () => {
   it('places startup entities without overlapping reservations', () => {
     const startup = createSandboxStartup(world, 22);
+    expect(startup.planets).toHaveLength(PLANET_COUNT);
     const cargoBay = {
       x: startup.spawnPoint.x + MOTHERSHIP_CARGO_BAY_OFFSET.x,
       y: startup.spawnPoint.y + MOTHERSHIP_CARGO_BAY_OFFSET.y,
