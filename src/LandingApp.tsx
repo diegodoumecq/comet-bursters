@@ -1,10 +1,16 @@
 import { useMemo, useState } from 'react';
 
+import { Switch } from './ui/components/Switch';
+
 export function LandingApp() {
   const [startingWave, setStartingWave] = useState(() => {
     const saved = window.sessionStorage.getItem('comet-bursters-starting-wave');
     const parsed = saved ? Number.parseInt(saved, 10) : 1;
     return Number.isFinite(parsed) ? Math.max(1, Math.min(50, parsed)) : 1;
+  });
+  const [fogEnabled, setFogEnabled] = useState(() => {
+    const saved = window.sessionStorage.getItem('comet-bursters-fog-enabled');
+    return saved !== 'false';
   });
   const gameHref = useMemo(() => `/game.html?startingWave=${startingWave}`, [startingWave]);
   const phaserGameHref = useMemo(() => `/phaser-game.html?startingWave=${startingWave}`, [startingWave]);
@@ -13,6 +19,11 @@ export function LandingApp() {
     const next = Math.max(1, Math.min(50, Math.round(value || 1)));
     setStartingWave(next);
     window.sessionStorage.setItem('comet-bursters-starting-wave', String(next));
+  }
+
+  function updateFogEnabled(checked: boolean): void {
+    setFogEnabled(checked);
+    window.sessionStorage.setItem('comet-bursters-fog-enabled', String(checked));
   }
 
   return (
@@ -28,17 +39,23 @@ export function LandingApp() {
           <p className="mt-4 max-w-2xl text-base text-slate-400">
             The legacy game, the Phaser rewrite, and the editors live as separate entrypoints.
           </p>
-          <label className="mt-8 block text-sm font-medium text-slate-300">
-            Starting wave
-            <input
-              className="mt-2 block w-28 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-cyan-300"
-              min={1}
-              max={50}
-              type="number"
-              value={startingWave}
-              onChange={(event) => updateStartingWave(Number(event.target.value))}
-            />
-          </label>
+          <div className="mt-8 flex flex-wrap items-end gap-6">
+            <label className="block text-sm font-medium text-slate-300">
+              Starting wave
+              <input
+                className="mt-2 block w-28 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-cyan-300"
+                min={1}
+                max={50}
+                type="number"
+                value={startingWave}
+                onChange={(event) => updateStartingWave(Number(event.target.value))}
+              />
+            </label>
+            <label className="flex min-h-10 items-center gap-3 text-sm font-medium text-slate-300">
+              <Switch checked={fogEnabled} onCheckedChange={updateFogEnabled} />
+              Fog
+            </label>
+          </div>
         </header>
 
         <main className="grid flex-1 gap-6 lg:grid-cols-2 2xl:grid-cols-5">

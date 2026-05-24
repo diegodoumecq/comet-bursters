@@ -99,6 +99,7 @@ export class SandboxRenderer {
     tractorActive: boolean;
     inspectionProbes: number;
     discovery: SandboxDiscovery;
+    fogEnabled: boolean;
     planets: SandboxPlanetEntity[];
     world: WorldSize;
   }): void {
@@ -149,13 +150,15 @@ export class SandboxRenderer {
     this.minimap.render({
       asteroids: input.asteroids,
       camera: this.scene.cameras.main,
-      fog: {
-        columns: MINIMAP_COLUMNS,
-        discoveredPlanetIds: input.discovery.discoveredPlanetIds,
-        exploredCells: input.discovery.exploredCells,
-        rows: MINIMAP_ROWS,
-        visibleCells: input.discovery.visibleCells,
-      },
+      fog: input.fogEnabled
+        ? {
+            columns: MINIMAP_COLUMNS,
+            discoveredPlanetIds: input.discovery.discoveredPlanetIds,
+            exploredCells: input.discovery.exploredCells,
+            rows: MINIMAP_ROWS,
+            visibleCells: input.discovery.visibleCells,
+          }
+        : undefined,
       nebulaRegions: SANDBOX_NEBULA_REGIONS,
       planets: input.planets,
       player: input.player.position,

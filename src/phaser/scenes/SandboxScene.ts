@@ -37,6 +37,7 @@ import { updateBlackHoles } from '../projectiles/blackHoles';
 import { ProjectileBodies } from '../projectiles/bodies';
 import { updateProjectiles } from '../projectiles/logic';
 import type { ProjectileEntity } from '../projectiles/types';
+import { getSandboxFogEnabled } from '../runtime/startup';
 import { SANDBOX_WEAPONS, type SceneWeaponPolicy } from '../weapons/scenePolicy';
 import { applyTractorBeam } from '../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../weapons/use';
@@ -92,6 +93,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private readonly ship = mainGameState.ship;
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: SANDBOX_WEAPONS };
   private readonly discovery = new SandboxDiscovery();
+  private readonly fogEnabled = getSandboxFogEnabled();
   private planets: SandboxPlanetEntity[] = [];
   private mothership!: Mothership;
   private launchStartedAt = 0;
@@ -172,7 +174,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.updateFuelBlobs(deltaSeconds);
     this.updateRespawn(time);
     this.updateMothership(time);
-    this.discovery.update(this.player.position, this.planets, WORLD);
+    if (this.fogEnabled) this.discovery.update(this.player.position, this.planets, WORLD);
   }
 
   protected renderState(action: ReturnType<ActionReader['read']>, time: number): void {
@@ -188,6 +190,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       tractorActive: this.getTractorActive(action),
       inspectionProbes: this.inspectionProbes,
       discovery: this.discovery,
+      fogEnabled: this.fogEnabled,
       planets: this.planets,
       world: WORLD,
     });
