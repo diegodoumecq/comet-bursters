@@ -103,7 +103,14 @@ export class PhaserArcadeScene extends BaseGameScene {
       this.worldSize,
       this.weaponPolicy,
     );
-    this.renderEffects = new ArcadeRenderEffects(this.game.canvas, this.game.canvas.parentElement);
+    this.renderEffects = new ArcadeRenderEffects(
+      this.game.canvas,
+      this.game.canvas.parentElement,
+      () => {
+        const canvas = this.sceneRenderer.getBackgroundCanvas();
+        return canvas ? [canvas] : [];
+      },
+    );
     this.events.once('shutdown', this.disposeRenderEffects, this);
     this.spawnWave();
     this.scale.on('resize', this.handleResize, this);

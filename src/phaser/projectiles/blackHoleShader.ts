@@ -131,6 +131,7 @@ export class BlackHoleShaderRenderer {
 
   constructor(
     private readonly sourceCanvas: HTMLCanvasElement,
+    private readonly getUnderlayCanvases: () => HTMLCanvasElement[] = () => [],
     private readonly getOverlayCanvases: () => HTMLCanvasElement[] = () => [],
   ) {}
 
@@ -197,7 +198,7 @@ export class BlackHoleShaderRenderer {
     this.canvas.style.position = 'absolute';
     this.canvas.style.inset = '0';
     this.canvas.style.pointerEvents = 'none';
-    this.canvas.style.zIndex = '2';
+    this.canvas.style.zIndex = '4';
     this.sourceCanvas.parentElement?.appendChild(this.canvas);
 
     this.renderer = new THREE.WebGLRenderer({
@@ -263,6 +264,15 @@ export class BlackHoleShaderRenderer {
 
     this.compositeContext.clearRect(0, 0, this.compositeCanvas.width, this.compositeCanvas.height);
     try {
+      for (const underlay of this.getUnderlayCanvases()) {
+        this.compositeContext.drawImage(
+          underlay,
+          0,
+          0,
+          this.compositeCanvas.width,
+          this.compositeCanvas.height,
+        );
+      }
       this.compositeContext.drawImage(
         this.sourceCanvas,
         0,

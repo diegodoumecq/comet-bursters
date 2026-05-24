@@ -54,6 +54,10 @@ export class ArcadeRenderer {
     return this.weaponMenu.getSelected(aim);
   }
 
+  getBackgroundCanvas(): HTMLCanvasElement | null {
+    return this.background.getCanvas();
+  }
+
   render(now: number, session: ArcadeRunState, action: ActionState, tractorActive: boolean): void {
     this.background.render(now, session.player.velocity);
     const playerAlive = session.playerAlive;

@@ -30,12 +30,20 @@ export class SandboxRenderEffects {
   private readonly blackHoleShader: BlackHoleShaderRenderer;
   private readonly fuelMetaballs: FuelMetaballRenderer | null;
 
-  constructor(sourceCanvas: HTMLCanvasElement, parent: HTMLElement | null) {
+  constructor(
+    sourceCanvas: HTMLCanvasElement,
+    parent: HTMLElement | null,
+    getBackgroundCanvases: () => HTMLCanvasElement[],
+  ) {
     this.fuelMetaballs = parent ? new FuelMetaballRenderer(parent) : null;
-    this.blackHoleShader = new BlackHoleShaderRenderer(sourceCanvas, () => {
-      const canvas = this.fuelMetaballs?.getCanvas();
-      return canvas ? [canvas] : [];
-    });
+    this.blackHoleShader = new BlackHoleShaderRenderer(
+      sourceCanvas,
+      getBackgroundCanvases,
+      () => {
+        const canvas = this.fuelMetaballs?.getCanvas();
+        return canvas ? [canvas] : [];
+      },
+    );
   }
 
   render(input: SandboxRenderEffectsInput): void {

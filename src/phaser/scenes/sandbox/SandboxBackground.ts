@@ -51,6 +51,10 @@ export class SandboxBackground {
     this.graphics.setVisible(true);
   }
 
+  getCanvas(): HTMLCanvasElement | null {
+    return this.shader.getCanvas();
+  }
+
   private getStarParallax(playerPosition: Vector, world: WorldSize): Vector {
     if (!this.lastPlayerPosition) {
       this.lastPlayerPosition = { x: playerPosition.x, y: playerPosition.y };

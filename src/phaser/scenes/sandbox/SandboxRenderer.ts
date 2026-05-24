@@ -18,13 +18,18 @@ import type { SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { drawTractorBeam } from '../../weapons/tractorBeam';
 import type { WeaponKind } from '../../weapons/types';
 import { MINIMAP_COLUMNS, MINIMAP_ROWS, type SandboxDiscovery } from './discovery';
+import { NebulaRegionRenderer } from './NebulaRegionRenderer';
+import { SANDBOX_NEBULA_REGIONS } from './nebulaRegions';
 import type { SandboxPlanetEntity } from './planetFuel';
 import { SandboxBackground } from './SandboxBackground';
 import { SandboxPlanetOverlay } from './SandboxPlanetOverlay';
 
+const PLAYER_FUEL_HUD_DEPTH = 30;
+
 export class SandboxRenderer {
   private readonly background: SandboxBackground;
   private readonly beam: Phaser.GameObjects.Graphics;
+  private readonly nebulaRegions: NebulaRegionRenderer;
   private readonly playerTurret: Phaser.GameObjects.Image;
   private readonly playerShield: Phaser.GameObjects.Graphics;
   private readonly playerFuelBase: Phaser.GameObjects.Graphics;
@@ -42,11 +47,12 @@ export class SandboxRenderer {
     world: WorldSize,
   ) {
     this.background = new SandboxBackground(scene, world);
+    this.nebulaRegions = new NebulaRegionRenderer(scene);
     this.beam = scene.add.graphics();
     this.playerTurret = scene.add.image(player.x, player.y, PLAYER_TURRET_TEXTURE_KEY).setDepth(3);
     this.playerShield = scene.add.graphics();
-    this.playerFuelBase = scene.add.graphics().setDepth(2);
-    this.playerFuelFill = scene.add.graphics().setDepth(2);
+    this.playerFuelBase = scene.add.graphics().setDepth(PLAYER_FUEL_HUD_DEPTH);
+    this.playerFuelFill = scene.add.graphics().setDepth(PLAYER_FUEL_HUD_DEPTH);
     this.playerFuelMask = scene.make.graphics({ x: 0, y: 0 }, false);
     this.playerFuelFill.setMask(this.playerFuelMask.createGeometryMask());
     this.playerThruster = scene.add.graphics().setDepth(0);
@@ -59,20 +65,24 @@ export class SandboxRenderer {
     return this.weaponMenu.getSelected(aim);
   }
 
+  getBackgroundCanvas(): HTMLCanvasElement | null {
+    return this.background.getCanvas();
+  }
+
   setPlayerDocked(docked: boolean): void {
     if (docked) {
       this.playerThruster.setDepth(-4);
       this.player.setDepth(-3.5);
-      this.playerFuelBase.setDepth(-3);
-      this.playerFuelFill.setDepth(-3);
+      this.playerFuelBase.setDepth(PLAYER_FUEL_HUD_DEPTH);
+      this.playerFuelFill.setDepth(PLAYER_FUEL_HUD_DEPTH);
       this.playerTurret.setDepth(-2.5);
       this.playerShield.setDepth(-2.5);
       return;
     }
     this.player.setDepth(6);
     this.playerThruster.setDepth(5);
-    this.playerFuelBase.setDepth(7);
-    this.playerFuelFill.setDepth(7);
+    this.playerFuelBase.setDepth(PLAYER_FUEL_HUD_DEPTH);
+    this.playerFuelFill.setDepth(PLAYER_FUEL_HUD_DEPTH);
     this.playerTurret.setDepth(8);
     this.playerShield.setDepth(8);
   }
@@ -93,6 +103,12 @@ export class SandboxRenderer {
     world: WorldSize;
   }): void {
     this.background.render(input.player.position, input.world);
+    this.nebulaRegions.render({
+      camera: this.scene.cameras.main,
+      regions: SANDBOX_NEBULA_REGIONS,
+      screen: { width: this.scene.scale.width, height: this.scene.scale.height },
+      world: input.world,
+    });
     const visible = getPlayerVisible(
       input.player.visible,
       input.player.invulnerableUntil,
@@ -140,6 +156,7 @@ export class SandboxRenderer {
         rows: MINIMAP_ROWS,
         visibleCells: input.discovery.visibleCells,
       },
+      nebulaRegions: SANDBOX_NEBULA_REGIONS,
       planets: input.planets,
       player: input.player.position,
       playerAim: input.player.lastAim,

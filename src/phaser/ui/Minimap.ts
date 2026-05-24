@@ -17,6 +17,11 @@ export type MinimapFog = {
   visibleCells: Uint8Array;
 };
 
+export type MinimapNebulaRegion = {
+  alpha: number;
+  points: Vector[];
+};
+
 export class Minimap {
   private readonly graphics: Phaser.GameObjects.Graphics;
 
@@ -28,6 +33,7 @@ export class Minimap {
     asteroids?: AsteroidEntity[];
     camera: Phaser.Cameras.Scene2D.Camera;
     fog?: MinimapFog;
+    nebulaRegions?: MinimapNebulaRegion[];
     planets: PlanetEntity[];
     player: Vector;
     playerAim: Vector;
@@ -46,6 +52,7 @@ export class Minimap {
     this.graphics.strokeRect(x, y, WIDTH, HEIGHT);
 
     if (input.fog) this.drawFog(input.fog, x, y);
+    this.drawNebulaRegions(input.nebulaRegions ?? [], input.fog, input.world, x, y);
     this.drawGrid(x, y);
     this.drawPlanets(input.planets, input.fog, input.world, x, y, scaleX, scaleY);
     this.drawAsteroids(input.asteroids ?? [], input.fog, input.world, x, y, scaleX, scaleY);
@@ -122,6 +129,45 @@ export class Minimap {
           y + positiveModulo(asteroid.position.y, world.height) * scaleY,
           Math.max(2, ASTEROIDS[asteroid.tier].collisionRadius * scaleX),
         );
+      }
+    }
+  }
+
+  private drawNebulaRegions(
+    regions: MinimapNebulaRegion[],
+    fog: MinimapFog | undefined,
+    world: WorldSize,
+    x: number,
+    y: number,
+  ): void {
+    if (regions.length === 0) return;
+
+    const columns = fog?.columns ?? MINIMAP_DEFAULT_COLUMNS;
+    const rows = fog?.rows ?? MINIMAP_DEFAULT_ROWS;
+    const cellWidth = WIDTH / columns;
+    const cellHeight = HEIGHT / rows;
+
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < columns; col += 1) {
+        const index = row * columns + col;
+        const discovered = !fog || fog.exploredCells[index];
+        if (discovered) {
+          const worldPosition = {
+            x: ((col + 0.5) / columns) * world.width,
+            y: ((row + 0.5) / rows) * world.height,
+          };
+          const region = getNebulaRegionAt(worldPosition, regions);
+          if (region) {
+            const visible = !fog || fog.visibleCells[index];
+            this.graphics.fillStyle(0x2d7185, (visible ? 0.42 : 0.24) * region.alpha);
+            this.graphics.fillRect(
+              x + col * cellWidth,
+              y + row * cellHeight,
+              cellWidth + 0.5,
+              cellHeight + 0.5,
+            );
+          }
+        }
       }
     }
   }
@@ -222,6 +268,34 @@ export class Minimap {
   }
 }
 
+const MINIMAP_DEFAULT_COLUMNS = 44;
+const MINIMAP_DEFAULT_ROWS = 44;
+
 function positiveModulo(value: number, modulo: number): number {
   return ((value % modulo) + modulo) % modulo;
+}
+
+function getNebulaRegionAt(
+  point: Vector,
+  regions: MinimapNebulaRegion[],
+): MinimapNebulaRegion | null {
+  for (const region of regions) {
+    if (pointInPolygon(point, region.points)) return region;
+  }
+  return null;
+}
+
+function pointInPolygon(point: Vector, polygon: Vector[]): boolean {
+  let inside = false;
+  for (let index = 0, previousIndex = polygon.length - 1; index < polygon.length; previousIndex = index, index += 1) {
+    const current = polygon[index];
+    const previous = polygon[previousIndex];
+    const crossesY = current.y > point.y !== previous.y > point.y;
+    const denominator = previous.y - current.y;
+    const intersectionX =
+      ((previous.x - current.x) * (point.y - current.y)) / (Math.abs(denominator) < 0.0001 ? 0.0001 : denominator) +
+      current.x;
+    if (crossesY && point.x < intersectionX) inside = !inside;
+  }
+  return inside;
 }

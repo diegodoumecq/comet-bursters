@@ -133,7 +133,14 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.playerBody.body.setFrictionAir(0);
     this.syncPlayerContactBodies();
     this.sceneRenderer = new SandboxRenderer(this, this.playerBody.body, this.weaponPolicy, WORLD);
-    this.renderEffects = new SandboxRenderEffects(this.game.canvas, this.game.canvas.parentElement);
+    this.renderEffects = new SandboxRenderEffects(
+      this.game.canvas,
+      this.game.canvas.parentElement,
+      () => {
+        const canvas = this.sceneRenderer.getBackgroundCanvas();
+        return canvas ? [canvas] : [];
+      },
+    );
     this.events.once('shutdown', this.disposeRenderEffects, this);
     this.startLaunchSequence(this.time.now);
     this.sceneRenderer.setPlayerDocked(true);

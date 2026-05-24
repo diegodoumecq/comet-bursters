@@ -48,6 +48,10 @@ export class ArcadeSpaceBackground {
     this.starfield.resize(screen);
   }
 
+  getCanvas(): HTMLCanvasElement | null {
+    return this.shader.getCanvas();
+  }
+
   private dispose(): void {
     this.shader.dispose();
     this.starfield.destroy();
