@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
 import type { AsteroidEntity } from '../../asteroids/types';
+import { withPerformanceMeasure } from '../../core/performance';
 import type { Vector, WorldSize } from '../../core/types';
 import {
   getPlayerVisible,
@@ -12,6 +13,7 @@ import {
 import type { ShipState } from '../../player/shipState';
 import type { PlayerState } from '../../player/state';
 import { PLAYER_TURRET_TEXTURE_KEY } from '../../player/textures';
+import { getSandboxPerfToggles } from '../../runtime/startup';
 import { Minimap } from '../../ui/Minimap';
 import { WeaponMenu } from '../../ui/WeaponMenu';
 import type { SceneWeaponPolicy } from '../../weapons/scenePolicy';
@@ -39,6 +41,7 @@ export class SandboxRenderer {
   private readonly weaponMenu: WeaponMenu;
   private readonly minimap: Minimap;
   private readonly planetOverlay: SandboxPlanetOverlay;
+  private readonly perfToggles = getSandboxPerfToggles();
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -66,6 +69,7 @@ export class SandboxRenderer {
   }
 
   getBackgroundCanvas(): HTMLCanvasElement | null {
+    if (!this.perfToggles.threeBackground) return null;
     return this.background.getCanvas();
   }
 
@@ -103,13 +107,30 @@ export class SandboxRenderer {
     planets: SandboxPlanetEntity[];
     world: WorldSize;
   }): void {
-    this.background.render(input.player.position, input.world);
-    this.nebulaRegions.render({
-      camera: this.scene.cameras.main,
-      regions: SANDBOX_NEBULA_REGIONS,
-      screen: { width: this.scene.scale.width, height: this.scene.scale.height },
-      world: input.world,
+    withPerformanceMeasure('sandbox.render.background', this.perfToggles.markers, () => {
+      this.background.render(input.player.position, input.world, {
+        markers: this.perfToggles.markers,
+        starfield: this.perfToggles.starfield,
+        threeBackground: this.perfToggles.threeBackground,
+      });
     });
+    if (this.perfToggles.nebulaRegions) {
+      withPerformanceMeasure('sandbox.render.nebulaRegions', this.perfToggles.markers, () => {
+        this.nebulaRegions.render({
+          camera: this.scene.cameras.main,
+          regions: SANDBOX_NEBULA_REGIONS,
+          screen: { width: this.scene.scale.width, height: this.scene.scale.height },
+          world: input.world,
+        });
+      });
+    } else {
+      this.nebulaRegions.render({
+        camera: this.scene.cameras.main,
+        regions: [],
+        screen: { width: this.scene.scale.width, height: this.scene.scale.height },
+        world: input.world,
+      });
+    }
     const visible = getPlayerVisible(
       input.player.visible,
       input.player.invulnerableUntil,
@@ -147,25 +168,30 @@ export class SandboxRenderer {
       input.ship.secondaryWeapon,
       input.timeDilation,
     );
-    this.minimap.render({
-      asteroids: input.asteroids,
-      camera: this.scene.cameras.main,
-      fog: input.fogEnabled
-        ? {
-            columns: MINIMAP_COLUMNS,
-            discoveredPlanetIds: input.discovery.discoveredPlanetIds,
-            exploredCells: input.discovery.exploredCells,
-            rows: MINIMAP_ROWS,
-            visibleCells: input.discovery.visibleCells,
-          }
-        : undefined,
-      nebulaRegions: SANDBOX_NEBULA_REGIONS,
-      planets: input.planets,
-      player: input.player.position,
-      playerAim: input.player.lastAim,
-      viewportMode: 'wrapped',
-      world: input.world,
-    });
+    this.minimap.setVisible(this.perfToggles.minimap);
+    if (this.perfToggles.minimap) {
+      withPerformanceMeasure('sandbox.render.minimap', this.perfToggles.markers, () => {
+        this.minimap.render({
+          asteroids: input.asteroids,
+          camera: this.scene.cameras.main,
+          fog: input.fogEnabled
+            ? {
+                columns: MINIMAP_COLUMNS,
+                discoveredPlanetIds: input.discovery.discoveredPlanetIds,
+                exploredCells: input.discovery.exploredCells,
+                rows: MINIMAP_ROWS,
+                visibleCells: input.discovery.visibleCells,
+              }
+            : undefined,
+          nebulaRegions: SANDBOX_NEBULA_REGIONS,
+          planets: input.planets,
+          player: input.player.position,
+          playerAim: input.player.lastAim,
+          viewportMode: 'wrapped',
+          world: input.world,
+        });
+      });
+    }
     this.planetOverlay.render(input.planets, input.now);
   }
 }

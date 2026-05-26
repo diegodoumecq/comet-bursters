@@ -191,6 +191,10 @@ export class BlackHoleShaderRenderer {
     this.canvas = null;
   }
 
+  setVisible(visible: boolean): void {
+    if (this.canvas) this.canvas.style.display = visible ? 'block' : 'none';
+  }
+
   private ensureInitialized(): void {
     if (this.renderer) return;
 

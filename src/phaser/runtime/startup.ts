@@ -7,3 +7,32 @@ export function getStartingWave(): number {
 export function getSandboxFogEnabled(): boolean {
   return window.sessionStorage.getItem('comet-bursters-fog-enabled') !== 'false';
 }
+
+export type SandboxPerfToggles = {
+  blackHoles: boolean;
+  fuelMetaballs: boolean;
+  markers: boolean;
+  minimap: boolean;
+  nebulaRegions: boolean;
+  starfield: boolean;
+  threeBackground: boolean;
+};
+
+export function getSandboxPerfToggles(): SandboxPerfToggles {
+  return {
+    blackHoles: getBooleanStartupFlag('sandboxBlackHoles', true),
+    fuelMetaballs: getBooleanStartupFlag('sandboxFuelMetaballs', true),
+    markers: getBooleanStartupFlag('sandboxPerfMarkers', false),
+    minimap: getBooleanStartupFlag('sandboxMinimap', true),
+    nebulaRegions: getBooleanStartupFlag('sandboxNebulaRegions', true),
+    starfield: getBooleanStartupFlag('sandboxStarfield', true),
+    threeBackground: getBooleanStartupFlag('sandboxThreeBackground', true),
+  };
+}
+
+function getBooleanStartupFlag(name: string, defaultValue: boolean): boolean {
+  const search = new URLSearchParams(window.location.search);
+  const raw = search.get(name) ?? window.sessionStorage.getItem(`comet-bursters-${name}`);
+  if (raw === null) return defaultValue;
+  return raw !== 'false' && raw !== '0';
+}

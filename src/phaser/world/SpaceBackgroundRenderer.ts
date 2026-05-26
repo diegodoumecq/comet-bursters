@@ -164,6 +164,10 @@ export class SpaceBackgroundRenderer {
     return this.canvas;
   }
 
+  setVisible(visible: boolean): void {
+    if (this.canvas) this.canvas.style.display = visible ? 'block' : 'none';
+  }
+
   private ensureInitialized(): void {
     if (this.renderer || !this.parent) return;
 

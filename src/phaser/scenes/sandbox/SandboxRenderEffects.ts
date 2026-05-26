@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 
+import { withPerformanceMeasure } from '../../core/performance';
 import type { Vector, WorldSize } from '../../core/types';
 import type { FuelMetaball } from '../../fuel/metaballs';
 import { FuelMetaballRenderer } from '../../fuel/metaballs';
@@ -9,6 +10,7 @@ import type { FuelBlobEntity } from '../../fuel/types';
 import { buildBlackHoleScreenSamples } from '../../projectiles/blackHoleSamples';
 import { BlackHoleShaderRenderer } from '../../projectiles/blackHoleShader';
 import type { ProjectileEntity } from '../../projectiles/types';
+import { getSandboxPerfToggles } from '../../runtime/startup';
 import { getExtractorBlobPosition, type SandboxPlanetEntity } from './planetFuel';
 import { createWrappedScreenProjector } from './screenWrapping';
 
@@ -29,6 +31,7 @@ type SandboxRenderEffectsInput = {
 export class SandboxRenderEffects {
   private readonly blackHoleShader: BlackHoleShaderRenderer;
   private readonly fuelMetaballs: FuelMetaballRenderer | null;
+  private readonly perfToggles = getSandboxPerfToggles();
 
   constructor(
     sourceCanvas: HTMLCanvasElement,
@@ -36,14 +39,10 @@ export class SandboxRenderEffects {
     getBackgroundCanvases: () => HTMLCanvasElement[],
   ) {
     this.fuelMetaballs = parent ? new FuelMetaballRenderer(parent) : null;
-    this.blackHoleShader = new BlackHoleShaderRenderer(
-      sourceCanvas,
-      getBackgroundCanvases,
-      () => {
-        const canvas = this.fuelMetaballs?.getCanvas();
-        return canvas ? [canvas] : [];
-      },
-    );
+    this.blackHoleShader = new BlackHoleShaderRenderer(sourceCanvas, getBackgroundCanvases, () => {
+      const canvas = this.fuelMetaballs?.getCanvas();
+      return canvas ? [canvas] : [];
+    });
   }
 
   render(input: SandboxRenderEffectsInput): void {
@@ -62,14 +61,25 @@ export class SandboxRenderEffects {
       }),
     ];
 
-    this.fuelMetaballs?.render(metaballs, input.now, input.screen.width, input.screen.height);
+    this.fuelMetaballs?.setVisible(this.perfToggles.fuelMetaballs);
+    if (this.perfToggles.fuelMetaballs) {
+      withPerformanceMeasure('sandbox.render.fuelMetaballs', this.perfToggles.markers, () => {
+        this.fuelMetaballs?.render(metaballs, input.now, input.screen.width, input.screen.height);
+      });
+    }
 
-    const blackHoles = buildBlackHoleScreenSamples({
-      projectiles: input.projectiles,
-      project,
-    });
-    this.fuelMetaballs?.setVisible(blackHoles.length === 0);
-    this.blackHoleShader.render(blackHoles);
+    if (this.perfToggles.blackHoles) {
+      const blackHoles = buildBlackHoleScreenSamples({
+        projectiles: input.projectiles,
+        project,
+      });
+      this.fuelMetaballs?.setVisible(this.perfToggles.fuelMetaballs && blackHoles.length === 0);
+      withPerformanceMeasure('sandbox.render.blackHoles', this.perfToggles.markers, () => {
+        this.blackHoleShader.render(blackHoles);
+      });
+    } else {
+      this.blackHoleShader.setVisible(false);
+    }
   }
 
   dispose(): void {

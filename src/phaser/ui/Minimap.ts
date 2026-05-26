@@ -29,6 +29,10 @@ export class Minimap {
     this.graphics = scene.add.graphics().setScrollFactor(0).setDepth(200);
   }
 
+  setVisible(visible: boolean): void {
+    this.graphics.setVisible(visible);
+  }
+
   render(input: {
     asteroids?: AsteroidEntity[];
     camera: Phaser.Cameras.Scene2D.Camera;
@@ -74,7 +78,12 @@ export class Minimap {
           const visible = fog.visibleCells[index];
           const alpha = visible ? 0.9 : 0.42;
           this.graphics.fillStyle(visible ? 0x102338 : 0x0a1322, alpha);
-          this.graphics.fillRect(x + col * cellWidth, y + row * cellHeight, cellWidth + 0.5, cellHeight + 0.5);
+          this.graphics.fillRect(
+            x + col * cellWidth,
+            y + row * cellHeight,
+            cellWidth + 0.5,
+            cellHeight + 0.5,
+          );
         }
       }
     }
@@ -172,11 +181,16 @@ export class Minimap {
     }
   }
 
-  private isVisibleOnMinimap(position: Vector, fog: MinimapFog | undefined, world: WorldSize): boolean {
+  private isVisibleOnMinimap(
+    position: Vector,
+    fog: MinimapFog | undefined,
+    world: WorldSize,
+  ): boolean {
     if (!fog) return true;
     const col = Math.floor((positiveModulo(position.x, world.width) / world.width) * fog.columns);
     const row = Math.floor((positiveModulo(position.y, world.height) / world.height) * fog.rows);
-    const index = Phaser.Math.Clamp(row, 0, fog.rows - 1) * fog.columns +
+    const index =
+      Phaser.Math.Clamp(row, 0, fog.rows - 1) * fog.columns +
       Phaser.Math.Clamp(col, 0, fog.columns - 1);
     return Boolean(fog.visibleCells[index]);
   }
@@ -213,7 +227,12 @@ export class Minimap {
       for (const offsetY of [0, -HEIGHT]) {
         const drawX = x + boxX + offsetX;
         const drawY = y + boxY + offsetY;
-        if (drawX < x + WIDTH && drawX + boxWidth > x && drawY < y + HEIGHT && drawY + boxHeight > y) {
+        if (
+          drawX < x + WIDTH &&
+          drawX + boxWidth > x &&
+          drawY < y + HEIGHT &&
+          drawY + boxHeight > y
+        ) {
           this.strokeClippedRect(drawX, drawY, boxWidth, boxHeight, x, y, WIDTH, HEIGHT);
         }
       }
@@ -235,11 +254,13 @@ export class Minimap {
     const top = Math.max(rectY, clipY);
     const bottom = Math.min(rectY + rectHeight, clipY + clipHeight);
 
-    if (rectY >= clipY && rectY <= clipY + clipHeight) this.graphics.lineBetween(left, rectY, right, rectY);
+    if (rectY >= clipY && rectY <= clipY + clipHeight)
+      this.graphics.lineBetween(left, rectY, right, rectY);
     if (rectY + rectHeight >= clipY && rectY + rectHeight <= clipY + clipHeight) {
       this.graphics.lineBetween(left, rectY + rectHeight, right, rectY + rectHeight);
     }
-    if (rectX >= clipX && rectX <= clipX + clipWidth) this.graphics.lineBetween(rectX, top, rectX, bottom);
+    if (rectX >= clipX && rectX <= clipX + clipWidth)
+      this.graphics.lineBetween(rectX, top, rectX, bottom);
     if (rectX + rectWidth >= clipX && rectX + rectWidth <= clipX + clipWidth) {
       this.graphics.lineBetween(rectX + rectWidth, top, rectX + rectWidth, bottom);
     }
@@ -261,8 +282,14 @@ export class Minimap {
     this.graphics.fillStyle(0xe0f2fe, 1);
     this.graphics.beginPath();
     this.graphics.moveTo(centerX + Math.cos(angle) * size, centerY + Math.sin(angle) * size);
-    this.graphics.lineTo(centerX + Math.cos(angle + 2.45) * size, centerY + Math.sin(angle + 2.45) * size);
-    this.graphics.lineTo(centerX + Math.cos(angle - 2.45) * size, centerY + Math.sin(angle - 2.45) * size);
+    this.graphics.lineTo(
+      centerX + Math.cos(angle + 2.45) * size,
+      centerY + Math.sin(angle + 2.45) * size,
+    );
+    this.graphics.lineTo(
+      centerX + Math.cos(angle - 2.45) * size,
+      centerY + Math.sin(angle - 2.45) * size,
+    );
     this.graphics.closePath();
     this.graphics.fillPath();
   }
@@ -287,13 +314,18 @@ function getNebulaRegionAt(
 
 function pointInPolygon(point: Vector, polygon: Vector[]): boolean {
   let inside = false;
-  for (let index = 0, previousIndex = polygon.length - 1; index < polygon.length; previousIndex = index, index += 1) {
+  for (
+    let index = 0, previousIndex = polygon.length - 1;
+    index < polygon.length;
+    previousIndex = index, index += 1
+  ) {
     const current = polygon[index];
     const previous = polygon[previousIndex];
     const crossesY = current.y > point.y !== previous.y > point.y;
     const denominator = previous.y - current.y;
     const intersectionX =
-      ((previous.x - current.x) * (point.y - current.y)) / (Math.abs(denominator) < 0.0001 ? 0.0001 : denominator) +
+      ((previous.x - current.x) * (point.y - current.y)) /
+        (Math.abs(denominator) < 0.0001 ? 0.0001 : denominator) +
       current.x;
     if (crossesY && point.x < intersectionX) inside = !inside;
   }

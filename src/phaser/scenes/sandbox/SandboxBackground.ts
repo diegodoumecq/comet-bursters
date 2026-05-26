@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { withPerformanceMeasure } from '../../core/performance';
 import type { Vector, WorldSize } from '../../core/types';
 import { wrappedDelta } from '../../world/geometry';
 import { SpaceBackgroundRenderer } from '../../world/SpaceBackgroundRenderer';
@@ -9,6 +10,12 @@ const GRID_DEPTH = -100;
 const STAR_PARALLAX = 0.018;
 const SANDBOX_STAR_DEPTH_SHIFT = -70;
 
+type SandboxBackgroundRenderOptions = {
+  markers: boolean;
+  starfield: boolean;
+  threeBackground: boolean;
+};
+
 export class SandboxBackground {
   private readonly graphics: Phaser.GameObjects.Graphics;
   private readonly shader: SpaceBackgroundRenderer;
@@ -16,7 +23,10 @@ export class SandboxBackground {
   private lastPlayerPosition: Vector | null = null;
   private lastRenderAt = 0;
 
-  constructor(private readonly scene: Phaser.Scene, world: WorldSize) {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    world: WorldSize,
+  ) {
     this.shader = new SpaceBackgroundRenderer(scene.game.canvas, scene.game.canvas.parentElement);
     this.starfield = new Starfield(
       scene,
@@ -28,26 +38,36 @@ export class SandboxBackground {
     this.drawGrid(world);
   }
 
-  render(playerPosition: Vector, world: WorldSize): void {
+  render(playerPosition: Vector, world: WorldSize, options: SandboxBackgroundRenderOptions): void {
     const now = this.scene.time.now;
     const deltaMs =
       this.lastRenderAt === 0 ? 0 : Math.min(50, Math.max(0, now - this.lastRenderAt));
     this.lastRenderAt = now;
     const camera = this.scene.cameras.main;
     camera.preRender();
-    this.shader.render({
-      mode: 'sandbox',
-      now,
-      cameraScroll: {
-        x: camera.worldView.x,
-        y: camera.worldView.y,
-      },
-      cameraZoom: camera.zoom,
-      playerPosition,
-      screen: { width: this.scene.scale.width, height: this.scene.scale.height },
-      world,
-    });
-    this.starfield.render(now, this.getStarParallax(playerPosition, world), deltaMs);
+    this.shader.setVisible(options.threeBackground);
+    if (options.threeBackground) {
+      withPerformanceMeasure('sandbox.render.background.three', options.markers, () => {
+        this.shader.render({
+          mode: 'sandbox',
+          now,
+          cameraScroll: {
+            x: camera.worldView.x,
+            y: camera.worldView.y,
+          },
+          cameraZoom: camera.zoom,
+          playerPosition,
+          screen: { width: this.scene.scale.width, height: this.scene.scale.height },
+          world,
+        });
+      });
+    }
+    this.starfield.setVisible(options.starfield);
+    if (options.starfield) {
+      withPerformanceMeasure('sandbox.render.background.starfield', options.markers, () => {
+        this.starfield.render(now, this.getStarParallax(playerPosition, world), deltaMs);
+      });
+    }
     this.graphics.setVisible(true);
   }
 

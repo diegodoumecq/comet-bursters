@@ -1,6 +1,39 @@
 import { useMemo, useState } from 'react';
 
+import { CollapsibleSection } from './ui/components/CollapsibleSection';
 import { Switch } from './ui/components/Switch';
+
+type SandboxPerfToggleKey =
+  | 'sandboxPerfMarkers'
+  | 'sandboxBlackHoles'
+  | 'sandboxFuelMetaballs'
+  | 'sandboxMinimap'
+  | 'sandboxNebulaRegions'
+  | 'sandboxStarfield'
+  | 'sandboxThreeBackground';
+
+const SANDBOX_PERF_TOGGLES: Array<{
+  defaultValue: boolean;
+  key: SandboxPerfToggleKey;
+  label: string;
+}> = [
+  { defaultValue: false, key: 'sandboxPerfMarkers', label: 'Perf markers' },
+  { defaultValue: true, key: 'sandboxBlackHoles', label: 'Black holes' },
+  { defaultValue: true, key: 'sandboxFuelMetaballs', label: 'Fuel metaballs' },
+  { defaultValue: true, key: 'sandboxMinimap', label: 'Minimap' },
+  { defaultValue: true, key: 'sandboxNebulaRegions', label: 'Nebula regions' },
+  { defaultValue: true, key: 'sandboxStarfield', label: 'Starfield' },
+  { defaultValue: true, key: 'sandboxThreeBackground', label: 'Three background' },
+];
+
+function readSandboxPerfToggles(): Record<SandboxPerfToggleKey, boolean> {
+  const toggles = {} as Record<SandboxPerfToggleKey, boolean>;
+  for (const toggle of SANDBOX_PERF_TOGGLES) {
+    const saved = window.sessionStorage.getItem(`comet-bursters-${toggle.key}`);
+    toggles[toggle.key] = saved === null ? toggle.defaultValue : saved !== 'false';
+  }
+  return toggles;
+}
 
 export function LandingApp() {
   const [startingWave, setStartingWave] = useState(() => {
@@ -12,8 +45,16 @@ export function LandingApp() {
     const saved = window.sessionStorage.getItem('comet-bursters-fog-enabled');
     return saved !== 'false';
   });
+  const [sandboxProfilingOpen, setSandboxProfilingOpen] = useState(() => {
+    const saved = window.sessionStorage.getItem('comet-bursters-sandbox-profiling-open');
+    return saved === 'true';
+  });
+  const [sandboxPerfToggles, setSandboxPerfToggles] = useState(readSandboxPerfToggles);
   const gameHref = useMemo(() => `/game.html?startingWave=${startingWave}`, [startingWave]);
-  const phaserGameHref = useMemo(() => `/phaser-game.html?startingWave=${startingWave}`, [startingWave]);
+  const phaserGameHref = useMemo(
+    () => `/phaser-game.html?startingWave=${startingWave}`,
+    [startingWave],
+  );
 
   function updateStartingWave(value: number): void {
     const next = Math.max(1, Math.min(50, Math.round(value || 1)));
@@ -26,19 +67,24 @@ export function LandingApp() {
     window.sessionStorage.setItem('comet-bursters-fog-enabled', String(checked));
   }
 
+  function updateSandboxPerfToggle(key: SandboxPerfToggleKey, checked: boolean): void {
+    setSandboxPerfToggles((current) => ({ ...current, [key]: checked }));
+    window.sessionStorage.setItem(`comet-bursters-${key}`, String(checked));
+  }
+
+  function toggleSandboxProfiling(): void {
+    const next = !sandboxProfilingOpen;
+    setSandboxProfilingOpen(next);
+    window.sessionStorage.setItem('comet-bursters-sandbox-profiling-open', String(next));
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-10">
+      <div className="mx-auto flex min-h-screen max-w-2xl flex-col px-6 py-10">
         <header className="mb-10">
-          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">
-            Comet Bursters
-          </div>
           <h1 className="mt-3 max-w-3xl text-5xl font-semibold leading-tight text-white">
-            Choose A Runtime Or Tool
+            Comet Bursters
           </h1>
-          <p className="mt-4 max-w-2xl text-base text-slate-400">
-            The legacy game, the Phaser rewrite, and the editors live as separate entrypoints.
-          </p>
           <div className="mt-8 flex flex-wrap items-end gap-6">
             <label className="block text-sm font-medium text-slate-300">
               Starting wave
@@ -56,82 +102,64 @@ export function LandingApp() {
               Fog
             </label>
           </div>
+          <div className="mt-6 max-w-4xl rounded-xl border border-slate-800 bg-slate-900/60 p-1">
+            <CollapsibleSection
+              title="Sandbox profiling"
+              isOpen={sandboxProfilingOpen}
+              onToggle={toggleSandboxProfiling}
+            >
+              <div className="flex flex-col flex-wrap items-start gap-3 items-stretch p-6">
+                {SANDBOX_PERF_TOGGLES.map((toggle) => (
+                  <label
+                    className="flex min-h-10 items-center gap-3 text-sm font-medium text-slate-300"
+                    key={toggle.key}
+                  >
+                    <Switch
+                      checked={sandboxPerfToggles[toggle.key]}
+                      onCheckedChange={(checked) => updateSandboxPerfToggle(toggle.key, checked)}
+                    />
+                    {toggle.label}
+                  </label>
+                ))}
+              </div>
+            </CollapsibleSection>
+          </div>
         </header>
 
-        <main className="grid flex-1 gap-6 lg:grid-cols-2 2xl:grid-cols-5">
-          <div
-            className="group rounded-3xl border border-slate-800 bg-slate-900/70 p-8 transition hover:border-cyan-400/50 hover:bg-slate-900"
+        <main className="flex flex-col flex-wrap items-start gap-3 items-stretch">
+          <a
+            href={gameHref}
+            className="inline-flex min-h-11 items-center rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-cyan-400/60 hover:bg-slate-800 focus-visible:border-cyan-300 focus-visible:outline-none"
           >
-            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-300">
-              Runtime
-            </div>
-            <h2 className="mt-4 text-3xl font-semibold text-white">Open Game</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-400">
-              Launch the original canvas-based game client with scenes, controls, and current
-              gameplay flow.
-            </p>
-            <a className="mt-8 inline-block text-sm font-medium text-cyan-200" href={gameHref}>
-              Go to game
-            </a>
-          </div>
+            Open Game
+          </a>
 
           <a
             href={phaserGameHref}
-            className="group rounded-3xl border border-slate-800 bg-slate-900/70 p-8 transition hover:border-cyan-400/50 hover:bg-slate-900"
+            className="inline-flex min-h-11 items-center rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-cyan-400/60 hover:bg-slate-800 focus-visible:border-cyan-300 focus-visible:outline-none"
           >
-            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-300">
-              Rewrite
-            </div>
-            <h2 className="mt-4 text-3xl font-semibold text-white">Open Phaser Game</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-400">
-              Launch the new Phaser-based runtime while the rewrite is developed in parallel.
-            </p>
-            <div className="mt-10 text-sm font-medium text-cyan-200">Go to Phaser game</div>
+            Open Phaser Game
           </a>
 
           <a
             href="/editor.html"
-            className="group rounded-3xl border border-slate-800 bg-slate-900/70 p-8 transition hover:border-cyan-400/50 hover:bg-slate-900"
+            className="inline-flex min-h-11 items-center rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-cyan-400/60 hover:bg-slate-800 focus-visible:border-cyan-300 focus-visible:outline-none"
           >
-            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-300">
-              Authoring
-            </div>
-            <h2 className="mt-4 text-3xl font-semibold text-white">Open Editor</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-400">
-              Launch the React + Tailwind level editor to choose tileset assets, paint layers, and
-              manage level JSON.
-            </p>
-            <div className="mt-10 text-sm font-medium text-cyan-200">Go to editor</div>
+            Open Editor
           </a>
 
           <a
             href="/spritesheet-editor.html"
-            className="group rounded-3xl border border-slate-800 bg-slate-900/70 p-8 transition hover:border-cyan-400/50 hover:bg-slate-900"
+            className="inline-flex min-h-11 items-center rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-cyan-400/60 hover:bg-slate-800 focus-visible:border-cyan-300 focus-visible:outline-none"
           >
-            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-300">
-              Assets
-            </div>
-            <h2 className="mt-4 text-3xl font-semibold text-white">Open Spritesheet Editor</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-400">
-              Edit tileset JSON definitions for each spritesheet PNG, including grid bounds and
-              named tile coordinates.
-            </p>
-            <div className="mt-10 text-sm font-medium text-cyan-200">Go to spritesheets</div>
+            Open Spritesheet Editor
           </a>
 
           <a
             href="/sprite-editor.html"
-            className="group rounded-3xl border border-slate-800 bg-slate-900/70 p-8 transition hover:border-cyan-400/50 hover:bg-slate-900"
+            className="inline-flex min-h-11 items-center rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-cyan-400/60 hover:bg-slate-800 focus-visible:border-cyan-300 focus-visible:outline-none"
           >
-            <div className="text-sm font-semibold uppercase tracking-[0.24em] text-cyan-300">
-              Paint
-            </div>
-            <h2 className="mt-4 text-3xl font-semibold text-white">Open Sprite Editor</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-400">
-              Browse PNG assets, paint directly on them pixel by pixel, and save the edited image
-              back into `src/assets`.
-            </p>
-            <div className="mt-10 text-sm font-medium text-cyan-200">Go to sprite editor</div>
+            Open Sprite Editor
           </a>
         </main>
       </div>

@@ -44,6 +44,10 @@ export class Starfield {
     }
   }
 
+  setVisible(visible: boolean): void {
+    for (const layer of this.layers) layer.graphics.setVisible(visible);
+  }
+
   resize(screen: WorldSize): void {
     this.screen = screen;
     for (const layer of this.layers) layer.graphics.destroy();
@@ -58,7 +62,10 @@ export class Starfield {
   private createLayers(): void {
     this.layers = LAYERS.map((config, layerIndex) => ({
       factor: config.factor,
-      graphics: this.scene.add.graphics().setScrollFactor(0).setDepth(config.depth + this.depthShift),
+      graphics: this.scene.add
+        .graphics()
+        .setScrollFactor(0)
+        .setDepth(config.depth + this.depthShift),
       stars: createStars(this.screen, config, layerIndex),
       twinkle: config.twinkle,
     }));
