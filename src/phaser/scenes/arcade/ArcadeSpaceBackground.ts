@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { withPerformanceMeasure } from '../../core/performance';
 import type { Vector, WorldSize } from '../../core/types';
 import { SpaceBackgroundRenderer } from '../../world/SpaceBackgroundRenderer';
 import { Starfield } from '../../world/Starfield';
@@ -8,6 +9,12 @@ const MAX_DELTA_MS = 50;
 const NEBULA_DIRECTION_CHANGE_MS = 14000;
 const NEBULA_DRIFT_SMOOTHING = 0.012;
 const NEBULA_DRIFT_SPEED = 0.014;
+
+type ArcadeSpaceBackgroundRenderOptions = {
+  markers: boolean;
+  starfield: boolean;
+  threeBackground: boolean;
+};
 
 export class ArcadeSpaceBackground {
   private readonly shader: SpaceBackgroundRenderer;
@@ -27,20 +34,30 @@ export class ArcadeSpaceBackground {
     this.scene.events.once('shutdown', this.dispose, this);
   }
 
-  render(now: number, _playerVelocity: Vector): void {
+  render(now: number, _playerVelocity: Vector, options: ArcadeSpaceBackgroundRenderOptions): void {
     const deltaMs =
       this.lastRenderAt === 0 ? 0 : Math.min(MAX_DELTA_MS, Math.max(0, now - this.lastRenderAt));
     this.lastRenderAt = now;
     this.updateNebulaDrift(now);
     this.shaderOffset.x += this.drift.x * deltaMs;
     this.shaderOffset.y += this.drift.y * deltaMs;
-    this.shader.render({
-      mode: 'arcade',
-      now,
-      playerPosition: this.shaderOffset,
-      screen: this.screen,
-    });
-    this.starfield.render(now, this.drift, deltaMs);
+    this.shader.setVisible(options.threeBackground);
+    if (options.threeBackground) {
+      withPerformanceMeasure('arcade.render.background.three', options.markers, () => {
+        this.shader.render({
+          mode: 'arcade',
+          now,
+          playerPosition: this.shaderOffset,
+          screen: this.screen,
+        });
+      });
+    }
+    this.starfield.setVisible(options.starfield);
+    if (options.starfield) {
+      withPerformanceMeasure('arcade.render.background.starfield', options.markers, () => {
+        this.starfield.render(now, this.drift, deltaMs);
+      });
+    }
   }
 
   resize(screen: WorldSize): void {

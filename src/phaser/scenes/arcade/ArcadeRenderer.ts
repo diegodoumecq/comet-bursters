@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { withPerformanceMeasure } from '../../core/performance';
 import type { MatterImage, Vector, WorldSize } from '../../core/types';
 import type { ActionState } from '../../input/actions';
 import {
@@ -10,6 +11,7 @@ import {
   renderPlayerTurret,
 } from '../../player/rendering';
 import { PLAYER_TURRET_TEXTURE_KEY } from '../../player/textures';
+import { getSandboxPerfToggles } from '../../runtime/startup';
 import { WeaponMenu } from '../../ui/WeaponMenu';
 import type { SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { drawTractorBeam } from '../../weapons/tractorBeam';
@@ -27,6 +29,7 @@ export class ArcadeRenderer {
   private readonly playerFuelFill: Phaser.GameObjects.Graphics;
   private readonly playerFuelMask: Phaser.GameObjects.Graphics;
   private readonly playerThruster: Phaser.GameObjects.Graphics;
+  private readonly perfToggles = getSandboxPerfToggles();
   private readonly weaponMenu: WeaponMenu;
   private gameOverText: Phaser.GameObjects.Text | null = null;
   private shakeUntil = 0;
@@ -55,11 +58,18 @@ export class ArcadeRenderer {
   }
 
   getBackgroundCanvas(): HTMLCanvasElement | null {
+    if (!this.perfToggles.threeBackground) return null;
     return this.background.getCanvas();
   }
 
   render(now: number, session: ArcadeRunState, action: ActionState, tractorActive: boolean): void {
-    this.background.render(now, session.player.velocity);
+    withPerformanceMeasure('arcade.render.background', this.perfToggles.markers, () => {
+      this.background.render(now, session.player.velocity, {
+        markers: this.perfToggles.markers,
+        starfield: this.perfToggles.starfield,
+        threeBackground: this.perfToggles.threeBackground,
+      });
+    });
     const playerAlive = session.playerAlive;
     const playerVisible = getPlayerVisible(playerAlive, session.player.invulnerableUntil, now);
     renderPlayerThruster(
