@@ -5,7 +5,6 @@ import type { Vector, WorldSize } from '../core/types';
 type Star = {
   alpha: number;
   glint: boolean;
-  phase: number;
   radius: number;
   tint: number;
   x: number;
@@ -14,8 +13,8 @@ type Star = {
 
 type StarLayer = {
   factor: number;
-  graphics: Phaser.GameObjects.Graphics;
-  stars: Star[];
+  sprite: Phaser.GameObjects.TileSprite;
+  textureKey: string;
   twinkle: number;
 };
 
@@ -27,6 +26,7 @@ const LAYERS = [
 const TINTS = [0xd8e8ff, 0xffffff, 0xfff1d1, 0xc8ddff] as const;
 
 export class Starfield {
+  private readonly texturePrefix = `phaser-starfield-${Phaser.Math.RND.uuid()}`;
   private layers: StarLayer[] = [];
 
   constructor(
@@ -39,64 +39,102 @@ export class Starfield {
 
   render(now: number, drift: Vector, deltaMs: number): void {
     for (const layer of this.layers) {
-      this.updateLayer(layer, drift, deltaMs, now);
-      this.drawLayer(layer, now);
+      const currentDrift = {
+        x: drift.x + Math.sin(now * 0.00011) * 0.003,
+        y: drift.y + Math.cos(now * 0.00009) * 0.002,
+      };
+      layer.sprite.tilePositionX = wrap(
+        layer.sprite.tilePositionX - currentDrift.x * deltaMs * layer.factor,
+        this.screen.width,
+      );
+      layer.sprite.tilePositionY = wrap(
+        layer.sprite.tilePositionY - currentDrift.y * deltaMs * layer.factor,
+        this.screen.height,
+      );
+      layer.sprite.alpha = Phaser.Math.Clamp(1 + Math.sin(now * 0.00032) * layer.twinkle, 0, 1);
     }
   }
 
   setVisible(visible: boolean): void {
-    for (const layer of this.layers) layer.graphics.setVisible(visible);
+    for (const layer of this.layers) layer.sprite.setVisible(visible);
   }
 
   resize(screen: WorldSize): void {
     this.screen = screen;
-    for (const layer of this.layers) layer.graphics.destroy();
+    this.destroyLayers();
     this.createLayers();
   }
 
   destroy(): void {
-    for (const layer of this.layers) layer.graphics.destroy();
-    this.layers = [];
+    this.destroyLayers();
   }
 
   private createLayers(): void {
     this.layers = LAYERS.map((config, layerIndex) => ({
       factor: config.factor,
-      graphics: this.scene.add
-        .graphics()
+      sprite: this.scene.add
+        .tileSprite(
+          0,
+          0,
+          this.screen.width,
+          this.screen.height,
+          this.createLayerTexture(config, layerIndex),
+        )
+        .setOrigin(0)
         .setScrollFactor(0)
         .setDepth(config.depth + this.depthShift),
-      stars: createStars(this.screen, config, layerIndex),
+      textureKey: this.getTextureKey(layerIndex),
       twinkle: config.twinkle,
     }));
   }
 
-  private updateLayer(layer: StarLayer, drift: Vector, deltaMs: number, now: number): void {
-    const currentDrift = {
-      x: drift.x + Math.sin(now * 0.00011) * 0.003,
-      y: drift.y + Math.cos(now * 0.00009) * 0.002,
-    };
-    for (const star of layer.stars) {
-      star.x = wrap(star.x + currentDrift.x * deltaMs * layer.factor, this.screen.width);
-      star.y = wrap(star.y + currentDrift.y * deltaMs * layer.factor, this.screen.height);
-    }
-  }
+  private createLayerTexture(config: (typeof LAYERS)[number], layerIndex: number): string {
+    const textureKey = this.getTextureKey(layerIndex);
+    if (this.scene.textures.exists(textureKey)) return textureKey;
 
-  private drawLayer(layer: StarLayer, now: number): void {
-    layer.graphics.clear();
-    for (const star of layer.stars) {
-      const pulse = 1 + Math.sin(now * 0.00032 + star.phase) * layer.twinkle;
-      const alpha = Phaser.Math.Clamp(star.alpha * pulse, 0, 1);
-      layer.graphics.fillStyle(star.tint, alpha);
-      layer.graphics.fillCircle(star.x, star.y, star.radius);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.ceil(this.screen.width));
+    canvas.height = Math.max(1, Math.ceil(this.screen.height));
+    const context = canvas.getContext('2d');
+    if (!context) {
+      this.scene.textures.addCanvas(textureKey, canvas);
+      return textureKey;
+    }
+
+    for (const star of createStars(this.screen, config, layerIndex)) {
+      context.globalAlpha = star.alpha;
+      context.fillStyle = toCanvasColor(star.tint);
+      context.beginPath();
+      context.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+      context.fill();
       if (star.glint) {
-        const lineAlpha = alpha * 0.28;
+        context.globalAlpha = star.alpha * 0.28;
+        context.strokeStyle = toCanvasColor(star.tint);
+        context.lineWidth = 1;
         const length = star.radius * 4.8;
-        layer.graphics.lineStyle(1, star.tint, lineAlpha);
-        layer.graphics.lineBetween(star.x - length, star.y, star.x + length, star.y);
-        layer.graphics.lineBetween(star.x, star.y - length, star.x, star.y + length);
+        context.beginPath();
+        context.moveTo(star.x - length, star.y);
+        context.lineTo(star.x + length, star.y);
+        context.moveTo(star.x, star.y - length);
+        context.lineTo(star.x, star.y + length);
+        context.stroke();
       }
     }
+    context.globalAlpha = 1;
+    this.scene.textures.addCanvas(textureKey, canvas);
+    return textureKey;
+  }
+
+  private destroyLayers(): void {
+    for (const layer of this.layers) {
+      layer.sprite.destroy();
+      this.scene.textures.remove(layer.textureKey);
+    }
+    this.layers = [];
+  }
+
+  private getTextureKey(layerIndex: number): string {
+    return `${this.texturePrefix}-${layerIndex}`;
   }
 }
 
@@ -111,7 +149,6 @@ function createStars(
     return {
       alpha: (0.28 + seededUnit(seed, 41) * 0.48) * brightness,
       glint: layerIndex > 0 && seededUnit(seed, 53) > 0.88,
-      phase: seededUnit(seed, 67) * Math.PI * 2,
       radius: Phaser.Math.Linear(config.minRadius, config.maxRadius, seededUnit(seed, 79)),
       tint: TINTS[Math.floor(seededUnit(seed, 97) * TINTS.length)],
       x: seededUnit(seed, 11) * screen.width,
@@ -125,6 +162,10 @@ function wrap(value: number, max: number): number {
   if (value < 0) return value + max;
   if (value >= max) return value - max;
   return value;
+}
+
+function toCanvasColor(tint: number): string {
+  return `#${tint.toString(16).padStart(6, '0')}`;
 }
 
 function seededUnit(index: number, seed: number): number {

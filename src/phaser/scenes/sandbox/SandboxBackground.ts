@@ -21,7 +21,7 @@ export class SandboxBackground {
   private readonly graphics: Phaser.GameObjects.Graphics;
   private readonly shader: SpaceBackgroundRenderer;
   private readonly starfield: Starfield;
-  private lastPlayerPosition: Vector | null = null;
+  private lastCameraScroll: Vector | null = null;
   private lastRenderAt = 0;
 
   constructor(
@@ -66,7 +66,7 @@ export class SandboxBackground {
     this.starfield.setVisible(options.starfield);
     if (options.starfield) {
       withPerformanceMeasure('sandbox.render.background.starfield', options.markers, () => {
-        this.starfield.render(now, this.getStarParallax(playerPosition, world), deltaMs);
+        this.starfield.render(now, this.getStarParallax(camera, world), deltaMs);
       });
     }
     this.graphics.setVisible(options.grid);
@@ -76,13 +76,14 @@ export class SandboxBackground {
     return this.shader.getCanvas();
   }
 
-  private getStarParallax(playerPosition: Vector, world: WorldSize): Vector {
-    if (!this.lastPlayerPosition) {
-      this.lastPlayerPosition = { x: playerPosition.x, y: playerPosition.y };
+  private getStarParallax(camera: Phaser.Cameras.Scene2D.Camera, world: WorldSize): Vector {
+    const cameraScroll = { x: camera.worldView.x, y: camera.worldView.y };
+    if (!this.lastCameraScroll) {
+      this.lastCameraScroll = cameraScroll;
       return { x: 0, y: 0 };
     }
-    const delta = wrappedDelta(this.lastPlayerPosition, playerPosition, world);
-    this.lastPlayerPosition = { x: playerPosition.x, y: playerPosition.y };
+    const delta = wrappedDelta(this.lastCameraScroll, cameraScroll, world);
+    this.lastCameraScroll = cameraScroll;
     return { x: -delta.x * STAR_PARALLAX, y: -delta.y * STAR_PARALLAX };
   }
 
