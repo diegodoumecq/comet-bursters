@@ -1,10 +1,7 @@
 import type { RawShipInteriorLevel } from '../../scenes/ShipInteriorScene/level';
 import { bundledTilesets } from '../../scenes/ShipInteriorScene/tilesetCatalog';
 import type { EditorTilesetDefinition } from './editorTileset';
-import {
-  cloneMaterialPlacementMap,
-  type MaterialPlacementMap,
-} from './materials';
+import { cloneMaterialPlacementMap, type MaterialPlacementMap } from './materials';
 
 const bundledLevelModules = import.meta.glob('../../assets/levels/*.json', {
   eager: true,
@@ -55,7 +52,9 @@ export function hydrateLevelTilesets(level: RawShipInteriorLevel): RawShipInteri
   const bundledIdByImageFileName = new Map(
     bundledTilesets.map((tileset) => [getTilesetImageFileName(tileset.imageSrc), tileset.id]),
   );
-  const bundledTilesetById = new Map(bundledTilesets.map((tileset) => [tileset.id, tileset] as const));
+  const bundledTilesetById = new Map(
+    bundledTilesets.map((tileset) => [tileset.id, tileset] as const),
+  );
   const legacyTilesetIdMap = new Map(
     (maybeTilesets ?? []).flatMap((tileset) => {
       const bundledId = bundledIdByImageFileName.get(getTilesetImageFileName(tileset.imageSrc));
@@ -74,7 +73,7 @@ export function hydrateLevelTilesets(level: RawShipInteriorLevel): RawShipInteri
         const normalizedTileId =
           typeof tile.tile === 'number'
             ? tile.tile
-            : bundledTileset?.tiles.find((candidate) => candidate.name === tile.tile)?.id ?? null;
+            : (bundledTileset?.tiles.find((candidate) => candidate.name === tile.tile)?.id ?? null);
         return normalizedTileId === null ? [] : [{ ...tile, tile: normalizedTileId }];
       }),
     })),

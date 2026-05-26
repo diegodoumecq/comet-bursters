@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 
 import type { MatterArc, Vector } from '../core/types';
-import type { ProjectileEntity } from './types';
 import { createProjectileShape } from '../weapons/rendering';
+import type { ProjectileEntity } from './types';
 
 export class ProjectileBodies {
   private readonly shapes = new Map<number, MatterArc>();
@@ -10,7 +10,12 @@ export class ProjectileBodies {
   constructor(private readonly scene: Phaser.Scene) {}
 
   add(projectile: ProjectileEntity): MatterArc {
-    const shape = createProjectileShape(this.scene, projectile.position, projectile.kind, projectile.angle);
+    const shape = createProjectileShape(
+      this.scene,
+      projectile.position,
+      projectile.kind,
+      projectile.angle,
+    );
     shape.setVelocity(projectile.velocity.x, projectile.velocity.y);
     this.shapes.set(projectile.id, shape);
     return shape;

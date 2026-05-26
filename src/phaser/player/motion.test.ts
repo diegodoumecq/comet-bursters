@@ -8,7 +8,10 @@ vi.mock('phaser', () => ({
   default: {
     Math: {
       Vector2: class Vector2 {
-        constructor(readonly x: number, readonly y: number) {}
+        constructor(
+          readonly x: number,
+          readonly y: number,
+        ) {}
       },
     },
   },

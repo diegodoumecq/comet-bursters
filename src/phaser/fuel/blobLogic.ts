@@ -4,7 +4,7 @@ import type { AsteroidEntity } from '../asteroids/types';
 import { circlesOverlap } from '../core/collision';
 import type { Vector, WorldSize } from '../core/types';
 import { PLAYER_COLLISION_RADIUS } from '../player/config';
-import type { FuelBlobEntity } from './types';
+import { wrapPoint } from '../world/geometry';
 import {
   FUEL_BLOB_AMOUNT,
   FUEL_BLOB_ATTRACTION_ACCELERATION,
@@ -14,7 +14,7 @@ import {
   FUEL_BLOB_RADIUS,
   getFuelDropCount,
 } from './rules';
-import { wrapPoint } from '../world/geometry';
+import type { FuelBlobEntity } from './types';
 
 let nextFuelBlobId = 1;
 
@@ -37,25 +37,25 @@ export function spawnFuelBlobs(
     const angle = Math.random() * Math.PI * 2;
     const distance = Phaser.Math.FloatBetween(8, 28);
     const speed = Phaser.Math.FloatBetween(21, 66);
-    blobs.push(createFuelBlob(
-      {
-        x: position.x + Math.cos(angle) * distance,
-        y: position.y + Math.sin(angle) * distance,
-      },
-      {
-        x: baseVelocity.x * 0.12 + Math.cos(angle) * speed,
-        y: baseVelocity.y * 0.12 + Math.sin(angle) * speed,
-      },
-    ));
+    blobs.push(
+      createFuelBlob(
+        {
+          x: position.x + Math.cos(angle) * distance,
+          y: position.y + Math.sin(angle) * distance,
+        },
+        {
+          x: baseVelocity.x * 0.12 + Math.cos(angle) * speed,
+          y: baseVelocity.y * 0.12 + Math.sin(angle) * speed,
+        },
+      ),
+    );
   }
   return blobs;
 }
 
 export function spawnAsteroidFuelDrops(asteroid: AsteroidEntity): FuelBlobEntity[] {
   const count = getFuelDropCount(asteroid.tier);
-  return count === 0
-    ? []
-    : spawnFuelBlobs(asteroid.position, asteroid.velocity, count);
+  return count === 0 ? [] : spawnFuelBlobs(asteroid.position, asteroid.velocity, count);
 }
 
 export function updateFuelBlob(
@@ -72,8 +72,10 @@ export function updateFuelBlob(
     const distance = Math.hypot(dx, dy);
     if (distance > 0 && distance < FUEL_BLOB_ATTRACTION_RADIUS) {
       const pull = 1 - distance / FUEL_BLOB_ATTRACTION_RADIUS;
-      blob.velocity.x += (dx / distance) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull) * deltaSeconds;
-      blob.velocity.y += (dy / distance) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull) * deltaSeconds;
+      blob.velocity.x +=
+        (dx / distance) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull) * deltaSeconds;
+      blob.velocity.y +=
+        (dy / distance) * FUEL_BLOB_ATTRACTION_ACCELERATION * (0.35 + pull) * deltaSeconds;
     }
   }
 
@@ -103,7 +105,12 @@ export function updateFuelBlobs(
   const collected: FuelBlobEntity[] = [];
   for (const blob of blobs) {
     updateFuelBlob(blob, player, canCollect, deltaSeconds, world, wrap);
-    const distance = Phaser.Math.Distance.Between(player.x, player.y, blob.position.x, blob.position.y);
+    const distance = Phaser.Math.Distance.Between(
+      player.x,
+      player.y,
+      blob.position.x,
+      blob.position.y,
+    );
     if (canCollect && circlesOverlap(distance, playerCollisionRadius, FUEL_BLOB_RADIUS))
       collected.push(blob);
   }

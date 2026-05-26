@@ -11,7 +11,11 @@ export class PlayerBody {
   readonly shieldSensor: MatterImage;
   private scale = 1;
 
-  constructor(scene: Phaser.Scene, position: Vector, private readonly state: PlayerState) {
+  constructor(
+    scene: Phaser.Scene,
+    position: Vector,
+    private readonly state: PlayerState,
+  ) {
     this.body = scene.matter.add.image(position.x, position.y, 'phaser-ship') as MatterImage;
     setPlayerCollisionCircle(this.body, this.scale);
     this.body.setPosition(position.x, position.y);

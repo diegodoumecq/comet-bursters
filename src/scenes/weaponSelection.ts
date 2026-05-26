@@ -22,7 +22,9 @@ export function getRadialMenuWeapon(currentPlayer: Player): SelectableWeaponType
   const turretAngle = currentPlayer.turretAngle - Math.PI * 0.5;
   const normalizedAngle = (turretAngle + Math.PI * 2) % (Math.PI * 2);
   const segmentSize = (Math.PI * 2) / SELECTABLE_WEAPONS.length;
-  const selectedIndex = Math.floor(((normalizedAngle + segmentSize * 0.5) % (Math.PI * 2)) / segmentSize);
+  const selectedIndex = Math.floor(
+    ((normalizedAngle + segmentSize * 0.5) % (Math.PI * 2)) / segmentSize,
+  );
   return SELECTABLE_WEAPONS[selectedIndex];
 }
 
@@ -91,12 +93,7 @@ export function drawWeaponSelectionMenu(
     const hasPrimarySlot = currentPlayer.primaryWeapon === weapon;
     const hasSecondarySlot = currentPlayer.secondaryWeapon === weapon;
     if (hasPrimarySlot || hasSecondarySlot) {
-      const slotLabel =
-        hasPrimarySlot && hasSecondarySlot
-          ? 'L/R'
-          : hasPrimarySlot
-            ? 'L'
-            : 'R';
+      const slotLabel = hasPrimarySlot && hasSecondarySlot ? 'L/R' : hasPrimarySlot ? 'L' : 'R';
       const slotX = Math.cos(centerAngle) * SLOT_MARKER_RADIUS;
       const slotY = Math.sin(centerAngle) * SLOT_MARKER_RADIUS;
 

@@ -215,7 +215,10 @@ export class AsteroidBodies {
     const dvy = body.body.velocity.y - snapshot.velocity.y;
     const angularVelocityDelta = body.body.angularVelocity - snapshot.angularVelocity;
     return (
-      dx * dx + dy * dy + (dvx * dvx + dvy * dvy) * 100 + angularVelocityDelta * angularVelocityDelta
+      dx * dx +
+      dy * dy +
+      (dvx * dvx + dvy * dvy) * 100 +
+      angularVelocityDelta * angularVelocityDelta
     );
   }
 

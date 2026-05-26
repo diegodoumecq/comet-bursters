@@ -189,418 +189,433 @@ export const useEditorStore = create<EditorStore>()(
       ...buildInitialEditorState(),
       ...(() => {
         const handlers: EditorHandlers = {
-      applyAssetPath: () => {
-        const { assetPathInput, level, selectedLayerId } = get();
-        const selectedTileset = getTilesetForLayer(level, selectedLayerId);
-        if (!selectedTileset || !assetPathInput.trim()) {
-          return;
-        }
+          applyAssetPath: () => {
+            const { assetPathInput, level, selectedLayerId } = get();
+            const selectedTileset = getTilesetForLayer(level, selectedLayerId);
+            if (!selectedTileset || !assetPathInput.trim()) {
+              return;
+            }
 
-        set((state) => ({
-          level: {
-            ...state.level,
-            tilesets: state.level.tilesets.map((tileset) =>
-              tileset.id === selectedTileset.id
-                ? { ...tileset, imageSrc: assetPathInput.trim() }
-                : tileset,
-            ),
-          },
-        }));
-      },
-
-      deletePath: (pathId) => {
-        set((state) => ({
-          level: {
-            ...state.level,
-            paths: state.level.paths.filter((path) => path.id !== pathId),
-            entities: state.level.entities.map((entity) =>
-              entity.pathId === pathId ? { ...entity, pathId: undefined } : entity,
-            ),
-          },
-          openPathMenuId: null,
-          renamingPathId: state.renamingPathId === pathId ? null : state.renamingPathId,
-          renamingPathValue: state.renamingPathId === pathId ? '' : state.renamingPathValue,
-          selectedEntityPathId:
-            state.selectedEntityPathId === pathId ? null : state.selectedEntityPathId,
-          selectedPathId: state.selectedPathId === pathId ? null : state.selectedPathId,
-        }));
-      },
-
-      deleteSelectedEntity: () => {
-        const { selectedEntityId } = get();
-        if (!selectedEntityId) {
-          return;
-        }
-
-        set((state) => ({
-          level: removeEntity(state.level, selectedEntityId),
-          selectedEntityId: null,
-        }));
-      },
-
-      importLevelFromText: (text, fileName) => {
-        try {
-          const parsed = JSON.parse(text) as unknown;
-          set(
-            buildLevelResetState(
-              hydrateLevelTilesets(parsed as RawShipInteriorLevel),
-              null,
-              getLevelMaterialPlacements(parsed),
-            ),
-          );
-          get().handlers.syncDerivedState();
-        } catch (error) {
-          alert('Failed to import JSON ' + fileName);
-        }
-      },
-
-      loadBundledLevel: (assetPath) => {
-        const entry = bundledLevels.find((candidate) => candidate.assetPath === assetPath);
-        if (!entry) {
-          alert(`Unknown level asset: ${assetPath}`);
-          return;
-        }
-
-        set(
-          buildLevelResetState(
-            cloneLevel(entry.level),
-            assetPath,
-            cloneMaterialPlacements(entry.materialPlacements),
-          ),
-        );
-        get().handlers.syncDerivedState();
-      },
-
-      pickTilesetPng: (file) => {
-        const { level, selectedLayerId } = get();
-        const selectedTileset = getTilesetForLayer(level, selectedLayerId);
-        if (!selectedTileset) {
-          return;
-        }
-
-        const objectUrl = URL.createObjectURL(file);
-        set((state) => {
-          const previousUrl = state.assetUrls[selectedTileset.id];
-          if (previousUrl) {
-            URL.revokeObjectURL(previousUrl);
-          }
-          return {
-            assetUrls: { ...state.assetUrls, [selectedTileset.id]: objectUrl },
-          };
-        });
-      },
-
-      redo: () => {
-        const { futureHistory } = get();
-        const nextEntry = futureHistory[0];
-        if (!nextEntry) {
-          return;
-        }
-
-        set((state) => {
-          const nextDocument = applyEditorHistoryEntry(getEditorDocument(state), nextEntry, 'after');
-          return {
-            futureHistory: state.futureHistory.slice(1),
-            level: nextDocument.level,
-            materialPlacements: nextDocument.materialPlacements,
-            pastHistory: [nextEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
-          };
-        });
-        get().handlers.syncDerivedState();
-      },
-
-      resetEditor: () => {
-        set(buildInitialEditorState());
-      },
-
-      savePathRename: (pathId) => {
-        const { level, renamingPathValue, selectedEntityPathId } = get();
-        const nextId = renamingPathValue.trim();
-        if (!nextId) {
-          alert('Path name cannot be empty');
-          return;
-        }
-        if (nextId === pathId) {
-          set({ renamingPathId: null, renamingPathValue: '' });
-          return;
-        }
-        if (level.paths.some((path) => path.id === nextId)) {
-          alert(`Path "${nextId}" already exists`);
-          return;
-        }
-
-        set((state) => ({
-          level: {
-            ...state.level,
-            paths: state.level.paths.map((path) =>
-              path.id === pathId ? { ...path, id: nextId } : path,
-            ),
-            entities: state.level.entities.map((entity) =>
-              entity.pathId === pathId ? { ...entity, pathId: nextId } : entity,
-            ),
-          },
-          openPathMenuId: null,
-          renamingPathId: null,
-          renamingPathValue: '',
-          selectedEntityPathId: selectedEntityPathId === pathId ? nextId : selectedEntityPathId,
-          selectedPathId: state.selectedPathId === pathId ? nextId : state.selectedPathId,
-        }));
-      },
-
-      setAssetPathInput: (assetPathInput) => set({ assetPathInput }),
-      setImages: (images) => set({ images }),
-      setInactiveLayerOpacity: (inactiveLayerOpacity) =>
-        set({ inactiveLayerOpacity: Math.min(1, Math.max(0, inactiveLayerOpacity)) }),
-      setFillRectangleDrag: (fillRectangleDrag) => set({ fillRectangleDrag }),
-      setLayerVisibility: (layerId, isVisible) =>
-        set((state) => ({
-          layerVisibility: {
-            ...state.layerVisibility,
-            [layerId]: isVisible,
-          },
-        })),
-      setOnlyPaintUnoccupiedCells: (onlyPaintUnoccupiedCells) => set({ onlyPaintUnoccupiedCells }),
-      setDocument: (updater) =>
-        set((state) => {
-          const currentDocument = getEditorDocument(state);
-          const nextDocument = typeof updater === 'function' ? updater(currentDocument) : updater;
-          const historyEntry = createEditorHistoryEntry(currentDocument, nextDocument);
-          if (!historyEntry) {
-            return {};
-          }
-
-          return {
-            futureHistory: [],
-            level: cloneLevel(nextDocument.level),
-            materialPlacements: cloneMaterialPlacements(nextDocument.materialPlacements),
-            pastHistory: [historyEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
-          };
-        }),
-      setDocumentWithoutHistory: (updater) =>
-        set((state) => {
-          const currentDocument = getEditorDocument(state);
-          const nextDocument = typeof updater === 'function' ? updater(currentDocument) : updater;
-          const historyEntry = createEditorHistoryEntry(currentDocument, nextDocument);
-          if (!historyEntry) {
-            return {};
-          }
-
-          return {
-            level: cloneLevel(nextDocument.level),
-            materialPlacements: cloneMaterialPlacements(nextDocument.materialPlacements),
-          };
-        }),
-      setLevel: (updater) => {
-        set((state) => {
-          const nextLevel = typeof updater === 'function' ? updater(state.level) : updater;
-          const currentDocument = getEditorDocument(state);
-          const nextDocument = {
-            level: nextLevel,
-            materialPlacements: state.materialPlacements,
-          };
-          const historyEntry = createEditorHistoryEntry(currentDocument, nextDocument);
-          if (!historyEntry) {
-            return {};
-          }
-          return {
-            futureHistory: [],
-            level: cloneLevel(nextLevel),
-            pastHistory: [historyEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
-          };
-        });
-        get().handlers.syncDerivedState();
-      },
-      commitDocumentChange: (previousDocument) =>
-        set((state) => {
-          const historyEntry = createEditorHistoryEntry(previousDocument, getEditorDocument(state));
-          if (!historyEntry) {
-            return {};
-          }
-
-          return {
-            futureHistory: [],
-            pastHistory: [historyEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
-          };
-        }),
-      setOpenPathMenuId: (openPathMenuId) => set({ openPathMenuId }),
-      setRenamingPathId: (renamingPathId) => set({ renamingPathId }),
-      setRenamingPathValue: (renamingPathValue) => set({ renamingPathValue }),
-      setSelectedEntityId: (selectedEntityId) => set({ selectedEntityId }),
-      setSelectedEntityPathId: (selectedEntityPathId) => set({ selectedEntityPathId }),
-      setSelectedEntityType: (selectedEntityType) => set({ selectedEntityType }),
-      setSelectedLayerId: (selectedLayerId) =>
-        set((state) => {
-          const selectedTileset = getTilesetForLayer(state.level, selectedLayerId);
-          const materialIds = getTilesetMaterials(selectedTileset);
-          const [firstMaterialId] = materialIds;
-          if (!selectedTileset) {
-            return {
-              selectedLayerId,
-              selectedMaterialId: null,
-              selectedTileId: null,
-            };
-          }
-
-          const tilePositions = getTilesetTilePositionMap(selectedTileset);
-
-          if (state.selectedTileId !== null && String(state.selectedTileId) in tilePositions) {
-            return {
-              selectedLayerId,
-              selectedMaterialId:
-                state.selectedMaterialId && materialIds.includes(state.selectedMaterialId)
-                  ? state.selectedMaterialId
-                  : (firstMaterialId ?? null),
-            };
-          }
-
-          const [firstTileId] = Object.keys(tilePositions);
-          return {
-            selectedLayerId,
-            selectedMaterialId: firstMaterialId ?? null,
-            selectedTileId: firstTileId ? Number.parseInt(firstTileId, 10) : null,
-          };
-        }),
-      setSelectedMaterialId: (selectedMaterialId) => set({ selectedMaterialId }),
-      setSelectedPathId: (selectedPathId) => set({ selectedPathId }),
-      setSelectedTileId: (selectedTileId) => set({ selectedTileId }),
-      setTool: (tool) => set({ tool }),
-
-      syncDerivedState: () => {
-        const state = get();
-        const nextState: Partial<EditorState> = {};
-        const hydratedLevel = hydrateLevelTilesets(state.level);
-
-        if (JSON.stringify(hydratedLevel.tilesets) !== JSON.stringify(state.level.tilesets)) {
-          nextState.level = hydratedLevel;
-        }
-
-        const effectiveLevel = nextState.level ?? state.level;
-
-        if (!state.selectedLayerId && effectiveLevel.layers.length > 0) {
-          nextState.selectedLayerId = effectiveLevel.layers[0].id;
-        }
-
-        const effectiveLayerId = nextState.selectedLayerId ?? state.selectedLayerId;
-        const selectedTileset = getTilesetForLayer(effectiveLevel, effectiveLayerId);
-
-        if (!selectedTileset) {
-          nextState.selectedMaterialId = null;
-          nextState.selectedTileId = null;
-          nextState.assetPathInput = '';
-        } else {
-          nextState.assetPathInput = selectedTileset.imageSrc;
-          const materialIds = getTilesetMaterials(selectedTileset);
-          if (!state.selectedMaterialId || !materialIds.includes(state.selectedMaterialId)) {
-            const [firstMaterialId] = materialIds;
-            nextState.selectedMaterialId = firstMaterialId ?? null;
-          }
-          const tilePositions = getTilesetTilePositionMap(selectedTileset);
-          if (state.selectedTileId === null || !(String(state.selectedTileId) in tilePositions)) {
-            const [firstTileId] = Object.keys(tilePositions);
-            nextState.selectedTileId = firstTileId ? Number.parseInt(firstTileId, 10) : null;
-          }
-        }
-
-        if (
-          state.selectedEntityPathId &&
-          !effectiveLevel.paths.some((path) => path.id === state.selectedEntityPathId)
-        ) {
-          nextState.selectedEntityPathId = null;
-        }
-
-        if (
-          state.selectedPathId &&
-          !effectiveLevel.paths.some((path) => path.id === state.selectedPathId)
-        ) {
-          nextState.selectedPathId = null;
-        }
-
-        if (
-          state.selectedEntityId &&
-          !effectiveLevel.entities.some((entity) => entity.id === state.selectedEntityId)
-        ) {
-          nextState.selectedEntityId = null;
-        }
-
-        if (Object.keys(nextState).length > 0) {
-          set(nextState);
-        }
-      },
-
-      undo: () => {
-        const { pastHistory } = get();
-        const previousEntry = pastHistory[0];
-        if (!previousEntry) {
-          return;
-        }
-
-        set((state) => {
-          const previousDocument = applyEditorHistoryEntry(
-            getEditorDocument(state),
-            previousEntry,
-            'before',
-          );
-          return {
-            futureHistory: [previousEntry, ...state.futureHistory].slice(0, HISTORY_LIMIT),
-            level: previousDocument.level,
-            materialPlacements: previousDocument.materialPlacements,
-            pastHistory: state.pastHistory.slice(1),
-          };
-        });
-        get().handlers.syncDerivedState();
-      },
-
-      updateSelectedEntity: (updates) => {
-        const { level, selectedEntityId } = get();
-        const selectedEntity =
-          level.entities.find((entity) => entity.id === selectedEntityId) ?? null;
-        if (!selectedEntity) {
-          return;
-        }
-
-        set((state) => ({
-          level: upsertEntity(state.level, {
-            ...selectedEntity,
-            ...updates,
-          }),
-        }));
-      },
-
-      updateSelectedEntityType: (nextType) => {
-        const { level, selectedEntityId } = get();
-        const selectedEntity =
-          level.entities.find((entity) => entity.id === selectedEntityId) ?? null;
-        if (!selectedEntity) {
-          return;
-        }
-
-        set((state) => {
-          const baseEntity = {
-            ...selectedEntity,
-            type: nextType,
-            pathId: nextType === 'enemy-patroller' ? selectedEntity.pathId : undefined,
-            sprite: nextType === 'column' ? '../columnPixelart.png' : undefined,
-          };
-
-          if (nextType === 'player') {
-            return {
+            set((state) => ({
               level: {
                 ...state.level,
-                entities: [
-                  ...state.level.entities
-                    .filter((entity) => entity.id === selectedEntity.id || entity.type !== 'player')
-                    .filter((entity) => entity.id !== selectedEntity.id),
-                  baseEntity,
-                ],
+                tilesets: state.level.tilesets.map((tileset) =>
+                  tileset.id === selectedTileset.id
+                    ? { ...tileset, imageSrc: assetPathInput.trim() }
+                    : tileset,
+                ),
               },
-            };
-          }
+            }));
+          },
 
-          return {
-            level: upsertEntity(state.level, baseEntity),
-          };
-        });
-      },
+          deletePath: (pathId) => {
+            set((state) => ({
+              level: {
+                ...state.level,
+                paths: state.level.paths.filter((path) => path.id !== pathId),
+                entities: state.level.entities.map((entity) =>
+                  entity.pathId === pathId ? { ...entity, pathId: undefined } : entity,
+                ),
+              },
+              openPathMenuId: null,
+              renamingPathId: state.renamingPathId === pathId ? null : state.renamingPathId,
+              renamingPathValue: state.renamingPathId === pathId ? '' : state.renamingPathValue,
+              selectedEntityPathId:
+                state.selectedEntityPathId === pathId ? null : state.selectedEntityPathId,
+              selectedPathId: state.selectedPathId === pathId ? null : state.selectedPathId,
+            }));
+          },
+
+          deleteSelectedEntity: () => {
+            const { selectedEntityId } = get();
+            if (!selectedEntityId) {
+              return;
+            }
+
+            set((state) => ({
+              level: removeEntity(state.level, selectedEntityId),
+              selectedEntityId: null,
+            }));
+          },
+
+          importLevelFromText: (text, fileName) => {
+            try {
+              const parsed = JSON.parse(text) as unknown;
+              set(
+                buildLevelResetState(
+                  hydrateLevelTilesets(parsed as RawShipInteriorLevel),
+                  null,
+                  getLevelMaterialPlacements(parsed),
+                ),
+              );
+              get().handlers.syncDerivedState();
+            } catch (error) {
+              alert('Failed to import JSON ' + fileName);
+            }
+          },
+
+          loadBundledLevel: (assetPath) => {
+            const entry = bundledLevels.find((candidate) => candidate.assetPath === assetPath);
+            if (!entry) {
+              alert(`Unknown level asset: ${assetPath}`);
+              return;
+            }
+
+            set(
+              buildLevelResetState(
+                cloneLevel(entry.level),
+                assetPath,
+                cloneMaterialPlacements(entry.materialPlacements),
+              ),
+            );
+            get().handlers.syncDerivedState();
+          },
+
+          pickTilesetPng: (file) => {
+            const { level, selectedLayerId } = get();
+            const selectedTileset = getTilesetForLayer(level, selectedLayerId);
+            if (!selectedTileset) {
+              return;
+            }
+
+            const objectUrl = URL.createObjectURL(file);
+            set((state) => {
+              const previousUrl = state.assetUrls[selectedTileset.id];
+              if (previousUrl) {
+                URL.revokeObjectURL(previousUrl);
+              }
+              return {
+                assetUrls: { ...state.assetUrls, [selectedTileset.id]: objectUrl },
+              };
+            });
+          },
+
+          redo: () => {
+            const { futureHistory } = get();
+            const nextEntry = futureHistory[0];
+            if (!nextEntry) {
+              return;
+            }
+
+            set((state) => {
+              const nextDocument = applyEditorHistoryEntry(
+                getEditorDocument(state),
+                nextEntry,
+                'after',
+              );
+              return {
+                futureHistory: state.futureHistory.slice(1),
+                level: nextDocument.level,
+                materialPlacements: nextDocument.materialPlacements,
+                pastHistory: [nextEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
+              };
+            });
+            get().handlers.syncDerivedState();
+          },
+
+          resetEditor: () => {
+            set(buildInitialEditorState());
+          },
+
+          savePathRename: (pathId) => {
+            const { level, renamingPathValue, selectedEntityPathId } = get();
+            const nextId = renamingPathValue.trim();
+            if (!nextId) {
+              alert('Path name cannot be empty');
+              return;
+            }
+            if (nextId === pathId) {
+              set({ renamingPathId: null, renamingPathValue: '' });
+              return;
+            }
+            if (level.paths.some((path) => path.id === nextId)) {
+              alert(`Path "${nextId}" already exists`);
+              return;
+            }
+
+            set((state) => ({
+              level: {
+                ...state.level,
+                paths: state.level.paths.map((path) =>
+                  path.id === pathId ? { ...path, id: nextId } : path,
+                ),
+                entities: state.level.entities.map((entity) =>
+                  entity.pathId === pathId ? { ...entity, pathId: nextId } : entity,
+                ),
+              },
+              openPathMenuId: null,
+              renamingPathId: null,
+              renamingPathValue: '',
+              selectedEntityPathId: selectedEntityPathId === pathId ? nextId : selectedEntityPathId,
+              selectedPathId: state.selectedPathId === pathId ? nextId : state.selectedPathId,
+            }));
+          },
+
+          setAssetPathInput: (assetPathInput) => set({ assetPathInput }),
+          setImages: (images) => set({ images }),
+          setInactiveLayerOpacity: (inactiveLayerOpacity) =>
+            set({ inactiveLayerOpacity: Math.min(1, Math.max(0, inactiveLayerOpacity)) }),
+          setFillRectangleDrag: (fillRectangleDrag) => set({ fillRectangleDrag }),
+          setLayerVisibility: (layerId, isVisible) =>
+            set((state) => ({
+              layerVisibility: {
+                ...state.layerVisibility,
+                [layerId]: isVisible,
+              },
+            })),
+          setOnlyPaintUnoccupiedCells: (onlyPaintUnoccupiedCells) =>
+            set({ onlyPaintUnoccupiedCells }),
+          setDocument: (updater) =>
+            set((state) => {
+              const currentDocument = getEditorDocument(state);
+              const nextDocument =
+                typeof updater === 'function' ? updater(currentDocument) : updater;
+              const historyEntry = createEditorHistoryEntry(currentDocument, nextDocument);
+              if (!historyEntry) {
+                return {};
+              }
+
+              return {
+                futureHistory: [],
+                level: cloneLevel(nextDocument.level),
+                materialPlacements: cloneMaterialPlacements(nextDocument.materialPlacements),
+                pastHistory: [historyEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
+              };
+            }),
+          setDocumentWithoutHistory: (updater) =>
+            set((state) => {
+              const currentDocument = getEditorDocument(state);
+              const nextDocument =
+                typeof updater === 'function' ? updater(currentDocument) : updater;
+              const historyEntry = createEditorHistoryEntry(currentDocument, nextDocument);
+              if (!historyEntry) {
+                return {};
+              }
+
+              return {
+                level: cloneLevel(nextDocument.level),
+                materialPlacements: cloneMaterialPlacements(nextDocument.materialPlacements),
+              };
+            }),
+          setLevel: (updater) => {
+            set((state) => {
+              const nextLevel = typeof updater === 'function' ? updater(state.level) : updater;
+              const currentDocument = getEditorDocument(state);
+              const nextDocument = {
+                level: nextLevel,
+                materialPlacements: state.materialPlacements,
+              };
+              const historyEntry = createEditorHistoryEntry(currentDocument, nextDocument);
+              if (!historyEntry) {
+                return {};
+              }
+              return {
+                futureHistory: [],
+                level: cloneLevel(nextLevel),
+                pastHistory: [historyEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
+              };
+            });
+            get().handlers.syncDerivedState();
+          },
+          commitDocumentChange: (previousDocument) =>
+            set((state) => {
+              const historyEntry = createEditorHistoryEntry(
+                previousDocument,
+                getEditorDocument(state),
+              );
+              if (!historyEntry) {
+                return {};
+              }
+
+              return {
+                futureHistory: [],
+                pastHistory: [historyEntry, ...state.pastHistory].slice(0, HISTORY_LIMIT),
+              };
+            }),
+          setOpenPathMenuId: (openPathMenuId) => set({ openPathMenuId }),
+          setRenamingPathId: (renamingPathId) => set({ renamingPathId }),
+          setRenamingPathValue: (renamingPathValue) => set({ renamingPathValue }),
+          setSelectedEntityId: (selectedEntityId) => set({ selectedEntityId }),
+          setSelectedEntityPathId: (selectedEntityPathId) => set({ selectedEntityPathId }),
+          setSelectedEntityType: (selectedEntityType) => set({ selectedEntityType }),
+          setSelectedLayerId: (selectedLayerId) =>
+            set((state) => {
+              const selectedTileset = getTilesetForLayer(state.level, selectedLayerId);
+              const materialIds = getTilesetMaterials(selectedTileset);
+              const [firstMaterialId] = materialIds;
+              if (!selectedTileset) {
+                return {
+                  selectedLayerId,
+                  selectedMaterialId: null,
+                  selectedTileId: null,
+                };
+              }
+
+              const tilePositions = getTilesetTilePositionMap(selectedTileset);
+
+              if (state.selectedTileId !== null && String(state.selectedTileId) in tilePositions) {
+                return {
+                  selectedLayerId,
+                  selectedMaterialId:
+                    state.selectedMaterialId && materialIds.includes(state.selectedMaterialId)
+                      ? state.selectedMaterialId
+                      : (firstMaterialId ?? null),
+                };
+              }
+
+              const [firstTileId] = Object.keys(tilePositions);
+              return {
+                selectedLayerId,
+                selectedMaterialId: firstMaterialId ?? null,
+                selectedTileId: firstTileId ? Number.parseInt(firstTileId, 10) : null,
+              };
+            }),
+          setSelectedMaterialId: (selectedMaterialId) => set({ selectedMaterialId }),
+          setSelectedPathId: (selectedPathId) => set({ selectedPathId }),
+          setSelectedTileId: (selectedTileId) => set({ selectedTileId }),
+          setTool: (tool) => set({ tool }),
+
+          syncDerivedState: () => {
+            const state = get();
+            const nextState: Partial<EditorState> = {};
+            const hydratedLevel = hydrateLevelTilesets(state.level);
+
+            if (JSON.stringify(hydratedLevel.tilesets) !== JSON.stringify(state.level.tilesets)) {
+              nextState.level = hydratedLevel;
+            }
+
+            const effectiveLevel = nextState.level ?? state.level;
+
+            if (!state.selectedLayerId && effectiveLevel.layers.length > 0) {
+              nextState.selectedLayerId = effectiveLevel.layers[0].id;
+            }
+
+            const effectiveLayerId = nextState.selectedLayerId ?? state.selectedLayerId;
+            const selectedTileset = getTilesetForLayer(effectiveLevel, effectiveLayerId);
+
+            if (!selectedTileset) {
+              nextState.selectedMaterialId = null;
+              nextState.selectedTileId = null;
+              nextState.assetPathInput = '';
+            } else {
+              nextState.assetPathInput = selectedTileset.imageSrc;
+              const materialIds = getTilesetMaterials(selectedTileset);
+              if (!state.selectedMaterialId || !materialIds.includes(state.selectedMaterialId)) {
+                const [firstMaterialId] = materialIds;
+                nextState.selectedMaterialId = firstMaterialId ?? null;
+              }
+              const tilePositions = getTilesetTilePositionMap(selectedTileset);
+              if (
+                state.selectedTileId === null ||
+                !(String(state.selectedTileId) in tilePositions)
+              ) {
+                const [firstTileId] = Object.keys(tilePositions);
+                nextState.selectedTileId = firstTileId ? Number.parseInt(firstTileId, 10) : null;
+              }
+            }
+
+            if (
+              state.selectedEntityPathId &&
+              !effectiveLevel.paths.some((path) => path.id === state.selectedEntityPathId)
+            ) {
+              nextState.selectedEntityPathId = null;
+            }
+
+            if (
+              state.selectedPathId &&
+              !effectiveLevel.paths.some((path) => path.id === state.selectedPathId)
+            ) {
+              nextState.selectedPathId = null;
+            }
+
+            if (
+              state.selectedEntityId &&
+              !effectiveLevel.entities.some((entity) => entity.id === state.selectedEntityId)
+            ) {
+              nextState.selectedEntityId = null;
+            }
+
+            if (Object.keys(nextState).length > 0) {
+              set(nextState);
+            }
+          },
+
+          undo: () => {
+            const { pastHistory } = get();
+            const previousEntry = pastHistory[0];
+            if (!previousEntry) {
+              return;
+            }
+
+            set((state) => {
+              const previousDocument = applyEditorHistoryEntry(
+                getEditorDocument(state),
+                previousEntry,
+                'before',
+              );
+              return {
+                futureHistory: [previousEntry, ...state.futureHistory].slice(0, HISTORY_LIMIT),
+                level: previousDocument.level,
+                materialPlacements: previousDocument.materialPlacements,
+                pastHistory: state.pastHistory.slice(1),
+              };
+            });
+            get().handlers.syncDerivedState();
+          },
+
+          updateSelectedEntity: (updates) => {
+            const { level, selectedEntityId } = get();
+            const selectedEntity =
+              level.entities.find((entity) => entity.id === selectedEntityId) ?? null;
+            if (!selectedEntity) {
+              return;
+            }
+
+            set((state) => ({
+              level: upsertEntity(state.level, {
+                ...selectedEntity,
+                ...updates,
+              }),
+            }));
+          },
+
+          updateSelectedEntityType: (nextType) => {
+            const { level, selectedEntityId } = get();
+            const selectedEntity =
+              level.entities.find((entity) => entity.id === selectedEntityId) ?? null;
+            if (!selectedEntity) {
+              return;
+            }
+
+            set((state) => {
+              const baseEntity = {
+                ...selectedEntity,
+                type: nextType,
+                pathId: nextType === 'enemy-patroller' ? selectedEntity.pathId : undefined,
+                sprite: nextType === 'column' ? '../columnPixelart.png' : undefined,
+              };
+
+              if (nextType === 'player') {
+                return {
+                  level: {
+                    ...state.level,
+                    entities: [
+                      ...state.level.entities
+                        .filter(
+                          (entity) => entity.id === selectedEntity.id || entity.type !== 'player',
+                        )
+                        .filter((entity) => entity.id !== selectedEntity.id),
+                      baseEntity,
+                    ],
+                  },
+                };
+              }
+
+              return {
+                level: upsertEntity(state.level, baseEntity),
+              };
+            });
+          },
         };
         return { ...handlers, handlers };
       })(),

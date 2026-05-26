@@ -1,5 +1,4 @@
 import type { Planet, PlanetKind } from '@/constants';
-
 import { drawCrystalSurface } from './crystal';
 import { drawDesertSurface } from './desert';
 import { drawGasSurface } from './gas';

@@ -5,7 +5,6 @@ import type {
   ShipInteriorTilesetDefinition,
 } from '../../scenes/ShipInteriorScene/level';
 import { resolveShipInteriorAssetUrl } from '../../scenes/ShipInteriorScene/level';
-
 import type { AssetUrlMap } from './editorTypes';
 
 export function cloneLevel(level: RawShipInteriorLevel): RawShipInteriorLevel {

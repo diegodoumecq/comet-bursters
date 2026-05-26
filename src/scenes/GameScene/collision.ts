@@ -2,13 +2,13 @@ import {
   SHIELD_COLLISION_FUEL_COSTS,
   SHIELD_HIT_COOLDOWN,
   SHIELD_RADIUS,
-  type Bullet,
   type Asteroid,
+  type Bullet,
   type Player,
 } from '@/constants';
+import { circleIntersectsRotatedMask } from '@/maskCollision';
 import { drainFuel } from '@/playerFuel';
 import { asteroids, bullets, getGameHeight, getGameWidth, player } from '@/state';
-import { circleIntersectsRotatedMask } from '@/maskCollision';
 import { getBlackHoleRenderRadius } from './blackHole';
 
 export function checkCircleCollision(
@@ -104,7 +104,10 @@ function getBulletCollisionRadius(bullet: Bullet, now = Date.now()): number {
   return getBlackHoleRenderRadius(bullet, now);
 }
 
-export function processPlayerAsteroidCollisions(onHit: (player: Player) => void, now = Date.now()): void {
+export function processPlayerAsteroidCollisions(
+  onHit: (player: Player) => void,
+  now = Date.now(),
+): void {
   const currentPlayer = player;
   if (!currentPlayer || currentPlayer.waitingToRespawn) {
     return;
@@ -132,7 +135,12 @@ export function processPlayerAsteroidCollisions(onHit: (player: Player) => void,
         const dy = pos.y - asteroid.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        const bodyHit = circleIntersectsRotatedMask(pos.x, pos.y, currentPlayer.getRadius(), asteroid);
+        const bodyHit = circleIntersectsRotatedMask(
+          pos.x,
+          pos.y,
+          currentPlayer.getRadius(),
+          asteroid,
+        );
         if (dist < shieldCollisionDist || bodyHit) {
           collisionDetected = true;
           bodyCollisionDetected = bodyHit;

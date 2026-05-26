@@ -1,7 +1,4 @@
-import {
-  ASTEROID_CONFIGS,
-  type AlphaMask,
-} from './constants';
+import { ASTEROID_CONFIGS, type AlphaMask } from './constants';
 import { getAlphaMaskRadius } from './maskCollision';
 import { gameState } from './state';
 
@@ -62,7 +59,13 @@ function createSeededRandom(seed: number): () => number {
 function mixHexColor(hex: string, targetHex: string, t: number): string {
   const normalize = (value: string): number[] => {
     const clean = value.replace('#', '');
-    const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+    const full =
+      clean.length === 3
+        ? clean
+            .split('')
+            .map((c) => c + c)
+            .join('')
+        : clean;
     const int = Number.parseInt(full, 16);
     return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
   };
@@ -129,8 +132,7 @@ function createAsteroidSprite(
   canvas.height = diameter;
   const cctx = canvas.getContext('2d')!;
   const rand = createSeededRandom(hashString(`${size}:${color}`));
-  const pointCount =
-    size === 'mega' ? 36 : size === 'big' ? 30 : size === 'medium' ? 20 : 8;
+  const pointCount = size === 'mega' ? 36 : size === 'big' ? 30 : size === 'medium' ? 20 : 8;
 
   cctx.save();
   cctx.translate(radius, radius);
@@ -159,8 +161,7 @@ function createAsteroidSprite(
   traceRockShape(cctx, rand, radius * 0.92, pointCount);
   cctx.clip();
 
-  const bandCount =
-    size === 'mega' ? 10 : size === 'big' ? 8 : size === 'medium' ? 6 : 5;
+  const bandCount = size === 'mega' ? 10 : size === 'big' ? 8 : size === 'medium' ? 6 : 5;
 
   for (let i = 0; i < bandCount; i++) {
     const y = (-0.64 + (i / Math.max(1, bandCount - 1)) * 1.28) * radius;
@@ -190,9 +191,7 @@ function createAsteroidSprite(
   const craterPlacements: { x: number; y: number; radius: number }[] = [];
 
   for (let i = 0; i < 4; i++) {
-    const craterR =
-      radius *
-      (size === 'mega' ? 0.14 + rand() * 0.1 : 0.1 + rand() * 0.08);
+    const craterR = radius * (size === 'mega' ? 0.14 + rand() * 0.1 : 0.1 + rand() * 0.08);
     let craterX = 0;
     let craterY = 0;
     let foundPlacement = false;
@@ -231,62 +230,62 @@ function createAsteroidSprite(
       cctx.translate(craterX, craterY);
       cctx.rotate(rotation);
 
-    const basinGradient = cctx.createRadialGradient(
-      -craterR * 0.12,
-      -craterR * 0.14,
-      craterR * 0.08,
-      0,
-      0,
-      craterR * 1.04,
-    );
-    basinGradient.addColorStop(0, 'rgba(255,255,255,0.05)');
-    basinGradient.addColorStop(0.22, 'rgba(255,255,255,0.025)');
-    basinGradient.addColorStop(0.72, 'rgba(12,16,28,0.16)');
-    basinGradient.addColorStop(1, 'rgba(0,0,0,0)');
-    cctx.fillStyle = basinGradient;
-    cctx.beginPath();
-    cctx.ellipse(0, 0, craterR, craterR * squash, 0, 0, Math.PI * 2);
-    cctx.fill();
+      const basinGradient = cctx.createRadialGradient(
+        -craterR * 0.12,
+        -craterR * 0.14,
+        craterR * 0.08,
+        0,
+        0,
+        craterR * 1.04,
+      );
+      basinGradient.addColorStop(0, 'rgba(255,255,255,0.05)');
+      basinGradient.addColorStop(0.22, 'rgba(255,255,255,0.025)');
+      basinGradient.addColorStop(0.72, 'rgba(12,16,28,0.16)');
+      basinGradient.addColorStop(1, 'rgba(0,0,0,0)');
+      cctx.fillStyle = basinGradient;
+      cctx.beginPath();
+      cctx.ellipse(0, 0, craterR, craterR * squash, 0, 0, Math.PI * 2);
+      cctx.fill();
 
-    cctx.strokeStyle = 'rgba(255,255,255,0.05)';
-    cctx.lineWidth = Math.max(0.7, radius * 0.012);
-    cctx.beginPath();
-    cctx.ellipse(
-      -craterR * 0.04,
-      -craterR * 0.03,
-      craterR * 0.98,
-      craterR * (squash * 0.94),
-      0,
-      Math.PI * 1.1,
-      Math.PI * 1.68,
-    );
-    cctx.stroke();
+      cctx.strokeStyle = 'rgba(255,255,255,0.05)';
+      cctx.lineWidth = Math.max(0.7, radius * 0.012);
+      cctx.beginPath();
+      cctx.ellipse(
+        -craterR * 0.04,
+        -craterR * 0.03,
+        craterR * 0.98,
+        craterR * (squash * 0.94),
+        0,
+        Math.PI * 1.1,
+        Math.PI * 1.68,
+      );
+      cctx.stroke();
 
-    cctx.strokeStyle = 'rgba(12,16,28,0.1)';
-    cctx.beginPath();
-    cctx.ellipse(
-      craterR * 0.04,
-      craterR * 0.03,
-      craterR * 0.96,
-      craterR * (squash * 0.9),
-      0,
-      Math.PI * 0.08,
-      Math.PI * 0.82,
-    );
-    cctx.stroke();
+      cctx.strokeStyle = 'rgba(12,16,28,0.1)';
+      cctx.beginPath();
+      cctx.ellipse(
+        craterR * 0.04,
+        craterR * 0.03,
+        craterR * 0.96,
+        craterR * (squash * 0.9),
+        0,
+        Math.PI * 0.08,
+        Math.PI * 0.82,
+      );
+      cctx.stroke();
 
-    cctx.fillStyle = 'rgba(0,0,0,0.035)';
-    cctx.beginPath();
-    cctx.ellipse(
-      craterR * 0.1,
-      craterR * 0.08,
-      craterR * 0.5,
-      craterR * (squash * 0.32),
-      0.12,
-      0,
-      Math.PI * 2,
-    );
-    cctx.fill();
+      cctx.fillStyle = 'rgba(0,0,0,0.035)';
+      cctx.beginPath();
+      cctx.ellipse(
+        craterR * 0.1,
+        craterR * 0.08,
+        craterR * 0.5,
+        craterR * (squash * 0.32),
+        0.12,
+        0,
+        Math.PI * 2,
+      );
+      cctx.fill();
 
       cctx.restore();
     }
@@ -443,4 +442,3 @@ export function getAsteroidSpriteRadius(
 ): number {
   return getAlphaMaskRadius(getAsteroidSpriteMask(size, color));
 }
-

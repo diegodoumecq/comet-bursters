@@ -112,7 +112,8 @@ export const spriteAssetGridSources: SpriteAssetGridSource[] = Object.entries(ti
   })
   .sort(
     (left, right) =>
-      left.assetPath.localeCompare(right.assetPath) || left.sourcePath.localeCompare(right.sourcePath),
+      left.assetPath.localeCompare(right.assetPath) ||
+      left.sourcePath.localeCompare(right.sourcePath),
   );
 
 export function getGridSourcesForSpriteAsset(assetPath: string): SpriteAssetGridSource[] {

@@ -1,5 +1,5 @@
 import type { SpriteSheet } from './SpriteSheet';
-import type { TilePlacement, TilemapLayer } from './types';
+import type { TilemapLayer, TilePlacement } from './types';
 
 export function createTilePlacement(
   frame: TilePlacement['frame'],

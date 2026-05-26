@@ -227,7 +227,11 @@ export function extendCurrentPatchHistorySession({
     return;
   }
 
-  session.pendingHistorySession = extendPatchHistorySession(session.pendingHistorySession, ctx, bounds);
+  session.pendingHistorySession = extendPatchHistorySession(
+    session.pendingHistorySession,
+    ctx,
+    bounds,
+  );
 }
 
 export function beginDocumentHistorySession({

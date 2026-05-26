@@ -1,5 +1,5 @@
-import type { AsteroidEntity } from '../asteroids/types';
 import { splitAsteroid } from '../asteroids/logic';
+import type { AsteroidEntity } from '../asteroids/types';
 import { spawnAsteroidFuelDrops } from '../fuel/blobLogic';
 import type { FuelBlobEntity } from '../fuel/types';
 import type { ParticleEntity } from '../particles/types';

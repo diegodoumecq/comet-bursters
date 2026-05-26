@@ -17,7 +17,10 @@ export function GridSection({
   const isGridVisible = useSpriteEditorStore((state) => state.isGridVisible);
   const handlers = useSpriteEditorStore((state) => state.handlers);
 
-  const applyGridSource = (source: SpriteAssetGridSource, options?: { announce?: boolean; makeVisible?: boolean }) => {
+  const applyGridSource = (
+    source: SpriteAssetGridSource,
+    options?: { announce?: boolean; makeVisible?: boolean },
+  ) => {
     handlers.applyGridSettings(normalizeGridSettings(source.grid));
     if (options?.makeVisible ?? true) {
       handlers.setIsGridVisible(true);
@@ -29,7 +32,11 @@ export function GridSection({
   };
 
   return (
-    <CollapsibleSection title="Grid" isOpen={isOpen} onToggle={() => setIsOpen((current) => !current)}>
+    <CollapsibleSection
+      title="Grid"
+      isOpen={isOpen}
+      onToggle={() => setIsOpen((current) => !current)}
+    >
       <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm text-slate-300">Overlay and tileset frame settings</div>
@@ -57,9 +64,7 @@ export function GridSection({
               onChange={(event) => handlers.setGridOpacity(Number(event.currentTarget.value))}
               className="flex-1"
             />
-            <span className="w-10 text-right text-slate-100">
-              {Math.round(gridOpacity * 100)}%
-            </span>
+            <span className="w-10 text-right text-slate-100">{Math.round(gridOpacity * 100)}%</span>
           </label>
 
           <div className="grid grid-cols-2 gap-3">
@@ -93,7 +98,9 @@ export function GridSection({
                 type="number"
                 min="0"
                 value={gridSettings.offsetX ?? ''}
-                onChange={(event) => handlers.updateGridNumber('offsetX', event.currentTarget.value)}
+                onChange={(event) =>
+                  handlers.updateGridNumber('offsetX', event.currentTarget.value)
+                }
                 className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
               />
             </label>
@@ -103,7 +110,9 @@ export function GridSection({
                 type="number"
                 min="0"
                 value={gridSettings.offsetY ?? ''}
-                onChange={(event) => handlers.updateGridNumber('offsetY', event.currentTarget.value)}
+                onChange={(event) =>
+                  handlers.updateGridNumber('offsetY', event.currentTarget.value)
+                }
                 className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-100"
               />
             </label>

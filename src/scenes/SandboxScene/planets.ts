@@ -5,8 +5,8 @@ import {
   PLANET_MAX_ROTATION_SPEED,
   PLANET_MIN_ROTATION_SPEED,
   type FuelExtractor,
-  type PlanetKind,
   type Planet,
+  type PlanetKind,
 } from '@/constants';
 import { drawStyledPlanet } from './planetVisuals';
 

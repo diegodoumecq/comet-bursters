@@ -1,8 +1,8 @@
 import type { Vector } from '../core/types';
 import { consumeTractorFuel } from '../fuel/rules';
-import { PLAYER_TURRET_MUZZLE_OFFSET } from '../player/textures';
-import type { PlayerState } from '../player/state';
 import type { ShipState } from '../player/shipState';
+import type { PlayerState } from '../player/state';
+import { PLAYER_TURRET_MUZZLE_OFFSET } from '../player/textures';
 import type { ProjectileEntity } from '../projectiles/types';
 import { fireWeapon } from './fire';
 import { allowsWeapon, type SceneWeaponPolicy } from './scenePolicy';
@@ -43,12 +43,24 @@ export function updateWeapons(input: {
     return assignSelectedWeapon(input);
   }
 
-  const primary = input.action.playerActive && input.action.firePrimary
-    ? fireSelectedWeapon(input, input.ship.primaryWeapon, input.nextProjectileId, input.inspectionProbes ?? 0)
-    : noWeaponFire(input.nextProjectileId, input.inspectionProbes ?? 0);
-  const secondary = input.action.playerActive && input.action.fireSecondary
-    ? fireSelectedWeapon(input, input.ship.secondaryWeapon, primary.nextProjectileId, primary.inspectionProbes)
-    : noWeaponFire(primary.nextProjectileId, primary.inspectionProbes);
+  const primary =
+    input.action.playerActive && input.action.firePrimary
+      ? fireSelectedWeapon(
+          input,
+          input.ship.primaryWeapon,
+          input.nextProjectileId,
+          input.inspectionProbes ?? 0,
+        )
+      : noWeaponFire(input.nextProjectileId, input.inspectionProbes ?? 0);
+  const secondary =
+    input.action.playerActive && input.action.fireSecondary
+      ? fireSelectedWeapon(
+          input,
+          input.ship.secondaryWeapon,
+          primary.nextProjectileId,
+          primary.inspectionProbes,
+        )
+      : noWeaponFire(primary.nextProjectileId, primary.inspectionProbes);
   const tractorActive = isTractorActive(input.policy, input.ship, input.action);
   const fuelAfterTractor = consumeTractorFuel(input.ship.fuel, input.deltaSeconds, tractorActive);
 
@@ -69,7 +81,9 @@ export function updateWeapons(input: {
 
 function assignSelectedWeapon(input: Parameters<typeof updateWeapons>[0]): WeaponUseResult {
   const primaryWeapon = input.action.firePrimary ? input.selectedWeapon : input.ship.primaryWeapon;
-  const secondaryWeapon = input.action.fireSecondary ? input.selectedWeapon : input.ship.secondaryWeapon;
+  const secondaryWeapon = input.action.fireSecondary
+    ? input.selectedWeapon
+    : input.ship.secondaryWeapon;
   return {
     fuel: input.ship.fuel,
     nextProjectileId: input.nextProjectileId,
@@ -95,7 +109,8 @@ function fireSelectedWeapon(
   inspectionProbes: number;
 } {
   if (!allowsWeapon(input.policy, weapon)) return noWeaponFire(nextProjectileId, inspectionProbes);
-  if (weapon === 'inspectionProbe' && inspectionProbes <= 0) return noWeaponFire(nextProjectileId, inspectionProbes);
+  if (weapon === 'inspectionProbe' && inspectionProbes <= 0)
+    return noWeaponFire(nextProjectileId, inspectionProbes);
   const result = fireWeapon(
     weapon,
     input.player.lastAim,
@@ -125,7 +140,8 @@ function fireSelectedWeapon(
     nextProjectileId: nextProjectileId + projectiles.length,
     projectiles,
     recoil: result.recoil,
-    inspectionProbes: weapon === 'inspectionProbe' ? inspectionProbes - projectiles.length : inspectionProbes,
+    inspectionProbes:
+      weapon === 'inspectionProbe' ? inspectionProbes - projectiles.length : inspectionProbes,
   };
 }
 
@@ -138,12 +154,18 @@ export function getProjectileSpawnPosition(origin: Vector, direction: Vector): V
   };
 }
 
-export function isTractorActive(policy: SceneWeaponPolicy, ship: ShipState, action: WeaponActionInput): boolean {
-  return allowsWeapon(policy, 'tractor') &&
+export function isTractorActive(
+  policy: SceneWeaponPolicy,
+  ship: ShipState,
+  action: WeaponActionInput,
+): boolean {
+  return (
+    allowsWeapon(policy, 'tractor') &&
     !action.timeDilation &&
     action.playerActive &&
     ((ship.primaryWeapon === 'tractor' && action.firePrimary) ||
-      (ship.secondaryWeapon === 'tractor' && action.fireSecondary));
+      (ship.secondaryWeapon === 'tractor' && action.fireSecondary))
+  );
 }
 
 function noWeaponFire(nextProjectileId: number, inspectionProbes: number) {

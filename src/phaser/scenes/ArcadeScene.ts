@@ -40,7 +40,11 @@ import { GameWorldRuntime } from '../world/runtime';
 import { ArcadeRenderEffects } from './arcade/ArcadeRenderEffects';
 import { ArcadeRenderer } from './arcade/ArcadeRenderer';
 import { ArcadeRunState } from './arcade/arcadeRunState';
-import { chooseSafePlayerPositionWithExclusions, getBlackHoleSpawnExclusions, getPlayerSpawnCircle } from './arcade/arcadeSpawns';
+import {
+  chooseSafePlayerPositionWithExclusions,
+  getBlackHoleSpawnExclusions,
+  getPlayerSpawnCircle,
+} from './arcade/arcadeSpawns';
 import { createArcadeTextures } from './arcade/arcadeVisuals';
 import { createWaveAsteroids } from './arcade/waves';
 import { BaseGameScene } from './BaseGameScene';
@@ -294,11 +298,11 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private spawnWave(): void {
-    this.addAsteroids(createWaveAsteroids(
-      this.session.wave,
-      this.worldSize,
-      [getPlayerSpawnCircle(this.session.player.position)],
-    ));
+    this.addAsteroids(
+      createWaveAsteroids(this.session.wave, this.worldSize, [
+        getPlayerSpawnCircle(this.session.player.position),
+      ]),
+    );
   }
 
   private applyProjectileCombat(): void {

@@ -23,9 +23,7 @@ function addParticle(particle: Particle): Particle {
 }
 
 function addThrusterParticle(particle: ThrusterParticle): ThrusterParticle {
-  configureThrusterParticleEntity(particle, (ctx) =>
-    drawThrusterParticle(particle, ctx),
-  );
+  configureThrusterParticleEntity(particle, (ctx) => drawThrusterParticle(particle, ctx));
   thrusterParticles.push(particle);
   return particle;
 }
@@ -34,14 +32,24 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
-function mixRgb(colorA: [number, number, number], colorB: [number, number, number], t: number): string {
+function mixRgb(
+  colorA: [number, number, number],
+  colorB: [number, number, number],
+  t: number,
+): string {
   const mix = (a: number, b: number) => Math.round(a + (b - a) * t);
   return `rgb(${mix(colorA[0], colorB[0])}, ${mix(colorA[1], colorB[1])}, ${mix(colorA[2], colorB[2])})`;
 }
 
 function hexToRgbTuple(hex: string): [number, number, number] {
   const clean = hex.replace('#', '');
-  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+  const full =
+    clean.length === 3
+      ? clean
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : clean;
   const value = Number.parseInt(full, 16);
   return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
 }
@@ -71,22 +79,24 @@ export function createShipDebris(
     const color = i % 3 === 0 ? (i % 2 === 0 ? '#1a202c' : '#f2f6ff') : baseColor;
     const color2 = i % 3 === 0 ? (i % 2 === 0 ? '#1a202c' : '#9ca3af') : undefined;
     const glowColor = 'rgba(226,232,240,0.22)';
-    createdParticles.push(addParticle({
-      x,
-      y,
-      vx: Math.cos(angle) * speed + inheritVx,
-      vy: Math.sin(angle) * speed + inheritVy,
-      alpha: 1,
-      rotation: Math.random() * Math.PI * 2,
-      rotationSpeed: (Math.random() - 0.5) * 0.35,
-      size,
-      color,
-      color2,
-      glowColor,
-      shape,
-      lifetime: SHIP_DEBRIS_LIFETIME,
-      maxLifetime: SHIP_DEBRIS_LIFETIME,
-    }));
+    createdParticles.push(
+      addParticle({
+        x,
+        y,
+        vx: Math.cos(angle) * speed + inheritVx,
+        vy: Math.sin(angle) * speed + inheritVy,
+        alpha: 1,
+        rotation: Math.random() * Math.PI * 2,
+        rotationSpeed: (Math.random() - 0.5) * 0.35,
+        size,
+        color,
+        color2,
+        glowColor,
+        shape,
+        lifetime: SHIP_DEBRIS_LIFETIME,
+        maxLifetime: SHIP_DEBRIS_LIFETIME,
+      }),
+    );
   }
   return createdParticles;
 }
@@ -100,22 +110,24 @@ export function createExplosionBurst(
 ): Particle[] {
   const createdParticles: Particle[] = [];
   const shockwaveLifetime = EXPLOSION_BURST_LIFETIME * 0.42;
-  createdParticles.push(addParticle({
-    x,
-    y,
-    vx: inheritVx * 0.2,
-    vy: inheritVy * 0.2,
-    alpha: 1,
-    rotation: Math.random() * Math.PI * 2,
-    rotationSpeed: 0,
-    size: 14 + intensity * 6,
-    color: 'rgba(255,255,255,0.98)',
-    color2: 'rgba(255,255,255,0.78)',
-    glowColor: 'rgba(255,255,255,0.2)',
-    shape: 'shockwave',
-    lifetime: shockwaveLifetime,
-    maxLifetime: shockwaveLifetime,
-  }));
+  createdParticles.push(
+    addParticle({
+      x,
+      y,
+      vx: inheritVx * 0.2,
+      vy: inheritVy * 0.2,
+      alpha: 1,
+      rotation: Math.random() * Math.PI * 2,
+      rotationSpeed: 0,
+      size: 14 + intensity * 6,
+      color: 'rgba(255,255,255,0.98)',
+      color2: 'rgba(255,255,255,0.78)',
+      glowColor: 'rgba(255,255,255,0.2)',
+      shape: 'shockwave',
+      lifetime: shockwaveLifetime,
+      maxLifetime: shockwaveLifetime,
+    }),
+  );
 
   const explosionCount = Math.floor(PARTICLE_COUNT * 1.7);
   for (let i = 0; i < explosionCount; i++) {
@@ -126,15 +138,15 @@ export function createExplosionBurst(
         ? 0.8 + Math.random() * 1.4 * intensity
         : shape === 'core'
           ? 2.4 + Math.random() * 2.3 * intensity
-        : 3 + Math.random() * 2.8 * intensity;
+          : 3 + Math.random() * 2.8 * intensity;
     const size =
       shape === 'smoke'
         ? 12 + Math.random() * 12 * intensity
         : shape === 'core'
           ? 3.8 + Math.random() * 10.2 * intensity
-        : shape === 'shard'
-          ? 5 + Math.random() * 5 * intensity
-          : 3 + Math.random() * 4 * intensity;
+          : shape === 'shard'
+            ? 5 + Math.random() * 5 * intensity
+            : 3 + Math.random() * 4 * intensity;
     const color =
       shape === 'smoke'
         ? i % 2 === 0
@@ -173,22 +185,24 @@ export function createExplosionBurst(
         : shape === 'core'
           ? EXPLOSION_BURST_LIFETIME * (0.62 + Math.random() * 0.32)
           : EXPLOSION_BURST_LIFETIME * (0.8 + Math.random() * 0.3);
-    createdParticles.push(addParticle({
-      x,
-      y,
-      vx: Math.cos(angle) * speed + inheritVx,
-      vy: Math.sin(angle) * speed + inheritVy - (shape === 'smoke' ? 0.35 : 0),
-      alpha: 1,
-      rotation: Math.random() * Math.PI * 2,
-      rotationSpeed: (Math.random() - 0.5) * (shape === 'smoke' ? 0.04 : 0.1),
-      size,
-      color,
-      color2,
-      glowColor,
-      shape,
-      lifetime,
-      maxLifetime: lifetime,
-    }));
+    createdParticles.push(
+      addParticle({
+        x,
+        y,
+        vx: Math.cos(angle) * speed + inheritVx,
+        vy: Math.sin(angle) * speed + inheritVy - (shape === 'smoke' ? 0.35 : 0),
+        alpha: 1,
+        rotation: Math.random() * Math.PI * 2,
+        rotationSpeed: (Math.random() - 0.5) * (shape === 'smoke' ? 0.04 : 0.1),
+        size,
+        color,
+        color2,
+        glowColor,
+        shape,
+        lifetime,
+        maxLifetime: lifetime,
+      }),
+    );
   }
 
   screenShake.intensity = intensity * 8;
@@ -278,22 +292,24 @@ export function createExplosion(
               ? 'rgba(220,38,38,0.4)'
               : 'rgba(226,232,240,0.22)'
           : 'rgba(255,200,120,0.35)';
-    createdParticles.push(addParticle({
-      x,
-      y,
-      vx: Math.cos(angle) * speed + inheritVx,
-      vy: Math.sin(angle) * speed + inheritVy,
-      alpha: 1,
-      rotation: Math.random() * Math.PI * 2,
-      rotationSpeed: (Math.random() - 0.5) * 0.2,
-      size,
-      color,
-      color2,
-      glowColor,
-      shape,
-      lifetime: PARTICLE_LIFETIME,
-      maxLifetime: PARTICLE_LIFETIME,
-    }));
+    createdParticles.push(
+      addParticle({
+        x,
+        y,
+        vx: Math.cos(angle) * speed + inheritVx,
+        vy: Math.sin(angle) * speed + inheritVy,
+        alpha: 1,
+        rotation: Math.random() * Math.PI * 2,
+        rotationSpeed: (Math.random() - 0.5) * 0.2,
+        size,
+        color,
+        color2,
+        glowColor,
+        shape,
+        lifetime: PARTICLE_LIFETIME,
+        maxLifetime: PARTICLE_LIFETIME,
+      }),
+    );
   }
 
   screenShake.intensity = intensity * 8;
@@ -362,7 +378,14 @@ export function drawOneParticle(particle: Particle, ctx: CanvasRenderingContext2
   if (particle.shape === 'shockwave') {
     const ringWidth = Math.max(2.25, particle.size * 0.07);
     const radius = particle.size * 0.78;
-    const ring = ctx.createRadialGradient(0, 0, Math.max(0, radius - ringWidth * 2.2), 0, 0, radius + ringWidth);
+    const ring = ctx.createRadialGradient(
+      0,
+      0,
+      Math.max(0, radius - ringWidth * 2.2),
+      0,
+      0,
+      radius + ringWidth,
+    );
     ring.addColorStop(0, 'rgba(0,0,0,0)');
     ring.addColorStop(0.56, 'rgba(0,0,0,0)');
     ring.addColorStop(0.82, particle.color);
@@ -452,7 +475,12 @@ export function drawOneParticle(particle: Particle, ctx: CanvasRenderingContext2
   } else if (particle.shape === 'core') {
     ctx.shadowColor = particle.glowColor;
     ctx.shadowBlur = particle.size * 0.28;
-    const gradient = ctx.createLinearGradient(-particle.size * 0.3, -particle.size * 0.2, particle.size * 0.3, particle.size * 0.3);
+    const gradient = ctx.createLinearGradient(
+      -particle.size * 0.3,
+      -particle.size * 0.2,
+      particle.size * 0.3,
+      particle.size * 0.3,
+    );
     gradient.addColorStop(0, particle.color);
     gradient.addColorStop(1, particle.color2 || particle.color);
     ctx.fillStyle = gradient;
@@ -562,7 +590,11 @@ export function createThrusterParticle(
   });
 }
 
-export function updateThrusterParticle(particle: ThrusterParticle, deltaTime: number, deltaScale = 1) {
+export function updateThrusterParticle(
+  particle: ThrusterParticle,
+  deltaTime: number,
+  deltaScale = 1,
+) {
   particle.x += particle.vx * deltaScale;
   particle.y += particle.vy * deltaScale;
   particle.vx *= 1 - 0.05 * deltaScale;

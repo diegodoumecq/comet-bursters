@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { ASTEROIDS } from '../../asteroids/logic';
-import { chooseSafePlayerPosition, chooseSafePlayerPositionWithExclusions, createSafeWaveAsteroids, getBlackHoleSpawnExclusions, getPlayerSpawnCircle, spawnCirclesOverlap } from './arcadeSpawns';
+import {
+  chooseSafePlayerPosition,
+  chooseSafePlayerPositionWithExclusions,
+  createSafeWaveAsteroids,
+  getBlackHoleSpawnExclusions,
+  getPlayerSpawnCircle,
+  spawnCirclesOverlap,
+} from './arcadeSpawns';
 
 vi.mock('phaser', () => ({
   default: {
@@ -40,10 +47,12 @@ describe('arcade spawns', () => {
 
     const position = chooseSafePlayerPosition(asteroids, world);
 
-    expect(spawnCirclesOverlap(
-      getPlayerSpawnCircle(position),
-      { position: asteroids[0].position, radius: ASTEROIDS.mega.collisionRadius },
-    )).toBe(false);
+    expect(
+      spawnCirclesOverlap(getPlayerSpawnCircle(position), {
+        position: asteroids[0].position,
+        radius: ASTEROIDS.mega.collisionRadius,
+      }),
+    ).toBe(false);
   });
 
   it('chooses a player respawn outside active black hole circles', () => {
@@ -71,11 +80,16 @@ describe('arcade spawns', () => {
     const asteroids = createSafeWaveAsteroids(6, world, [playerCircle]);
 
     expect(asteroids).toHaveLength(8);
-    expect(asteroids.every((asteroid) => !spawnCirclesOverlap(
-      { position: asteroid.position, radius: ASTEROIDS[asteroid.tier].collisionRadius },
-      playerCircle,
-      30,
-    ))).toBe(true);
+    expect(
+      asteroids.every(
+        (asteroid) =>
+          !spawnCirclesOverlap(
+            { position: asteroid.position, radius: ASTEROIDS[asteroid.tier].collisionRadius },
+            playerCircle,
+            30,
+          ),
+      ),
+    ).toBe(true);
   });
 
   it('keeps wave asteroids from overlapping each other at spawn', () => {
@@ -85,11 +99,13 @@ describe('arcade spawns', () => {
       for (let rightIndex = leftIndex + 1; rightIndex < asteroids.length; rightIndex += 1) {
         const left = asteroids[leftIndex];
         const right = asteroids[rightIndex];
-        expect(spawnCirclesOverlap(
-          { position: left.position, radius: ASTEROIDS[left.tier].collisionRadius },
-          { position: right.position, radius: ASTEROIDS[right.tier].collisionRadius },
-          30,
-        )).toBe(false);
+        expect(
+          spawnCirclesOverlap(
+            { position: left.position, radius: ASTEROIDS[left.tier].collisionRadius },
+            { position: right.position, radius: ASTEROIDS[right.tier].collisionRadius },
+            30,
+          ),
+        ).toBe(false);
       }
     }
   });

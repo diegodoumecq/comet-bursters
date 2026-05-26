@@ -2,7 +2,6 @@ import { create, type StateCreator } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import type { SpriteSheetGridConfig } from '@/spritesheet';
-
 import { getGridSourcesForSpriteAsset, spriteAssets } from '../assetCatalog';
 
 export type SpriteEditorTool = 'draw' | 'erase' | 'picker' | 'move' | 'select';
@@ -164,13 +163,12 @@ function createSpriteEditorHandlers(set: SpriteEditorSet): SpriteEditorHandlers 
       }),
     setBrushColor: (brushColor) =>
       set((state) => ({
-        brushColor:
-          typeof brushColor === 'function' ? brushColor(state.brushColor) : brushColor,
+        brushColor: typeof brushColor === 'function' ? brushColor(state.brushColor) : brushColor,
       })),
     setBrushSize: (brushSize) =>
       set((state) => ({
         brushSize: typeof brushSize === 'function' ? brushSize(state.brushSize) : brushSize,
-    })),
+      })),
     setGridColor: (gridColor) => set({ gridColor }),
     setGridOpacity: (gridOpacity) => set({ gridOpacity }),
     setInteractionMode: (interactionMode) => set({ interactionMode }),

@@ -4,7 +4,6 @@ import type { AsteroidBodies } from '../asteroids/bodies';
 import type { AsteroidEntity } from '../asteroids/types';
 import type { MatterImage } from '../core/types';
 import type { FuelBlobEntity } from '../fuel/types';
-import type { ProjectileBodies } from './bodies';
 import {
   BLACK_HOLE_ASTEROID_MASS_SCALE,
   BLACK_HOLE_FUEL_BLOB_MASS_SCALE,
@@ -14,6 +13,7 @@ import {
   getBlackHoleRenderRadius,
   updateBlackHoles,
 } from './blackHoles';
+import type { ProjectileBodies } from './bodies';
 import type { ProjectileEntity } from './types';
 
 vi.mock('phaser', () => ({
@@ -111,12 +111,15 @@ function update(input: {
     onFuelBurst: vi.fn(),
     onFuelBlobAbsorbed: input.onFuelBlobAbsorbed ?? vi.fn(),
     onPlayerAbsorbed: input.onPlayerAbsorbed,
-    player: input.playerBody && input.playerVelocity ? {
-      active: input.playerActive ?? true,
-      body: input.playerBody,
-      position: input.playerPosition ?? { x: 80, y: 0 },
-      velocity: input.playerVelocity,
-    } : undefined,
+    player:
+      input.playerBody && input.playerVelocity
+        ? {
+            active: input.playerActive ?? true,
+            body: input.playerBody,
+            position: input.playerPosition ?? { x: 80, y: 0 },
+            velocity: input.playerVelocity,
+          }
+        : undefined,
     projectileBodies: createProjectileBodies(),
     projectiles,
     timeScale: 1,
@@ -299,7 +302,9 @@ describe('black-hole fuel absorption', () => {
     expect(asteroidBlackHole.absorbedFuel).toBe(4);
     expect(fuelBlackHole.absorbedFuel).toBe(4);
     expect(asteroidBlackHole.blackHoleMass).toBe(fuelBlackHole.blackHoleMass);
-    expect(getBlackHoleRenderRadius(asteroidBlackHole)).toBe(getBlackHoleRenderRadius(fuelBlackHole));
+    expect(getBlackHoleRenderRadius(asteroidBlackHole)).toBe(
+      getBlackHoleRenderRadius(fuelBlackHole),
+    );
   });
 
   it('does not consume fuel blobs outside the render radius', () => {
@@ -515,7 +520,9 @@ describe('black-hole merging', () => {
 
     expect(right.blackHoleMass).toBe(13);
     expect(getBlackHoleRenderRadius(right, ageMs)).toBeGreaterThan(largestSourceRadius);
-    expect(getBlackHoleRenderRadius(right, ageMs)).toBeCloseTo(BLACK_HOLE_MATURE_RADIUS * Math.sqrt(13));
+    expect(getBlackHoleRenderRadius(right, ageMs)).toBeCloseTo(
+      BLACK_HOLE_MATURE_RADIUS * Math.sqrt(13),
+    );
   });
 
   it('does not merge separated or collapsing black holes', () => {
@@ -527,7 +534,11 @@ describe('black-hole merging', () => {
       id: 3,
       position: { x: 100, y: 0 },
     });
-    const collapsingRight = createBlackHole({ blackHoleMass: 9, id: 4, position: { x: 105, y: 0 } });
+    const collapsingRight = createBlackHole({
+      blackHoleMass: 9,
+      id: 4,
+      position: { x: 105, y: 0 },
+    });
     const onBlackHoleRemoved = vi.fn();
 
     const separated = update({

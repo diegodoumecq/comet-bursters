@@ -1,14 +1,17 @@
 import type Phaser from 'phaser';
 
-import type { AsteroidEntity } from '../asteroids/types';
-import type { ProjectileEntity } from '../projectiles/types';
 import type { AsteroidBodies } from '../asteroids/bodies';
+import type { AsteroidEntity } from '../asteroids/types';
 import type { ProjectileBodies } from '../projectiles/bodies';
+import type { ProjectileEntity } from '../projectiles/types';
 
 export class MatterContacts {
   private readonly playerAsteroids = new Set<AsteroidEntity>();
   private readonly shieldAsteroids = new Set<AsteroidEntity>();
-  private readonly projectileAsteroids: Array<{ asteroid: AsteroidEntity; projectile: ProjectileEntity }> = [];
+  private readonly projectileAsteroids: Array<{
+    asteroid: AsteroidEntity;
+    projectile: ProjectileEntity;
+  }> = [];
   private playerBody: MatterJS.BodyType | null = null;
   private shieldBody: MatterJS.BodyType | null = null;
   private readonly asteroidsByBodyId = new Map<number, AsteroidEntity>();
@@ -17,16 +20,19 @@ export class MatterContacts {
   private readonly projectileBodyIds = new WeakMap<ProjectileEntity, number>();
 
   constructor(scene: Phaser.Scene) {
-    scene.matter.world.on('collisionstart', (event: { pairs: Array<{ bodyA: MatterJS.BodyType; bodyB: MatterJS.BodyType }> }) => {
-      for (const pair of event.pairs) {
-        this.capturePlayerAsteroid(pair.bodyA, pair.bodyB);
-        this.capturePlayerAsteroid(pair.bodyB, pair.bodyA);
-        this.captureProjectileAsteroid(pair.bodyA, pair.bodyB);
-        this.captureProjectileAsteroid(pair.bodyB, pair.bodyA);
-        this.captureShieldAsteroid(pair.bodyA, pair.bodyB);
-        this.captureShieldAsteroid(pair.bodyB, pair.bodyA);
-      }
-    });
+    scene.matter.world.on(
+      'collisionstart',
+      (event: { pairs: Array<{ bodyA: MatterJS.BodyType; bodyB: MatterJS.BodyType }> }) => {
+        for (const pair of event.pairs) {
+          this.capturePlayerAsteroid(pair.bodyA, pair.bodyB);
+          this.capturePlayerAsteroid(pair.bodyB, pair.bodyA);
+          this.captureProjectileAsteroid(pair.bodyA, pair.bodyB);
+          this.captureProjectileAsteroid(pair.bodyB, pair.bodyA);
+          this.captureShieldAsteroid(pair.bodyA, pair.bodyB);
+          this.captureShieldAsteroid(pair.bodyB, pair.bodyA);
+        }
+      },
+    );
   }
 
   setPlayer(body: MatterJS.BodyType): void {

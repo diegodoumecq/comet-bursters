@@ -1,9 +1,5 @@
 import { getBrushStampBounds, getStrokeSegmentBounds } from './history';
-import type {
-  PixelRect,
-  RgbaColor,
-  SpriteEditorTool,
-} from './state/spriteEditorStore';
+import type { PixelRect, RgbaColor, SpriteEditorTool } from './state/spriteEditorStore';
 import {
   cloneImageData,
   cropImageData,
@@ -55,7 +51,9 @@ export function beginMoveInteraction({
   nextSelectionPixels: ImageData | null;
 } {
   const nextMoveSourceImage =
-    !selectionRect || !isSelectionCopy ? cloneImageData(ctx) : (moveSourceImage ?? cloneImageData(ctx));
+    !selectionRect || !isSelectionCopy
+      ? cloneImageData(ctx)
+      : (moveSourceImage ?? cloneImageData(ctx));
   const nextSelectionPixels =
     selectionRect && !isSelectionCopy ? cropImageData(nextMoveSourceImage, selectionRect) : null;
 
@@ -163,9 +161,6 @@ export function finalizeSelectionInteraction({
   };
 }
 
-export function pickColorAtPoint(
-  ctx: CanvasRenderingContext2D,
-  point: PixelPoint,
-): RgbaColor {
+export function pickColorAtPoint(ctx: CanvasRenderingContext2D, point: PixelPoint): RgbaColor {
   return getPixelColor(ctx, point.x, point.y);
 }

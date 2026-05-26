@@ -1,4 +1,10 @@
-export type WeaponKind = 'small' | 'pusher' | 'shotgun' | 'blackHole' | 'tractor' | 'inspectionProbe';
+export type WeaponKind =
+  | 'small'
+  | 'pusher'
+  | 'shotgun'
+  | 'blackHole'
+  | 'tractor'
+  | 'inspectionProbe';
 export type ProjectileKind = Exclude<WeaponKind, 'tractor'>;
 
 export type ProjectileSpec = {

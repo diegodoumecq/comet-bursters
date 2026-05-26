@@ -8,15 +8,10 @@ import {
   type TileTopologyDirection,
   type TileTopologyRelation,
 } from '../../editor/shared/autotile';
-import type {
-  EditorTilesetDefinition as SpritesheetEditorTilesetDefinition,
-} from '../../editor/shared/editorTileset';
+import type { EditorTilesetDefinition as SpritesheetEditorTilesetDefinition } from '../../editor/shared/editorTileset';
 import { shipInteriorTileAssets } from '../../scenes/ShipInteriorScene/tileAssets';
 import { bundledTilesets } from '../../scenes/ShipInteriorScene/tilesetCatalog';
-import type {
-  SpritesheetEditorDocument,
-  SpritesheetEditorHistoryEntry,
-} from './history';
+import type { SpritesheetEditorDocument, SpritesheetEditorHistoryEntry } from './history';
 
 export type TileEntry = {
   id: number;
@@ -40,10 +35,7 @@ export const editorBundledTilesets = bundledTilesets as Array<{
 function normalizeTileEntry(entry: TileEntry): TileEntry {
   return {
     ...entry,
-    name:
-      typeof entry.name === 'string' && entry.name.trim()
-        ? entry.name
-        : `tile_${entry.id}`,
+    name: typeof entry.name === 'string' && entry.name.trim() ? entry.name : `tile_${entry.id}`,
   };
 }
 
@@ -345,7 +337,10 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
           const nextId = makeNextTileId(state.tileEntries);
           return withHistory(state, {
             selectedTileId: nextId,
-            tileEntries: [...state.tileEntries, { column: 0, id: nextId, name: `tile_${nextId}`, row: 0 }],
+            tileEntries: [
+              ...state.tileEntries,
+              { column: 0, id: nextId, name: `tile_${nextId}`, row: 0 },
+            ],
           });
         }),
 
@@ -723,7 +718,8 @@ export const useSpritesheetEditorStore = create<SpritesheetEditorStore>()(
         updatePreviewZoom: (nextZoom) => get().updatePreviewZoom(nextZoom),
         updateTileEntry: (index, updates) => get().updateTileEntry(index, updates),
         updateTileName: (index, nextName) => get().updateTileName(index, nextName),
-        updateTileMaterial: (tileId, materialName) => get().updateTileMaterial(tileId, materialName),
+        updateTileMaterial: (tileId, materialName) =>
+          get().updateTileMaterial(tileId, materialName),
         updateTileTopologyEnabled: (tileId, enabled) =>
           get().updateTileTopologyEnabled(tileId, enabled),
         updateTileTopologyRelation: (tileId, direction, relation) =>

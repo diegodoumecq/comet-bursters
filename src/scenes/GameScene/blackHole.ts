@@ -98,7 +98,8 @@ export function removeBlackHolesCollidingWithPlanets(
     if (bullet.type === 'blackHole') {
       const hitPlanet = activePlanets.some(
         (planet) =>
-          distance(bullet.x, bullet.y, planet.x, planet.y) <= planet.getRadius() + BLACK_HOLE_RADIUS,
+          distance(bullet.x, bullet.y, planet.x, planet.y) <=
+          planet.getRadius() + BLACK_HOLE_RADIUS,
       );
       if (hitPlanet) {
         onBlackHoleRemoved?.(bullet);
@@ -115,9 +116,7 @@ export function applyBlackHoleGravity({
 }: Pick<BlackHoleLifecycleOptions, 'now' | 'deltaScale' | 'getDelta'>): void {
   const activeBlackHoles = bullets.filter(
     (bullet) =>
-      bullet.type === 'blackHole' &&
-      !bullet.collapseStartTime &&
-      isMatureBlackHole(bullet, now),
+      bullet.type === 'blackHole' && !bullet.collapseStartTime && isMatureBlackHole(bullet, now),
   );
   if (activeBlackHoles.length === 0) {
     return;
@@ -166,14 +165,7 @@ export function updateBlackHoleLifecycles({
             bullet.vx,
             bullet.vy,
           );
-          onFuelBurst(
-            bullet.x,
-            bullet.y,
-            bullet.absorbedFuelBlobs ?? 0,
-            now,
-            bullet.vx,
-            bullet.vy,
-          );
+          onFuelBurst(bullet.x, bullet.y, bullet.absorbedFuelBlobs ?? 0, now, bullet.vx, bullet.vy);
           onBlackHoleRemoved?.(bullet);
           bullets.splice(i, 1);
         }

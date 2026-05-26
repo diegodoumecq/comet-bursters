@@ -13,7 +13,13 @@ function mixChannel(a: number, b: number, t: number): number {
 
 function hexToRgb(hex: string): [number, number, number] {
   const value = hex.replace('#', '');
-  const normalized = value.length === 3 ? value.split('').map((c) => c + c).join('') : value;
+  const normalized =
+    value.length === 3
+      ? value
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : value;
   const int = Number.parseInt(normalized, 16);
   return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
 }
@@ -105,63 +111,63 @@ export function drawCraters(
       ctx.translate(crater.x, crater.y);
       ctx.rotate(rotation);
 
-    const basinGradient = ctx.createRadialGradient(
-      -craterRadius * 0.1,
-      -craterRadius * 0.12,
-      craterRadius * 0.08,
-      0,
-      0,
-      craterRadius * 1.02,
-    );
-    basinGradient.addColorStop(0, 'rgba(255, 255, 255, 0.018)');
-    basinGradient.addColorStop(0.22, 'rgba(255, 255, 255, 0.008)');
-    basinGradient.addColorStop(0.72, shadow.replace(/[\d.]+\)$/, '0.09)'));
-    basinGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = basinGradient;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, craterRadius, craterRadius * squash, 0, 0, Math.PI * 2);
-    ctx.fill();
+      const basinGradient = ctx.createRadialGradient(
+        -craterRadius * 0.1,
+        -craterRadius * 0.12,
+        craterRadius * 0.08,
+        0,
+        0,
+        craterRadius * 1.02,
+      );
+      basinGradient.addColorStop(0, 'rgba(255, 255, 255, 0.018)');
+      basinGradient.addColorStop(0.22, 'rgba(255, 255, 255, 0.008)');
+      basinGradient.addColorStop(0.72, shadow.replace(/[\d.]+\)$/, '0.09)'));
+      basinGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      ctx.fillStyle = basinGradient;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, craterRadius, craterRadius * squash, 0, 0, Math.PI * 2);
+      ctx.fill();
 
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
-    ctx.lineWidth = Math.max(0.6, radius * 0.0045);
-    ctx.beginPath();
-    ctx.ellipse(
-      -craterRadius * 0.02,
-      -craterRadius * 0.02,
-      craterRadius * 1.01,
-      craterRadius * (squash * 0.98),
-      0,
-      Math.PI * 1.12,
-      Math.PI * 1.66,
-    );
-    ctx.stroke();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
+      ctx.lineWidth = Math.max(0.6, radius * 0.0045);
+      ctx.beginPath();
+      ctx.ellipse(
+        -craterRadius * 0.02,
+        -craterRadius * 0.02,
+        craterRadius * 1.01,
+        craterRadius * (squash * 0.98),
+        0,
+        Math.PI * 1.12,
+        Math.PI * 1.66,
+      );
+      ctx.stroke();
 
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.04)';
-    ctx.lineWidth = Math.max(0.6, radius * 0.0045);
-    ctx.beginPath();
-    ctx.ellipse(
-      craterRadius * 0.02,
-      craterRadius * 0.03,
-      craterRadius * 0.98,
-      craterRadius * (squash * 0.94),
-      0,
-      Math.PI * 0.12,
-      Math.PI * 0.86,
-    );
-    ctx.stroke();
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.04)';
+      ctx.lineWidth = Math.max(0.6, radius * 0.0045);
+      ctx.beginPath();
+      ctx.ellipse(
+        craterRadius * 0.02,
+        craterRadius * 0.03,
+        craterRadius * 0.98,
+        craterRadius * (squash * 0.94),
+        0,
+        Math.PI * 0.12,
+        Math.PI * 0.86,
+      );
+      ctx.stroke();
 
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.02)';
-    ctx.beginPath();
-    ctx.ellipse(
-      craterRadius * 0.1,
-      craterRadius * 0.08,
-      craterRadius * 0.5,
-      craterRadius * (squash * 0.34),
-      0.15,
-      0,
-      Math.PI * 2,
-    );
-    ctx.fill();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.02)';
+      ctx.beginPath();
+      ctx.ellipse(
+        craterRadius * 0.1,
+        craterRadius * 0.08,
+        craterRadius * 0.5,
+        craterRadius * (squash * 0.34),
+        0.15,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
 
       ctx.restore();
     }

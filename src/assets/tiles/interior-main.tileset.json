@@ -9,18 +9,12 @@
     "gapX": 0,
     "gapY": 0
   },
-  "materials": [
-    "wall",
-    "floor"
-  ],
+  "materials": ["wall", "floor"],
   "tiles": [
     {
       "id": 1,
       "material": "wall",
-      "position": [
-        0,
-        0
-      ],
+      "position": [0, 0],
       "topology": {
         "up": "different",
         "right": "different",
@@ -34,10 +28,7 @@
     {
       "id": 2,
       "material": "wall",
-      "position": [
-        1,
-        0
-      ],
+      "position": [1, 0],
       "topology": {
         "up": "different",
         "right": "same",
@@ -52,10 +43,7 @@
     {
       "id": 3,
       "material": "wall",
-      "position": [
-        2,
-        0
-      ],
+      "position": [2, 0],
       "topology": {
         "up": "same",
         "right": "different",
@@ -69,10 +57,7 @@
     {
       "id": 4,
       "material": "wall",
-      "position": [
-        3,
-        0
-      ],
+      "position": [3, 0],
       "topology": {
         "up": "different",
         "right": "same",
@@ -86,10 +71,7 @@
     {
       "id": 5,
       "material": "wall",
-      "position": [
-        4,
-        0
-      ],
+      "position": [4, 0],
       "topology": {
         "up": "same",
         "right": "same",
@@ -105,10 +87,7 @@
     {
       "id": 6,
       "material": "wall",
-      "position": [
-        5,
-        0
-      ],
+      "position": [5, 0],
       "topology": {
         "up": "different",
         "right": "same",
@@ -124,10 +103,7 @@
     {
       "id": 7,
       "material": "wall",
-      "position": [
-        0,
-        1
-      ],
+      "position": [0, 1],
       "topology": {
         "up": "same",
         "right": "same",
@@ -141,10 +117,7 @@
     {
       "id": 8,
       "material": "wall",
-      "position": [
-        1,
-        1
-      ],
+      "position": [1, 1],
       "topology": {
         "up": "same",
         "right": "different",
@@ -158,10 +131,7 @@
     {
       "id": 9,
       "material": "wall",
-      "position": [
-        2,
-        1
-      ],
+      "position": [2, 1],
       "topology": {
         "up": "different",
         "right": "different",
@@ -175,10 +145,7 @@
     {
       "id": 10,
       "material": "wall",
-      "position": [
-        3,
-        1
-      ],
+      "position": [3, 1],
       "topology": {
         "up": "same",
         "right": "same",
@@ -194,10 +161,7 @@
     {
       "id": 11,
       "material": "wall",
-      "position": [
-        4,
-        1
-      ],
+      "position": [4, 1],
       "topology": {
         "up": "same",
         "right": "same",
@@ -213,10 +177,7 @@
     {
       "id": 12,
       "material": "wall",
-      "position": [
-        5,
-        1
-      ],
+      "position": [5, 1],
       "topology": {
         "up": "same",
         "right": "same",
@@ -232,10 +193,7 @@
     {
       "id": 13,
       "material": "wall",
-      "position": [
-        0,
-        2
-      ],
+      "position": [0, 2],
       "topology": {
         "up": "different",
         "right": "same",
@@ -249,10 +207,7 @@
     {
       "id": 14,
       "material": "wall",
-      "position": [
-        1,
-        2
-      ],
+      "position": [1, 2],
       "topology": {
         "up": "same",
         "right": "same",
@@ -268,10 +223,7 @@
     {
       "id": 15,
       "material": "floor",
-      "position": [
-        2,
-        2
-      ],
+      "position": [2, 2],
       "topology": {},
       "variantGroup": "floor_fill",
       "variantWeight": 1,
@@ -280,10 +232,7 @@
     {
       "id": 16,
       "material": "wall",
-      "position": [
-        3,
-        2
-      ],
+      "position": [3, 2],
       "topology": {
         "up": "different",
         "right": "same",
@@ -297,10 +246,7 @@
     {
       "id": 17,
       "material": "wall",
-      "position": [
-        4,
-        2
-      ],
+      "position": [4, 2],
       "topology": {
         "up": "different",
         "right": "same",
@@ -315,10 +261,7 @@
     {
       "id": 18,
       "material": "wall",
-      "position": [
-        5,
-        2
-      ],
+      "position": [5, 2],
       "topology": {
         "up": "different",
         "right": "different",
@@ -332,10 +275,7 @@
     {
       "id": 19,
       "material": "wall",
-      "position": [
-        0,
-        3
-      ],
+      "position": [0, 3],
       "topology": {
         "up": "different",
         "right": "different",
@@ -350,10 +290,7 @@
     {
       "id": 20,
       "material": "wall",
-      "position": [
-        1,
-        3
-      ],
+      "position": [1, 3],
       "topology": {
         "up": "same",
         "right": "different",
@@ -367,10 +304,7 @@
     {
       "id": 21,
       "material": "wall",
-      "position": [
-        2,
-        3
-      ],
+      "position": [2, 3],
       "topology": {
         "up": "same",
         "right": "same",
@@ -387,10 +321,7 @@
     {
       "id": 22,
       "material": "wall",
-      "position": [
-        3,
-        3
-      ],
+      "position": [3, 3],
       "topology": {
         "up": "same",
         "right": "different",
@@ -406,10 +337,7 @@
     {
       "id": 23,
       "material": "wall",
-      "position": [
-        4,
-        3
-      ],
+      "position": [4, 3],
       "topology": {
         "up": "same",
         "right": "same",
@@ -424,10 +352,7 @@
     {
       "id": 24,
       "material": "wall",
-      "position": [
-        5,
-        3
-      ],
+      "position": [5, 3],
       "topology": {
         "up": "same",
         "right": "different",
@@ -443,10 +368,7 @@
     {
       "id": 25,
       "material": "wall",
-      "position": [
-        0,
-        4
-      ],
+      "position": [0, 4],
       "topology": {
         "up": "different",
         "right": "different",
@@ -460,10 +382,7 @@
     {
       "id": 26,
       "material": "wall",
-      "position": [
-        1,
-        4
-      ],
+      "position": [1, 4],
       "topology": {
         "up": "different",
         "right": "same",
@@ -477,10 +396,7 @@
     {
       "id": 27,
       "material": "wall",
-      "position": [
-        2,
-        4
-      ],
+      "position": [2, 4],
       "topology": {
         "up": "same",
         "right": "same",
@@ -498,10 +414,7 @@
     {
       "id": 28,
       "material": "wall",
-      "position": [
-        3,
-        4
-      ],
+      "position": [3, 4],
       "topology": {
         "up": "same",
         "right": "same",
@@ -516,10 +429,7 @@
     {
       "id": 29,
       "material": "wall",
-      "position": [
-        4,
-        4
-      ],
+      "position": [4, 4],
       "topology": {
         "up": "same",
         "right": "different",
@@ -534,10 +444,7 @@
     {
       "id": 30,
       "material": "wall",
-      "position": [
-        5,
-        4
-      ],
+      "position": [5, 4],
       "topology": {
         "up": "different",
         "right": "different",
@@ -552,10 +459,7 @@
     {
       "id": 31,
       "material": "wall",
-      "position": [
-        0,
-        5
-      ],
+      "position": [0, 5],
       "topology": {
         "up": "same",
         "right": "same",
@@ -571,10 +475,7 @@
     {
       "id": 32,
       "material": "wall",
-      "position": [
-        0,
-        6
-      ],
+      "position": [0, 6],
       "topology": {
         "up": "same",
         "right": "same",
@@ -590,10 +491,7 @@
     {
       "id": 33,
       "material": "wall",
-      "position": [
-        1,
-        6
-      ],
+      "position": [1, 6],
       "topology": {
         "up": "same",
         "right": "same",
@@ -609,10 +507,7 @@
     {
       "id": 34,
       "material": "wall",
-      "position": [
-        2,
-        6
-      ],
+      "position": [2, 6],
       "topology": {
         "up": "same",
         "right": "same",
@@ -628,10 +523,7 @@
     {
       "id": 35,
       "material": "wall",
-      "position": [
-        3,
-        6
-      ],
+      "position": [3, 6],
       "topology": {
         "up": "same",
         "right": "same",
@@ -647,10 +539,7 @@
     {
       "id": 36,
       "material": "wall",
-      "position": [
-        1,
-        5
-      ],
+      "position": [1, 5],
       "topology": {
         "up": "same",
         "right": "same",
@@ -666,10 +555,7 @@
     {
       "id": 37,
       "material": "wall",
-      "position": [
-        2,
-        5
-      ],
+      "position": [2, 5],
       "topology": {
         "up": "same",
         "right": "same",
@@ -685,10 +571,7 @@
     {
       "id": 38,
       "material": "wall",
-      "position": [
-        3,
-        5
-      ],
+      "position": [3, 5],
       "topology": {
         "up": "different",
         "right": "same",
@@ -702,10 +585,7 @@
     {
       "id": 39,
       "material": "wall",
-      "position": [
-        4,
-        5
-      ],
+      "position": [4, 5],
       "topology": {
         "up": "different",
         "right": "same",
@@ -719,10 +599,7 @@
     {
       "id": 40,
       "material": "wall",
-      "position": [
-        4,
-        6
-      ],
+      "position": [4, 6],
       "topology": {
         "up": "same",
         "right": "different",
@@ -736,10 +613,7 @@
     {
       "id": 41,
       "material": "wall",
-      "position": [
-        5,
-        5
-      ],
+      "position": [5, 5],
       "topology": {
         "up": "same",
         "right": "same",
@@ -753,10 +627,7 @@
     {
       "id": 42,
       "material": "wall",
-      "position": [
-        5,
-        6
-      ],
+      "position": [5, 6],
       "topology": {
         "up": "same",
         "right": "same",
@@ -772,10 +643,7 @@
     {
       "id": 43,
       "material": "wall",
-      "position": [
-        6,
-        0
-      ],
+      "position": [6, 0],
       "topology": {
         "up": "same",
         "right": "same",
@@ -791,10 +659,7 @@
     {
       "id": 44,
       "material": "wall",
-      "position": [
-        6,
-        1
-      ],
+      "position": [6, 1],
       "topology": {
         "up": "same",
         "right": "same",
@@ -810,10 +675,7 @@
     {
       "id": 45,
       "material": "wall",
-      "position": [
-        6,
-        2
-      ],
+      "position": [6, 2],
       "topology": {
         "up": "same",
         "right": "same",
@@ -829,10 +691,7 @@
     {
       "id": 46,
       "material": "wall",
-      "position": [
-        6,
-        3
-      ],
+      "position": [6, 3],
       "topology": {
         "up": "same",
         "right": "different",
@@ -846,10 +705,7 @@
     {
       "id": 47,
       "material": "wall",
-      "position": [
-        6,
-        4
-      ],
+      "position": [6, 4],
       "topology": {
         "up": "same",
         "right": "same",
@@ -863,10 +719,7 @@
     {
       "id": 48,
       "material": "wall",
-      "position": [
-        6,
-        5
-      ],
+      "position": [6, 5],
       "topology": {
         "up": "same",
         "right": "same",

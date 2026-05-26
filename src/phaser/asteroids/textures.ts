@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
-import type { AsteroidTier } from './types';
 import { ASTEROIDS } from './logic';
+import type { AsteroidTier } from './types';
 
 export const ASTEROID_TEXTURES: Record<AsteroidTier, readonly string[]> = {
   mega: ['phaser-asteroid-mega-0', 'phaser-asteroid-mega-1'],
@@ -41,7 +41,14 @@ function drawAsteroidTexture(tier: AsteroidTier, color: string): HTMLCanvasEleme
   ctx.translate(radius, radius);
   ctx.rotate(rand() * Math.PI * 2);
   traceRockShape(ctx, rand, radius * 0.94, pointCount);
-  const shell = ctx.createRadialGradient(-radius * 0.28, -radius * 0.34, radius * 0.16, 0, 0, radius);
+  const shell = ctx.createRadialGradient(
+    -radius * 0.28,
+    -radius * 0.34,
+    radius * 0.16,
+    0,
+    0,
+    radius,
+  );
   shell.addColorStop(0, mixHexColor(color, '#ffffff', 0.28));
   shell.addColorStop(0.45, color);
   shell.addColorStop(1, mixHexColor(color, '#101622', 0.45));
@@ -62,7 +69,12 @@ function drawAsteroidTexture(tier: AsteroidTier, color: string): HTMLCanvasEleme
   return canvas;
 }
 
-function drawBands(ctx: CanvasRenderingContext2D, rand: () => number, radius: number, tier: AsteroidTier): void {
+function drawBands(
+  ctx: CanvasRenderingContext2D,
+  rand: () => number,
+  radius: number,
+  tier: AsteroidTier,
+): void {
   const count = tier === 'mega' ? 10 : tier === 'big' ? 8 : tier === 'medium' ? 6 : 5;
   for (let index = 0; index < count; index += 1) {
     const y = (-0.64 + (index / Math.max(1, count - 1)) * 1.28) * radius;
@@ -77,7 +89,9 @@ function drawBands(ctx: CanvasRenderingContext2D, rand: () => number, radius: nu
     for (let x = -radius * 0.84; x <= radius * 0.84; x += radius * 0.12) {
       const normalizedX = (x + radius) / (radius * 2);
       const wave =
-        Math.sin(normalizedX * Math.PI * 2 + index * 0.54 + rand() * Math.PI * 0.5) * radius * 0.042 +
+        Math.sin(normalizedX * Math.PI * 2 + index * 0.54 + rand() * Math.PI * 0.5) *
+          radius *
+          0.042 +
         Math.cos(normalizedX * Math.PI * 3 + index * 0.12) * radius * 0.01;
       if (x === -radius * 0.84) ctx.moveTo(x, y + wave);
       else ctx.lineTo(x, y + wave);
@@ -86,7 +100,12 @@ function drawBands(ctx: CanvasRenderingContext2D, rand: () => number, radius: nu
   }
 }
 
-function drawCraters(ctx: CanvasRenderingContext2D, rand: () => number, radius: number, tier: AsteroidTier): void {
+function drawCraters(
+  ctx: CanvasRenderingContext2D,
+  rand: () => number,
+  radius: number,
+  tier: AsteroidTier,
+): void {
   const placements: Array<{ radius: number; x: number; y: number }> = [];
   for (let index = 0; index < 4; index += 1) {
     const craterRadius = radius * (tier === 'mega' ? 0.14 + rand() * 0.1 : 0.1 + rand() * 0.08);
@@ -95,7 +114,10 @@ function drawCraters(ctx: CanvasRenderingContext2D, rand: () => number, radius: 
       const x = (rand() - 0.5) * radius * 0.88;
       const y = (rand() - 0.5) * radius * 0.88;
       const inside = Math.hypot(x, y) + craterRadius <= radius * 0.88;
-      const overlaps = placements.some((other) => Math.hypot(x - other.x, y - other.y) < craterRadius + other.radius + radius * 0.04);
+      const overlaps = placements.some(
+        (other) =>
+          Math.hypot(x - other.x, y - other.y) < craterRadius + other.radius + radius * 0.04,
+      );
       if (inside && !overlaps) {
         placement = { x, y };
         break;
@@ -107,7 +129,14 @@ function drawCraters(ctx: CanvasRenderingContext2D, rand: () => number, radius: 
     ctx.save();
     ctx.translate(placement.x, placement.y);
     ctx.rotate(rand() * Math.PI);
-    const basin = ctx.createRadialGradient(-craterRadius * 0.12, -craterRadius * 0.14, craterRadius * 0.08, 0, 0, craterRadius * 1.04);
+    const basin = ctx.createRadialGradient(
+      -craterRadius * 0.12,
+      -craterRadius * 0.14,
+      craterRadius * 0.08,
+      0,
+      0,
+      craterRadius * 1.04,
+    );
     basin.addColorStop(0, 'rgba(255,255,255,0.05)');
     basin.addColorStop(0.22, 'rgba(255,255,255,0.025)');
     basin.addColorStop(0.72, 'rgba(12,16,28,0.16)');
@@ -131,7 +160,12 @@ function drawHighlight(ctx: CanvasRenderingContext2D, radius: number): void {
   ctx.fill();
 }
 
-function traceRockShape(ctx: CanvasRenderingContext2D, rand: () => number, radius: number, pointCount: number): void {
+function traceRockShape(
+  ctx: CanvasRenderingContext2D,
+  rand: () => number,
+  radius: number,
+  pointCount: number,
+): void {
   const rawRadii = Array.from({ length: pointCount }, () => radius * (0.82 + rand() * 0.16));
   const smoothedRadii = rawRadii.map((value, index) => {
     const previous = rawRadii[(index - 1 + pointCount) % pointCount];
@@ -152,7 +186,8 @@ function traceRockShape(ctx: CanvasRenderingContext2D, rand: () => number, radiu
 
 function hashString(value: string): number {
   let hash = 0;
-  for (let index = 0; index < value.length; index += 1) hash = Math.imul(31, hash) + value.charCodeAt(index) | 0;
+  for (let index = 0; index < value.length; index += 1)
+    hash = (Math.imul(31, hash) + value.charCodeAt(index)) | 0;
   return hash;
 }
 
@@ -160,9 +195,9 @@ function createSeededRandom(seed: number): () => number {
   let value = seed;
   return () => {
     value += 0x6d2b79f5;
-    let next = Math.imul(value ^ value >>> 15, 1 | value);
-    next ^= next + Math.imul(next ^ next >>> 7, 61 | next);
-    return ((next ^ next >>> 14) >>> 0) / 4294967296;
+    let next = Math.imul(value ^ (value >>> 15), 1 | value);
+    next ^= next + Math.imul(next ^ (next >>> 7), 61 | next);
+    return ((next ^ (next >>> 14)) >>> 0) / 4294967296;
   };
 }
 

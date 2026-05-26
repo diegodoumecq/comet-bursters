@@ -29,7 +29,11 @@ export type PendingSpriteHistorySession =
     };
 
 function imageDataEquals(left: ImageData, right: ImageData): boolean {
-  if (left.width !== right.width || left.height !== right.height || left.data.length !== right.data.length) {
+  if (
+    left.width !== right.width ||
+    left.height !== right.height ||
+    left.data.length !== right.data.length
+  ) {
     return false;
   }
 
@@ -42,7 +46,11 @@ function imageDataEquals(left: ImageData, right: ImageData): boolean {
   return true;
 }
 
-function clampBounds(bounds: PixelRect, canvasWidth: number, canvasHeight: number): PixelRect | null {
+function clampBounds(
+  bounds: PixelRect,
+  canvasWidth: number,
+  canvasHeight: number,
+): PixelRect | null {
   const left = Math.max(0, bounds.x);
   const top = Math.max(0, bounds.y);
   const right = Math.min(canvasWidth, bounds.x + bounds.width);

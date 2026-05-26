@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { getToroidalOffsets, wrapCoordinate } from './toroidal';
+
 describe('getToroidalOffsets', () => {
   const world = { width: 800, height: 600 };
   const radius = 25;

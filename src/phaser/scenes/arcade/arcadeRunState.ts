@@ -1,7 +1,7 @@
-import { GameWorld } from '../../world/state';
-import { PlayerState } from '../../player/state';
 import { ShipState } from '../../player/shipState';
-import { RESPAWN_DELAY_MS, getNextWaveState } from './runFlow';
+import { PlayerState } from '../../player/state';
+import { GameWorld } from '../../world/state';
+import { getNextWaveState, RESPAWN_DELAY_MS } from './runFlow';
 
 export class ArcadeRunState {
   readonly world = new GameWorld();

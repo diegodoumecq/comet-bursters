@@ -14,9 +14,7 @@ export type ShipInteriorTileAssetEntry = {
   url: string;
 };
 
-export const shipInteriorTileAssets: ShipInteriorTileAssetEntry[] = Object.entries(
-  tileAssetModules,
-)
+export const shipInteriorTileAssets: ShipInteriorTileAssetEntry[] = Object.entries(tileAssetModules)
   .map(([assetPath, url]) => {
     const fileName = assetPath.split('/').pop() ?? assetPath;
     return {
@@ -30,9 +28,8 @@ export const shipInteriorTileAssets: ShipInteriorTileAssetEntry[] = Object.entri
 
 export function resolveShipInteriorTileAssetUrl(path: string): string | null {
   return (
-    shipInteriorTileAssets.find(
-      (asset) => asset.imageSrc === path || asset.levelImageSrc === path,
-    )?.url ?? null
+    shipInteriorTileAssets.find((asset) => asset.imageSrc === path || asset.levelImageSrc === path)
+      ?.url ?? null
   );
 }
 
@@ -48,7 +45,8 @@ export function resolveShipInteriorAssetUrl(path: string): string | null {
   }
 
   return (
-    Object.entries(generalAssetModules).find(([assetPath]) => assetPath.endsWith(`/${fileName}`))?.[1] ??
-    null
+    Object.entries(generalAssetModules).find(([assetPath]) =>
+      assetPath.endsWith(`/${fileName}`),
+    )?.[1] ?? null
   );
 }

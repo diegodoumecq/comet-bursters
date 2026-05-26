@@ -12,7 +12,10 @@ export type ActionState = {
 };
 
 export class ActionReader {
-  private readonly keys: Record<'up' | 'down' | 'left' | 'right' | 'time' | 'primary' | 'secondary' | 'shield', Phaser.Input.Keyboard.Key>;
+  private readonly keys: Record<
+    'up' | 'down' | 'left' | 'right' | 'time' | 'primary' | 'secondary' | 'shield',
+    Phaser.Input.Keyboard.Key
+  >;
 
   constructor(private readonly scene: Phaser.Scene) {
     const keyboard = scene.input.keyboard;
@@ -37,12 +40,13 @@ export class ActionReader {
     const camera = this.scene.cameras.main;
     const pad = this.scene.input.gamepad?.getPad(0);
     const rawPadMove = pad ? { x: pad.leftStick.x, y: pad.leftStick.y } : null;
-    const move = rawPadMove && Math.hypot(rawPadMove.x, rawPadMove.y) > 0.15
-      ? rawPadMove
-      : {
-          x: Number(this.keys.right.isDown) - Number(this.keys.left.isDown),
-          y: Number(this.keys.down.isDown) - Number(this.keys.up.isDown),
-        };
+    const move =
+      rawPadMove && Math.hypot(rawPadMove.x, rawPadMove.y) > 0.15
+        ? rawPadMove
+        : {
+            x: Number(this.keys.right.isDown) - Number(this.keys.left.isDown),
+            y: Number(this.keys.down.isDown) - Number(this.keys.up.isDown),
+          };
     const pointerAim = {
       x: pointer.x - (origin.x - camera.scrollX),
       y: pointer.y - (origin.y - camera.scrollY),

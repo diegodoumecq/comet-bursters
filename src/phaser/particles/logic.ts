@@ -11,10 +11,7 @@ type BurstOptions = {
 };
 let nextParticleId = 1;
 
-export function spawnBurst(
-  position: Vector,
-  options: BurstOptions,
-): ParticleEntity[] {
+export function spawnBurst(position: Vector, options: BurstOptions): ParticleEntity[] {
   const inherited = options.inheritedVelocity ?? { x: 0, y: 0 };
   const particles: ParticleEntity[] = [];
   for (let index = 0; index < options.count; index += 1) {
@@ -46,10 +43,10 @@ export function updateParticle(particle: ParticleEntity, deltaMs: number): boole
   const drag = Math.exp(-particle.dragPerSecond * deltaSeconds);
   particle.velocity.x *= drag;
   particle.velocity.y *= drag;
-  particle.position.x += particle.velocity.x * deltaMs / (1000 / 60);
-  particle.position.y += particle.velocity.y * deltaMs / (1000 / 60);
+  particle.position.x += (particle.velocity.x * deltaMs) / (1000 / 60);
+  particle.position.y += (particle.velocity.y * deltaMs) / (1000 / 60);
   if (particle.rotationSpeed) {
-    particle.rotation += particle.rotationSpeed * deltaMs / (1000 / 60);
+    particle.rotation += (particle.rotationSpeed * deltaMs) / (1000 / 60);
   }
   return particle.lifetimeMs > 0;
 }
@@ -71,19 +68,20 @@ export function spawnThrusterParticle(
   const lifetimeFactor = 0.5 + Math.pow(Math.random(), 0.55) * 0.5;
   const lifetimeMs = 700 * lifetimeFactor;
   const size = Phaser.Math.FloatBetween(8, 16) * (0.58 + clampedPower * 0.42);
-  const color = clampedPower < 0.5
-    ? Phaser.Display.Color.Interpolate.ColorWithColor(
-      Phaser.Display.Color.ValueToColor(0xbfdbfe),
-      Phaser.Display.Color.ValueToColor(0x38bdf8),
-      100,
-      Math.round((lifetimeFactor - 0.5) * 200),
-    )
-    : Phaser.Display.Color.Interpolate.ColorWithColor(
-      Phaser.Display.Color.ValueToColor(0xfff93d),
-      Phaser.Display.Color.ValueToColor(0xff3f05),
-      100,
-      Math.round((lifetimeFactor - 0.5) * 200),
-    );
+  const color =
+    clampedPower < 0.5
+      ? Phaser.Display.Color.Interpolate.ColorWithColor(
+          Phaser.Display.Color.ValueToColor(0xbfdbfe),
+          Phaser.Display.Color.ValueToColor(0x38bdf8),
+          100,
+          Math.round((lifetimeFactor - 0.5) * 200),
+        )
+      : Phaser.Display.Color.Interpolate.ColorWithColor(
+          Phaser.Display.Color.ValueToColor(0xfff93d),
+          Phaser.Display.Color.ValueToColor(0xff3f05),
+          100,
+          Math.round((lifetimeFactor - 0.5) * 200),
+        );
   return {
     alphaDecayPerSecond: 1 / 0.7,
     color: Phaser.Display.Color.GetColor(color.r, color.g, color.b),

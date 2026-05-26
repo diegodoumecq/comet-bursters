@@ -34,8 +34,7 @@ export function SheetPreview({
   tilesetId: string | undefined;
 }) {
   const tileEntriesByPosition = useMemo(
-    () =>
-      new Map(tileEntries.map((entry) => [`${entry.column}:${entry.row}`, entry])),
+    () => new Map(tileEntries.map((entry) => [`${entry.column}:${entry.row}`, entry])),
     [tileEntries],
   );
 
@@ -69,8 +68,7 @@ export function SheetPreview({
               const left = (offsetX + column * (frameWidth + gapX)) * previewScale;
               const top = (offsetY + row * (frameHeight + gapY)) * previewScale;
               const tile = tileEntriesByPosition.get(`${column}:${row}`);
-              const isSelected =
-                selectedTile?.column === column && selectedTile.row === row;
+              const isSelected = selectedTile?.column === column && selectedTile.row === row;
               return (
                 <button
                   key={`${column}-${row}`}

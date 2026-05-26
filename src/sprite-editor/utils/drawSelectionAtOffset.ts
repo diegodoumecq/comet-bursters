@@ -18,7 +18,12 @@ export function drawSelectionAtOffset(
 
   scratchCtx.putImageData(source, 0, 0);
   if (options?.clearSourceRect ?? true) {
-    scratchCtx.clearRect(selectionRect.x, selectionRect.y, selectionRect.width, selectionRect.height);
+    scratchCtx.clearRect(
+      selectionRect.x,
+      selectionRect.y,
+      selectionRect.width,
+      selectionRect.height,
+    );
   }
 
   const selectionCanvas = document.createElement('canvas');

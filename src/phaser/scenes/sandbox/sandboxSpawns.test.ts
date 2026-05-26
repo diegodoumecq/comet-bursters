@@ -1,5 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { ASTEROIDS } from '../../asteroids/logic';
+import { PLAYER_COLLISION_RADIUS } from '../../player/config';
+import { wrappedDelta } from '../../world/geometry';
+import { MOTHERSHIP_CARGO_BAY_OFFSET, MOTHERSHIP_WIDTH } from './Mothership';
+import {
+  circlesOverlapWrapped,
+  createSandboxStartup,
+  PLANET_COUNT,
+  planetInfluencesPlayerAtSpawn,
+} from './sandboxSpawns';
+
 vi.mock('phaser', () => ({
   default: {
     Math: {
@@ -15,12 +26,6 @@ vi.mock('phaser', () => ({
     },
   },
 }));
-
-import { ASTEROIDS } from '../../asteroids/logic';
-import { PLAYER_COLLISION_RADIUS } from '../../player/config';
-import { wrappedDelta } from '../../world/geometry';
-import { MOTHERSHIP_CARGO_BAY_OFFSET, MOTHERSHIP_WIDTH } from './Mothership';
-import { circlesOverlapWrapped, createSandboxStartup, PLANET_COUNT, planetInfluencesPlayerAtSpawn } from './sandboxSpawns';
 
 const world = { width: 48000, height: 48000 };
 
@@ -59,7 +64,9 @@ describe('sandbox startup spawns', () => {
       y: startup.spawnPoint.y + MOTHERSHIP_CARGO_BAY_OFFSET.y,
     };
 
-    expect(startup.planets.every((planet) => !planetInfluencesPlayerAtSpawn(planet, cargoBay, world))).toBe(true);
+    expect(
+      startup.planets.every((planet) => !planetInfluencesPlayerAtSpawn(planet, cargoBay, world)),
+    ).toBe(true);
   });
 
   it('uses wrapped distance for reservation overlap checks', () => {

@@ -1,11 +1,11 @@
-import type { AsteroidEntity } from '../asteroids/types';
-import type { ProjectileEntity } from '../projectiles/types';
-import type { Vector } from '../core/types';
-import { ASTEROIDS } from '../asteroids/config';
-import { circlesOverlap } from '../core/collision';
-import { SHIELD_HIT_COOLDOWN_MS, spendShieldFuel } from '../fuel/rules';
-import { PROJECTILES } from '../weapons/config';
 import type { AsteroidBodies } from '../asteroids/bodies';
+import { ASTEROIDS } from '../asteroids/config';
+import type { AsteroidEntity } from '../asteroids/types';
+import { circlesOverlap } from '../core/collision';
+import type { Vector } from '../core/types';
+import { SHIELD_HIT_COOLDOWN_MS, spendShieldFuel } from '../fuel/rules';
+import type { ProjectileEntity } from '../projectiles/types';
+import { PROJECTILES } from '../weapons/config';
 
 export function applyProjectileImpulse(
   projectile: ProjectileEntity,
@@ -42,7 +42,12 @@ export function resolveProjectileContactCombat(
   const destroyed = new Set<AsteroidEntity>();
   const handledProjectiles = new Set<ProjectileEntity>();
   for (const { asteroid, projectile } of contacts) {
-    if (projectile.kind !== 'blackHole' && projectile.kind !== 'inspectionProbe' && !destroyed.has(asteroid) && !handledProjectiles.has(projectile)) {
+    if (
+      projectile.kind !== 'blackHole' &&
+      projectile.kind !== 'inspectionProbe' &&
+      !destroyed.has(asteroid) &&
+      !handledProjectiles.has(projectile)
+    ) {
       handledProjectiles.add(projectile);
       applyProjectileImpulse(projectile, asteroid, runtime);
       events.push({ asteroid, projectile, type: 'projectileHitAsteroid' });
@@ -85,14 +90,17 @@ export function resolvePlayerAsteroidCollision(input: {
   const dy = delta.y;
   const distance = Math.hypot(dx, dy);
   const shieldCollisionDistance = input.shieldRadius + asteroidRadius;
-  if (input.shieldActive && input.fuel > 0 && distance <= shieldCollisionDistance && input.now >= input.shieldHitUntil) {
+  if (
+    input.shieldActive &&
+    input.fuel > 0 &&
+    distance <= shieldCollisionDistance &&
+    input.now >= input.shieldHitUntil
+  ) {
     return getShieldBounce(input, dx, dy, distance, shieldCollisionDistance);
   }
   return {
     fuel: input.fuel,
-    hitPlayer:
-      !input.shieldActive &&
-      circlesOverlap(distance, input.playerRadius, asteroidRadius),
+    hitPlayer: !input.shieldActive && circlesOverlap(distance, input.playerRadius, asteroidRadius),
     playerVelocity: input.playerVelocity,
     shieldHitUntil: input.shieldHitUntil,
   };

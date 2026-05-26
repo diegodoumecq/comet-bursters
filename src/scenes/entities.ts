@@ -28,7 +28,10 @@ export function configureEntity<T extends object>(
   });
 }
 
-export function configurePlanetEntity<T extends object>(entity: T, render: EntityRenderer): T & SceneEntity {
+export function configurePlanetEntity<T extends object>(
+  entity: T,
+  render: EntityRenderer,
+): T & SceneEntity {
   return configureEntity(entity, 'planet', 10, render);
 }
 
@@ -40,19 +43,32 @@ export function configureProjectileEntity<T extends object>(
   return configureEntity(entity, type, 20, render);
 }
 
-export function configureAsteroidEntity<T extends object>(entity: T, render: EntityRenderer): T & SceneEntity {
+export function configureAsteroidEntity<T extends object>(
+  entity: T,
+  render: EntityRenderer,
+): T & SceneEntity {
   return configureEntity(entity, 'asteroid', 20, render);
 }
 
-export function configureThrusterParticleEntity<T extends object>(entity: T, render: EntityRenderer): T & SceneEntity {
+export function configureThrusterParticleEntity<T extends object>(
+  entity: T,
+  render: EntityRenderer,
+): T & SceneEntity {
   return configureEntity(entity, 'thrusterParticle', 30, render);
 }
 
-export function configurePlayerEntity<T extends object>(entity: T, render: EntityRenderer, zIndex = 40): T & SceneEntity {
+export function configurePlayerEntity<T extends object>(
+  entity: T,
+  render: EntityRenderer,
+  zIndex = 40,
+): T & SceneEntity {
   return Object.assign(entity, { id: 'player', type: 'player', zIndex, render });
 }
 
-export function configureParticleEntity<T extends object>(entity: T, render: EntityRenderer): T & SceneEntity {
+export function configureParticleEntity<T extends object>(
+  entity: T,
+  render: EntityRenderer,
+): T & SceneEntity {
   return configureEntity(entity, 'particle', 50, render);
 }
 

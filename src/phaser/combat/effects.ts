@@ -1,8 +1,8 @@
-import type { AsteroidEntity } from '../asteroids/types';
-import type { ParticleEntity } from '../particles/types';
-import type { Vector } from '../core/types';
 import { ASTEROIDS } from '../asteroids/logic';
+import type { AsteroidEntity } from '../asteroids/types';
+import type { Vector } from '../core/types';
 import { spawnBurst, spawnThrusterParticle } from '../particles/logic';
+import type { ParticleEntity } from '../particles/types';
 
 export type EffectResult = {
   particles: ParticleEntity[];
@@ -26,7 +26,11 @@ export function createAsteroidExplosion(asteroid: AsteroidEntity, scale: number)
   };
 }
 
-export function createExplosionBurst(position: Vector, inheritedVelocity: Vector, scale: number): EffectResult {
+export function createExplosionBurst(
+  position: Vector,
+  inheritedVelocity: Vector,
+  scale: number,
+): EffectResult {
   return {
     particles: spawnBurst(position, {
       color: 0xffffff,

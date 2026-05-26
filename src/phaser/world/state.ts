@@ -2,6 +2,7 @@ import type { AsteroidEntity } from '../asteroids/types';
 import type { FuelBlobEntity } from '../fuel/types';
 import type { ParticleEntity } from '../particles/types';
 import type { ProjectileEntity } from '../projectiles/types';
+
 export class GameWorld {
   asteroids: AsteroidEntity[] = [];
   fuelBlobs: FuelBlobEntity[] = [];

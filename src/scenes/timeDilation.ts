@@ -1,7 +1,6 @@
 import { TIME_DILATION_SCALE, type Player } from '@/constants';
 import { InputManager } from '@/input';
 import type { InputState } from '@/input/types';
-
 import { applyWeaponSelectionInput } from './weaponSelection';
 
 type TimeDilationStep = {

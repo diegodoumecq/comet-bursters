@@ -15,18 +15,24 @@ export class WeaponMenu {
   private readonly icons: Phaser.GameObjects.Image[];
   private readonly slotLabels: Phaser.GameObjects.Text[];
 
-  constructor(scene: Phaser.Scene, private readonly weapons: readonly WeaponKind[]) {
+  constructor(
+    scene: Phaser.Scene,
+    private readonly weapons: readonly WeaponKind[],
+  ) {
     this.graphics = scene.add.graphics().setDepth(90);
     this.icons = weapons.map((weapon) =>
       scene.add.image(0, 0, getWeaponIconTexture(scene, weapon, false)).setDepth(91),
     );
     this.slotLabels = weapons.map(() =>
-      scene.add.text(0, 0, '', {
-        color: '#06111f',
-        fontFamily: 'monospace',
-        fontSize: '10px',
-        fontStyle: 'bold',
-      }).setOrigin(0.5).setDepth(92),
+      scene.add
+        .text(0, 0, '', {
+          color: '#06111f',
+          fontFamily: 'monospace',
+          fontSize: '10px',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5)
+        .setDepth(92),
     );
   }
 
@@ -37,7 +43,13 @@ export class WeaponMenu {
     return this.weapons[Math.floor(((normalized + segment * 0.5) % (Math.PI * 2)) / segment)];
   }
 
-  draw(center: Vector, aim: Vector, primary: WeaponKind, secondary: WeaponKind, visible: boolean): void {
+  draw(
+    center: Vector,
+    aim: Vector,
+    primary: WeaponKind,
+    secondary: WeaponKind,
+    visible: boolean,
+  ): void {
     this.graphics.clear();
     for (const icon of this.icons) icon.setVisible(visible);
     for (const label of this.slotLabels) label.setVisible(false);
@@ -53,11 +65,20 @@ export class WeaponMenu {
       this.drawWedge(center, startAngle, endAngle, isSelected);
       this.icons[i]
         .setTexture(getWeaponIconTexture(this.icons[i].scene, weapon, isSelected))
-        .setPosition(center.x + Math.cos(centerAngle) * ICON_RADIUS, center.y + Math.sin(centerAngle) * ICON_RADIUS);
+        .setPosition(
+          center.x + Math.cos(centerAngle) * ICON_RADIUS,
+          center.y + Math.sin(centerAngle) * ICON_RADIUS,
+        );
       const markerX = center.x + Math.cos(centerAngle) * 46;
       const markerY = center.y + Math.sin(centerAngle) * 46;
       if (weapon === primary || weapon === secondary) {
-        this.drawSlotMarker(markerX, markerY, weapon === primary, weapon === secondary, this.slotLabels[i]);
+        this.drawSlotMarker(
+          markerX,
+          markerY,
+          weapon === primary,
+          weapon === secondary,
+          this.slotLabels[i],
+        );
       }
     }
     this.graphics.fillStyle(0x05070d, 1);
@@ -70,23 +91,50 @@ export class WeaponMenu {
       const bandSize = (RADIAL_MENU_OUTER_RADIUS - RADIAL_MENU_INNER_RADIUS) / bands;
       for (let band = 0; band < bands; band += 1) {
         const progress = band / Math.max(1, bands - 1);
-        this.graphics.fillStyle(interpolateColor(0x0e7490, 0x67e8f9, progress), 0.18 + progress * 0.2);
-        this.graphics.slice(center.x, center.y, RADIAL_MENU_INNER_RADIUS + bandSize * (band + 1), startAngle, endAngle, false);
+        this.graphics.fillStyle(
+          interpolateColor(0x0e7490, 0x67e8f9, progress),
+          0.18 + progress * 0.2,
+        );
+        this.graphics.slice(
+          center.x,
+          center.y,
+          RADIAL_MENU_INNER_RADIUS + bandSize * (band + 1),
+          startAngle,
+          endAngle,
+          false,
+        );
         this.graphics.fillPath();
       }
     } else {
       this.graphics.fillStyle(0x081420, 0.72);
-      this.graphics.slice(center.x, center.y, RADIAL_MENU_OUTER_RADIUS, startAngle, endAngle, false);
+      this.graphics.slice(
+        center.x,
+        center.y,
+        RADIAL_MENU_OUTER_RADIUS,
+        startAngle,
+        endAngle,
+        false,
+      );
       this.graphics.fillPath();
     }
     this.graphics.fillStyle(0x05070d, 1);
     this.graphics.fillCircle(center.x, center.y, RADIAL_MENU_INNER_RADIUS);
-    this.graphics.lineStyle(selected ? 2 : 1, selected ? 0xd2ffff : 0x94a3b8, selected ? 0.88 : 0.42);
+    this.graphics.lineStyle(
+      selected ? 2 : 1,
+      selected ? 0xd2ffff : 0x94a3b8,
+      selected ? 0.88 : 0.42,
+    );
     this.graphics.slice(center.x, center.y, RADIAL_MENU_OUTER_RADIUS, startAngle, endAngle, false);
     this.graphics.strokePath();
   }
 
-  private drawSlotMarker(x: number, y: number, primary: boolean, secondary: boolean, label: Phaser.GameObjects.Text): void {
+  private drawSlotMarker(
+    x: number,
+    y: number,
+    primary: boolean,
+    secondary: boolean,
+    label: Phaser.GameObjects.Text,
+  ): void {
     if (primary && secondary) {
       this.graphics.fillStyle(PRIMARY_SLOT_COLOR, 1);
       this.graphics.slice(x, y, 12, Math.PI * 0.5, Math.PI * 1.5, false);

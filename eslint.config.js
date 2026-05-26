@@ -25,8 +25,7 @@ export default defineConfig([
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
-        ecmaFeatures: {
-        },
+        ecmaFeatures: {},
       },
     },
     plugins: {
@@ -54,8 +53,7 @@ export default defineConfig([
     languageOptions: {
       parserOptions: {
         ecmaVersion: 'latest',
-        ecmaFeatures: {
-        },
+        ecmaFeatures: {},
       },
       globals: { ...globals.browser },
     },

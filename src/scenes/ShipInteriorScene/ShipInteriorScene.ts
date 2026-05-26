@@ -1,7 +1,8 @@
 import {
   BULLET_CONFIGS,
-  FUELLESS_THRUST_POWER_SCALE,
   FUEL_THRUST_PER_SECOND,
+  FUELLESS_THRUST_POWER_SCALE,
+  INSPECTION_PROBE_RADIUS,
   PLAYER_ACCELERATION,
   PLAYER_MAX_SPEED,
   PLAYER_SIZE,
@@ -11,7 +12,6 @@ import {
   SHIP_INTERIOR_REFUEL_PER_SECOND,
   SHIP_INTERIOR_REFUEL_STATION_RADIUS,
   STARTING_LIVES,
-  INSPECTION_PROBE_RADIUS,
   type Bullet,
   type Particle,
   type Player,
@@ -27,6 +27,7 @@ import {
   type WeaponType,
 } from '@/playerFuel';
 import {
+  applySavedWeaponSlots,
   bullets,
   gameState,
   getGameHeight,
@@ -35,10 +36,10 @@ import {
   player,
   resetState,
   setPlayer,
-  applySavedWeaponSlots,
   stars,
   thrusterParticles,
 } from '@/state';
+import { SceneEntityRegistry } from '../entities';
 import { updateBackground } from '../GameScene/background';
 import {
   createExplosion,
@@ -48,14 +49,13 @@ import {
   updateThrusterParticle,
 } from '../GameScene/particle';
 import { createPlayer, drawPlayer } from '../GameScene/player';
-import { SceneEntityRegistry } from '../entities';
-import type { Scene } from '../scene';
 import {
   drawInspectionProbe,
   fireInspectionProbe,
   updateInspectionProbes,
   type InspectionProbe,
 } from '../inspectionProbe';
+import type { Scene } from '../scene';
 import { getPlayerTimeDilationStep } from '../timeDilation';
 import { applyTractorBeamToTargets, drawTractorBeam } from '../tractorBeam';
 import { drawWeaponSelectionMenuIfOpen } from '../weaponSelection';
@@ -653,9 +653,17 @@ function updateScenePlayer(
       drainFuel(currentPlayer, FUEL_THRUST_PER_SECOND * (deltaTime / 1000));
     }
     currentPlayer.vx +=
-      input.move.value[0] * PLAYER_ACCELERATION * PLAYER_VELOCITY_MULTIPLIER * thrustPower * deltaScale;
+      input.move.value[0] *
+      PLAYER_ACCELERATION *
+      PLAYER_VELOCITY_MULTIPLIER *
+      thrustPower *
+      deltaScale;
     currentPlayer.vy +=
-      input.move.value[1] * PLAYER_ACCELERATION * PLAYER_VELOCITY_MULTIPLIER * thrustPower * deltaScale;
+      input.move.value[1] *
+      PLAYER_ACCELERATION *
+      PLAYER_VELOCITY_MULTIPLIER *
+      thrustPower *
+      deltaScale;
   }
 
   const speed = Math.sqrt(
@@ -702,7 +710,13 @@ function updateScenePlayer(
   }
 
   if (!suppressAssignedSlots && input.fireSpecial.pressed) {
-    fireSceneWeapon(currentPlayer, currentPlayer.secondaryWeapon, now, deltaScale, onInspectionProbe);
+    fireSceneWeapon(
+      currentPlayer,
+      currentPlayer.secondaryWeapon,
+      now,
+      deltaScale,
+      onInspectionProbe,
+    );
   }
 
   if (currentPlayer.invulnerable && now >= currentPlayer.invulnerableUntil) {
@@ -1512,8 +1526,7 @@ export class ShipInteriorScene implements Scene {
         const hitEnemy = this.enemies.find(
           (enemy) =>
             enemy.alive &&
-            distance(probe.x, probe.y, enemy.x, enemy.y) <=
-              INSPECTION_PROBE_RADIUS + ENEMY_RADIUS,
+            distance(probe.x, probe.y, enemy.x, enemy.y) <= INSPECTION_PROBE_RADIUS + ENEMY_RADIUS,
         );
         if (hitEnemy) {
           hitEnemy.alive = false;

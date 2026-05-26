@@ -17,14 +17,10 @@ describe('fireWeapon', () => {
   it('fires two canvas-equivalent shotgun volleys per trigger', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
 
-    const result = fireWeapon(
-      'shotgun',
-      { x: 1, y: 0 },
-      1000,
-      MAX_FUEL,
-      lastShotAt(),
-      { x: 0, y: 0 },
-    );
+    const result = fireWeapon('shotgun', { x: 1, y: 0 }, 1000, MAX_FUEL, lastShotAt(), {
+      x: 0,
+      y: 0,
+    });
 
     expect(result.shots).toHaveLength(PROJECTILES.shotgun.count * 2);
     expect(result.fuel).toBe(MAX_FUEL - PROJECTILES.shotgun.fuelCost);
@@ -34,31 +30,25 @@ describe('fireWeapon', () => {
   it('keeps shotgun pellets within the configured spread', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5);
 
-    const result = fireWeapon(
-      'shotgun',
-      { x: 1, y: 0 },
-      1000,
-      MAX_FUEL,
-      lastShotAt(),
-      { x: 0, y: 0 },
-    );
+    const result = fireWeapon('shotgun', { x: 1, y: 0 }, 1000, MAX_FUEL, lastShotAt(), {
+      x: 0,
+      y: 0,
+    });
     const minAngle = -PROJECTILES.shotgun.spread * 0.5;
     const maxAngle = PROJECTILES.shotgun.spread * 0.5;
 
-    expect(result.shots.every((shot) => shot.angle >= minAngle && shot.angle <= maxAngle)).toBe(true);
+    expect(result.shots.every((shot) => shot.angle >= minAngle && shot.angle <= maxAngle)).toBe(
+      true,
+    );
   });
 
   it('applies canvas-equivalent shotgun speed and lifetime variance', () => {
     vi.spyOn(Math, 'random').mockReturnValue(1);
 
-    const result = fireWeapon(
-      'shotgun',
-      { x: 1, y: 0 },
-      1000,
-      MAX_FUEL,
-      lastShotAt(),
-      { x: 0, y: 0 },
-    );
+    const result = fireWeapon('shotgun', { x: 1, y: 0 }, 1000, MAX_FUEL, lastShotAt(), {
+      x: 0,
+      y: 0,
+    });
     const firstShot = result.shots[0];
     const speed = Math.hypot(firstShot.velocity.x, firstShot.velocity.y);
 
@@ -67,14 +57,7 @@ describe('fireWeapon', () => {
   });
 
   it('blocks shotgun fire at low fuel', () => {
-    const result = fireWeapon(
-      'shotgun',
-      { x: 1, y: 0 },
-      1000,
-      5,
-      lastShotAt(),
-      { x: 0, y: 0 },
-    );
+    const result = fireWeapon('shotgun', { x: 1, y: 0 }, 1000, 5, lastShotAt(), { x: 0, y: 0 });
 
     expect(result.shots).toHaveLength(0);
     expect(result.fuel).toBe(5);

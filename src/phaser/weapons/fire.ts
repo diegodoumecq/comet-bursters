@@ -1,8 +1,8 @@
-import type { FireMode } from '../fuel/rules';
 import type { Vector } from '../core/types';
-import type { ProjectileKind, WeaponKind } from './types';
+import type { FireMode } from '../fuel/rules';
 import { getFireMode, spendWeaponFuel } from '../fuel/rules';
 import { PROJECTILES } from './config';
+import type { ProjectileKind, WeaponKind } from './types';
 
 export type ProjectileShot = {
   angle: number;

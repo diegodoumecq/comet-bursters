@@ -1,9 +1,9 @@
-import type { Vector } from '../../core/types';
 import { circlesOverlap } from '../../core/collision';
+import type { Vector } from '../../core/types';
 import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../../fuel/rules';
-import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import type { FuelBlobEntity } from '../../fuel/types';
 import type { PlanetEntity } from '../../planets/types';
+import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import { wrappedDelta } from '../../world/geometry';
 
 const EXTRACT_INTERVAL_MS = 1800;

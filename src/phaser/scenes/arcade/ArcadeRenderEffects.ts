@@ -15,14 +15,10 @@ export class ArcadeRenderEffects {
     getBackgroundCanvases: () => HTMLCanvasElement[],
   ) {
     this.fuelMetaballs = parent ? new FuelMetaballRenderer(parent) : null;
-    this.blackHoleShader = new BlackHoleShaderRenderer(
-      sourceCanvas,
-      getBackgroundCanvases,
-      () => {
-        const canvas = this.fuelMetaballs?.getCanvas();
-        return canvas ? [canvas] : [];
-      },
-    );
+    this.blackHoleShader = new BlackHoleShaderRenderer(sourceCanvas, getBackgroundCanvases, () => {
+      const canvas = this.fuelMetaballs?.getCanvas();
+      return canvas ? [canvas] : [];
+    });
   }
 
   render(session: ArcadeRunState, now: number, screen: WorldSize): void {

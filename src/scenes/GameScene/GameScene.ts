@@ -1,3 +1,4 @@
+import { resolveAsteroidCollisions } from '@/asteroidPhysics';
 import {
   ASTEROID_CONFIGS,
   ASTEROID_FUEL_DROP_CHANCES,
@@ -15,12 +16,12 @@ import {
   type Particle,
   type Player,
 } from '@/constants';
-import { resolveAsteroidCollisions } from '@/asteroidPhysics';
 import { InputManager } from '@/input';
 import { joymap } from '@/joymap';
 import { refillRespawnResources } from '@/playerFuel';
 import { sceneManager } from '@/sceneManager';
 import {
+  applySavedWeaponSlots,
   asteroids,
   bullets,
   gameState,
@@ -34,10 +35,16 @@ import {
   resetState,
   screenShake,
   setPlayer,
-  applySavedWeaponSlots,
   thrusterParticles,
   type PlayableSceneName,
 } from '@/state';
+import { configurePlayerEntity, configureProjectileEntity, SceneEntityRegistry } from '../entities';
+import {
+  drawInspectionProbe,
+  fireInspectionProbe,
+  updateInspectionProbes,
+  type InspectionProbe,
+} from '../inspectionProbe';
 import {
   disposeFuelMetaballs,
   initFuelMetaballs,
@@ -45,23 +52,13 @@ import {
   resizeFuelMetaballs,
   type FuelMetaball,
 } from '../SandboxScene/fuelMetaballs';
-import { configurePlayerEntity, configureProjectileEntity, SceneEntityRegistry } from '../entities';
 import type { Scene } from '../scene';
-import {
-  drawInspectionProbe,
-  fireInspectionProbe,
-  updateInspectionProbes,
-  type InspectionProbe,
-} from '../inspectionProbe';
 import { getPlayerTimeDilationStep } from '../timeDilation';
 import { applyTractorBeamToTargets, drawTractorBeam } from '../tractorBeam';
 import { drawWeaponSelectionMenuIfOpen } from '../weaponSelection';
 import { spawnWave, splitAsteroid, updateAsteroid } from './asteroid';
-import {
-  getBlackHoleRenderRadius,
-  updateBlackHoleLifecycles,
-} from './blackHole';
 import { drawBackground, updateBackground } from './background';
+import { getBlackHoleRenderRadius, updateBlackHoleLifecycles } from './blackHole';
 import { drawBullet, isBulletExpired, updateBullet } from './bullet';
 import { processBulletAsteroidCollisions, processPlayerAsteroidCollisions } from './collision';
 import {
@@ -161,7 +158,12 @@ export class GameScene implements Scene {
     }
   }
 
-  private getWrappedDelta(fromX: number, fromY: number, toX: number, toY: number): {
+  private getWrappedDelta(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+  ): {
     x: number;
     y: number;
   } {
@@ -235,7 +237,11 @@ export class GameScene implements Scene {
   }
 
   private applyTractorBeam(currentPlayer: Player, deltaScale = 1): void {
-    const input = InputManager.getInputState(currentPlayer.module, currentPlayer.x, currentPlayer.y);
+    const input = InputManager.getInputState(
+      currentPlayer.module,
+      currentPlayer.x,
+      currentPlayer.y,
+    );
     applyTractorBeamToTargets(currentPlayer, input, asteroids, deltaScale);
   }
 
@@ -245,12 +251,20 @@ export class GameScene implements Scene {
       return;
     }
 
-    const input = InputManager.getInputState(currentPlayer.module, currentPlayer.x, currentPlayer.y);
+    const input = InputManager.getInputState(
+      currentPlayer.module,
+      currentPlayer.x,
+      currentPlayer.y,
+    );
     drawTractorBeam(ctx, currentPlayer, input);
   }
 
   private drawSceneWeaponSelectionMenu(ctx: CanvasRenderingContext2D, currentPlayer: Player): void {
-    const input = InputManager.getInputState(currentPlayer.module, currentPlayer.x, currentPlayer.y);
+    const input = InputManager.getInputState(
+      currentPlayer.module,
+      currentPlayer.x,
+      currentPlayer.y,
+    );
     drawWeaponSelectionMenuIfOpen(ctx, currentPlayer, input);
   }
 
@@ -429,7 +443,9 @@ export class GameScene implements Scene {
           }
 
           const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
-          this.addParticlesFrom(() => createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy));
+          this.addParticlesFrom(() =>
+            createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy),
+          );
           this.spawnAsteroidFuelDrops(asteroid, now);
 
           const children = splitAsteroid(asteroid);
@@ -459,12 +475,13 @@ export class GameScene implements Scene {
         now,
         deltaScale,
         Boolean(timeStep?.input.timeDilation.pressed),
-        () => fireInspectionProbe(currentPlayer, this.inspectionProbes, now, (probe) => {
-          configureProjectileEntity('inspectionProbe', probe, (ctx) =>
-            drawInspectionProbe(probe, ctx),
-          );
-          this.entities.add(probe);
-        }),
+        () =>
+          fireInspectionProbe(currentPlayer, this.inspectionProbes, now, (probe) => {
+            configureProjectileEntity('inspectionProbe', probe, (ctx) =>
+              drawInspectionProbe(probe, ctx),
+            );
+            this.entities.add(probe);
+          }),
       );
       for (const bullet of created.bullets) {
         configureProjectileEntity('bullet', bullet, (ctx, context) =>
@@ -485,7 +502,9 @@ export class GameScene implements Scene {
       distance: (fromX, fromY, toX, toY) => Math.hypot(toX - fromX, toY - fromY),
       onAsteroidAbsorbed: (asteroid) => {
         const intensity = asteroid.size === 'big' ? 1.2 : asteroid.size === 'medium' ? 0.8 : 0.45;
-        this.addParticlesFrom(() => createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy));
+        this.addParticlesFrom(() =>
+          createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy),
+        );
       },
       onAsteroidRemoved: (asteroid) => this.removeEntity(asteroid),
       onBlackHoleRemoved: (blackHole) => this.removeEntity(blackHole),
@@ -535,8 +554,12 @@ export class GameScene implements Scene {
       player.vy = 0;
       player.isThrusting = false;
       rumbleDeath(player.module);
-      this.addParticlesFrom(() => createShipDebris(player.x, player.y, 2, debrisVx, debrisVy, player.color));
-      this.addParticlesFrom(() => createExplosionBurst(player.x, player.y, 2, player.vx, player.vy));
+      this.addParticlesFrom(() =>
+        createShipDebris(player.x, player.y, 2, debrisVx, debrisVy, player.color),
+      );
+      this.addParticlesFrom(() =>
+        createExplosionBurst(player.x, player.y, 2, player.vx, player.vy),
+      );
 
       player.respawnTime = now + 2000;
     }, now);
@@ -565,7 +588,9 @@ export class GameScene implements Scene {
       const asteroid = asteroids[i];
       if (asteroid.hits <= 0) {
         const intensity = asteroid.size === 'big' ? 1.5 : asteroid.size === 'medium' ? 1 : 0.5;
-        this.addParticlesFrom(() => createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy));
+        this.addParticlesFrom(() =>
+          createExplosion(asteroid.x, asteroid.y, intensity, asteroid.vx, asteroid.vy),
+        );
         this.spawnAsteroidFuelDrops(asteroid, now);
         const children = splitAsteroid(asteroid);
         this.addAsteroids(children);

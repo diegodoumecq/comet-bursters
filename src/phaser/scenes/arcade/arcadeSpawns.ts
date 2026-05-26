@@ -2,7 +2,11 @@ import Phaser from 'phaser';
 
 import { ASTEROIDS, createAsteroid } from '../../asteroids/logic';
 import type { AsteroidEntity, AsteroidTier } from '../../asteroids/types';
-import { overlapsAnySpawnCircle, spawnCirclesOverlap as coreSpawnCirclesOverlap, type SpawnCircle } from '../../core/spawn';
+import {
+  spawnCirclesOverlap as coreSpawnCirclesOverlap,
+  overlapsAnySpawnCircle,
+  type SpawnCircle,
+} from '../../core/spawn';
 import type { Vector, WorldSize } from '../../core/types';
 import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import { getBlackHoleRenderRadius } from '../../projectiles/blackHoles';
@@ -44,7 +48,9 @@ export function chooseSafePlayerPositionWithExclusions(
 
 export function getBlackHoleSpawnExclusions(projectiles: ProjectileEntity[]): ArcadeSpawnCircle[] {
   return projectiles
-    .filter((projectile) => projectile.kind === 'blackHole' && projectile.collapseStartedAt === null)
+    .filter(
+      (projectile) => projectile.kind === 'blackHole' && projectile.collapseStartedAt === null,
+    )
     .map((projectile) => ({
       position: projectile.position,
       radius: getBlackHoleRenderRadius(projectile) + PLAYER_COLLISION_RADIUS + 80,
@@ -59,10 +65,7 @@ export function createSafeWaveAsteroids(
   const asteroids: AsteroidEntity[] = [];
   for (let index = 0; index < wave + 2; index += 1) {
     const tier = chooseWaveTier(wave);
-    const reservations = [
-      ...exclusions,
-      ...getAsteroidCircles(asteroids),
-    ];
+    const reservations = [...exclusions, ...getAsteroidCircles(asteroids)];
     asteroids.push(createSafeWaveAsteroid(tier, world, reservations));
   }
   return asteroids;
@@ -97,13 +100,14 @@ function createSafeWaveAsteroid(
 function createWaveAsteroid(tier: AsteroidTier, world: WorldSize): AsteroidEntity {
   const config = ASTEROIDS[tier];
   const side = Phaser.Math.Between(0, 3);
-  const position = side === 0
-    ? { x: -config.radius, y: Math.random() * world.height }
-    : side === 1
-      ? { x: world.width + config.radius, y: Math.random() * world.height }
-      : side === 2
-        ? { x: Math.random() * world.width, y: -config.radius }
-        : { x: Math.random() * world.width, y: world.height + config.radius };
+  const position =
+    side === 0
+      ? { x: -config.radius, y: Math.random() * world.height }
+      : side === 1
+        ? { x: world.width + config.radius, y: Math.random() * world.height }
+        : side === 2
+          ? { x: Math.random() * world.width, y: -config.radius }
+          : { x: Math.random() * world.width, y: world.height + config.radius };
   const centerAngle = Math.atan2(world.height * 0.5 - position.y, world.width * 0.5 - position.x);
   const angle = centerAngle + Phaser.Math.FloatBetween(-Math.PI * 0.5, Math.PI * 0.5);
   const speed = config.speed * Phaser.Math.FloatBetween(0.8, 1.2);

@@ -1,5 +1,5 @@
-import type { TileEntry } from './spritesheetEditorStore';
 import type { EditorTilesetDefinition as SpritesheetEditorTilesetDefinition } from '../../editor/shared/editorTileset';
+import type { TileEntry } from './spritesheetEditorStore';
 
 export type SpritesheetEditorDocument = {
   selectedFileName: string;

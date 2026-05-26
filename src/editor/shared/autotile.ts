@@ -1,10 +1,5 @@
 export const cardinalTopologyDirections = ['up', 'right', 'down', 'left'] as const;
-export const diagonalTopologyDirections = [
-  'upRight',
-  'downRight',
-  'downLeft',
-  'upLeft',
-] as const;
+export const diagonalTopologyDirections = ['upRight', 'downRight', 'downLeft', 'upLeft'] as const;
 export const topologyDirections = [
   ...cardinalTopologyDirections,
   ...diagonalTopologyDirections,
@@ -14,17 +9,16 @@ export type TileTopologyDirection = (typeof topologyDirections)[number];
 export type TileTopologyRelation = 'same' | 'different' | 'any';
 export type TileTopology = Partial<Record<TileTopologyDirection, TileTopologyRelation>>;
 
-export const topologyDirectionOffsets: Record<TileTopologyDirection, { dx: number; dy: number }> =
-  {
-    up: { dx: 0, dy: -1 },
-    right: { dx: 1, dy: 0 },
-    down: { dx: 0, dy: 1 },
-    left: { dx: -1, dy: 0 },
-    upRight: { dx: 1, dy: -1 },
-    downRight: { dx: 1, dy: 1 },
-    downLeft: { dx: -1, dy: 1 },
-    upLeft: { dx: -1, dy: -1 },
-  };
+export const topologyDirectionOffsets: Record<TileTopologyDirection, { dx: number; dy: number }> = {
+  up: { dx: 0, dy: -1 },
+  right: { dx: 1, dy: 0 },
+  down: { dx: 0, dy: 1 },
+  left: { dx: -1, dy: 0 },
+  upRight: { dx: 1, dy: -1 },
+  downRight: { dx: 1, dy: 1 },
+  downLeft: { dx: -1, dy: 1 },
+  upLeft: { dx: -1, dy: -1 },
+};
 
 export function normalizeTileTopologyRelation(value: unknown): TileTopologyRelation | undefined {
   return value === 'same' || value === 'different' || value === 'any' ? value : undefined;

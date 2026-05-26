@@ -1,3 +1,7 @@
+import type {
+  RawShipInteriorLevel,
+  ShipInteriorTileId,
+} from '../../scenes/ShipInteriorScene/level';
 import {
   cardinalTopologyDirections,
   getTileTopologyRelation,
@@ -7,8 +11,8 @@ import {
   topologyDirections,
   type TileTopologyDirection,
 } from './autotile';
-import type { RawShipInteriorLevel, ShipInteriorTileId } from '../../scenes/ShipInteriorScene/level';
 import type { EditorTilesetDefinition, EditorTilesetTileDefinition } from './editorTileset';
+
 export type MaterialPlacementMap = Record<string, Record<string, string>>;
 export type ResolvedMaterialTilePreview = {
   material: string;
@@ -155,7 +159,8 @@ function chooseAutotileVariant(
 
     if (weightedCandidates.length > 0) {
       const totalWeight = weightedCandidates.reduce((sum, [, weight]) => sum + weight, 0);
-      const targetWeight = hashText(`${layerId}:${cell.material}:${cell.x},${cell.y}`) % totalWeight;
+      const targetWeight =
+        hashText(`${layerId}:${cell.material}:${cell.x},${cell.y}`) % totalWeight;
 
       let remainingWeight = targetWeight;
       for (const [candidate, weight] of weightedCandidates) {
@@ -281,7 +286,9 @@ function clearConcreteTilesAtCellKeys(
   };
 }
 
-function getExpandedMaterialCells(cells: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
+function getExpandedMaterialCells(
+  cells: Array<{ x: number; y: number }>,
+): Array<{ x: number; y: number }> {
   const expandedCells = new Map<string, { x: number; y: number }>();
 
   for (const cell of cells) {
@@ -310,7 +317,12 @@ function applyResolvedMaterialTilesForCells(
   const affectedCellKeys = new Set(
     affectedCells.map((cell) => getMaterialPlacementKey(cell.x, cell.y)),
   );
-  const assignments = resolveMaterialTilesForCells(level, layerId, materialPlacements, affectedCells);
+  const assignments = resolveMaterialTilesForCells(
+    level,
+    layerId,
+    materialPlacements,
+    affectedCells,
+  );
   const clearedLevel = clearConcreteTilesAtCellKeys(level, layerId, affectedCellKeys);
 
   return assignments.reduce(

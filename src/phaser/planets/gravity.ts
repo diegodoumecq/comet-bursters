@@ -1,9 +1,14 @@
 import type { MatterImage, Vector, WorldSize } from '../core/types';
 import type { FuelBlobEntity } from '../fuel/types';
-import type { PlanetEntity } from './types';
 import { wrappedDelta } from '../world/geometry';
+import type { PlanetEntity } from './types';
 
-export function gravityAcceleration(from: Vector, toward: Vector, strength: number, minDistance = 18): Vector {
+export function gravityAcceleration(
+  from: Vector,
+  toward: Vector,
+  strength: number,
+  minDistance = 18,
+): Vector {
   const dx = toward.x - from.x;
   const dy = toward.y - from.y;
   const distanceSq = Math.max(minDistance * minDistance, dx * dx + dy * dy);

@@ -84,7 +84,10 @@ export class Mothership {
     const progress = this.getDoorOpenProgress(now);
     this.front.setPosition(this.position.x, this.position.y);
     this.back.setPosition(this.position.x, this.position.y);
-    this.door.setPosition(this.position.x + progress * MOTHERSHIP_DOOR_SLIDE_DISTANCE, this.position.y);
+    this.door.setPosition(
+      this.position.x + progress * MOTHERSHIP_DOOR_SLIDE_DISTANCE,
+      this.position.y,
+    );
   }
 
   getCargoBayPosition(): Vector {

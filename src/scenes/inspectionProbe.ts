@@ -68,10 +68,7 @@ export function updateInspectionProbes(
   }
 }
 
-export function drawInspectionProbe(
-  probe: InspectionProbe,
-  ctx: CanvasRenderingContext2D,
-): void {
+export function drawInspectionProbe(probe: InspectionProbe, ctx: CanvasRenderingContext2D): void {
   ctx.save();
   ctx.translate(probe.x, probe.y);
   ctx.rotate(probe.angle);

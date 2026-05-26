@@ -31,9 +31,12 @@ app.innerHTML = `
 
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D;
-const startingWaveParam = Number.parseInt(new URLSearchParams(window.location.search).get('startingWave') ?? '', 10);
-if (Number.isFinite(startingWaveParam)) {
-  gameState.startingWave = Math.max(1, Math.min(50, startingWaveParam));
+const startingWave = Number.parseInt(
+  window.sessionStorage.getItem('comet-bursters-starting-wave') ?? '',
+  10,
+);
+if (Number.isFinite(startingWave)) {
+  gameState.startingWave = Math.max(1, Math.min(50, startingWave));
 }
 
 canvas.width = SIZE.width;

@@ -88,8 +88,9 @@ function isNearTractorGravityPoint(
   target: { x: number; y: number },
   gravityPoint: { x: number; y: number },
 ): boolean {
-  return Math.hypot(target.x - gravityPoint.x, target.y - gravityPoint.y) <=
-    TRACTOR_BEAM_GRAVITY_RADIUS;
+  return (
+    Math.hypot(target.x - gravityPoint.x, target.y - gravityPoint.y) <= TRACTOR_BEAM_GRAVITY_RADIUS
+  );
 }
 
 export function applyTractorBeamToTargets(
@@ -98,7 +99,11 @@ export function applyTractorBeamToTargets(
   targets: TractorTarget[],
   deltaScale = 1,
 ): void {
-  if (!isTractorActive(currentPlayer, input) || currentPlayer.fuel <= 0 || currentPlayer.waitingToRespawn) {
+  if (
+    !isTractorActive(currentPlayer, input) ||
+    currentPlayer.fuel <= 0 ||
+    currentPlayer.waitingToRespawn
+  ) {
     return;
   }
 
@@ -137,7 +142,11 @@ export function drawTractorBeam(
   currentPlayer: Player,
   input: InputState,
 ): void {
-  if (!isTractorActive(currentPlayer, input) || currentPlayer.waitingToRespawn || currentPlayer.fuel <= 0) {
+  if (
+    !isTractorActive(currentPlayer, input) ||
+    currentPlayer.waitingToRespawn ||
+    currentPlayer.fuel <= 0
+  ) {
     return;
   }
 

@@ -21,7 +21,10 @@ export function SpriteEditorFooter({
         <div>Brush {brushSize}px</div>
         <div>Zoom {zoom}x</div>
         <div>
-          Selection {displayedSelectionRect ? `${displayedSelectionRect.width} x ${displayedSelectionRect.height}` : '—'}
+          Selection{' '}
+          {displayedSelectionRect
+            ? `${displayedSelectionRect.width} x ${displayedSelectionRect.height}`
+            : '—'}
         </div>
         <div>Cursor {hoveredPixel ? `${hoveredPixel.x}, ${hoveredPixel.y}` : '—'}</div>
       </div>

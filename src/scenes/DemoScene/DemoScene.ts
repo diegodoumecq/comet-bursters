@@ -18,22 +18,17 @@ import { InputManager } from '@/input';
 import { joymap } from '@/joymap';
 import { sceneManager } from '@/sceneManager';
 import {
+  applySavedWeaponSlots,
   backgroundOffset,
+  bullets,
   gameState,
   getGameHeight,
   getGameWidth,
-  bullets,
   player,
   resetState,
   setPlayer,
-  applySavedWeaponSlots,
   stars,
 } from '@/state';
-import { updateBackground } from '../GameScene/background';
-import { drawBullet, isBulletExpired, updateBullet } from '../GameScene/bullet';
-import { createPlayer, drawPlayer, fireAssignedWeapon } from '../GameScene/player';
-import { drawPlanet } from '../SandboxScene/planets';
-import { clearFlatPlanetTextureCache } from '../SandboxScene/planetTextureEngine';
 import {
   configureAsteroidEntity,
   configurePlanetEntity,
@@ -41,12 +36,17 @@ import {
   configureProjectileEntity,
   SceneEntityRegistry,
 } from '../entities';
+import { updateBackground } from '../GameScene/background';
+import { drawBullet, isBulletExpired, updateBullet } from '../GameScene/bullet';
+import { createPlayer, drawPlayer, fireAssignedWeapon } from '../GameScene/player';
 import {
   drawInspectionProbe,
   fireInspectionProbe,
   updateInspectionProbes,
   type InspectionProbe,
 } from '../inspectionProbe';
+import { drawPlanet } from '../SandboxScene/planets';
+import { clearFlatPlanetTextureCache } from '../SandboxScene/planetTextureEngine';
 import type { Scene } from '../scene';
 import { getPlayerTimeDilationStep } from '../timeDilation';
 import { applyTractorBeamToTargets, drawTractorBeam } from '../tractorBeam';
@@ -397,7 +397,12 @@ export class DemoScene implements Scene {
     updateDemoPlayer(currentPlayer, input, timeStep.deltaScale);
     if (!input.timeDilation.pressed) {
       if (input.fire.pressed) {
-        this.fireDemoWeapon(currentPlayer, currentPlayer.primaryWeapon, timeStep.now, timeStep.deltaScale);
+        this.fireDemoWeapon(
+          currentPlayer,
+          currentPlayer.primaryWeapon,
+          timeStep.now,
+          timeStep.deltaScale,
+        );
       }
       if (input.fireSpecial.pressed) {
         this.fireDemoWeapon(

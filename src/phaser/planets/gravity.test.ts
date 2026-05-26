@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { MatterImage } from '../core/types';
 import type { FuelBlobEntity } from '../fuel/types';
-import type { PlanetEntity } from './types';
 import { applyPlanetGravityToBody, applyPlanetGravityToFuelBlobs } from './gravity';
+import type { PlanetEntity } from './types';
 
 const world = { width: 1000, height: 1000 };
 

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
-import type { AsteroidEntity } from '../asteroids/types';
 import type { AsteroidBodies } from '../asteroids/bodies';
+import type { AsteroidEntity } from '../asteroids/types';
 import type { Vector } from '../core/types';
 import { normalize } from '../world/geometry';
 
@@ -29,17 +29,21 @@ export function applyTractorBeam(
     const dy = asteroid.position.y - origin.y;
     const distance = Math.hypot(dx, dy);
     const forward = dx * direction.x + dy * direction.y;
-    const angle = distance > 0 ? Math.acos(Math.max(-1, Math.min(1, forward / distance))) : Infinity;
+    const angle =
+      distance > 0 ? Math.acos(Math.max(-1, Math.min(1, forward / distance))) : Infinity;
     const focusDistance = Math.hypot(focus.x - asteroid.position.x, focus.y - asteroid.position.y);
-    const affected = (distance <= RANGE && forward > 16 && angle <= HALF_ANGLE) || focusDistance <= FOCUS_RADIUS;
+    const affected =
+      (distance <= RANGE && forward > 16 && angle <= HALF_ANGLE) || focusDistance <= FOCUS_RADIUS;
     if (affected && focusDistance > 0) {
       const softened = Math.max(42, focusDistance);
-      runtime.get(asteroid).applyForce(
-        new Phaser.Math.Vector2(
-          ((focus.x - asteroid.position.x) / focusDistance) * (0.018 / softened),
-          ((focus.y - asteroid.position.y) / focusDistance) * (0.018 / softened),
-        ),
-      );
+      runtime
+        .get(asteroid)
+        .applyForce(
+          new Phaser.Math.Vector2(
+            ((focus.x - asteroid.position.x) / focusDistance) * (0.018 / softened),
+            ((focus.y - asteroid.position.y) / focusDistance) * (0.018 / softened),
+          ),
+        );
     }
   }
 }
@@ -58,8 +62,14 @@ export function drawTractorBeam(
   graphics.fillStyle(0x67e8f9, 0.16);
   graphics.beginPath();
   graphics.moveTo(origin.x, origin.y);
-  graphics.lineTo(origin.x + Math.cos(angle - HALF_ANGLE) * RANGE, origin.y + Math.sin(angle - HALF_ANGLE) * RANGE);
-  graphics.lineTo(origin.x + Math.cos(angle + HALF_ANGLE) * RANGE, origin.y + Math.sin(angle + HALF_ANGLE) * RANGE);
+  graphics.lineTo(
+    origin.x + Math.cos(angle - HALF_ANGLE) * RANGE,
+    origin.y + Math.sin(angle - HALF_ANGLE) * RANGE,
+  );
+  graphics.lineTo(
+    origin.x + Math.cos(angle + HALF_ANGLE) * RANGE,
+    origin.y + Math.sin(angle + HALF_ANGLE) * RANGE,
+  );
   graphics.closePath();
   graphics.fillPath();
   graphics.fillStyle(0x67e8f9, 0.28);

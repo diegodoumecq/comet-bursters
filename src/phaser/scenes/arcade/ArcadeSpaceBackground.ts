@@ -72,7 +72,6 @@ export class ArcadeSpaceBackground {
     this.drift.x = Phaser.Math.Linear(this.drift.x, this.targetDrift.x, NEBULA_DRIFT_SMOOTHING);
     this.drift.y = Phaser.Math.Linear(this.drift.y, this.targetDrift.y, NEBULA_DRIFT_SMOOTHING);
   }
-
 }
 
 function seededUnit(index: number, seed: number): number {

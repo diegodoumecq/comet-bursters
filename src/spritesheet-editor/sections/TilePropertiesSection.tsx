@@ -23,7 +23,8 @@ export function TilePropertiesSection() {
   const [isOpen, setIsOpen] = useState(true);
   const selectedTileIndex = tileEntries.findIndex((entry) => entry.id === selectedTileId);
   const selectedTile = selectedTileIndex >= 0 ? tileEntries[selectedTileIndex] : null;
-  const selectedTileLabel = selectedTile?.name?.trim() || (selectedTile ? `tile_${selectedTile.id}` : 'unnamed tile');
+  const selectedTileLabel =
+    selectedTile?.name?.trim() || (selectedTile ? `tile_${selectedTile.id}` : 'unnamed tile');
   const selectedAsset = useMemo(
     () =>
       tileset

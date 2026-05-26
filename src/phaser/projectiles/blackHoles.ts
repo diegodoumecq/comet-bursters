@@ -137,15 +137,17 @@ function applyBlackHoleGravity(input: BlackHoleLifecycleOptions): void {
     const radius = getMatureBlackHoleRadius(blackHole);
     const gravityRange = radius * 6;
     for (const asteroid of input.asteroids) {
-      if (applyBlackHoleGravityToVelocity(
-        asteroid.velocity,
-        asteroid.position,
-        blackHole.position,
-        gravityRange,
-        radius,
-        input.getDelta,
-        timeScale,
-      )) {
+      if (
+        applyBlackHoleGravityToVelocity(
+          asteroid.velocity,
+          asteroid.position,
+          blackHole.position,
+          gravityRange,
+          radius,
+          input.getDelta,
+          timeScale,
+        )
+      ) {
         input.asteroidBodies.get(asteroid).setVelocity(asteroid.velocity.x, asteroid.velocity.y);
       }
     }
@@ -163,15 +165,17 @@ function applyBlackHoleGravity(input: BlackHoleLifecycleOptions): void {
     }
     for (const targetBlackHole of getActiveBlackHoles(input.projectiles)) {
       if (targetBlackHole !== blackHole) {
-        if (applyBlackHoleGravityToVelocity(
-          targetBlackHole.velocity,
-          targetBlackHole.position,
-          blackHole.position,
-          gravityRange,
-          radius,
-          input.getDelta,
-          timeScale,
-        )) {
+        if (
+          applyBlackHoleGravityToVelocity(
+            targetBlackHole.velocity,
+            targetBlackHole.position,
+            blackHole.position,
+            gravityRange,
+            radius,
+            input.getDelta,
+            timeScale,
+          )
+        ) {
           input.projectileBodies
             .get(targetBlackHole)
             .setVelocity(targetBlackHole.velocity.x, targetBlackHole.velocity.y);

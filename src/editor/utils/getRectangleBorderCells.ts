@@ -1,4 +1,9 @@
-export function getRectangleBorderCells(startX: number, startY: number, endX: number, endY: number) {
+export function getRectangleBorderCells(
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+) {
   const left = Math.min(startX, endX);
   const right = Math.max(startX, endX);
   const top = Math.min(startY, endY);

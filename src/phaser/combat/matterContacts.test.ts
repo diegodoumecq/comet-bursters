@@ -4,7 +4,9 @@ import type { AsteroidBodies } from '../asteroids/bodies';
 import type { AsteroidEntity } from '../asteroids/types';
 import { MatterContacts } from './matterContacts';
 
-type CollisionHandler = (event: { pairs: Array<{ bodyA: MatterJS.BodyType; bodyB: MatterJS.BodyType }> }) => void;
+type CollisionHandler = (event: {
+  pairs: Array<{ bodyA: MatterJS.BodyType; bodyB: MatterJS.BodyType }>;
+}) => void;
 
 function body(id: number): MatterJS.BodyType {
   return { id } as MatterJS.BodyType;

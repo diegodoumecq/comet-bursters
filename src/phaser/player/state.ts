@@ -9,7 +9,13 @@ export class PlayerState {
   visible = true;
   lastAim: Vector = { x: 0, y: -1 };
   lastThrustMove: Vector = { x: 0, y: -1 };
-  lastShotAt: Record<ProjectileKind, number> = { blackHole: 0, inspectionProbe: 0, pusher: 0, shotgun: 0, small: 0 };
+  lastShotAt: Record<ProjectileKind, number> = {
+    blackHole: 0,
+    inspectionProbe: 0,
+    pusher: 0,
+    shotgun: 0,
+    small: 0,
+  };
   respawnAt = 0;
   invulnerableUntil = 0;
   shieldHitUntil = 0;

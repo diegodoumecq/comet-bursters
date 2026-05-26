@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { PlayerState } from '../player/state';
 import { ShipState } from '../player/shipState';
+import { PlayerState } from '../player/state';
 import { PLAYER_TURRET_MUZZLE_OFFSET } from '../player/textures';
 import { SANDBOX_WEAPONS } from './scenePolicy';
 import { getProjectileSpawnPosition, updateWeapons } from './use';

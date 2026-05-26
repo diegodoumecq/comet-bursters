@@ -1,7 +1,4 @@
-export type SpriteSheetFrameSelector =
-  | number
-  | { column: number; row: number }
-  | { name: string };
+export type SpriteSheetFrameSelector = number | { column: number; row: number } | { name: string };
 
 export type SpriteSheetGridConfig = {
   frameWidth: number;

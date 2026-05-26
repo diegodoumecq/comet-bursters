@@ -12,7 +12,11 @@ type PlayerRenderTarget = {
   y: number;
 };
 
-export function getPlayerVisible(visible: boolean, invulnerableUntil: number, now: number): boolean {
+export function getPlayerVisible(
+  visible: boolean,
+  invulnerableUntil: number,
+  now: number,
+): boolean {
   if (!visible) return false;
   const invulnerable = now < invulnerableUntil;
   return !invulnerable || Math.floor(now / 120) % 2 === 0;
@@ -87,8 +91,22 @@ export function renderPlayerThruster(
     : size * Phaser.Math.FloatBetween(0.58, 0.74);
   graphics.setPosition(player.x, player.y);
   graphics.setRotation(Math.atan2(-move.y, -move.x));
-  drawThrusterLayer(graphics, size, flameLength, fuelAvailable ? 0xfff7cc : 0xdcfaff, fuelAvailable ? 0.92 : 0.72, 0.25);
-  drawThrusterLayer(graphics, size, flameLength, fuelAvailable ? 0xff8800 : 0x3b82f6, fuelAvailable ? 0.54 : 0.22, 0.16);
+  drawThrusterLayer(
+    graphics,
+    size,
+    flameLength,
+    fuelAvailable ? 0xfff7cc : 0xdcfaff,
+    fuelAvailable ? 0.92 : 0.72,
+    0.25,
+  );
+  drawThrusterLayer(
+    graphics,
+    size,
+    flameLength,
+    fuelAvailable ? 0xff8800 : 0x3b82f6,
+    fuelAvailable ? 0.54 : 0.22,
+    0.16,
+  );
 }
 
 function drawThrusterLayer(

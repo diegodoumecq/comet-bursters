@@ -33,7 +33,10 @@ function createEditorSavePlugin(): Plugin {
           if (!payload.fileName || typeof payload.fileName !== 'string') {
             throw new Error('Missing fileName');
           }
-          if (!payload.fileName.endsWith('.json') || path.basename(payload.fileName) !== payload.fileName) {
+          if (
+            !payload.fileName.endsWith('.json') ||
+            path.basename(payload.fileName) !== payload.fileName
+          ) {
             throw new Error('Invalid level file name');
           }
           if (!payload.level || typeof payload.level !== 'object') {

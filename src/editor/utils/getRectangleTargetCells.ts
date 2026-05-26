@@ -1,6 +1,6 @@
-import type { RectangleDragState } from './rectangleDragTypes';
 import { getRectangleBorderCells } from './getRectangleBorderCells';
 import { getRectangleFilledCells } from './getRectangleFilledCells';
+import type { RectangleDragState } from './rectangleDragTypes';
 
 export function getRectangleTargetCells(
   rectangleDrag: RectangleDragState,

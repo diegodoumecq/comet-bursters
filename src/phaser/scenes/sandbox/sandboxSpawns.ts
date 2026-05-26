@@ -4,9 +4,9 @@ import { ASTEROIDS, createAsteroid } from '../../asteroids/logic';
 import type { AsteroidEntity, AsteroidTier } from '../../asteroids/types';
 import { overlapsAnySpawnCircle, spawnCirclesOverlap, type SpawnCircle } from '../../core/spawn';
 import type { Vector, WorldSize } from '../../core/types';
-import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import { createPlanet, getFuelReserveForPlanet } from '../../planets/logic';
 import type { PlanetEntity } from '../../planets/types';
+import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import { wrappedDelta } from '../../world/geometry';
 import { MOTHERSHIP_CARGO_BAY_OFFSET, MOTHERSHIP_WIDTH } from './Mothership';
 import type { SandboxPlanetEntity } from './planetFuel';
@@ -38,8 +38,14 @@ export function createSandboxStartup(
     { position: spawnPoint, radius: MOTHERSHIP_RESERVE_RADIUS },
     { position: getCargoBayPosition(spawnPoint), radius: PLAYER_COLLISION_RADIUS + 120 },
   ];
-  const planets = createStartupPlanets(world, getCargoBayPosition(spawnPoint), reservations, planetCount);
-  for (const planet of planets) reservations.push({ position: planet.position, radius: planet.radius });
+  const planets = createStartupPlanets(
+    world,
+    getCargoBayPosition(spawnPoint),
+    reservations,
+    planetCount,
+  );
+  for (const planet of planets)
+    reservations.push({ position: planet.position, radius: planet.radius });
   const asteroids = createStartupAsteroids(world, asteroidCount, reservations);
   return { asteroids, planets, spawnPoint };
 }
@@ -135,7 +141,10 @@ function planetPlacementIsValid(
   world: WorldSize,
 ): boolean {
   const circle = { position: planet.position, radius: planet.radius };
-  const separated = !overlapsAnySpawnCircle(circle, reservations, PLANET_PADDING, { type: 'wrapped', world });
+  const separated = !overlapsAnySpawnCircle(circle, reservations, PLANET_PADDING, {
+    type: 'wrapped',
+    world,
+  });
   return separated && !planetInfluencesPlayerAtSpawn(planet, playerSpawn, world);
 }
 
@@ -172,12 +181,24 @@ function createSeparatedAsteroid(
       x: Phaser.Math.Between(ASTEROID_MARGIN, world.width - ASTEROID_MARGIN),
       y: Phaser.Math.Between(ASTEROID_MARGIN, world.height - ASTEROID_MARGIN),
     };
-    const separated = !overlapsAnySpawnCircle({ position, radius }, reservations, ASTEROID_PADDING, { type: 'wrapped', world });
+    const separated = !overlapsAnySpawnCircle(
+      { position, radius },
+      reservations,
+      ASTEROID_PADDING,
+      { type: 'wrapped', world },
+    );
     if (separated) {
-      return createAsteroid(tier, position, { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed });
+      return createAsteroid(tier, position, {
+        x: Math.cos(angle) * speed,
+        y: Math.sin(angle) * speed,
+      });
     }
   }
-  return createAsteroid(tier, { x: world.width * 0.5, y: world.height * 0.5 }, { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed });
+  return createAsteroid(
+    tier,
+    { x: world.width * 0.5, y: world.height * 0.5 },
+    { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
+  );
 }
 
 function getCargoBayPosition(mothershipPosition: Vector): Vector {

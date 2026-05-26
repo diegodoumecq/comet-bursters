@@ -396,7 +396,9 @@ export function getTilesetTilePositionMap(
   return Object.fromEntries(tileset.tiles.map((tile) => [String(tile.id), tile.position]));
 }
 
-export function getTilesetTileNameMap(tileset: ShipInteriorTilesetDefinition): Record<string, string> {
+export function getTilesetTileNameMap(
+  tileset: ShipInteriorTilesetDefinition,
+): Record<string, string> {
   return Object.fromEntries(tileset.tiles.map((tile) => [String(tile.id), tile.name]));
 }
 
@@ -438,10 +440,8 @@ function normalizeLayerTileReferences(
       ...layer,
       tiles: layer.tiles.flatMap((tile) => {
         const normalizedTileId =
-          typeof tile.tile === 'number' ? tile.tile : tileIdByName?.get(tile.tile) ?? null;
-        return normalizedTileId === null
-          ? []
-          : [{ ...tile, tile: normalizedTileId }];
+          typeof tile.tile === 'number' ? tile.tile : (tileIdByName?.get(tile.tile) ?? null);
+        return normalizedTileId === null ? [] : [{ ...tile, tile: normalizedTileId }];
       }),
     };
   });
@@ -485,7 +485,10 @@ export async function parseShipInteriorLevel(
   const layerDefinitions = Array.isArray(raw.layers)
     ? raw.layers.map((layer, index) => validateLayer(layer, `layers[${index}]`))
     : [];
-  const normalizedLayerDefinitions = normalizeLayerTileReferences(layerDefinitions, tilesetDefinitions);
+  const normalizedLayerDefinitions = normalizeLayerTileReferences(
+    layerDefinitions,
+    tilesetDefinitions,
+  );
   const paths = Array.isArray(raw.paths)
     ? raw.paths.map((path, index) => validatePath(path, `paths[${index}]`))
     : [];

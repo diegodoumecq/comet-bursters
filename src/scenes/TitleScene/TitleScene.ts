@@ -66,7 +66,6 @@ export class TitleScene implements Scene {
       event.preventDefault();
       return;
     }
-
   };
 
   private handleKeyUp = (event: KeyboardEvent): void => {
@@ -162,7 +161,10 @@ export class TitleScene implements Scene {
     const promptY = titleY + (veryCompact ? 62 : compact ? 70 : 84);
     const menuTop = promptY + (veryCompact ? 30 : compact ? 36 : 50);
     const controlsHeaderY =
-      menuTop + TITLE_MENU_OPTIONS.length * menuHeight + (TITLE_MENU_OPTIONS.length - 1) * menuGap + (veryCompact ? 26 : 34);
+      menuTop +
+      TITLE_MENU_OPTIONS.length * menuHeight +
+      (TITLE_MENU_OPTIONS.length - 1) * menuGap +
+      (veryCompact ? 26 : 34);
     const controlsStartY = controlsHeaderY + (veryCompact ? 22 : 28);
 
     return {
@@ -196,8 +198,7 @@ export class TitleScene implements Scene {
       const withinX =
         this.mousePosition.x >= menuLeft && this.mousePosition.x <= menuLeft + menuWidth;
       const withinY =
-        this.mousePosition.y >= itemTop &&
-        this.mousePosition.y <= itemTop + menuHeight;
+        this.mousePosition.y >= itemTop && this.mousePosition.y <= itemTop + menuHeight;
 
       if (withinX && withinY) {
         return i;
@@ -348,7 +349,6 @@ export class TitleScene implements Scene {
       ctx.font = `${layout.optionDescriptionFontSize}px Audiowide, sans-serif`;
       ctx.fillStyle = isSelected ? '#92dff0' : '#7e879a';
       ctx.fillText(option.description, boxX + 20, boxY + menuHeight * 0.7);
-
     }
 
     ctx.textAlign = 'center';

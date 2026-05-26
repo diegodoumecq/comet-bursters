@@ -53,7 +53,18 @@ describe('fuel blob movement', () => {
       },
     ];
 
-    const normal = updateFuelBlobs(blobs.map((blob) => ({ ...blob, position: { ...blob.position }, velocity: { ...blob.velocity } })), { x: 0, y: 0 }, true, 0, world, false);
+    const normal = updateFuelBlobs(
+      blobs.map((blob) => ({
+        ...blob,
+        position: { ...blob.position },
+        velocity: { ...blob.velocity },
+      })),
+      { x: 0, y: 0 },
+      true,
+      0,
+      world,
+      false,
+    );
     const scaled = updateFuelBlobs(blobs, { x: 0, y: 0 }, true, 0, world, false, 36);
 
     expect(normal.collected).toHaveLength(0);

@@ -4,7 +4,13 @@ export type SceneWeaponPolicy = {
   allowedWeapons: readonly WeaponKind[];
 };
 
-export const ALL_WEAPONS: readonly WeaponKind[] = ['small', 'pusher', 'shotgun', 'blackHole', 'tractor'];
+export const ALL_WEAPONS: readonly WeaponKind[] = [
+  'small',
+  'pusher',
+  'shotgun',
+  'blackHole',
+  'tractor',
+];
 export const SANDBOX_WEAPONS: readonly WeaponKind[] = [...ALL_WEAPONS, 'inspectionProbe'];
 
 export function allowsWeapon(policy: SceneWeaponPolicy, weapon: WeaponKind): boolean {

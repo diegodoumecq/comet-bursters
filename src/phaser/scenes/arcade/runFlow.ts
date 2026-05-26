@@ -2,7 +2,12 @@ export { chooseSafePlayerPosition } from './arcadeSpawns';
 
 export const RESPAWN_DELAY_MS = 1800;
 
-export function getNextWaveState(asteroidCount: number, wave: number, waveClearAt: number, now: number): {
+export function getNextWaveState(
+  asteroidCount: number,
+  wave: number,
+  waveClearAt: number,
+  now: number,
+): {
   shouldSpawn: boolean;
   wave: number;
   waveClearAt: number;

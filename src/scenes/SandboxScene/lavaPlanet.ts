@@ -1,5 +1,4 @@
 import type { Planet } from '@/constants';
-
 import { tracePlanetShape } from './planetShapes';
 import { PLANET_SHELL_STYLES } from './planetStyles';
 import { drawLavaCrescent, drawLavaSurface } from './planetSurfaces/lava';

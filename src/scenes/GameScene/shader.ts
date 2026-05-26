@@ -1,10 +1,6 @@
 import * as THREE from 'three';
 
-import {
-  BLACK_HOLE_RADIUS,
-  DISTORTION_RADIUS,
-  DISTORTION_STRENGTH,
-} from '@/constants';
+import { BLACK_HOLE_RADIUS, DISTORTION_RADIUS, DISTORTION_STRENGTH } from '@/constants';
 import { getGameHeight, getGameWidth } from '@/state';
 
 let renderer: THREE.WebGLRenderer | null = null;

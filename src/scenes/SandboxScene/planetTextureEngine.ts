@@ -63,11 +63,24 @@ export function drawFlatTextureOnSphere(
       const destWidth = Math.max(1, bandRadius * diameter);
       const destX = -destWidth / 2;
       const destY = y - radius;
-      const srcY = Math.min(textureHeight - 1, Math.max(0, Math.floor(((v + 1) * 0.5) * textureHeight)));
+      const srcY = Math.min(
+        textureHeight - 1,
+        Math.max(0, Math.floor((v + 1) * 0.5 * textureHeight)),
+      );
       const srcX = rotationOffset % textureWidth;
       const firstSliceWidth = Math.min(textureWidth - srcX, textureWidth);
 
-      ctx.drawImage(texture, srcX, srcY, firstSliceWidth, 1, destX, destY, destWidth * (firstSliceWidth / textureWidth), 1);
+      ctx.drawImage(
+        texture,
+        srcX,
+        srcY,
+        firstSliceWidth,
+        1,
+        destX,
+        destY,
+        destWidth * (firstSliceWidth / textureWidth),
+        1,
+      );
 
       if (firstSliceWidth < textureWidth) {
         const remainingWidth = textureWidth - firstSliceWidth;

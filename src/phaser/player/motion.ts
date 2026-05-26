@@ -1,12 +1,12 @@
 import Phaser from 'phaser';
 
 import type { MatterImage, Vector, WorldSize } from '../core/types';
-import { FUELLESS_THRUST_SCALE, consumeThrustFuel } from '../fuel/rules';
-import { PLAYER_ACCELERATION, PLAYER_MAX_SPEED } from './config';
-import type { PlayerState } from './state';
-import type { ShipState } from './shipState';
-import type { PlayerBody } from './body';
+import { consumeThrustFuel, FUELLESS_THRUST_SCALE } from '../fuel/rules';
 import { wrapPoint } from '../world/geometry';
+import type { PlayerBody } from './body';
+import { PLAYER_ACCELERATION, PLAYER_MAX_SPEED } from './config';
+import type { ShipState } from './shipState';
+import type { PlayerState } from './state';
 
 export type PlayerMotionTuning = {
   acceleration: number;

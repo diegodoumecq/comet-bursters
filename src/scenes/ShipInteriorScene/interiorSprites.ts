@@ -1,5 +1,4 @@
 import { drawTilemapLayer } from '@/spritesheet';
-
 import type { LoadedShipInteriorLayer } from './level';
 
 export class ShipInteriorSpriteRenderer {

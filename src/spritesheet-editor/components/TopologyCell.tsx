@@ -41,7 +41,9 @@ export function TopologyCell({
         : 'border-amber-300/30 bg-amber-500/10 text-amber-100';
 
   return (
-    <div className={`flex min-h-24 flex-col justify-between rounded-xl border p-3 ${toneClassName}`}>
+    <div
+      className={`flex min-h-24 flex-col justify-between rounded-xl border p-3 ${toneClassName}`}
+    >
       <div className="text-[11px] uppercase tracking-[0.16em] text-slate-400">
         {topologyDirectionLabel[direction]}
       </div>

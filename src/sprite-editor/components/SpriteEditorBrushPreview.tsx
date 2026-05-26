@@ -23,10 +23,7 @@ export function SpriteEditorBrushPreview({
                 0.12,
                 (brushColor.a / 255) * 0.35,
               )})`,
-        borderColor:
-          tool === 'erase'
-            ? 'rgba(248, 113, 113, 0.9)'
-            : 'rgba(255, 255, 255, 0.9)',
+        borderColor: tool === 'erase' ? 'rgba(248, 113, 113, 0.9)' : 'rgba(255, 255, 255, 0.9)',
         boxSizing: 'border-box',
         height: `${preview.size}px`,
         left: `${preview.left}px`,

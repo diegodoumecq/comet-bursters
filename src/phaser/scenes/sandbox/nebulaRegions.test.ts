@@ -36,10 +36,12 @@ function getExpandedBounds(region: NebulaRegion): Bounds {
 }
 
 function boundsOverlap(left: Bounds, right: Bounds): boolean {
-  return left.left < right.right &&
+  return (
+    left.left < right.right &&
     left.right > right.left &&
     left.top < right.bottom &&
-    left.bottom > right.top;
+    left.bottom > right.top
+  );
 }
 
 describe('sandbox nebula regions', () => {

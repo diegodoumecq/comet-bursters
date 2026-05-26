@@ -1,17 +1,15 @@
 import Phaser from 'phaser';
 
+import { wrappedDelta } from '../world/geometry';
 import { circlesOverlap } from './collision';
 import type { Vector, WorldSize } from './types';
-import { wrappedDelta } from '../world/geometry';
 
 export type SpawnCircle = {
   position: Vector;
   radius: number;
 };
 
-export type DistanceMode =
-  | { type: 'direct' }
-  | { type: 'wrapped'; world: WorldSize };
+export type DistanceMode = { type: 'direct' } | { type: 'wrapped'; world: WorldSize };
 
 export function spawnCirclesOverlap(
   left: SpawnCircle,
@@ -62,7 +60,11 @@ export function randomPointInRect(input: {
   };
 }
 
-export function getSpawnDistance(from: Vector, to: Vector, distance: DistanceMode = { type: 'direct' }): number {
+export function getSpawnDistance(
+  from: Vector,
+  to: Vector,
+  distance: DistanceMode = { type: 'direct' },
+): number {
   if (distance.type === 'wrapped') {
     const delta = wrappedDelta(from, to, distance.world);
     return Math.hypot(delta.x, delta.y);

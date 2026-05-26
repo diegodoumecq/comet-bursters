@@ -1,5 +1,5 @@
+import { addFuel, MAX_FUEL } from '../fuel/rules';
 import type { WeaponKind } from '../weapons/types';
-import { MAX_FUEL, addFuel } from '../fuel/rules';
 
 export class ShipState {
   primaryWeapon: WeaponKind = 'small';

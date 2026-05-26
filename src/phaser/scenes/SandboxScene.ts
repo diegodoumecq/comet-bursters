@@ -45,7 +45,11 @@ import { normalize, wrappedDelta } from '../world/geometry';
 import { GameWorldRuntime } from '../world/runtime';
 import { BaseGameScene } from './BaseGameScene';
 import { SandboxDiscovery } from './sandbox/discovery';
-import { MOTHERSHIP_DOOR_SLIDE_DISTANCE, Mothership, preloadMothershipTextures } from './sandbox/Mothership';
+import {
+  Mothership,
+  MOTHERSHIP_DOOR_SLIDE_DISTANCE,
+  preloadMothershipTextures,
+} from './sandbox/Mothership';
 import {
   absorbFuelIntoPlanets,
   collectExtractorFuel,
@@ -70,8 +74,7 @@ const STARTING_INSPECTION_PROBES = 300;
 const INSPECTION_DURATION_MS = 15000;
 const MOTHERSHIP_LAUNCH_CLOSED_MS = 1000;
 const MOTHERSHIP_LAUNCH_ACTIVE_MS = 900;
-const MOTHERSHIP_LAUNCH_TOTAL_MS =
-  MOTHERSHIP_LAUNCH_CLOSED_MS + MOTHERSHIP_LAUNCH_ACTIVE_MS;
+const MOTHERSHIP_LAUNCH_TOTAL_MS = MOTHERSHIP_LAUNCH_CLOSED_MS + MOTHERSHIP_LAUNCH_ACTIVE_MS;
 const MOTHERSHIP_LAUNCH_START_SCALE = 0.18;
 const MOTHERSHIP_LAUNCH_START_OFFSET: Vector = { x: MOTHERSHIP_DOOR_SLIDE_DISTANCE * 0.55, y: 0 };
 const MOTHERSHIP_SPAWN_PLAYER_ROTATION = -Math.PI * 0.5;
@@ -453,10 +456,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     }
     const asteroidCollisionEnabled = this.playerCanCollideWithAsteroids();
     this.playerBody.setAsteroidCollisionEnabled(asteroidCollisionEnabled);
-    this.playerBody.updateShieldSensor(
-      this.isShieldActive(action),
-      asteroidCollisionEnabled,
-    );
+    this.playerBody.updateShieldSensor(this.isShieldActive(action), asteroidCollisionEnabled);
   }
 
   private resolvePlanetCollisions(): void {

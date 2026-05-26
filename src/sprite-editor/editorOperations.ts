@@ -1,7 +1,13 @@
-import { applyHistoryStepToCanvas, pasteClipboardImageToCanvas, resizeCanvasDocument, revertCanvasToImage, saveSpriteAssetImage } from './documentCommands';
+import {
+  applyHistoryStepToCanvas,
+  pasteClipboardImageToCanvas,
+  resizeCanvasDocument,
+  revertCanvasToImage,
+  saveSpriteAssetImage,
+} from './documentCommands';
+import type { SpriteHistoryEntry } from './history';
 import type { PixelRect } from './state/spriteEditorStore';
 import { cloneImageData, imageDataToBlob } from './utils';
-import type { SpriteHistoryEntry } from './history';
 
 type SpriteEditorDocumentSession = {
   isSelectionCopy: boolean;
@@ -396,7 +402,8 @@ export async function runSave({
       assetPath: activeAsset.assetPath,
       canvas,
     });
-    controller.session.originalImageData = saveResult.originalImageData ?? controller.cloneCanvasImage();
+    controller.session.originalImageData =
+      saveResult.originalImageData ?? controller.cloneCanvasImage();
     const ctx = canvas.getContext('2d');
     if (ctx) {
       controller.syncCanvasSelectionSnapshot(ctx, selectionRect);

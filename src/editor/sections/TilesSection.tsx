@@ -28,8 +28,13 @@ function makeLayerId(level: ReturnType<typeof useEditorStore.getState>['level'])
 }
 
 export function TilesSection({ showPalette = true }: { showPalette?: boolean }) {
-  const { setInactiveLayerOpacity, setLayerVisibility, setLevel, setSelectedLayerId, setSelectedTileId } =
-    useEditorStore((state) => state.handlers);
+  const {
+    setInactiveLayerOpacity,
+    setLayerVisibility,
+    setLevel,
+    setSelectedLayerId,
+    setSelectedTileId,
+  } = useEditorStore((state) => state.handlers);
   const activeImage = useEditorStore((state) => {
     const selectedTileset = getTilesetForLayer(state.level, state.selectedLayerId);
     return selectedTileset ? state.images[selectedTileset.id] : null;
@@ -417,9 +422,7 @@ export function TilesSection({ showPalette = true }: { showPalette?: boolean }) 
                     );
                     setLevel((currentLevel) => ({
                       ...currentLevel,
-                      layers: currentLevel.layers.filter(
-                        (candidate) => candidate.id !== layer.id,
-                      ),
+                      layers: currentLevel.layers.filter((candidate) => candidate.id !== layer.id),
                     }));
                     if (selectedLayerId === layer.id) {
                       setSelectedLayerId(remainingLayers[0]?.id ?? null);
