@@ -38,6 +38,7 @@ varying vec2 vUv;
 void main() {
   vec2 pixelPos = vUv * u_resolution;
   vec4 color = texture2D(u_texture, vUv);
+  bool affected = false;
 
   if (!u_sourceReady) {
     color = vec4(0.0, 0.0, 0.0, 0.0);
@@ -56,6 +57,7 @@ void main() {
     float dist = length(currentPos - bhPos);
 
     if (dist >= blackHoleRadius && dist < distortionRadius) {
+      affected = true;
       vec2 diff = currentPos - bhPos;
       float t = 1.0 - (dist - blackHoleRadius) / (distortionRadius - blackHoleRadius);
       float bendStrength = pow(t, 2.0) * u_distortionStrength;
@@ -109,9 +111,15 @@ void main() {
     float dist = length(pixelPos - bhPos);
 
     if (dist >= blackHoleRadius && dist < blackHoleRadius * 2.5) {
+      affected = true;
       float tintStrength = 1.0 - (dist - blackHoleRadius) / (blackHoleRadius * 1.5);
       color.rgb = mix(color.rgb, vec3(0.6, 0.3, 1.0), tintStrength * 0.5);
     }
+  }
+
+  if (!affected) {
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+    return;
   }
 
   gl_FragColor = color;
@@ -268,7 +276,12 @@ export class BlackHoleShaderRenderer {
 
     this.compositeContext.clearRect(0, 0, this.compositeCanvas.width, this.compositeCanvas.height);
     try {
-      for (const underlay of this.getUnderlayCanvases()) {
+      const underlays = this.getUnderlayCanvases();
+      if (underlays.length === 0) {
+        this.compositeContext.fillStyle = '#05070d';
+        this.compositeContext.fillRect(0, 0, this.compositeCanvas.width, this.compositeCanvas.height);
+      }
+      for (const underlay of underlays) {
         this.compositeContext.drawImage(
           underlay,
           0,
