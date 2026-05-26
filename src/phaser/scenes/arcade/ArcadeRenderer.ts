@@ -65,6 +65,7 @@ export class ArcadeRenderer {
   render(now: number, session: ArcadeRunState, action: ActionState, tractorActive: boolean): void {
     withPerformanceMeasure('arcade.render.background', this.perfToggles.markers, () => {
       this.background.render(now, session.player.velocity, {
+        grid: this.perfToggles.grid,
         markers: this.perfToggles.markers,
         starfield: this.perfToggles.starfield,
         threeBackground: this.perfToggles.threeBackground,

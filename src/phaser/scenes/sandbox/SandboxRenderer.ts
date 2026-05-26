@@ -109,6 +109,7 @@ export class SandboxRenderer {
   }): void {
     withPerformanceMeasure('sandbox.render.background', this.perfToggles.markers, () => {
       this.background.render(input.player.position, input.world, {
+        grid: this.perfToggles.grid,
         markers: this.perfToggles.markers,
         starfield: this.perfToggles.starfield,
         threeBackground: this.perfToggles.threeBackground,

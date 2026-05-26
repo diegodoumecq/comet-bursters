@@ -11,6 +11,7 @@ export function getSandboxFogEnabled(): boolean {
 export type SandboxPerfToggles = {
   blackHoles: boolean;
   fuelMetaballs: boolean;
+  grid: boolean;
   markers: boolean;
   minimap: boolean;
   nebulaRegions: boolean;
@@ -22,6 +23,7 @@ export function getSandboxPerfToggles(): SandboxPerfToggles {
   return {
     blackHoles: getBooleanStartupFlag('sandboxBlackHoles', true),
     fuelMetaballs: getBooleanStartupFlag('sandboxFuelMetaballs', true),
+    grid: getBooleanStartupFlag('sandboxGrid', true),
     markers: getBooleanStartupFlag('sandboxPerfMarkers', false),
     minimap: getBooleanStartupFlag('sandboxMinimap', true),
     nebulaRegions: getBooleanStartupFlag('sandboxNebulaRegions', true),

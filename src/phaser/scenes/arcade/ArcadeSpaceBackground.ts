@@ -5,18 +5,22 @@ import type { Vector, WorldSize } from '../../core/types';
 import { SpaceBackgroundRenderer } from '../../world/SpaceBackgroundRenderer';
 import { Starfield } from '../../world/Starfield';
 
+const GRID_DEPTH = -100;
+const GRID_SPACING = 240;
 const MAX_DELTA_MS = 50;
 const NEBULA_DIRECTION_CHANGE_MS = 14000;
 const NEBULA_DRIFT_SMOOTHING = 0.012;
 const NEBULA_DRIFT_SPEED = 0.014;
 
 type ArcadeSpaceBackgroundRenderOptions = {
+  grid: boolean;
   markers: boolean;
   starfield: boolean;
   threeBackground: boolean;
 };
 
 export class ArcadeSpaceBackground {
+  private readonly grid: Phaser.GameObjects.Graphics;
   private readonly shader: SpaceBackgroundRenderer;
   private drift: Vector = { x: -NEBULA_DRIFT_SPEED, y: NEBULA_DRIFT_SPEED * 0.45 };
   private lastRenderAt = 0;
@@ -31,6 +35,8 @@ export class ArcadeSpaceBackground {
   ) {
     this.shader = new SpaceBackgroundRenderer(scene.game.canvas, scene.game.canvas.parentElement);
     this.starfield = new Starfield(scene, screen);
+    this.grid = scene.add.graphics().setDepth(GRID_DEPTH);
+    this.drawGrid();
     this.scene.events.once('shutdown', this.dispose, this);
   }
 
@@ -58,11 +64,13 @@ export class ArcadeSpaceBackground {
         this.starfield.render(now, this.drift, deltaMs);
       });
     }
+    this.grid.setVisible(options.grid);
   }
 
   resize(screen: WorldSize): void {
     this.screen = screen;
     this.starfield.resize(screen);
+    this.drawGrid();
   }
 
   getCanvas(): HTMLCanvasElement | null {
@@ -72,6 +80,18 @@ export class ArcadeSpaceBackground {
   private dispose(): void {
     this.shader.dispose();
     this.starfield.destroy();
+    this.grid.destroy();
+  }
+
+  private drawGrid(): void {
+    this.grid.clear();
+    this.grid.lineStyle(1, 0x152033, 0.9);
+    for (let x = 0; x <= this.screen.width; x += GRID_SPACING) {
+      this.grid.lineBetween(x, 0, x, this.screen.height);
+    }
+    for (let y = 0; y <= this.screen.height; y += GRID_SPACING) {
+      this.grid.lineBetween(0, y, this.screen.width, y);
+    }
   }
 
   private updateNebulaDrift(now: number): void {

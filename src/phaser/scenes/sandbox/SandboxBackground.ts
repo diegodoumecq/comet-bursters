@@ -11,6 +11,7 @@ const STAR_PARALLAX = 0.018;
 const SANDBOX_STAR_DEPTH_SHIFT = -70;
 
 type SandboxBackgroundRenderOptions = {
+  grid: boolean;
   markers: boolean;
   starfield: boolean;
   threeBackground: boolean;
@@ -68,7 +69,7 @@ export class SandboxBackground {
         this.starfield.render(now, this.getStarParallax(playerPosition, world), deltaMs);
       });
     }
-    this.graphics.setVisible(true);
+    this.graphics.setVisible(options.grid);
   }
 
   getCanvas(): HTMLCanvasElement | null {
