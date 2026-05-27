@@ -56,7 +56,6 @@ export class ArcadeRenderEffects {
         projectiles: session.world.projectiles,
         project: (position) => [position],
       });
-      this.fuelMetaballs?.setVisible(this.perfToggles.fuelMetaballs && blackHoles.length === 0);
       withPerformanceMeasure('arcade.render.blackHoles', this.perfToggles.markers, () => {
         this.blackHoleShader.render(blackHoles);
       });

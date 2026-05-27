@@ -73,7 +73,6 @@ export class SandboxRenderEffects {
         projectiles: input.projectiles,
         project,
       });
-      this.fuelMetaballs?.setVisible(this.perfToggles.fuelMetaballs && blackHoles.length === 0);
       withPerformanceMeasure('sandbox.render.blackHoles', this.perfToggles.markers, () => {
         this.blackHoleShader.render(blackHoles);
       });
