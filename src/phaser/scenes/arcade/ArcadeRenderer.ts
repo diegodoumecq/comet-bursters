@@ -69,6 +69,7 @@ export class ArcadeRenderer {
         markers: this.perfToggles.markers,
         starfield: this.perfToggles.starfield,
         threeBackground: this.perfToggles.threeBackground,
+        wave: session.wave,
       });
     });
     const playerAlive = session.playerAlive;

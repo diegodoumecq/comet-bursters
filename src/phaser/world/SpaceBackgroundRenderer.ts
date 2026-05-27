@@ -5,8 +5,22 @@ import { nebulaNoiseShader } from './nebulaShader';
 
 type SpaceBackgroundMode = 'arcade' | 'sandbox';
 
+export type SpaceBackgroundColor = {
+  r: number;
+  g: number;
+  b: number;
+};
+
+export type SpaceNebulaPalette = {
+  base: SpaceBackgroundColor;
+  secondary: SpaceBackgroundColor;
+  accent: SpaceBackgroundColor;
+  thread: SpaceBackgroundColor;
+};
+
 type SpaceBackgroundInput = {
   mode: SpaceBackgroundMode;
+  nebulaPalette?: SpaceNebulaPalette;
   now: number;
   cameraScroll?: Vector;
   cameraZoom?: number;
@@ -18,6 +32,12 @@ type SpaceBackgroundInput = {
 
 const RENDER_SCALE = 1;
 const SANDBOX_RENDER_SCALE = 0.6;
+const DEFAULT_NEBULA_PALETTE: SpaceNebulaPalette = {
+  base: { r: 0.045, g: 0.12, b: 0.32 },
+  secondary: { r: 0.13, g: 0.075, b: 0.24 },
+  accent: { r: 0.08, g: 0.28, b: 0.38 },
+  thread: { r: 0.08, g: 0.28, b: 0.38 },
+};
 
 const vertexShader = `
 varying vec2 vUv;
@@ -34,6 +54,10 @@ precision highp float;
 uniform vec2 u_camera;
 uniform vec2 u_resolution;
 uniform vec2 u_screen;
+uniform vec3 u_nebula_accent;
+uniform vec3 u_nebula_base;
+uniform vec3 u_nebula_secondary;
+uniform vec3 u_nebula_thread;
 uniform float u_seed;
 uniform float u_time;
 
@@ -79,14 +103,11 @@ void main() {
   float core = smoothstep(0.68, 1.0, cloudMass * 0.82 + detail * 0.1 + thread * 0.06);
 
   vec3 deep = vec3(0.006, 0.01, 0.025);
-  vec3 blue = vec3(0.045, 0.12, 0.32);
-  vec3 violet = vec3(0.13, 0.075, 0.24);
-  vec3 cyan = vec3(0.08, 0.28, 0.38);
-  vec3 nebulaColor = mix(blue, violet, smoothstep(0.28, 0.82, colorNoise));
-  nebulaColor = mix(nebulaColor, cyan, smoothstep(0.62, 0.96, detail) * 0.28);
+  vec3 nebulaColor = mix(u_nebula_base, u_nebula_secondary, smoothstep(0.28, 0.82, colorNoise));
+  nebulaColor = mix(nebulaColor, u_nebula_accent, smoothstep(0.62, 0.96, detail) * 0.28);
 
   vec3 color = deep + nebulaColor * nebula * 1.08 + vec3(0.18, 0.34, 0.66) * core * 0.16;
-  color += mix(nebulaColor, cyan, 0.45) * thread * 0.075;
+  color += mix(nebulaColor, u_nebula_thread, 0.45) * thread * 0.075;
   color += vec3(0.08, 0.16, 0.32) * ribbon * nebula * 0.012;
   color = pow(color, vec3(1.06));
   gl_FragColor = vec4(color, 1.0);
@@ -154,6 +175,7 @@ export class SpaceBackgroundRenderer {
   private material: THREE.ShaderMaterial | null = null;
   private materialMode: SpaceBackgroundMode | null = null;
   private mesh: THREE.Mesh | null = null;
+  private nebulaPalette = DEFAULT_NEBULA_PALETTE;
   private renderer: THREE.WebGLRenderer | null = null;
   private scene: THREE.Scene | null = null;
   private readonly seed = Math.random() * 1000;
@@ -170,8 +192,9 @@ export class SpaceBackgroundRenderer {
     this.ensureMaterial(input.mode);
     if (!this.material) return;
 
+    const paletteChanged = input.mode === 'arcade' && this.setNebulaPalette(input.nebulaPalette);
     const resized = this.resize(input.screen.width, input.screen.height, input.mode);
-    if (input.mode === 'arcade' && !this.arcadeRenderDirty && !resized) return;
+    if (input.mode === 'arcade' && !this.arcadeRenderDirty && !paletteChanged && !resized) return;
 
     this.material.uniforms.u_screen.value.set(input.screen.width, input.screen.height);
     this.material.uniforms.u_time.value = input.mode === 'arcade' ? 0 : input.now;
@@ -251,6 +274,10 @@ export class SpaceBackgroundRenderer {
         u_camera: { value: new THREE.Vector2(0, 0) },
         u_camera_scroll: { value: new THREE.Vector2(0, 0) },
         u_camera_zoom: { value: 1 },
+        u_nebula_accent: { value: colorVector(this.nebulaPalette.accent) },
+        u_nebula_base: { value: colorVector(this.nebulaPalette.base) },
+        u_nebula_secondary: { value: colorVector(this.nebulaPalette.secondary) },
+        u_nebula_thread: { value: colorVector(this.nebulaPalette.thread) },
         u_resolution: { value: new THREE.Vector2(1, 1) },
         u_screen: { value: new THREE.Vector2(1, 1) },
         u_seed: { value: this.seed },
@@ -265,6 +292,20 @@ export class SpaceBackgroundRenderer {
     this.mesh.material = this.material;
     this.materialMode = mode;
     if (mode === 'arcade') this.arcadeRenderDirty = true;
+  }
+
+  private setNebulaPalette(palette = DEFAULT_NEBULA_PALETTE): boolean {
+    if (!this.material) return false;
+    const changed = !samePalette(this.nebulaPalette, palette);
+    if (changed) {
+      this.nebulaPalette = palette;
+      setColorUniform(this.material.uniforms.u_nebula_base.value, palette.base);
+      setColorUniform(this.material.uniforms.u_nebula_secondary.value, palette.secondary);
+      setColorUniform(this.material.uniforms.u_nebula_accent.value, palette.accent);
+      setColorUniform(this.material.uniforms.u_nebula_thread.value, palette.thread);
+      this.arcadeRenderDirty = true;
+    }
+    return changed;
   }
 
   private resize(width: number, height: number, mode: SpaceBackgroundMode): boolean {
@@ -283,4 +324,25 @@ export class SpaceBackgroundRenderer {
     }
     return false;
   }
+}
+
+function colorVector(color: SpaceBackgroundColor): THREE.Vector3 {
+  return new THREE.Vector3(color.r, color.g, color.b);
+}
+
+function setColorUniform(target: THREE.Vector3, color: SpaceBackgroundColor): void {
+  target.set(color.r, color.g, color.b);
+}
+
+function sameColor(a: SpaceBackgroundColor, b: SpaceBackgroundColor): boolean {
+  return a.r === b.r && a.g === b.g && a.b === b.b;
+}
+
+function samePalette(a: SpaceNebulaPalette, b: SpaceNebulaPalette): boolean {
+  return (
+    sameColor(a.base, b.base) &&
+    sameColor(a.secondary, b.secondary) &&
+    sameColor(a.accent, b.accent) &&
+    sameColor(a.thread, b.thread)
+  );
 }

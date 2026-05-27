@@ -4,6 +4,7 @@ import { withPerformanceMeasure } from '../../core/performance';
 import type { Vector, WorldSize } from '../../core/types';
 import { SpaceBackgroundRenderer } from '../../world/SpaceBackgroundRenderer';
 import { Starfield } from '../../world/Starfield';
+import { getArcadeNebulaPalette } from './arcadeNebulaPalette';
 
 const GRID_DEPTH = -100;
 const GRID_SPACING = 240;
@@ -17,6 +18,7 @@ type ArcadeSpaceBackgroundRenderOptions = {
   markers: boolean;
   starfield: boolean;
   threeBackground: boolean;
+  wave: number;
 };
 
 export class ArcadeSpaceBackground {
@@ -52,6 +54,7 @@ export class ArcadeSpaceBackground {
       withPerformanceMeasure('arcade.render.background.three', options.markers, () => {
         this.shader.render({
           mode: 'arcade',
+          nebulaPalette: getArcadeNebulaPalette(options.wave),
           now,
           playerPosition: this.shaderOffset,
           screen: this.screen,
