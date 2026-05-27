@@ -31,7 +31,7 @@ import { updateBlackHoles } from '../projectiles/blackHoles';
 import { ProjectileBodies } from '../projectiles/bodies';
 import { updateProjectiles } from '../projectiles/logic';
 import type { ProjectileEntity } from '../projectiles/types';
-import { getStartingWave } from '../runtime/startup';
+import { getArcadeRiftDebugEnabled, getStartingWave } from '../runtime/startup';
 import { ALL_WEAPONS, type SceneWeaponPolicy } from '../weapons/scenePolicy';
 import { applyTractorBeam } from '../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../weapons/use';
@@ -41,12 +41,13 @@ import { ArcadeRenderEffects } from './arcade/ArcadeRenderEffects';
 import { ArcadeRenderer } from './arcade/ArcadeRenderer';
 import { ArcadeRunState } from './arcade/arcadeRunState';
 import {
+  type ArcadeRiftAsteroid,
   chooseSafePlayerPositionWithExclusions,
   getBlackHoleSpawnExclusions,
   getPlayerSpawnCircle,
 } from './arcade/arcadeSpawns';
 import { createArcadeTextures } from './arcade/arcadeVisuals';
-import { createWaveAsteroids } from './arcade/waves';
+import { createWaveRiftEvent } from './arcade/waves';
 import { BaseGameScene } from './BaseGameScene';
 
 const GAME_OVER_RESTART_DELAY_MS = 3000;
@@ -66,6 +67,10 @@ export class PhaserArcadeScene extends BaseGameScene {
   private renderEffects!: ArcadeRenderEffects;
   private gameOverAt = 0;
   private lastThrusterAt = 0;
+  private nextRiftEventId = 1;
+  private readonly pendingRiftAsteroids: ArcadeRiftAsteroid[] = [];
+  private readonly riftDebug = getArcadeRiftDebugEnabled();
+  private testRiftKey: Phaser.Input.Keyboard.Key | null = null;
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: ALL_WEAPONS };
 
   constructor() {
@@ -116,6 +121,9 @@ export class PhaserArcadeScene extends BaseGameScene {
       },
     );
     this.events.once('shutdown', this.disposeRenderEffects, this);
+    if (this.riftDebug) {
+      this.testRiftKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.T) ?? null;
+    }
     this.spawnWave();
     this.scale.on('resize', this.handleResize, this);
   }
@@ -141,7 +149,9 @@ export class PhaserArcadeScene extends BaseGameScene {
     const timeScale = getTimeScale(action.timeDilation);
     this.matter.world.engine.timing.timeScale = timeScale;
     const deltaSeconds = (delta / 1000) * timeScale;
+    this.updateDebugRiftInput();
     this.updatePlayerActions(action, deltaSeconds, time);
+    this.releaseRiftAsteroids(time);
     this.updateWorldState(delta, deltaSeconds);
     this.resolveCombat(time, action.shield, deltaSeconds);
     this.collectFuelBlobs(deltaSeconds);
@@ -298,11 +308,38 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private spawnWave(): void {
-    this.addAsteroids(
-      createWaveAsteroids(this.session.wave, this.worldSize, [
-        getPlayerSpawnCircle(this.session.player.position),
-      ]),
+    this.createRiftEvent(this.session.wave);
+  }
+
+  private createRiftEvent(intensity: number): void {
+    const riftEvent = createWaveRiftEvent(
+      intensity,
+      this.worldSize,
+      [getPlayerSpawnCircle(this.session.player.position)],
+      this.nextRiftEventId,
+      this.time.now,
     );
+    this.nextRiftEventId += 1;
+    this.sceneRenderer.addRifts(riftEvent.rifts);
+    this.pendingRiftAsteroids.push(...riftEvent.asteroids);
+  }
+
+  private updateDebugRiftInput(): void {
+    if (this.testRiftKey && Phaser.Input.Keyboard.JustDown(this.testRiftKey)) {
+      this.createRiftEvent(this.session.wave);
+    }
+  }
+
+  private releaseRiftAsteroids(now: number): void {
+    const released: AsteroidEntity[] = [];
+    for (let index = this.pendingRiftAsteroids.length - 1; index >= 0; index -= 1) {
+      const pending = this.pendingRiftAsteroids[index];
+      if (now >= pending.releaseAt) {
+        released.push(pending.asteroid);
+        this.pendingRiftAsteroids.splice(index, 1);
+      }
+    }
+    if (released.length > 0) this.addAsteroids(released);
   }
 
   private applyProjectileCombat(): void {
@@ -436,6 +473,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private updateWave(now: number): void {
+    if (this.pendingRiftAsteroids.length > 0) return;
     if (this.session.advanceWave(now)) this.spawnWave();
   }
 
@@ -481,6 +519,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private disposeRenderEffects(): void {
+    this.sceneRenderer.destroy();
     this.renderEffects.dispose();
   }
 }

@@ -8,6 +8,10 @@ export function getSandboxFogEnabled(): boolean {
   return window.sessionStorage.getItem('comet-bursters-fog-enabled') !== 'false';
 }
 
+export function getArcadeRiftDebugEnabled(): boolean {
+  return getBooleanStartupFlag('arcadeRiftDebug', false);
+}
+
 export type SandboxPerfToggles = {
   blackHoles: boolean;
   fuelMetaballs: boolean;

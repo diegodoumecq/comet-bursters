@@ -49,6 +49,10 @@ export function LandingApp() {
     const saved = window.sessionStorage.getItem('comet-bursters-sandboxGrid');
     return saved !== 'false';
   });
+  const [arcadeRiftDebugEnabled, setArcadeRiftDebugEnabled] = useState(() => {
+    const saved = window.sessionStorage.getItem('comet-bursters-arcadeRiftDebug');
+    return saved === 'true';
+  });
   const [gameSetupOpen, setGameSetupOpen] = useState(() => {
     const saved = window.sessionStorage.getItem('comet-bursters-game-setup-open');
     return saved !== 'false';
@@ -73,6 +77,11 @@ export function LandingApp() {
   function updateGridEnabled(checked: boolean): void {
     setGridEnabled(checked);
     window.sessionStorage.setItem('comet-bursters-sandboxGrid', String(checked));
+  }
+
+  function updateArcadeRiftDebugEnabled(checked: boolean): void {
+    setArcadeRiftDebugEnabled(checked);
+    window.sessionStorage.setItem('comet-bursters-arcadeRiftDebug', String(checked));
   }
 
   function updateSandboxPerfToggle(key: SandboxPerfToggleKey, checked: boolean): void {
@@ -162,6 +171,13 @@ export function LandingApp() {
                 <label className="flex min-h-10 items-center gap-3 text-sm font-medium text-slate-300">
                   <Switch checked={gridEnabled} onCheckedChange={updateGridEnabled} />
                   Grid
+                </label>
+                <label className="flex min-h-10 items-center gap-3 text-sm font-medium text-slate-300">
+                  <Switch
+                    checked={arcadeRiftDebugEnabled}
+                    onCheckedChange={updateArcadeRiftDebugEnabled}
+                  />
+                  Arcade rift T spawn
                 </label>
               </div>
             </CollapsibleSection>

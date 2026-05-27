@@ -4,6 +4,7 @@ import { ASTEROIDS } from '../../asteroids/logic';
 import {
   chooseSafePlayerPosition,
   chooseSafePlayerPositionWithExclusions,
+  createRiftAsteroidEvent,
   createSafeWaveAsteroids,
   getBlackHoleSpawnExclusions,
   getPlayerSpawnCircle,
@@ -108,5 +109,79 @@ describe('arcade spawns', () => {
         ).toBe(false);
       }
     }
+  });
+
+  it('creates rifts inside safe playfield space with release timing', () => {
+    const event = createRiftAsteroidEvent(6, world, [], 7, 1200);
+
+    expect(event.asteroids).toHaveLength(8);
+    expect(event.rifts.length).toBeGreaterThan(1);
+    for (const rift of event.rifts) {
+      expect(rift.position.x).toBeGreaterThan(0);
+      expect(rift.position.x).toBeLessThan(world.width);
+      expect(rift.position.y).toBeGreaterThan(0);
+      expect(rift.position.y).toBeLessThan(world.height);
+      expect(rift.openedAt).toBe(1200);
+      expect(rift.releaseAt).toBeGreaterThan(rift.openedAt);
+    }
+  });
+
+  it('biases rift asteroid velocity outward from its rift', () => {
+    const event = createRiftAsteroidEvent(3, world, [], 3, 0);
+
+    for (const rift of event.rifts) {
+      const pendingAsteroids = event.asteroids.filter((pending) => pending.riftId === rift.id);
+      expect(pendingAsteroids.length).toBeGreaterThan(0);
+      for (const pending of pendingAsteroids) {
+        const inwardSpeed =
+          pending.asteroid.velocity.x * pending.normal.x +
+          pending.asteroid.velocity.y * pending.normal.y;
+        expect(inwardSpeed).toBeGreaterThan(0);
+        expect(pending.releaseAt).toBe(rift.releaseAt);
+      }
+    }
+  });
+
+  it('places rift asteroids just outside the visual rift mouth', () => {
+    const event = createRiftAsteroidEvent(6, world, [], 4, 0);
+
+    for (const rift of event.rifts) {
+      const normal = { x: Math.cos(rift.angle), y: Math.sin(rift.angle) };
+      const tangent = { x: -normal.y, y: normal.x };
+      const pendingAsteroids = event.asteroids.filter((pending) => pending.riftId === rift.id);
+
+      for (const pending of pendingAsteroids) {
+        const delta = {
+          x: pending.asteroid.position.x - rift.position.x,
+          y: pending.asteroid.position.y - rift.position.y,
+        };
+        const signedAcross = delta.x * normal.x + delta.y * normal.y;
+        const across = Math.abs(signedAcross);
+        const along = Math.abs(delta.x * tangent.x + delta.y * tangent.y);
+
+        const expectedExitDistance =
+          ASTEROIDS[pending.asteroid.tier].radius + rift.width * 0.4 + 8;
+
+        expect(signedAcross).toBeLessThanOrEqual(-ASTEROIDS[pending.asteroid.tier].radius);
+        expect(across).toBeGreaterThanOrEqual(ASTEROIDS[pending.asteroid.tier].radius);
+        expect(across).toBeLessThanOrEqual(expectedExitDistance + 0.001);
+        expect(along).toBeLessThanOrEqual(rift.length * 0.5);
+      }
+    }
+  });
+
+  it('falls back to a valid in-bounds rift when exclusions fill the playfield', () => {
+    const event = createRiftAsteroidEvent(
+      1,
+      world,
+      [{ position: { x: world.width * 0.5, y: world.height * 0.5 }, radius: 2000 }],
+      5,
+      0,
+    );
+
+    expect(event.rifts[0].position.x).toBeGreaterThan(0);
+    expect(event.rifts[0].position.x).toBeLessThan(world.width);
+    expect(event.rifts[0].position.y).toBeGreaterThan(0);
+    expect(event.rifts[0].position.y).toBeLessThan(world.height);
   });
 });
