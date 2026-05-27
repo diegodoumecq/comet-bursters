@@ -2,9 +2,9 @@ import type { WorldSize } from '../../core/types';
 import { withPerformanceMeasure } from '../../core/performance';
 import { FuelMetaballRenderer } from '../../fuel/metaballs';
 import { buildFuelBlobMetaballSamples } from '../../fuel/metaballSamples';
-import { buildBlackHoleScreenSamples } from '../../projectiles/blackHoleSamples';
 import { BlackHoleShaderRenderer } from '../../projectiles/blackHoleShader';
 import { getSandboxPerfToggles } from '../../runtime/startup';
+import { buildArcadeBlackHoleScreenSamples } from './arcadeBlackHoles';
 import type { ArcadeRunState } from './arcadeRunState';
 
 export class ArcadeRenderEffects {
@@ -21,7 +21,7 @@ export class ArcadeRenderEffects {
     this.blackHoleShader = new BlackHoleShaderRenderer(sourceCanvas, getBackgroundCanvases, () => {
       const canvas = this.fuelMetaballs?.getCanvas();
       return canvas ? [canvas] : [];
-    });
+    }, { wrapSourceSampling: true });
   }
 
   render(session: ArcadeRunState, now: number, screen: WorldSize): void {
@@ -52,10 +52,7 @@ export class ArcadeRenderEffects {
     }
 
     if (this.perfToggles.blackHoles) {
-      const blackHoles = buildBlackHoleScreenSamples({
-        projectiles: session.world.projectiles,
-        project: (position) => [position],
-      });
+      const blackHoles = buildArcadeBlackHoleScreenSamples(session.world.projectiles, screen);
       withPerformanceMeasure('arcade.render.blackHoles', this.perfToggles.markers, () => {
         this.blackHoleShader.render(blackHoles);
       });

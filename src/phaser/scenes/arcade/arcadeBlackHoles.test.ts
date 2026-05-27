@@ -1,0 +1,96 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+  BLACK_HOLE_RADIUS,
+  BLACK_HOLE_MATURE_AFTER_MS,
+  BLACK_HOLE_MATURE_RADIUS,
+  MAX_BLACK_HOLES,
+} from '../../projectiles/blackHoles';
+import type { ProjectileEntity } from '../../projectiles/types';
+import { buildArcadeBlackHoleScreenSamples } from './arcadeBlackHoles';
+
+vi.mock('phaser', () => ({ default: {} }));
+
+const screen = { width: 900, height: 700 };
+
+describe('arcade black hole rendering', () => {
+  it('returns one sample when the black hole influence is fully inside the screen', () => {
+    const samples = buildArcadeBlackHoleScreenSamples(
+      [createBlackHole({ ageMs: 0, position: { x: 450, y: 350 } })],
+      screen,
+    );
+
+    expect(samples).toEqual([{ radius: BLACK_HOLE_RADIUS, x: 450, y: 350 }]);
+  });
+
+  it('duplicates across the opposite horizontal edge when the influence overlaps the left edge', () => {
+    const samples = buildArcadeBlackHoleScreenSamples(
+      [createBlackHole({ ageMs: 0, position: { x: 160, y: 350 } })],
+      screen,
+    );
+
+    expect(samples).toContainEqual({ radius: BLACK_HOLE_RADIUS, x: 160, y: 350 });
+    expect(samples).toContainEqual({ radius: BLACK_HOLE_RADIUS, x: 1060, y: 350 });
+  });
+
+  it('duplicates corner samples when the influence overlaps two edges', () => {
+    const samples = buildArcadeBlackHoleScreenSamples(
+      [createBlackHole({ ageMs: 0, position: { x: 160, y: 140 } })],
+      screen,
+    );
+
+    expect(samples).toHaveLength(4);
+    expect(samples).toContainEqual({ radius: BLACK_HOLE_RADIUS, x: 160, y: 140 });
+    expect(samples).toContainEqual({ radius: BLACK_HOLE_RADIUS, x: 1060, y: 140 });
+    expect(samples).toContainEqual({ radius: BLACK_HOLE_RADIUS, x: 160, y: 840 });
+    expect(samples).toContainEqual({ radius: BLACK_HOLE_RADIUS, x: 1060, y: 840 });
+  });
+
+  it('uses distortion influence for wrapping before the core reaches an edge', () => {
+    const samples = buildArcadeBlackHoleScreenSamples(
+      [createBlackHole({ ageMs: 0, position: { x: 180, y: 350 } })],
+      screen,
+    );
+
+    expect(samples).toHaveLength(2);
+  });
+
+  it('duplicates mature black holes across every edge when their distortion covers the screen', () => {
+    const samples = buildArcadeBlackHoleScreenSamples(
+      [createBlackHole({ position: { x: 450, y: 350 } })],
+      screen,
+    );
+
+    expect(samples).toHaveLength(9);
+    expect(samples).toContainEqual({ radius: BLACK_HOLE_MATURE_RADIUS, x: 450, y: 350 });
+  });
+
+  it('can produce more wrapped render samples than the gameplay black-hole limit', () => {
+    const projectiles = Array.from({ length: 2 }, (_, index) =>
+      createBlackHole({
+        id: index + 1,
+        position: { x: 450 + index * 20, y: 350 },
+      }),
+    );
+
+    const samples = buildArcadeBlackHoleScreenSamples(projectiles, screen);
+
+    expect(samples.length).toBeGreaterThan(MAX_BLACK_HOLES);
+  });
+});
+
+function createBlackHole(input: Partial<ProjectileEntity> = {}): ProjectileEntity {
+  return {
+    absorbedFuel: 0,
+    ageMs: BLACK_HOLE_MATURE_AFTER_MS + 1000,
+    angle: 0,
+    collapseStartedAt: null,
+    createdAt: 0,
+    id: 1,
+    kind: 'blackHole',
+    lifetimeMs: 10000,
+    position: { x: 450, y: 350 },
+    velocity: { x: 0, y: 0 },
+    ...input,
+  };
+}

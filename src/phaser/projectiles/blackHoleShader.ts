@@ -4,7 +4,7 @@ import {
   BLACK_HOLE_RADIUS,
   DISTORTION_RADIUS,
   DISTORTION_STRENGTH,
-  MAX_BLACK_HOLES,
+  MAX_BLACK_HOLE_RENDER_SAMPLES,
 } from './blackHoles';
 
 export type BlackHoleScreenSample = {
@@ -31,13 +31,19 @@ uniform float u_distortionRadius;
 uniform float u_distortionStrength;
 uniform int u_blackHoleCount;
 uniform vec2 u_resolution;
+uniform bool u_wrapSourceSampling;
 uniform bool u_sourceReady;
 
 varying vec2 vUv;
 
+vec4 sampleSource(vec2 uv) {
+  vec2 sourceUv = u_wrapSourceSampling ? fract(uv) : uv;
+  return texture2D(u_texture, sourceUv);
+}
+
 void main() {
   vec2 pixelPos = vUv * u_resolution;
-  vec4 color = texture2D(u_texture, vUv);
+  vec4 color = sampleSource(vUv);
   bool affected = false;
 
   if (!u_sourceReady) {
@@ -46,10 +52,10 @@ void main() {
 
   vec2 currentPos = pixelPos;
 
-  for (int i = 0; i < ${MAX_BLACK_HOLES}; i++) {
+  for (int i = 0; i < ${MAX_BLACK_HOLE_RENDER_SAMPLES}; i++) {
     if (i >= u_blackHoleCount) break;
 
-    vec2 bhUV = vec2((float(i) + 0.5) / float(${MAX_BLACK_HOLES}), 0.5);
+    vec2 bhUV = vec2((float(i) + 0.5) / float(${MAX_BLACK_HOLE_RENDER_SAMPLES}), 0.5);
     vec4 bhData = texture2D(u_bhPositions, bhUV);
     vec2 bhPos = bhData.xy;
     float blackHoleRadius = bhData.z;
@@ -64,17 +70,17 @@ void main() {
 
       currentPos = currentPos + normalize(diff) * bendStrength * 30.0;
       vec2 distortedUV = currentPos / u_resolution;
-      color = texture2D(u_texture, distortedUV);
+      color = sampleSource(distortedUV);
       if (!u_sourceReady) {
         color = vec4(0.0, 0.0, 0.0, 0.0);
       }
     }
   }
 
-  for (int i = 0; i < ${MAX_BLACK_HOLES}; i++) {
+  for (int i = 0; i < ${MAX_BLACK_HOLE_RENDER_SAMPLES}; i++) {
     if (i >= u_blackHoleCount) break;
 
-    vec2 bhUV = vec2((float(i) + 0.5) / float(${MAX_BLACK_HOLES}), 0.5);
+    vec2 bhUV = vec2((float(i) + 0.5) / float(${MAX_BLACK_HOLE_RENDER_SAMPLES}), 0.5);
     vec4 bhData = texture2D(u_bhPositions, bhUV);
     vec2 bhPos = bhData.xy;
     float blackHoleRadius = bhData.z;
@@ -86,10 +92,10 @@ void main() {
     }
   }
 
-  for (int i = 0; i < ${MAX_BLACK_HOLES}; i++) {
+  for (int i = 0; i < ${MAX_BLACK_HOLE_RENDER_SAMPLES}; i++) {
     if (i >= u_blackHoleCount) break;
 
-    vec2 bhUV = vec2((float(i) + 0.5) / float(${MAX_BLACK_HOLES}), 0.5);
+    vec2 bhUV = vec2((float(i) + 0.5) / float(${MAX_BLACK_HOLE_RENDER_SAMPLES}), 0.5);
     vec4 bhData = texture2D(u_bhPositions, bhUV);
     vec2 bhPos = bhData.xy;
     float blackHoleRadius = bhData.z;
@@ -101,10 +107,10 @@ void main() {
     }
   }
 
-  for (int i = 0; i < ${MAX_BLACK_HOLES}; i++) {
+  for (int i = 0; i < ${MAX_BLACK_HOLE_RENDER_SAMPLES}; i++) {
     if (i >= u_blackHoleCount) break;
 
-    vec2 bhUV = vec2((float(i) + 0.5) / float(${MAX_BLACK_HOLES}), 0.5);
+    vec2 bhUV = vec2((float(i) + 0.5) / float(${MAX_BLACK_HOLE_RENDER_SAMPLES}), 0.5);
     vec4 bhData = texture2D(u_bhPositions, bhUV);
     vec2 bhPos = bhData.xy;
     float blackHoleRadius = bhData.z;
@@ -141,6 +147,7 @@ export class BlackHoleShaderRenderer {
     private readonly sourceCanvas: HTMLCanvasElement,
     private readonly getUnderlayCanvases: () => HTMLCanvasElement[] = () => [],
     private readonly getOverlayCanvases: () => HTMLCanvasElement[] = () => [],
+    private readonly options: { wrapSourceSampling?: boolean } = {},
   ) {}
 
   render(blackHoles: BlackHoleScreenSample[]): void {
@@ -157,7 +164,7 @@ export class BlackHoleShaderRenderer {
       return;
 
     this.resize(this.sourceCanvas.width, this.sourceCanvas.height);
-    const count = Math.min(blackHoles.length, MAX_BLACK_HOLES);
+    const count = Math.min(blackHoles.length, MAX_BLACK_HOLE_RENDER_SAMPLES);
     this.material.uniforms.u_blackHoleCount.value = count;
     if (count === 0) {
       this.canvas.style.display = 'none';
@@ -229,10 +236,10 @@ export class BlackHoleShaderRenderer {
     this.texture.minFilter = THREE.LinearFilter;
     this.texture.magFilter = THREE.LinearFilter;
 
-    const data = new Float32Array(MAX_BLACK_HOLES * 4);
+    const data = new Float32Array(MAX_BLACK_HOLE_RENDER_SAMPLES * 4);
     this.dataTexture = new THREE.DataTexture(
       data,
-      MAX_BLACK_HOLES,
+      MAX_BLACK_HOLE_RENDER_SAMPLES,
       1,
       THREE.RGBAFormat,
       THREE.FloatType,
@@ -247,6 +254,7 @@ export class BlackHoleShaderRenderer {
         u_distortionStrength: { value: DISTORTION_STRENGTH },
         u_blackHoleCount: { value: 0 },
         u_resolution: { value: new THREE.Vector2(1, 1) },
+        u_wrapSourceSampling: { value: this.options.wrapSourceSampling ?? false },
         u_sourceReady: { value: false },
       },
       vertexShader,
