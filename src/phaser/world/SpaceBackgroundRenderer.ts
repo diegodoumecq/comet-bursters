@@ -41,40 +41,42 @@ varying vec2 vUv;
 
 ${nebulaNoiseShader}
 
-float star(vec2 uv, float scale, float threshold) {
-  vec2 grid = uv * scale;
-  vec2 cell = floor(grid);
-  vec2 local = fract(grid) - 0.5;
-  float h = hash(cell);
-  float d = length(local);
-  float brightness = smoothstep(threshold, 1.0, h);
-  return brightness * smoothstep(0.09, 0.0, d);
-}
-
 void main() {
-  vec2 renderPixel = vec2(vUv.x, 1.0 - vUv.y) * u_resolution;
-  vec2 aspectUv = (renderPixel - u_resolution * 0.5) / min(u_resolution.x, u_resolution.y);
-  vec2 camera = u_camera * 0.00075;
+  const float TAU = 6.28318530718;
+  vec2 tileUv = fract(vec2(vUv.x, 1.0 - vUv.y));
+  vec2 basePeriod = max(vec2(4.0), floor(u_resolution / 240.0 + 0.5));
+  vec2 waveCycles = max(vec2(1.0), floor(basePeriod * 0.5));
 
-  float morph = u_time * 0.000014;
-  vec2 drift = vec2(morph * 0.42, -morph * 0.26);
-  float swirl = sin(aspectUv.x * 2.4 + aspectUv.y * 1.35) * 0.22 +
-    sin(aspectUv.x * -1.1 + aspectUv.y * 3.2) * 0.12;
-  vec2 curve = vec2(swirl, -swirl * 0.48);
-  vec2 p = aspectUv * 1.88 + camera + drift + curve;
-  vec2 warp = vec2(
-    fbm(p * 0.92 + vec2(7.2 + morph * 0.38, 1.9 - morph * 0.22)),
-    fbm(p * 0.92 + vec2(2.4 - morph * 0.24, 9.1 + morph * 0.34))
+  vec2 wave = vec2(
+    sin((tileUv.y * waveCycles.y + tileUv.x) * TAU + sin(tileUv.x * TAU) * 0.7),
+    cos((tileUv.x * waveCycles.x - tileUv.y) * TAU + sin(tileUv.y * TAU) * 0.55)
   );
-  vec2 q = p + (warp - 0.5) * 0.68 + curve * 0.28;
-  float broad = fbm(q * 0.98 + vec2(morph * 0.22, -morph * 0.14));
-  float detail = fbm(q * 2.72 + warp * 0.92 + vec2(-morph * 0.3, morph * 0.24));
-  float filaments = fbm(q * vec2(4.9, 1.35) + curve * 1.8 + vec2(morph * 0.12, -morph * 0.18));
-  float colorNoise = fbm(q * 1.9 + 11.0);
+  vec2 ribbonFlow = vec2(
+    sin((tileUv.x + tileUv.y * waveCycles.y) * TAU),
+    cos((tileUv.x * waveCycles.x + tileUv.y) * TAU)
+  );
+  vec2 curve = wave * 0.045 + ribbonFlow * 0.015;
+  vec2 p = tileUv * basePeriod + curve;
+
+  vec2 warp = vec2(
+    fbmPeriodic(p + vec2(2.0, 3.0), basePeriod),
+    fbmPeriodic(p + vec2(5.0, 1.0), basePeriod)
+  );
+  vec2 q = p + (warp - 0.5) * 0.62 + curve * 0.22;
+  float broad = fbmPeriodic(q + vec2(1.0, 2.0), basePeriod);
+  float cloud = fbmPeriodic(q + warp * 0.65 + vec2(6.0, 4.0), basePeriod);
+  float detail = fbmPeriodic(q * 4.0 + warp * 2.0, basePeriod * 4.0);
+  float filamentA = fbmPeriodic(q * vec2(4.0, 2.0) + curve * 2.0, basePeriod * vec2(4.0, 2.0));
+  float filamentB = fbmPeriodic(q * vec2(2.0, 4.0) - curve * 2.0, basePeriod * vec2(2.0, 4.0));
+  float colorNoise = fbmPeriodic(q * 2.0 + 11.0, basePeriod * 2.0);
+  float ribbon = sin((tileUv.x * waveCycles.x + tileUv.y) * TAU + warp.x * 0.35 + detail * 0.12) * 0.5 + 0.5;
   float ridge = 1.0 - abs(detail * 2.0 - 1.0);
-  float thread = smoothstep(0.58, 0.98, filaments * 0.68 + ridge * 0.32);
-  float nebula = smoothstep(0.4, 0.9, broad * 0.76 + ridge * 0.27 + thread * 0.16);
-  float core = smoothstep(0.66, 1.0, broad * 0.82 + detail * 0.16 + thread * 0.1);
+  float cloudMass = broad * 0.62 + cloud * 0.38;
+  float filamentBlend = (filamentA + filamentB) * 0.5;
+  float filaments = filamentBlend * 0.72 + ridge * 0.18 + ribbon * 0.02;
+  float thread = smoothstep(0.68, 0.98, filaments * 0.62 + ridge * 0.18 + ribbon * 0.012);
+  float nebula = smoothstep(0.34, 0.86, cloudMass * 0.92 + ridge * 0.1 + thread * 0.055);
+  float core = smoothstep(0.68, 1.0, cloudMass * 0.82 + detail * 0.1 + thread * 0.06);
 
   vec3 deep = vec3(0.006, 0.01, 0.025);
   vec3 blue = vec3(0.045, 0.12, 0.32);
@@ -83,16 +85,9 @@ void main() {
   vec3 nebulaColor = mix(blue, violet, smoothstep(0.28, 0.82, colorNoise));
   nebulaColor = mix(nebulaColor, cyan, smoothstep(0.62, 0.96, detail) * 0.28);
 
-  float starA = star(aspectUv + camera * 0.18, 145.0, 0.986);
-  float starB = star(aspectUv + camera * 0.26 + 9.7, 250.0, 0.994) * 0.62;
-  float starGlow = star(aspectUv + camera * 0.12 + 3.2, 70.0, 0.993) * 0.22;
-  vec3 stars = vec3(starA + starB) + vec3(0.55, 0.72, 1.0) * starGlow;
-
-  float vignette = smoothstep(1.35, 0.25, length(aspectUv));
-  vec3 color = deep + nebulaColor * nebula * 1.08 + vec3(0.18, 0.34, 0.66) * core * 0.2;
-  color += nebulaColor * thread * 0.16;
-  color *= 0.9 + vignette * 0.18;
-  color += stars;
+  vec3 color = deep + nebulaColor * nebula * 1.08 + vec3(0.18, 0.34, 0.66) * core * 0.16;
+  color += mix(nebulaColor, cyan, 0.45) * thread * 0.075;
+  color += vec3(0.08, 0.16, 0.32) * ribbon * nebula * 0.012;
   color = pow(color, vec3(1.06));
   gl_FragColor = vec4(color, 1.0);
 }
