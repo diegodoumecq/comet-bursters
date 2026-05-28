@@ -31,9 +31,17 @@ import { updateBlackHoles } from '../projectiles/blackHoles';
 import { ProjectileBodies } from '../projectiles/bodies';
 import { updateProjectiles } from '../projectiles/logic';
 import type { ProjectileEntity } from '../projectiles/types';
-import { resolveRiftProjectileCombat } from '../rifts/combat';
 import { ArcadeRiftDirector } from '../rifts/director';
-import { projectRiftLocalVectorToScene, projectSceneVectorToRiftLocal } from '../rifts/geometry';
+import {
+  projectRiftLocalVectorToScene,
+  projectRiftSourceToScene,
+  projectSceneVectorToRiftLocal,
+} from '../rifts/geometry';
+import {
+  getScenePositionInRiftSpace,
+  shouldEnterRift,
+  shouldExitRift,
+} from '../rifts/sceneMembership';
 import {
   createRiftBurst,
   getRenderableRiftPortals,
@@ -41,9 +49,16 @@ import {
   syncRiftLifecycle,
   updateRiftSourceSpace,
 } from '../rifts/sourceSpace';
-import type { RiftProjection, RiftSourceSpace } from '../rifts/types';
+import type {
+  RiftPortal,
+  RiftProjection,
+  RiftSceneProjection,
+  RiftSourceAsteroid,
+  RiftSourceSpace,
+} from '../rifts/types';
 import { getArcadeRiftDebugEnabled, getStartingWave } from '../runtime/startup';
 import { ALL_WEAPONS, type SceneWeaponPolicy } from '../weapons/scenePolicy';
+import { PROJECTILES } from '../weapons/config';
 import { applyTractorBeam } from '../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../weapons/use';
 import { normalize, wrappedDelta } from '../world/geometry';
@@ -78,7 +93,10 @@ export class PhaserArcadeScene extends BaseGameScene {
   private gameOverAt = 0;
   private lastThrusterAt = 0;
   private readonly riftSourceSpaces: RiftSourceSpace[] = [];
+  private riftPlayerPortal: RiftPortal | null = null;
   private riftProjections: RiftProjection[] = [];
+  private readonly riftProjectiles = new Map<ProjectileEntity, RiftPortal>();
+  private riftSceneProjections: RiftSceneProjection[] = [];
   private readonly riftDebug = getArcadeRiftDebugEnabled();
   private testRiftKey: Phaser.Input.Keyboard.Key | null = null;
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: ALL_WEAPONS };
@@ -163,9 +181,10 @@ export class PhaserArcadeScene extends BaseGameScene {
     const deltaSeconds = (delta / 1000) * timeScale;
     this.updateDebugRiftInput();
     this.updatePlayerActions(action, deltaSeconds, time);
-    this.updateRiftSourceSpaces(deltaSeconds);
     this.updateWorldState(delta, deltaSeconds);
+    this.updateRiftSourceSpaces(deltaSeconds);
     this.resolveCombat(time, action.shield, deltaSeconds);
+    this.hideRiftAsteroidBodies();
     this.collectFuelBlobs(deltaSeconds);
     this.updateLifecycle(time);
   }
@@ -294,6 +313,7 @@ export class PhaserArcadeScene extends BaseGameScene {
       timeScale: deltaSeconds * 60,
     });
     this.applyPlayerCombat(time, shieldActive);
+    this.syncRiftSourceVelocitiesFromBodies();
   }
 
   private updateLifecycle(time: number): void {
@@ -304,6 +324,8 @@ export class PhaserArcadeScene extends BaseGameScene {
   protected renderState(action: ReturnType<ActionReader['read']>, time: number): void {
     this.sceneRenderer.setRiftPortals(getRenderableRiftPortals(this.riftSourceSpaces));
     this.sceneRenderer.setRiftProjections(this.riftProjections);
+    this.sceneRenderer.setRiftSceneProjections(this.riftSceneProjections);
+    this.sceneRenderer.setPlayerInRift(this.riftPlayerPortal !== null);
     this.sceneRenderer.render(time, this.session, action, this.getTractorActive(action));
     this.renderEffects.render(this.session, time, this.worldSize);
   }
@@ -332,6 +354,10 @@ export class PhaserArcadeScene extends BaseGameScene {
       world: this.worldSize,
     });
     this.riftSourceSpaces.push(burst.sourceSpace);
+    this.addAsteroids(burst.sourceSpace.asteroids.map((sourceAsteroid) => sourceAsteroid.asteroid));
+    for (const sourceAsteroid of burst.sourceSpace.asteroids) {
+      this.syncRiftAsteroidBody(sourceAsteroid, burst.sourceSpace.portal, false);
+    }
     this.sceneRenderer.addRift(burst.portal);
   }
 
@@ -343,40 +369,208 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private updateRiftSourceSpaces(deltaSeconds: number): void {
     this.riftProjections = [];
-    const emerged: RiftProjection[] = [];
+    this.riftSceneProjections = [];
+    if (!this.riftSourceSpaces.some((candidate) => candidate.state !== 'disposed')) {
+      this.releaseRiftSceneEntities();
+    }
+    this.absorbArcadeAsteroidsIntoRifts();
+    this.updateRiftMembershipForSceneEntities();
     for (const sourceSpace of this.riftSourceSpaces) {
+      const asteroidsBeforeUpdate = new Set(
+        sourceSpace.asteroids.map((sourceAsteroid) => sourceAsteroid.asteroid),
+      );
       updateRiftSourceSpace({
         deltaSeconds,
         now: this.time.now,
         sourceSpace,
       });
+      this.removeCulledRiftAsteroids(sourceSpace, asteroidsBeforeUpdate);
       const projections = getRiftProjections(sourceSpace.asteroids, sourceSpace.portal);
       for (const projection of projections) {
         if (projection.status === 'emerged') {
-          emerged.push(projection);
+          this.releaseRiftAsteroid(projection);
         } else {
+          this.syncRiftAsteroidBody(
+            projection.sourceAsteroid,
+            projection.portal,
+            false,
+            projection.scenePosition,
+          );
           this.riftProjections.push(projection);
         }
       }
     }
-    for (const projection of emerged) this.activateRiftAsteroid(projection);
+    this.buildRiftSceneProjections();
     this.removeDisposedRiftSourceSpaces(this.time.now);
   }
 
-  private activateRiftAsteroid(projection: RiftProjection): void {
+  private removeCulledRiftAsteroids(
+    sourceSpace: RiftSourceSpace,
+    asteroidsBeforeUpdate: Set<AsteroidEntity>,
+  ): void {
+    for (const asteroid of asteroidsBeforeUpdate) {
+      if (!sourceSpace.asteroids.some((sourceAsteroid) => sourceAsteroid.asteroid === asteroid)) {
+        if (this.session.world.asteroids.includes(asteroid)) this.removeAsteroid(asteroid);
+      }
+    }
+  }
+
+  private releaseRiftSceneEntities(): void {
+    for (const projectile of this.riftProjectiles.keys()) {
+      if (this.session.world.projectiles.includes(projectile)) {
+        this.projectileBodies.setVisible(projectile, true);
+      }
+    }
+    this.riftProjectiles.clear();
+    this.riftPlayerPortal = null;
+  }
+
+  private absorbArcadeAsteroidsIntoRifts(): void {
+    const sourceSpace = this.riftSourceSpaces.find((candidate) => candidate.state !== 'disposed');
+    if (!sourceSpace) return;
+    for (const asteroid of this.session.world.asteroids) {
+      if (!this.findRiftSourceAsteroid(asteroid)) {
+        const body = this.asteroidBodies.get(asteroid);
+        const localPosition = getScenePositionInRiftSpace(sourceSpace.portal, {
+          x: body.x,
+          y: body.y,
+        });
+        const localVelocity = projectSceneVectorToRiftLocal(sourceSpace.portal, {
+          x: body.body.velocity.x,
+          y: body.body.velocity.y,
+        });
+        if (
+          shouldEnterRift({
+            inRift: false,
+            localPosition,
+            localVelocity,
+            portal: sourceSpace.portal,
+            radius: ASTEROIDS[asteroid.tier].radius,
+          })
+        ) {
+          asteroid.velocity = localVelocity;
+          asteroid.splitGroupId = 10_000 + sourceSpace.portal.id;
+          this.asteroidBodies.syncCollisionFilter(asteroid);
+          sourceSpace.asteroids.push({
+            asteroid,
+            portalId: sourceSpace.portal.id,
+            sourcePosition: {
+              x: sourceSpace.portal.sourcePosition.x + localPosition.x,
+              y: sourceSpace.portal.sourcePosition.y + localPosition.y,
+            },
+            sourceSpaceId: sourceSpace.id,
+          });
+          this.syncRiftAsteroidBody(
+            sourceSpace.asteroids[sourceSpace.asteroids.length - 1],
+            sourceSpace.portal,
+            false,
+            { x: body.x, y: body.y },
+          );
+        }
+      }
+    }
+  }
+
+  private updateRiftMembershipForSceneEntities(): void {
+    const sourceSpace = this.riftSourceSpaces.find((candidate) => candidate.state !== 'disposed');
+    if (!sourceSpace) return;
+    for (const projectile of this.session.world.projectiles) {
+      this.updateProjectileRiftMembership(projectile, sourceSpace.portal);
+    }
+    this.updatePlayerRiftMembership(sourceSpace.portal);
+  }
+
+  private updateProjectileRiftMembership(projectile: ProjectileEntity, portal: RiftPortal): void {
+    if (projectile.kind === 'blackHole') return;
+    const body = this.projectileBodies.get(projectile);
+    const localPosition = getScenePositionInRiftSpace(portal, { x: body.x, y: body.y });
+    const localVelocity = projectSceneVectorToRiftLocal(portal, {
+      x: body.body.velocity.x,
+      y: body.body.velocity.y,
+    });
+    const radius = PROJECTILES[projectile.kind].radius;
+    const inRift = this.riftProjectiles.has(projectile);
+    if (shouldEnterRift({ inRift, localPosition, localVelocity, portal, radius })) {
+      this.riftProjectiles.set(projectile, portal);
+      this.projectileBodies.setVisible(projectile, false);
+    } else if (shouldExitRift({ inRift, localPosition, localVelocity, portal, radius })) {
+      this.riftProjectiles.delete(projectile);
+      this.projectileBodies.setVisible(projectile, true);
+    } else if (inRift) {
+      this.projectileBodies.setVisible(projectile, false);
+    }
+  }
+
+  private updatePlayerRiftMembership(portal: RiftPortal): void {
+    if (!this.playerIsAlive()) {
+      this.riftPlayerPortal = null;
+      return;
+    }
+    const localPosition = getScenePositionInRiftSpace(portal, this.session.player.position);
+    const localVelocity = projectSceneVectorToRiftLocal(portal, this.session.player.velocity);
+    const inRift = this.riftPlayerPortal !== null;
+    if (
+      shouldEnterRift({
+        inRift,
+        localPosition,
+        localVelocity,
+        portal,
+        radius: PLAYER_COLLISION_RADIUS,
+      })
+    ) {
+      this.riftPlayerPortal = portal;
+    } else if (
+      shouldExitRift({
+        inRift,
+        localPosition,
+        localVelocity,
+        portal,
+        radius: PLAYER_COLLISION_RADIUS,
+      })
+    ) {
+      this.riftPlayerPortal = null;
+    }
+  }
+
+  private buildRiftSceneProjections(): void {
+    for (const [projectile, portal] of this.riftProjectiles) {
+      if (this.session.world.projectiles.includes(projectile)) {
+        this.riftSceneProjections.push({
+          kind: 'projectile',
+          portal,
+          projectileKind: projectile.kind,
+          radius: PROJECTILES[projectile.kind].radius,
+          rotation: projectile.angle,
+          scenePosition: projectile.position,
+        });
+      }
+    }
+    if (this.riftPlayerPortal) {
+      this.riftSceneProjections.push({
+        kind: 'player',
+        portal: this.riftPlayerPortal,
+        rotation: this.session.player.rotation,
+        scale: this.session.player.scale,
+        scenePosition: this.session.player.position,
+      });
+    }
+  }
+
+  private releaseRiftAsteroid(projection: RiftProjection): void {
     const sourceAsteroid = projection.sourceAsteroid;
     sourceAsteroid.asteroid.position = projection.scenePosition;
     sourceAsteroid.asteroid.velocity = projectRiftLocalVectorToScene(
       projection.portal,
       sourceAsteroid.asteroid.velocity,
     );
+    delete sourceAsteroid.asteroid.splitGroupId;
+    this.syncRiftAsteroidBody(sourceAsteroid, projection.portal, true, projection.scenePosition);
+    this.asteroidBodies.syncCollisionFilter(sourceAsteroid.asteroid);
     this.sceneRenderer.removeRiftAsteroid(projection);
     this.removeRiftSourceAsteroid(projection);
-    this.addAsteroids([sourceAsteroid.asteroid]);
   }
 
   private applyProjectileCombat(): void {
-    this.applyRiftProjectileCombat();
     const activeProjectiles = new Set(this.session.world.projectiles);
     for (const event of resolveProjectileContactCombat(
       this.contacts
@@ -391,37 +585,15 @@ export class PhaserArcadeScene extends BaseGameScene {
         this.session.awardAsteroidScore(ASTEROIDS[event.asteroid.tier].points);
         this.addParticles(destruction.particles);
         this.addFuelBlobs(destruction.fuelBlobs);
-        this.addAsteroids(destruction.children);
+        const sourceAsteroid = this.findRiftSourceAsteroid(event.asteroid);
+        if (sourceAsteroid) {
+          this.addRiftAsteroidChildrenFromSource(sourceAsteroid, destruction.children);
+        } else {
+          this.addAsteroids(destruction.children);
+        }
         this.removeAsteroid(event.asteroid);
       }
     }
-  }
-
-  private applyRiftProjectileCombat(): void {
-    for (const event of resolveRiftProjectileCombat({
-      projectiles: this.session.world.projectiles,
-      projections: this.riftProjections,
-    })) {
-      if (event.type === 'projectileHitAsteroid') {
-        this.removeProjectile(event.projectile);
-      } else {
-        const asteroid = event.projection.sourceAsteroid.asteroid;
-        asteroid.velocity = projectRiftLocalVectorToScene(
-          event.projection.portal,
-          asteroid.velocity,
-        );
-        const destruction = destroyAsteroidWithWeapon(asteroid);
-        this.session.awardAsteroidScore(ASTEROIDS[asteroid.tier].points);
-        this.addParticles(destruction.particles);
-        this.addFuelBlobs(destruction.fuelBlobs);
-        this.addRiftAsteroidChildren(event.projection, destruction.children);
-        this.sceneRenderer.removeRiftAsteroid(event.projection);
-        this.removeRiftSourceAsteroid(event.projection);
-      }
-    }
-    this.riftProjections = this.riftProjections.filter((projection) =>
-      this.hasRiftSourceAsteroid(projection),
-    );
   }
 
   private applyPlayerCombat(now: number, shieldActive: boolean): void {
@@ -557,6 +729,40 @@ export class PhaserArcadeScene extends BaseGameScene {
     );
   }
 
+  private syncRiftAsteroidBody(
+    sourceAsteroid: RiftSourceAsteroid,
+    portal: RiftSourceSpace['portal'],
+    visible: boolean,
+    scenePosition = projectRiftSourceToScene(portal, sourceAsteroid.sourcePosition),
+  ): void {
+    const sceneVelocity = projectRiftLocalVectorToScene(portal, sourceAsteroid.asteroid.velocity);
+    const body = this.asteroidBodies.get(sourceAsteroid.asteroid);
+    body.setPosition(scenePosition.x, scenePosition.y);
+    body.setVelocity(sceneVelocity.x, sceneVelocity.y);
+    this.asteroidBodies.setVisible(sourceAsteroid.asteroid, visible);
+    sourceAsteroid.asteroid.position = scenePosition;
+  }
+
+  private syncRiftSourceVelocitiesFromBodies(): void {
+    for (const sourceSpace of this.riftSourceSpaces) {
+      for (const sourceAsteroid of sourceSpace.asteroids) {
+        const body = this.asteroidBodies.get(sourceAsteroid.asteroid);
+        sourceAsteroid.asteroid.velocity = projectSceneVectorToRiftLocal(sourceSpace.portal, {
+          x: body.body.velocity.x,
+          y: body.body.velocity.y,
+        });
+      }
+    }
+  }
+
+  private hideRiftAsteroidBodies(): void {
+    for (const sourceSpace of this.riftSourceSpaces) {
+      for (const sourceAsteroid of sourceSpace.asteroids) {
+        this.asteroidBodies.setVisible(sourceAsteroid.asteroid, false);
+      }
+    }
+  }
+
   private removeRiftSourceAsteroid(projection: RiftProjection): void {
     for (const sourceSpace of this.riftSourceSpaces) {
       const index = sourceSpace.asteroids.indexOf(projection.sourceAsteroid);
@@ -564,31 +770,59 @@ export class PhaserArcadeScene extends BaseGameScene {
     }
   }
 
-  private addRiftAsteroidChildren(projection: RiftProjection, children: AsteroidEntity[]): void {
-    if (children.length === 0) return;
-    const sourceSpace = this.riftSourceSpaces.find(
-      (candidate) => candidate.id === projection.sourceAsteroid.sourceSpaceId,
+  private removeRiftSourceAsteroidByAsteroid(asteroid: AsteroidEntity): void {
+    for (const sourceSpace of this.riftSourceSpaces) {
+      for (let index = sourceSpace.asteroids.length - 1; index >= 0; index -= 1) {
+        if (sourceSpace.asteroids[index].asteroid === asteroid) {
+          sourceSpace.asteroids.splice(index, 1);
+        }
+      }
+    }
+  }
+
+  private findRiftSourceAsteroid(asteroid: AsteroidEntity): RiftSourceAsteroid | null {
+    for (const sourceSpace of this.riftSourceSpaces) {
+      const sourceAsteroid = sourceSpace.asteroids.find((candidate) => candidate.asteroid === asteroid);
+      if (sourceAsteroid) return sourceAsteroid;
+    }
+    return null;
+  }
+
+  private findRiftSourceSpace(sourceAsteroid: RiftSourceAsteroid): RiftSourceSpace | null {
+    return (
+      this.riftSourceSpaces.find((candidate) => candidate.id === sourceAsteroid.sourceSpaceId) ??
+      null
     );
+  }
+
+  private addRiftAsteroidChildrenFromSource(
+    sourceAsteroid: RiftSourceAsteroid,
+    children: AsteroidEntity[],
+  ): void {
+    if (children.length === 0) return;
+    const sourceSpace = this.findRiftSourceSpace(sourceAsteroid);
     if (!sourceSpace) {
       this.addAsteroids(children);
       return;
     }
     for (const child of children) {
-      child.position = projection.scenePosition;
-      child.velocity = projectSceneVectorToRiftLocal(projection.portal, child.velocity);
+      child.position = { ...sourceAsteroid.asteroid.position };
+      child.velocity = projectSceneVectorToRiftLocal(sourceSpace.portal, child.velocity);
+      child.splitGroupId = sourceAsteroid.asteroid.splitGroupId;
       sourceSpace.asteroids.push({
         asteroid: child,
-        portalId: projection.portal.id,
-        sourcePosition: { ...projection.sourceAsteroid.sourcePosition },
+        portalId: sourceSpace.portal.id,
+        sourcePosition: { ...sourceAsteroid.sourcePosition },
         sourceSpaceId: sourceSpace.id,
       });
     }
-  }
-
-  private hasRiftSourceAsteroid(projection: RiftProjection): boolean {
-    return this.riftSourceSpaces.some((sourceSpace) =>
-      sourceSpace.asteroids.includes(projection.sourceAsteroid),
-    );
+    this.addAsteroids(children);
+    for (const child of children) {
+      const childSourceAsteroid = this.findRiftSourceAsteroid(child);
+      if (childSourceAsteroid) {
+        this.syncRiftAsteroidBody(childSourceAsteroid, sourceSpace.portal, false);
+      }
+    }
   }
 
   private removeDisposedRiftSourceSpaces(now: number): void {
@@ -601,6 +835,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private removeProjectile(projectile: ProjectileEntity): void {
+    this.riftProjectiles.delete(projectile);
     this.runtime.removeProjectile(projectile);
   }
 
@@ -609,6 +844,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private removeAsteroid(asteroid: AsteroidEntity): void {
+    this.removeRiftSourceAsteroidByAsteroid(asteroid);
     this.runtime.removeAsteroid(asteroid);
   }
 

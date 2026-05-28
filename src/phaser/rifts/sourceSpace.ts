@@ -359,6 +359,7 @@ function createSourceAsteroids(
       x: Math.cos(spawnAngle) * speed,
       y: Math.max(0.08, Math.sin(spawnAngle) * speed),
     });
+    asteroid.splitGroupId = 10_000 + portal.id;
     asteroids.push({
       asteroid,
       portalId: portal.id,

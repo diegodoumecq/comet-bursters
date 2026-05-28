@@ -42,4 +42,8 @@ export class ProjectileBodies {
     this.get(projectile).setPosition(position.x, position.y);
     projectile.position = position;
   }
+
+  setVisible(projectile: ProjectileEntity, visible: boolean): void {
+    this.get(projectile).setVisible(visible);
+  }
 }

@@ -1,5 +1,6 @@
 import type { AsteroidEntity } from '../asteroids/types';
 import type { Vector, WorldSize } from '../core/types';
+import type { ProjectileKind } from '../weapons/types';
 
 export type RiftLifecycleState = 'opening' | 'active' | 'draining' | 'closing' | 'disposed';
 export type RiftProjectionStatus = 'insidePortal' | 'crossing' | 'emerged';
@@ -48,3 +49,20 @@ export type RiftProjection = {
   sourceAsteroid: RiftSourceAsteroid;
   status: RiftProjectionStatus;
 };
+
+export type RiftSceneProjection =
+  | {
+      kind: 'player';
+      portal: RiftPortal;
+      rotation: number;
+      scale: number;
+      scenePosition: Vector;
+    }
+  | {
+      kind: 'projectile';
+      portal: RiftPortal;
+      projectileKind: ProjectileKind;
+      radius: number;
+      rotation: number;
+      scenePosition: Vector;
+    };

@@ -92,6 +92,10 @@ export class AsteroidBodies {
     }
   }
 
+  setVisible(asteroid: AsteroidEntity, visible: boolean): void {
+    for (const body of this.getAllBodies(asteroid)) body.setVisible(visible);
+  }
+
   private reconcileToroidal(asteroid: AsteroidEntity, world: WorldSize): void {
     const primary = this.get(asteroid);
     const snapshot = this.snapshots.get(asteroid.id) ?? {

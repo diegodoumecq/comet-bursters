@@ -11,7 +11,7 @@ import {
   renderPlayerTurret,
 } from '../../player/rendering';
 import { PLAYER_TURRET_TEXTURE_KEY } from '../../player/textures';
-import type { RiftPortal, RiftProjection } from '../../rifts/types';
+import type { RiftPortal, RiftProjection, RiftSceneProjection } from '../../rifts/types';
 import { RiftAsteroidViews } from '../../rifts/views';
 import { getArcadeRiftDebugEnabled, getSandboxPerfToggles } from '../../runtime/startup';
 import { WeaponMenu } from '../../ui/WeaponMenu';
@@ -37,7 +37,9 @@ export class ArcadeRenderer {
   private readonly riftAsteroidViews: RiftAsteroidViews;
   private readonly weaponMenu: WeaponMenu;
   private gameOverText: Phaser.GameObjects.Text | null = null;
+  private playerInRift = false;
   private riftProjections: RiftProjection[] = [];
+  private riftSceneProjections: RiftSceneProjection[] = [];
   private shakeUntil = 0;
   private shakeIntensity = 0;
 
@@ -92,6 +94,14 @@ export class ArcadeRenderer {
     this.riftProjections = projections;
   }
 
+  setRiftSceneProjections(projections: RiftSceneProjection[]): void {
+    this.riftSceneProjections = projections;
+  }
+
+  setPlayerInRift(inRift: boolean): void {
+    this.playerInRift = inRift;
+  }
+
   render(now: number, session: ArcadeRunState, action: ActionState, tractorActive: boolean): void {
     withPerformanceMeasure('arcade.render.background', this.perfToggles.markers, () => {
       this.background.render(now, session.player.velocity, {
@@ -103,7 +113,11 @@ export class ArcadeRenderer {
       });
     });
     const playerAlive = session.playerAlive;
-    const playerVisible = getPlayerVisible(playerAlive, session.player.invulnerableUntil, now);
+    const playerVisible = getPlayerVisible(
+      playerAlive && !this.playerInRift,
+      session.player.invulnerableUntil,
+      now,
+    );
     renderPlayerThruster(
       this.playerThruster,
       this.player,
@@ -146,6 +160,7 @@ export class ArcadeRenderer {
       this.riftProjections,
       this.scene.scale.width,
       this.scene.scale.height,
+      this.riftSceneProjections,
     );
     this.riftRenderer.render(now);
   }

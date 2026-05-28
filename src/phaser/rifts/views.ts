@@ -3,9 +3,11 @@ import Phaser from 'phaser';
 import { ASTEROIDS } from '../asteroids/logic';
 import { ASTEROID_TEXTURES } from '../asteroids/textures';
 import type { AsteroidEntity } from '../asteroids/types';
+import { PLAYER_TEXTURE_KEY, PLAYER_VISUAL_SIZE } from '../player/textures';
+import type { ProjectileKind } from '../weapons/types';
 import { getRiftSourceLocalPosition } from './geometry';
 import { isVisibleInPortal } from './sourceSpace';
-import type { RiftProjection } from './types';
+import type { RiftProjection, RiftSceneProjection } from './types';
 
 export class RiftAsteroidViews {
   private readonly sourceCanvas: HTMLCanvasElement;
@@ -20,12 +22,18 @@ export class RiftAsteroidViews {
     return this.sourceCanvas;
   }
 
-  render(projections: RiftProjection[], width: number, height: number): void {
+  render(
+    projections: RiftProjection[],
+    width: number,
+    height: number,
+    sceneProjections: RiftSceneProjection[] = [],
+  ): void {
     this.resize(width, height);
     this.sourceContext?.clearRect(0, 0, width, height);
     for (const projection of projections) {
       this.drawSourceAsteroid(projection);
     }
+    for (const projection of sceneProjections) this.drawSceneProjection(projection);
   }
 
   remove(asteroid: AsteroidEntity): void {
@@ -63,4 +71,56 @@ export class RiftAsteroidViews {
     );
     this.sourceContext.restore();
   }
+
+  private drawSceneProjection(projection: RiftSceneProjection): void {
+    if (!this.sourceContext) return;
+    if (projection.kind === 'player') {
+      this.drawPlayerProjection(projection);
+    } else {
+      this.drawProjectileProjection(projection);
+    }
+  }
+
+  private drawPlayerProjection(projection: Extract<RiftSceneProjection, { kind: 'player' }>): void {
+    if (!this.sourceContext) return;
+    const texture = this.scene.textures.get(PLAYER_TEXTURE_KEY);
+    const frame = texture.getSourceImage() as CanvasImageSource;
+    const size = PLAYER_VISUAL_SIZE * 2 * projection.scale;
+    this.sourceContext.save();
+    this.sourceContext.translate(projection.scenePosition.x, projection.scenePosition.y);
+    this.sourceContext.rotate(projection.rotation);
+    this.sourceContext.drawImage(frame, -size * 0.5, -size * 0.5, size, size);
+    this.sourceContext.restore();
+  }
+
+  private drawProjectileProjection(
+    projection: Extract<RiftSceneProjection, { kind: 'projectile' }>,
+  ): void {
+    if (!this.sourceContext) return;
+    this.sourceContext.save();
+    this.sourceContext.translate(projection.scenePosition.x, projection.scenePosition.y);
+    this.sourceContext.rotate(projection.rotation);
+    this.sourceContext.fillStyle = `#${getProjectileTint(projection.projectileKind)
+      .toString(16)
+      .padStart(6, '0')}`;
+    this.sourceContext.beginPath();
+    this.sourceContext.ellipse(
+      0,
+      0,
+      projection.radius * 2.1,
+      projection.radius * 0.8,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    this.sourceContext.fill();
+    this.sourceContext.restore();
+  }
+}
+
+function getProjectileTint(projectileKind: ProjectileKind): number {
+  if (projectileKind === 'inspectionProbe' || projectileKind === 'pusher') return 0x67e8f9;
+  if (projectileKind === 'shotgun') return 0xffd166;
+  if (projectileKind === 'blackHole') return 0x000000;
+  return 0xffffff;
 }
