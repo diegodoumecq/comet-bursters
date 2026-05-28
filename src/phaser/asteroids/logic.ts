@@ -33,7 +33,15 @@ export function createAsteroid(
 ): AsteroidEntity {
   const config = ASTEROIDS[tier];
   const visualVariant = Phaser.Math.Between(0, ASTEROID_TEXTURES[tier].length - 1);
-  return { id: nextAsteroidId++, hits: config.hits, position, tier, velocity, visualVariant };
+  return {
+    id: nextAsteroidId++,
+    hits: config.hits,
+    membership: { space: 'arcade' },
+    position,
+    tier,
+    velocity,
+    visualVariant,
+  };
 }
 
 export function splitAsteroid(asteroid: AsteroidEntity): AsteroidEntity[] {

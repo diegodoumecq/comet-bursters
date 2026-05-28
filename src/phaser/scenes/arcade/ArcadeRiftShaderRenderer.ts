@@ -97,7 +97,7 @@ export class ArcadeRiftShaderRenderer {
   constructor(
     private readonly phaserScene: Phaser.Scene,
     private readonly hostCanvas: HTMLCanvasElement,
-    private readonly getPortalSourceCanvas: () => HTMLCanvasElement,
+    private getPortalSourceCanvas: () => HTMLCanvasElement,
     private readonly getUnderlayCanvases: () => HTMLCanvasElement[] = () => [],
     private readonly debug = false,
   ) {}
@@ -109,6 +109,10 @@ export class ArcadeRiftShaderRenderer {
   setPortals(portals: RiftPortal[]): void {
     this.portals.length = 0;
     this.portals.push(...portals);
+  }
+
+  setPortalSourceCanvasProvider(getPortalSourceCanvas: () => HTMLCanvasElement): void {
+    this.getPortalSourceCanvas = getPortalSourceCanvas;
   }
 
   render(now: number): void {
@@ -270,7 +274,13 @@ export class ArcadeRiftShaderRenderer {
   private copyShaderToOutputTexture(): void {
     if (!this.canvas || !this.outputCanvas || !this.outputContext) return;
     this.outputContext.clearRect(0, 0, this.outputCanvas.width, this.outputCanvas.height);
-    this.outputContext.drawImage(this.canvas, 0, 0, this.outputCanvas.width, this.outputCanvas.height);
+    this.outputContext.drawImage(
+      this.canvas,
+      0,
+      0,
+      this.outputCanvas.width,
+      this.outputCanvas.height,
+    );
   }
 
   private updateCompositeSource(): void {

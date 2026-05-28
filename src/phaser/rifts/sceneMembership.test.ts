@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import type { RiftPortal } from './types';
 import {
   circleClearedPortalFront,
   circleOverlapsPortalAperture,
@@ -8,6 +7,7 @@ import {
   shouldEnterRift,
   shouldExitRift,
 } from './sceneMembership';
+import type { RiftPortal } from './types';
 
 const portal: RiftPortal = {
   angle: 0,

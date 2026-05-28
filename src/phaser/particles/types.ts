@@ -1,4 +1,5 @@
 import type { Vector } from '../core/types';
+import type { SpaceMembership } from '../rifts/types';
 
 export type ParticleEntity = {
   alphaDecayPerSecond: number;
@@ -7,6 +8,7 @@ export type ParticleEntity = {
   id: number;
   kind: 'circle' | 'thruster';
   lifetimeMs: number;
+  membership?: SpaceMembership;
   maxLifetimeMs: number;
   position: Vector;
   radius?: number;

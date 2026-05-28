@@ -5,6 +5,8 @@ import type { AsteroidEntity, AsteroidTier } from '../asteroids/types';
 import type { SpawnCircle } from '../core/spawn';
 import { overlapsAnySpawnCircle } from '../core/spawn';
 import type { Vector, WorldSize } from '../core/types';
+import { updateFuelBlob } from '../fuel/blobLogic';
+import { updateParticles } from '../particles/logic';
 import {
   RIFT_ASTEROID_SPAWN_RADIUS,
   RIFT_ASTEROID_SPEED_SCALE,
@@ -29,11 +31,11 @@ import {
 } from './config';
 import { getRiftSourceLocalPosition, projectRiftSourceToScene } from './geometry';
 import type {
+  RiftAsteroidPortalStatus,
+  RiftAsteroidTransition,
   RiftBurst,
   RiftLifecycleState,
   RiftPortal,
-  RiftProjection,
-  RiftProjectionStatus,
   RiftSourceAsteroid,
   RiftSourceSpace,
 } from './types';
@@ -56,8 +58,12 @@ export function createRiftBurst(input: {
     portal,
     sourceSpace: {
       asteroids,
+      fuelBlobs: [],
       id: portal.id,
+      particles: [],
+      player: null,
       portal,
+      projectiles: [],
       size: { width: RIFT_SOURCE_WIDTH, height: RIFT_SOURCE_HEIGHT },
       state: portal.state,
       timedOutAt: null,
@@ -71,6 +77,7 @@ export function updateRiftSourceSpace(input: {
   sourceSpace: RiftSourceSpace;
 }): void {
   syncRiftLifecycle(input.sourceSpace, input.now);
+  updateRiftSourceEffects(input.sourceSpace, input.deltaSeconds);
   if (!riftSourceSpaceCanMove(input.sourceSpace, input.now)) return;
 
   const frameScale = input.deltaSeconds * 60;
@@ -88,6 +95,24 @@ export function updateRiftSourceAsteroids(input: {
   for (const sourceAsteroid of input.sourceAsteroids) {
     sourceAsteroid.sourcePosition.x += sourceAsteroid.asteroid.velocity.x * frameScale;
     sourceAsteroid.sourcePosition.y += sourceAsteroid.asteroid.velocity.y * frameScale;
+  }
+}
+
+export function updateRiftSourceEffects(sourceSpace: RiftSourceSpace, deltaSeconds: number): void {
+  for (const blob of sourceSpace.fuelBlobs) {
+    updateFuelBlob(
+      blob,
+      sourceSpace.portal.sourcePosition,
+      false,
+      deltaSeconds,
+      sourceSpace.size,
+      false,
+    );
+  }
+  const expiredParticles = updateParticles(sourceSpace.particles, deltaSeconds * 1000);
+  for (const particle of expiredParticles) {
+    const index = sourceSpace.particles.indexOf(particle);
+    if (index >= 0) sourceSpace.particles.splice(index, 1);
   }
 }
 
@@ -119,10 +144,10 @@ export function getRenderableRiftPortals(sourceSpaces: RiftSourceSpace[]): RiftP
     .map((sourceSpace) => sourceSpace.portal);
 }
 
-export function getRiftProjections(
+export function getRiftAsteroidTransitions(
   sourceAsteroids: RiftSourceAsteroid[],
   portal: RiftPortal,
-): RiftProjection[] {
+): RiftAsteroidTransition[] {
   return sourceAsteroids.map((sourceAsteroid) => {
     const localPosition = getRiftSourceLocalPosition(portal, sourceAsteroid.sourcePosition);
     const scenePosition = projectRiftSourceToScene(portal, sourceAsteroid.sourcePosition);
@@ -154,7 +179,7 @@ function getProjectionStatus(
   asteroid: AsteroidEntity,
   localPosition: Vector,
   portal: RiftPortal,
-): RiftProjectionStatus {
+): RiftAsteroidPortalStatus {
   const radius = ASTEROIDS[asteroid.tier].radius;
   const boundary = getPortalApertureBoundaryAtX(portal, localPosition.x) ?? 0;
   if (!canReachPortalApertureHorizontally(localPosition, portal, radius)) return 'insidePortal';
@@ -223,9 +248,9 @@ function getNextLifecycleState(sourceSpace: RiftSourceSpace, now: number): RiftL
     if (now - sourceSpace.timedOutAt >= RIFT_TIMEOUT_DRAIN_GRACE_MS) {
       removeTimedOutAsteroids(sourceSpace, true);
     }
-    if (sourceSpace.asteroids.length === 0) return 'closing';
+    if (sourceSpace.asteroids.length === 0 && !sourceSpace.player) return 'closing';
   }
-  if (sourceSpace.asteroids.length === 0) return 'closing';
+  if (sourceSpace.asteroids.length === 0 && !sourceSpace.player) return 'closing';
   if (getRiftPortalOpenProgress(sourceSpace.portal, now) < 1) return 'opening';
   return sourceSpace.asteroids.some((sourceAsteroid) => {
     const status = getProjectionStatus(
@@ -294,8 +319,7 @@ function resolvePortalWallCollision(
 
   const boundary = getPortalApertureBoundaryAtX(portal, localPosition.x) ?? 0;
   const hitWall =
-    previousLocalPosition.y + radius <= -boundary &&
-    localPosition.y + radius >= -boundary;
+    previousLocalPosition.y + radius <= -boundary && localPosition.y + radius >= -boundary;
   if (hitWall) {
     sourceAsteroid.sourcePosition.y =
       portal.sourcePosition.y - boundary - radius - RIFT_WALL_SURFACE_EPSILON;
@@ -359,6 +383,7 @@ function createSourceAsteroids(
       x: Math.cos(spawnAngle) * speed,
       y: Math.max(0.08, Math.sin(spawnAngle) * speed),
     });
+    asteroid.membership = { portalId: portal.id, space: 'rift' };
     asteroid.splitGroupId = 10_000 + portal.id;
     asteroids.push({
       asteroid,

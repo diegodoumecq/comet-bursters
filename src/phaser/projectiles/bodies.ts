@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { ALL_COLLISION_CATEGORIES } from '../combat/collisionCategories';
 import type { MatterArc, Vector } from '../core/types';
 import { createProjectileShape } from '../weapons/rendering';
 import type { ProjectileEntity } from './types';
@@ -41,6 +42,15 @@ export class ProjectileBodies {
   setPosition(projectile: ProjectileEntity, position: Vector): void {
     this.get(projectile).setPosition(position.x, position.y);
     projectile.position = position;
+  }
+
+  setVelocity(projectile: ProjectileEntity, velocity: Vector): void {
+    this.get(projectile).setVelocity(velocity.x, velocity.y);
+    projectile.velocity = velocity;
+  }
+
+  setCollisionEnabled(projectile: ProjectileEntity, enabled: boolean): void {
+    this.get(projectile).body.collisionFilter.mask = enabled ? ALL_COLLISION_CATEGORIES : 0;
   }
 
   setVisible(projectile: ProjectileEntity, visible: boolean): void {

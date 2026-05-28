@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-  BLACK_HOLE_RADIUS,
   BLACK_HOLE_MATURE_AFTER_MS,
   BLACK_HOLE_MATURE_RADIUS,
+  BLACK_HOLE_RADIUS,
   MAX_BLACK_HOLES,
 } from '../../projectiles/blackHoles';
 import type { ProjectileEntity } from '../../projectiles/types';
@@ -76,6 +76,20 @@ describe('arcade black hole rendering', () => {
     const samples = buildArcadeBlackHoleScreenSamples(projectiles, screen);
 
     expect(samples.length).toBeGreaterThan(MAX_BLACK_HOLES);
+  });
+
+  it('excludes rift-owned black holes from arcade shader samples', () => {
+    const samples = buildArcadeBlackHoleScreenSamples(
+      [
+        createBlackHole({
+          membership: { portalId: 3, space: 'rift' },
+          position: { x: 450, y: 350 },
+        }),
+      ],
+      screen,
+    );
+
+    expect(samples).toEqual([]);
   });
 });
 

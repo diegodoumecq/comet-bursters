@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { MatterImage } from '../core/types';
 import { PLAYER_ACCELERATION, PLAYER_MAX_SPEED } from './config';
-import { applyPlayerThrust } from './motion';
+import { applyPlayerThrust, updatePlayerStateMotion } from './motion';
+import type { ShipState } from './shipState';
+import type { PlayerState } from './state';
 
 vi.mock('phaser', () => ({
   default: {
@@ -71,5 +73,36 @@ describe('Phaser player motion tuning', () => {
     expect(body.body.velocity.x).toBeCloseTo(30);
     expect(body.body.velocity.y).toBeCloseTo(40);
     expect(Math.hypot(body.body.velocity.x, body.body.velocity.y)).toBeCloseTo(50);
+  });
+
+  it('updates player state directly for non-Matter spaces', () => {
+    const player = {
+      position: { x: 10, y: 20 },
+      rotation: 0,
+      updateThrust: vi.fn(),
+      velocity: { x: 1, y: 0 },
+    } as unknown as PlayerState;
+    const ship = {
+      fuel: 100,
+      setFuel: vi.fn((fuel: number) => {
+        ship.fuel = fuel;
+      }),
+    } as unknown as ShipState;
+
+    updatePlayerStateMotion({
+      deltaSeconds: 1 / 60,
+      move: { x: 1, y: 0 },
+      player,
+      ship,
+      tuning: { acceleration: PLAYER_ACCELERATION, maxSpeed: PLAYER_MAX_SPEED },
+      world: { width: 1000, height: 1000 },
+      wrap: false,
+    });
+
+    expect(player.position.x).toBeGreaterThan(11);
+    expect(player.position.y).toBe(20);
+    expect(player.rotation).toBeCloseTo(Math.PI * 0.5);
+    expect(player.updateThrust).toHaveBeenCalledWith({ x: 1, y: 0 }, true);
+    expect(ship.setFuel).toHaveBeenCalled();
   });
 });

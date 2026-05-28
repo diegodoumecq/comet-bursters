@@ -17,7 +17,7 @@ import {
 import { getRiftSourceLocalPosition, projectRiftLocalVectorToScene } from './geometry';
 import {
   createRiftBurst,
-  getRiftProjections,
+  getRiftAsteroidTransitions,
   syncRiftLifecycle,
   updateRiftSourceAsteroids,
   updateRiftSourceSpace,
@@ -87,12 +87,12 @@ describe('rift source space', () => {
       burst.portal.radiusY +
       ASTEROIDS[sourceAsteroid.asteroid.tier].radius;
 
-    let projection = getRiftProjections(burst.sourceSpace.asteroids, burst.portal)[0];
-    expect(projection.status).toBe('crossing');
+    let transition = getRiftAsteroidTransitions(burst.sourceSpace.asteroids, burst.portal)[0];
+    expect(transition.status).toBe('crossing');
 
     sourceAsteroid.sourcePosition.y += 1;
-    projection = getRiftProjections(burst.sourceSpace.asteroids, burst.portal)[0];
-    expect(projection.status).toBe('emerged');
+    transition = getRiftAsteroidTransitions(burst.sourceSpace.asteroids, burst.portal)[0];
+    expect(transition.status).toBe('emerged');
   });
 
   it('uses the oval portal boundary when deciding emergence', () => {
@@ -110,12 +110,12 @@ describe('rift source space', () => {
     sourceAsteroid.sourcePosition.x = burst.portal.sourcePosition.x + localX;
     sourceAsteroid.sourcePosition.y = burst.portal.sourcePosition.y + boundaryAtX + radius;
 
-    let projection = getRiftProjections(burst.sourceSpace.asteroids, burst.portal)[0];
-    expect(projection.status).toBe('crossing');
+    let transition = getRiftAsteroidTransitions(burst.sourceSpace.asteroids, burst.portal)[0];
+    expect(transition.status).toBe('crossing');
 
     sourceAsteroid.sourcePosition.y += 1;
-    projection = getRiftProjections(burst.sourceSpace.asteroids, burst.portal)[0];
-    expect(projection.status).toBe('emerged');
+    transition = getRiftAsteroidTransitions(burst.sourceSpace.asteroids, burst.portal)[0];
+    expect(transition.status).toBe('emerged');
   });
 
   it('does not emerge asteroids that move in front of the portal but miss the aperture', () => {
@@ -132,9 +132,9 @@ describe('rift source space', () => {
       burst.portal.sourcePosition.x + burst.portal.apertureRadiusX + radius + 1;
     sourceAsteroid.sourcePosition.y = burst.portal.sourcePosition.y + radius + 12;
 
-    const projection = getRiftProjections(burst.sourceSpace.asteroids, burst.portal)[0];
+    const transition = getRiftAsteroidTransitions(burst.sourceSpace.asteroids, burst.portal)[0];
 
-    expect(projection.status).toBe('insidePortal');
+    expect(transition.status).toBe('insidePortal');
   });
 
   it('updates local movement before scene-space velocity conversion', () => {
@@ -188,6 +188,54 @@ describe('rift source space', () => {
     });
 
     expect(sourceAsteroid.sourcePosition.y).toBeGreaterThan(start.y);
+  });
+
+  it('updates rift-local fuel blobs and particles with the source space', () => {
+    const burst = createRiftBurst({
+      asteroidCount: 1,
+      burstIndex: 1,
+      exclusions: [],
+      now: 0,
+      world,
+    });
+    burst.sourceSpace.fuelBlobs.push({
+      id: 1,
+      membership: { portalId: burst.portal.id, space: 'rift' },
+      position: { x: 100, y: 100 },
+      velocity: { x: 60, y: 0 },
+      wobbleSeed: 0,
+    });
+    burst.sourceSpace.particles.push({
+      alphaDecayPerSecond: 1,
+      color: 0xffffff,
+      dragPerSecond: 0,
+      id: 1,
+      kind: 'circle',
+      lifetimeMs: 100,
+      maxLifetimeMs: 100,
+      membership: { portalId: burst.portal.id, space: 'rift' },
+      position: { x: 200, y: 200 },
+      radius: 2,
+      rotation: 0,
+      velocity: { x: 2, y: 0 },
+    });
+
+    updateRiftSourceSpace({
+      deltaSeconds: 0.05,
+      now: RIFT_OPEN_DURATION_MS,
+      sourceSpace: burst.sourceSpace,
+    });
+
+    expect(burst.sourceSpace.fuelBlobs[0].position.x).toBeGreaterThan(100);
+    expect(burst.sourceSpace.particles[0].position.x).toBeGreaterThan(200);
+
+    updateRiftSourceSpace({
+      deltaSeconds: 0.06,
+      now: RIFT_OPEN_DURATION_MS + 60,
+      sourceSpace: burst.sourceSpace,
+    });
+
+    expect(burst.sourceSpace.particles).toHaveLength(0);
   });
 
   it('bounces source asteroids off the internal wall when they miss the aperture', () => {

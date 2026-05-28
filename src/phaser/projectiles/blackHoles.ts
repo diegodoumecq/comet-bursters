@@ -1,5 +1,5 @@
 import type { AsteroidBodies } from '../asteroids/bodies';
-import { ASTEROIDS } from '../asteroids/logic';
+import { ASTEROIDS } from '../asteroids/config';
 import type { AsteroidEntity } from '../asteroids/types';
 import { circleContains, circlesOverlap } from '../core/collision';
 import type { MatterImage, Vector } from '../core/types';
@@ -24,7 +24,7 @@ export const MAX_BLACK_HOLE_RENDER_SAMPLES = MAX_BLACK_HOLES * 9;
 export const BLACK_HOLE_ASTEROID_MASS_SCALE = 0.25;
 export const BLACK_HOLE_FUEL_BLOB_MASS_SCALE = BLACK_HOLE_ASTEROID_MASS_SCALE;
 
-const BLACK_HOLE_ABSORBED_FUEL_BLOBS: Record<AsteroidEntity['tier'], number> = {
+export const BLACK_HOLE_ABSORBED_FUEL_BLOBS: Record<AsteroidEntity['tier'], number> = {
   small: 1,
   medium: 2,
   big: 4,
@@ -96,7 +96,7 @@ export function updateBlackHoles(input: BlackHoleLifecycleOptions): void {
   absorbAsteroids(input);
 }
 
-function getBlackHoleMass(blackHole: ProjectileEntity): number {
+export function getBlackHoleMass(blackHole: ProjectileEntity): number {
   return blackHole.blackHoleMass ?? 1;
 }
 
@@ -264,7 +264,7 @@ function mergeBlackHoleInto(survivor: ProjectileEntity, absorbed: ProjectileEnti
   survivor.lifetimeMs = survivor.ageMs + remainingLifetime;
 }
 
-function applyBlackHoleGravityToVelocity(
+export function applyBlackHoleGravityToVelocity(
   velocity: Vector,
   position: Vector,
   blackHolePosition: Vector,

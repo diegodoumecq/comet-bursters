@@ -131,6 +131,7 @@ function fireSelectedWeapon(
     id: nextProjectileId + index,
     kind: shot.kind,
     lifetimeMs: shot.lifetimeMs,
+    membership: { space: 'arcade' as const },
     position: { ...projectileOrigin },
     velocity: shot.velocity,
   }));

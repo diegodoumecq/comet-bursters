@@ -1,4 +1,5 @@
 import type { Vector } from '../core/types';
+import type { SpaceMembership } from '../rifts/types';
 import type { ProjectileKind } from '../weapons/types';
 
 export class PlayerState {
@@ -9,6 +10,7 @@ export class PlayerState {
   visible = true;
   lastAim: Vector = { x: 0, y: -1 };
   lastThrustMove: Vector = { x: 0, y: -1 };
+  membership: SpaceMembership = { space: 'arcade' };
   lastShotAt: Record<ProjectileKind, number> = {
     blackHole: 0,
     inspectionProbe: 0,

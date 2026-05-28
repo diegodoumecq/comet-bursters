@@ -12,14 +12,16 @@ export function updateProjectiles(
 ): ProjectileEntity[] {
   const expired: ProjectileEntity[] = [];
   for (const projectile of projectiles) {
-    projectile.ageMs += deltaSeconds * 1000;
-    const shouldExpire =
-      projectile.ageMs >= projectile.lifetimeMs && projectile.kind !== 'blackHole';
-    if (shouldExpire) {
-      expired.push(projectile);
-    } else {
-      if (wrap) wrapPoint(runtime.get(projectile), world);
-      runtime.sync(projectile);
+    if (projectile.membership?.space !== 'rift') {
+      projectile.ageMs += deltaSeconds * 1000;
+      const shouldExpire =
+        projectile.ageMs >= projectile.lifetimeMs && projectile.kind !== 'blackHole';
+      if (shouldExpire) {
+        expired.push(projectile);
+      } else {
+        if (wrap) wrapPoint(runtime.get(projectile), world);
+        runtime.sync(projectile);
+      }
     }
   }
   return expired;

@@ -1,9 +1,19 @@
 import type { AsteroidEntity } from '../asteroids/types';
 import type { Vector, WorldSize } from '../core/types';
-import type { ProjectileKind } from '../weapons/types';
+import type { FuelBlobEntity } from '../fuel/types';
+import type { ParticleEntity } from '../particles/types';
+import type { PlayerState } from '../player/state';
+import type { ProjectileEntity } from '../projectiles/types';
+
+export type SpaceId = 'arcade' | 'rift';
+
+export type SpaceMembership = {
+  portalId?: number;
+  space: SpaceId;
+};
 
 export type RiftLifecycleState = 'opening' | 'active' | 'draining' | 'closing' | 'disposed';
-export type RiftProjectionStatus = 'insidePortal' | 'crossing' | 'emerged';
+export type RiftAsteroidPortalStatus = 'insidePortal' | 'crossing' | 'emerged';
 
 export type RiftPortal = {
   angle: number;
@@ -31,8 +41,12 @@ export type RiftSourceAsteroid = {
 
 export type RiftSourceSpace = {
   asteroids: RiftSourceAsteroid[];
+  fuelBlobs: FuelBlobEntity[];
   id: number;
+  particles: ParticleEntity[];
+  player: PlayerState | null;
   portal: RiftPortal;
+  projectiles: ProjectileEntity[];
   size: WorldSize;
   state: RiftLifecycleState;
   timedOutAt: number | null;
@@ -43,26 +57,9 @@ export type RiftBurst = {
   sourceSpace: RiftSourceSpace;
 };
 
-export type RiftProjection = {
+export type RiftAsteroidTransition = {
   portal: RiftPortal;
   scenePosition: Vector;
   sourceAsteroid: RiftSourceAsteroid;
-  status: RiftProjectionStatus;
+  status: RiftAsteroidPortalStatus;
 };
-
-export type RiftSceneProjection =
-  | {
-      kind: 'player';
-      portal: RiftPortal;
-      rotation: number;
-      scale: number;
-      scenePosition: Vector;
-    }
-  | {
-      kind: 'projectile';
-      portal: RiftPortal;
-      projectileKind: ProjectileKind;
-      radius: number;
-      rotation: number;
-      scenePosition: Vector;
-    };

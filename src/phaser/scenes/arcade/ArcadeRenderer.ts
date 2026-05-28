@@ -11,8 +11,7 @@ import {
   renderPlayerTurret,
 } from '../../player/rendering';
 import { PLAYER_TURRET_TEXTURE_KEY } from '../../player/textures';
-import type { RiftPortal, RiftProjection, RiftSceneProjection } from '../../rifts/types';
-import { RiftAsteroidViews } from '../../rifts/views';
+import type { RiftPortal } from '../../rifts/types';
 import { getArcadeRiftDebugEnabled, getSandboxPerfToggles } from '../../runtime/startup';
 import { WeaponMenu } from '../../ui/WeaponMenu';
 import type { SceneWeaponPolicy } from '../../weapons/scenePolicy';
@@ -34,12 +33,9 @@ export class ArcadeRenderer {
   private readonly playerThruster: Phaser.GameObjects.Graphics;
   private readonly perfToggles = getSandboxPerfToggles();
   private readonly riftRenderer: ArcadeRiftShaderRenderer;
-  private readonly riftAsteroidViews: RiftAsteroidViews;
   private readonly weaponMenu: WeaponMenu;
   private gameOverText: Phaser.GameObjects.Text | null = null;
   private playerInRift = false;
-  private riftProjections: RiftProjection[] = [];
-  private riftSceneProjections: RiftSceneProjection[] = [];
   private shakeUntil = 0;
   private shakeIntensity = 0;
 
@@ -58,11 +54,12 @@ export class ArcadeRenderer {
     this.playerFuelMask = scene.make.graphics({ x: 0, y: 0 }, false);
     this.playerFuelFill.setMask(this.playerFuelMask.createGeometryMask());
     this.playerThruster = scene.add.graphics().setDepth(0);
-    this.riftAsteroidViews = new RiftAsteroidViews(scene);
     this.riftRenderer = new ArcadeRiftShaderRenderer(
       scene,
       scene.game.canvas,
-      () => this.riftAsteroidViews.getSourceCanvas(),
+      () => {
+        throw new Error('Rift source canvas provider has not been configured');
+      },
       () => [],
       getArcadeRiftDebugEnabled(),
     );
@@ -86,16 +83,8 @@ export class ArcadeRenderer {
     this.riftRenderer.setPortals(portals);
   }
 
-  removeRiftAsteroid(projection: RiftProjection): void {
-    this.riftAsteroidViews.remove(projection.sourceAsteroid.asteroid);
-  }
-
-  setRiftProjections(projections: RiftProjection[]): void {
-    this.riftProjections = projections;
-  }
-
-  setRiftSceneProjections(projections: RiftSceneProjection[]): void {
-    this.riftSceneProjections = projections;
+  setRiftSourceCanvasProvider(getPortalSourceCanvas: () => HTMLCanvasElement): void {
+    this.riftRenderer.setPortalSourceCanvasProvider(getPortalSourceCanvas);
   }
 
   setPlayerInRift(inRift: boolean): void {
@@ -156,12 +145,6 @@ export class ArcadeRenderer {
       this.shakeUntil,
       this.shakeIntensity,
     ).shakeIntensity;
-    this.riftAsteroidViews.render(
-      this.riftProjections,
-      this.scene.scale.width,
-      this.scene.scale.height,
-      this.riftSceneProjections,
-    );
     this.riftRenderer.render(now);
   }
 
@@ -180,7 +163,6 @@ export class ArcadeRenderer {
   }
 
   destroy(): void {
-    this.riftAsteroidViews.destroy();
     this.riftRenderer.destroy();
   }
 }
