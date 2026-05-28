@@ -6,6 +6,8 @@ import {
   RIFT_DEEP_INSIDE_CULL_MARGIN,
   RIFT_DURATION_MS,
   RIFT_OPEN_DURATION_MS,
+  RIFT_PORTAL_APERTURE_RADIUS_X,
+  RIFT_PORTAL_APERTURE_RADIUS_Y,
   RIFT_PORTAL_RADIUS_X,
   RIFT_PORTAL_RADIUS_Y,
   RIFT_SOURCE_HEIGHT,
@@ -53,6 +55,8 @@ describe('rift source space', () => {
     expect(burst.portal.openedAt).toBe(1200);
     expect(burst.portal.radiusX).toBe(RIFT_PORTAL_RADIUS_X);
     expect(burst.portal.radiusY).toBe(RIFT_PORTAL_RADIUS_Y);
+    expect(burst.portal.apertureRadiusX).toBe(RIFT_PORTAL_APERTURE_RADIUS_X);
+    expect(burst.portal.apertureRadiusY).toBe(RIFT_PORTAL_APERTURE_RADIUS_Y);
     expect(burst.sourceSpace.size).toEqual({
       width: RIFT_SOURCE_WIDTH,
       height: RIFT_SOURCE_HEIGHT,
@@ -114,6 +118,25 @@ describe('rift source space', () => {
     expect(projection.status).toBe('emerged');
   });
 
+  it('does not emerge asteroids that move in front of the portal but miss the aperture', () => {
+    const burst = createRiftBurst({
+      asteroidCount: 1,
+      burstIndex: 1,
+      exclusions: [],
+      now: 0,
+      world,
+    });
+    const sourceAsteroid = burst.sourceSpace.asteroids[0];
+    const radius = ASTEROIDS[sourceAsteroid.asteroid.tier].radius;
+    sourceAsteroid.sourcePosition.x =
+      burst.portal.sourcePosition.x + burst.portal.apertureRadiusX + radius + 1;
+    sourceAsteroid.sourcePosition.y = burst.portal.sourcePosition.y + radius + 12;
+
+    const projection = getRiftProjections(burst.sourceSpace.asteroids, burst.portal)[0];
+
+    expect(projection.status).toBe('insidePortal');
+  });
+
   it('updates local movement before scene-space velocity conversion', () => {
     const burst = createRiftBurst({
       asteroidCount: 1,
@@ -165,6 +188,31 @@ describe('rift source space', () => {
     });
 
     expect(sourceAsteroid.sourcePosition.y).toBeGreaterThan(start.y);
+  });
+
+  it('bounces source asteroids off the internal wall when they miss the aperture', () => {
+    const burst = createRiftBurst({
+      asteroidCount: 1,
+      burstIndex: 1,
+      exclusions: [],
+      now: 0,
+      world,
+    });
+    const sourceAsteroid = burst.sourceSpace.asteroids[0];
+    const radius = ASTEROIDS[sourceAsteroid.asteroid.tier].radius;
+    sourceAsteroid.sourcePosition.x =
+      burst.portal.sourcePosition.x + burst.portal.apertureRadiusX + radius + 12;
+    sourceAsteroid.sourcePosition.y = burst.portal.sourcePosition.y - radius - 1;
+    sourceAsteroid.asteroid.velocity = { x: 0, y: 1.2 };
+
+    updateRiftSourceSpace({
+      deltaSeconds: 3 / 60,
+      now: RIFT_OPEN_DURATION_MS,
+      sourceSpace: burst.sourceSpace,
+    });
+
+    expect(sourceAsteroid.sourcePosition.y).toBeLessThan(burst.portal.sourcePosition.y - radius);
+    expect(sourceAsteroid.asteroid.velocity.y).toBeLessThan(0);
   });
 
   it('keeps a portal alive before timeout until source asteroids are resolved', () => {

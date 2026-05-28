@@ -60,16 +60,11 @@ void main() {
     float ellipse = (along * along) / max(1.0, radiusX * radiusX) + (across * across) / max(1.0, radiusY * radiusY);
     float portalMask = smoothstep(1.0, 0.985, ellipse) * fade;
     float hardPortalMask = smoothstep(1.0, 0.98, ellipse) * fade;
-    float outsideMask = smoothstep(0.99, 1.025, ellipse) * fade;
-    float frontSide = smoothstep(0.0, radiusY * 0.25, across);
 
     vec4 sourceInside = sampleSource(pixel);
-    vec4 sourceOutside = sampleSource(pixel);
     float insideSourceAlpha = sourceInside.a * hardPortalMask;
-    float outsideSourceAlpha = sourceOutside.a * outsideMask * frontSide;
     accumColor = mix(accumColor, sourceInside.rgb, insideSourceAlpha);
-    accumColor = mix(accumColor, sourceOutside.rgb, outsideSourceAlpha);
-    alpha = max(alpha, max(portalMask, max(insideSourceAlpha, outsideSourceAlpha)));
+    alpha = max(alpha, max(portalMask, insideSourceAlpha));
   }
 
   if (alpha <= 0.001) discard;
@@ -257,8 +252,8 @@ export class ArcadeRiftShaderRenderer {
       const timing = (MAX_RIFTS + index) * 4;
       data[core] = portal.position.x;
       data[core + 1] = portal.position.y;
-      data[core + 2] = portal.radiusX;
-      data[core + 3] = portal.radiusY;
+      data[core + 2] = portal.apertureRadiusX;
+      data[core + 3] = portal.apertureRadiusY;
       data[timing] = portal.angle;
       data[timing + 1] = portal.openedAt;
       data[timing + 2] = portal.openDurationMs;

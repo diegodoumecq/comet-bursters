@@ -49,7 +49,7 @@ export function projectSceneVectorToRiftLocal(portal: RiftPortal, sceneVector: V
 }
 
 export function pointIsInsidePortal(portal: RiftPortal, localPosition: Vector): boolean {
-  const x = localPosition.x / portal.radiusX;
-  const y = localPosition.y / portal.radiusY;
+  const x = localPosition.x / portal.apertureRadiusX;
+  const y = localPosition.y / portal.apertureRadiusY;
   return x * x + y * y <= 1;
 }

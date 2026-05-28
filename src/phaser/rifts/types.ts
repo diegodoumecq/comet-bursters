@@ -6,6 +6,8 @@ export type RiftProjectionStatus = 'insidePortal' | 'crossing' | 'emerged';
 
 export type RiftPortal = {
   angle: number;
+  apertureRadiusX: number;
+  apertureRadiusY: number;
   closeDurationMs: number;
   closeStartedAt: number | null;
   durationMs: number;

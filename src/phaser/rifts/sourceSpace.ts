@@ -14,9 +14,10 @@ import {
   RIFT_EDGE_MARGIN,
   RIFT_MOVE_START_OPEN_PROGRESS,
   RIFT_OPEN_DURATION_MS,
+  RIFT_PORTAL_APERTURE_RADIUS_X,
+  RIFT_PORTAL_APERTURE_RADIUS_Y,
   RIFT_PORTAL_RADIUS_X,
   RIFT_PORTAL_RADIUS_Y,
-  RIFT_PORTAL_VISIBILITY_MARGIN,
   RIFT_REPULSOR_MAX_SPEED,
   RIFT_REPULSOR_MIN_DISTANCE,
   RIFT_REPULSOR_OFFSET_Y,
@@ -39,6 +40,8 @@ import type {
 
 const RIFT_POSITION_ATTEMPTS = 80;
 const RIFT_SAFETY_PADDING = 60;
+const RIFT_WALL_RESTITUTION = 0.82;
+const RIFT_WALL_SURFACE_EPSILON = 0.5;
 
 export function createRiftBurst(input: {
   asteroidCount: number;
@@ -73,8 +76,7 @@ export function updateRiftSourceSpace(input: {
   const frameScale = input.deltaSeconds * 60;
   for (const sourceAsteroid of input.sourceSpace.asteroids) {
     applySourceRepulsor(input.sourceSpace, sourceAsteroid, frameScale);
-    sourceAsteroid.sourcePosition.x += sourceAsteroid.asteroid.velocity.x * frameScale;
-    sourceAsteroid.sourcePosition.y += sourceAsteroid.asteroid.velocity.y * frameScale;
+    moveSourceAsteroid(input.sourceSpace, sourceAsteroid, frameScale, true);
   }
 }
 
@@ -140,11 +142,11 @@ export function isVisibleInPortal(
   portal: RiftPortal,
 ): boolean {
   const radius = ASTEROIDS[asteroid.tier].radius;
-  const boundary = getPortalBoundaryAtX(portal, localPosition.x);
-  return (
-    Math.abs(localPosition.x) <= portal.radiusX + radius + RIFT_PORTAL_VISIBILITY_MARGIN &&
-    localPosition.y + radius >= -boundary - RIFT_PORTAL_VISIBILITY_MARGIN &&
-    localPosition.y - radius <= boundary + RIFT_PORTAL_VISIBILITY_MARGIN
+  return circleOverlapsEllipse(
+    localPosition,
+    portal.apertureRadiusX,
+    portal.apertureRadiusY,
+    radius,
   );
 }
 
@@ -154,15 +156,56 @@ function getProjectionStatus(
   portal: RiftPortal,
 ): RiftProjectionStatus {
   const radius = ASTEROIDS[asteroid.tier].radius;
-  const boundary = getPortalBoundaryAtX(portal, localPosition.x);
+  const boundary = getPortalApertureBoundaryAtX(portal, localPosition.x) ?? 0;
+  if (!canReachPortalApertureHorizontally(localPosition, portal, radius)) return 'insidePortal';
   if (localPosition.y - radius > boundary) return 'emerged';
-  if (localPosition.y + radius > -boundary) return 'crossing';
+  if (circleOverlapsPortalAperture(localPosition, portal, radius)) return 'crossing';
   return 'insidePortal';
 }
 
-function getPortalBoundaryAtX(portal: RiftPortal, localX: number): number {
-  const normalizedX = Phaser.Math.Clamp(Math.abs(localX) / Math.max(1, portal.radiusX), 0, 1);
-  return portal.radiusY * Math.sqrt(Math.max(0, 1 - normalizedX * normalizedX));
+function getPortalApertureBoundaryAtX(portal: RiftPortal, localX: number): number | null {
+  return getEllipseBoundaryAtX(portal.apertureRadiusX, portal.apertureRadiusY, localX);
+}
+
+function getEllipseBoundaryAtX(radiusX: number, radiusY: number, localX: number): number | null {
+  const normalizedX = Math.abs(localX) / Math.max(1, radiusX);
+  if (normalizedX > 1) return null;
+  return radiusY * Math.sqrt(Math.max(0, 1 - normalizedX * normalizedX));
+}
+
+function circleOverlapsPortalAperture(
+  localPosition: Vector,
+  portal: RiftPortal,
+  radius: number,
+): boolean {
+  return circleOverlapsEllipse(
+    localPosition,
+    portal.apertureRadiusX,
+    portal.apertureRadiusY,
+    radius,
+  );
+}
+
+function canReachPortalApertureHorizontally(
+  localPosition: Vector,
+  portal: RiftPortal,
+  radius: number,
+): boolean {
+  return Math.abs(localPosition.x) <= portal.apertureRadiusX + radius;
+}
+
+function circleOverlapsEllipse(
+  localPosition: Vector,
+  radiusX: number,
+  radiusY: number,
+  circleRadius: number,
+): boolean {
+  const expandedRadiusX = Math.max(1, radiusX + circleRadius);
+  const expandedRadiusY = Math.max(1, radiusY + circleRadius);
+  const normalized =
+    (localPosition.x * localPosition.x) / (expandedRadiusX * expandedRadiusX) +
+    (localPosition.y * localPosition.y) / (expandedRadiusY * expandedRadiusY);
+  return normalized <= 1;
 }
 
 function getNextLifecycleState(sourceSpace: RiftSourceSpace, now: number): RiftLifecycleState {
@@ -219,8 +262,45 @@ function canCullTimedOutAsteroid(
   portal: RiftPortal,
 ): boolean {
   const radius = ASTEROIDS[asteroid.tier].radius;
-  const boundary = getPortalBoundaryAtX(portal, localPosition.x);
+  const boundary = getPortalApertureBoundaryAtX(portal, localPosition.x);
+  if (boundary === null) return false;
   return localPosition.y + radius <= -boundary - RIFT_DEEP_INSIDE_CULL_MARGIN;
+}
+
+function moveSourceAsteroid(
+  sourceSpace: RiftSourceSpace,
+  sourceAsteroid: RiftSourceAsteroid,
+  frameScale: number,
+  collideWithPortalWall: boolean,
+): void {
+  const previousPosition = { ...sourceAsteroid.sourcePosition };
+  sourceAsteroid.sourcePosition.x += sourceAsteroid.asteroid.velocity.x * frameScale;
+  sourceAsteroid.sourcePosition.y += sourceAsteroid.asteroid.velocity.y * frameScale;
+  if (collideWithPortalWall) {
+    resolvePortalWallCollision(sourceSpace.portal, sourceAsteroid, previousPosition);
+  }
+}
+
+function resolvePortalWallCollision(
+  portal: RiftPortal,
+  sourceAsteroid: RiftSourceAsteroid,
+  previousPosition: Vector,
+): void {
+  if (sourceAsteroid.asteroid.velocity.y <= 0) return;
+  const radius = ASTEROIDS[sourceAsteroid.asteroid.tier].radius;
+  const previousLocalPosition = getRiftSourceLocalPosition(portal, previousPosition);
+  const localPosition = getRiftSourceLocalPosition(portal, sourceAsteroid.sourcePosition);
+  if (circleOverlapsPortalAperture(localPosition, portal, radius)) return;
+
+  const boundary = getPortalApertureBoundaryAtX(portal, localPosition.x) ?? 0;
+  const hitWall =
+    previousLocalPosition.y + radius <= -boundary &&
+    localPosition.y + radius >= -boundary;
+  if (hitWall) {
+    sourceAsteroid.sourcePosition.y =
+      portal.sourcePosition.y - boundary - radius - RIFT_WALL_SURFACE_EPSILON;
+    sourceAsteroid.asteroid.velocity.y *= -RIFT_WALL_RESTITUTION;
+  }
 }
 
 function createPortal(
@@ -233,6 +313,8 @@ function createPortal(
   const position = choosePortalPosition(world, exclusions, radius);
   return {
     angle: getPortalAngleFacingPlayfield(position, world),
+    apertureRadiusX: RIFT_PORTAL_APERTURE_RADIUS_X,
+    apertureRadiusY: RIFT_PORTAL_APERTURE_RADIUS_Y,
     closeDurationMs: RIFT_CLOSE_DURATION_MS,
     closeStartedAt: null,
     durationMs: RIFT_DURATION_MS,
