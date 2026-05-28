@@ -58,6 +58,7 @@ export class ArcadeRenderer {
     this.playerThruster = scene.add.graphics().setDepth(0);
     this.riftAsteroidViews = new RiftAsteroidViews(scene);
     this.riftRenderer = new ArcadeRiftShaderRenderer(
+      scene,
       scene.game.canvas,
       () => this.riftAsteroidViews.getSourceCanvas(),
       () => [],

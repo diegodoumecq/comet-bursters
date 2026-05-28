@@ -1,9 +1,12 @@
+import Phaser from 'phaser';
 import * as THREE from 'three';
 
 import { RIFT_CLOSE_DURATION_MS } from '../../rifts/config';
 import type { RiftPortal } from '../../rifts/types';
 
 const MAX_RIFTS = 8;
+const RIFT_SHADER_DEPTH = -25;
+let nextRiftTextureId = 0;
 
 const vertexShader = `
 varying vec2 vUv;
@@ -81,12 +84,18 @@ export class ArcadeRiftShaderRenderer {
   private compositeContext: CanvasRenderingContext2D | null = null;
   private dataTexture: THREE.DataTexture | null = null;
   private material: THREE.ShaderMaterial | null = null;
+  private outputCanvas: HTMLCanvasElement | null = null;
+  private outputContext: CanvasRenderingContext2D | null = null;
+  private outputImage: Phaser.GameObjects.Image | null = null;
+  private outputTexture: Phaser.Textures.CanvasTexture | null = null;
+  private readonly outputTextureKey = `phaser-arcade-rift-shader-${nextRiftTextureId++}`;
   private renderer: THREE.WebGLRenderer | null = null;
   private readonly portals: RiftPortal[] = [];
   private scene: THREE.Scene | null = null;
   private texture: THREE.CanvasTexture | null = null;
 
   constructor(
+    private readonly phaserScene: Phaser.Scene,
     private readonly hostCanvas: HTMLCanvasElement,
     private readonly getPortalSourceCanvas: () => HTMLCanvasElement,
     private readonly getUnderlayCanvases: () => HTMLCanvasElement[] = () => [],
@@ -110,6 +119,10 @@ export class ArcadeRiftShaderRenderer {
       !this.scene ||
       !this.camera ||
       !this.material ||
+      !this.outputCanvas ||
+      !this.outputContext ||
+      !this.outputImage ||
+      !this.outputTexture ||
       !this.texture ||
       !this.dataTexture
     )
@@ -119,15 +132,14 @@ export class ArcadeRiftShaderRenderer {
     const count = Math.min(this.portals.length, MAX_RIFTS);
     this.material.uniforms.u_riftCount.value = count;
     if (count === 0) {
-      this.canvas.style.display = 'none';
+      this.outputImage.setVisible(false);
       this.renderer.clear();
+      this.clearOutputTexture();
+      this.outputTexture.refresh();
       return;
     }
 
-    this.canvas.style.display = 'block';
-    if (this.debug) {
-      this.canvas.style.zIndex = '1001';
-    }
+    this.outputImage.setVisible(true);
     this.material.uniforms.u_now.value = now;
     this.updateCompositeSource();
     this.updateRiftData(count);
@@ -137,10 +149,14 @@ export class ArcadeRiftShaderRenderer {
       this.renderer.setClearColor(0x000000, 0);
       this.renderer.clear();
       this.renderer.render(this.scene, this.camera);
+      this.copyShaderToOutputTexture();
+      this.outputTexture.refresh();
       return;
     }
     this.renderer.clear();
     this.renderer.render(this.scene, this.camera);
+    this.copyShaderToOutputTexture();
+    this.outputTexture.refresh();
   }
 
   destroy(): void {
@@ -148,13 +164,18 @@ export class ArcadeRiftShaderRenderer {
     this.material?.dispose();
     this.texture?.dispose();
     this.dataTexture?.dispose();
-    this.canvas?.remove();
+    this.outputImage?.destroy();
+    this.phaserScene.textures.remove(this.outputTextureKey);
     this.canvas = null;
     this.camera = null;
     this.compositeCanvas = null;
     this.compositeContext = null;
     this.dataTexture = null;
     this.material = null;
+    this.outputCanvas = null;
+    this.outputContext = null;
+    this.outputImage = null;
+    this.outputTexture = null;
     this.renderer = null;
     this.portals.length = 0;
     this.scene = null;
@@ -165,11 +186,21 @@ export class ArcadeRiftShaderRenderer {
     if (this.renderer) return;
 
     this.canvas = document.createElement('canvas');
-    this.canvas.style.position = 'absolute';
-    this.canvas.style.inset = '0';
-    this.canvas.style.pointerEvents = 'none';
-    this.canvas.style.zIndex = this.debug ? '5' : '3';
-    this.hostCanvas.parentElement?.appendChild(this.canvas);
+    this.outputCanvas = document.createElement('canvas');
+    this.outputContext = this.outputCanvas.getContext('2d');
+    this.outputTexture = this.phaserScene.textures.addCanvas(
+      this.outputTextureKey,
+      this.outputCanvas,
+    );
+    if (!this.outputTexture) {
+      throw new Error(`Failed to create arcade rift shader texture ${this.outputTextureKey}`);
+    }
+    this.outputImage = this.phaserScene.add
+      .image(0, 0, this.outputTextureKey)
+      .setOrigin(0)
+      .setScrollFactor(0)
+      .setDepth(RIFT_SHADER_DEPTH)
+      .setVisible(false);
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
@@ -209,15 +240,37 @@ export class ArcadeRiftShaderRenderer {
   }
 
   private resize(width: number, height: number): void {
-    if (!this.canvas || !this.renderer || !this.material || !this.compositeCanvas) return;
+    if (
+      !this.canvas ||
+      !this.renderer ||
+      !this.material ||
+      !this.compositeCanvas ||
+      !this.outputCanvas ||
+      !this.outputImage
+    )
+      return;
     if (this.canvas.width !== width || this.canvas.height !== height) {
       this.canvas.width = width;
       this.canvas.height = height;
       this.compositeCanvas.width = width;
       this.compositeCanvas.height = height;
+      this.outputCanvas.width = width;
+      this.outputCanvas.height = height;
       this.renderer.setSize(width, height, false);
       this.material.uniforms.u_resolution.value.set(width, height);
     }
+    this.outputImage.setDisplaySize(width, height);
+  }
+
+  private clearOutputTexture(): void {
+    if (!this.outputCanvas || !this.outputContext) return;
+    this.outputContext.clearRect(0, 0, this.outputCanvas.width, this.outputCanvas.height);
+  }
+
+  private copyShaderToOutputTexture(): void {
+    if (!this.canvas || !this.outputCanvas || !this.outputContext) return;
+    this.outputContext.clearRect(0, 0, this.outputCanvas.width, this.outputCanvas.height);
+    this.outputContext.drawImage(this.canvas, 0, 0, this.outputCanvas.width, this.outputCanvas.height);
   }
 
   private updateCompositeSource(): void {
