@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
-import type { ArcadeRift } from './arcadeSpawns';
+import { RIFT_CLOSE_DURATION_MS } from '../../rifts/config';
+import type { RiftPortal } from '../../rifts/types';
 
 const MAX_RIFTS = 8;
 
@@ -24,10 +25,6 @@ uniform int u_riftCount;
 
 varying vec2 vUv;
 
-float hash(float value) {
-  return fract(sin(value * 127.1) * 43758.5453123);
-}
-
 vec4 sampleSource(vec2 pixel) {
   vec2 uv = vec2(pixel.x / u_resolution.x, 1.0 - pixel.y / u_resolution.y);
   return texture2D(u_texture, clamp(uv, vec2(0.001), vec2(0.999)));
@@ -35,11 +32,8 @@ vec4 sampleSource(vec2 pixel) {
 
 void main() {
   vec2 pixel = vec2(vUv.x * u_resolution.x, (1.0 - vUv.y) * u_resolution.y);
-  vec2 distortion = vec2(0.0);
-  vec3 glow = vec3(0.0);
+  vec3 accumColor = vec3(0.0);
   float alpha = 0.0;
-  float shadowMask = 0.0;
-  float voidMask = 0.0;
 
   for (int index = 0; index < ${MAX_RIFTS}; index++) {
     if (index >= u_riftCount) break;
@@ -47,53 +41,40 @@ void main() {
     vec4 timing = texture2D(u_riftData, vec2((float(index) + 0.5) / float(${MAX_RIFTS}), 0.75));
 
     vec2 center = core.xy;
-    float riftLength = core.z;
-    float width = core.w;
+    float radiusX = core.z;
+    float radiusY = core.w;
     float angle = timing.x;
     float openedAt = timing.y;
-    float releaseAt = timing.z;
-    float duration = timing.w;
+    float openDuration = timing.z;
+    float closeStartedAt = timing.w;
     float age = max(0.0, u_now - openedAt);
-    float progress = clamp(age / max(1.0, duration), 0.0, 1.0);
-    float opening = smoothstep(0.0, 1.0, clamp(age / max(1.0, releaseAt - openedAt), 0.0, 1.0));
-    float fade = max(opening * (1.0 - smoothstep(0.82, 1.0, progress)), sin(progress * 3.14159265359) * opening);
+    float opening = smoothstep(0.0, 1.0, clamp(age / max(1.0, openDuration), 0.0, 1.0));
+    float closing = closeStartedAt < 0.0 ? 0.0 : smoothstep(0.0, 1.0, clamp((u_now - closeStartedAt) / ${RIFT_CLOSE_DURATION_MS.toFixed(1)}, 0.0, 1.0));
+    float fade = opening * (1.0 - closing);
 
     vec2 normal = vec2(cos(angle), sin(angle));
     vec2 tangent = vec2(-normal.y, normal.x);
     vec2 local = pixel - center;
     float along = dot(local, tangent);
     float across = dot(local, normal);
-    float jagged = (hash(floor(along / 18.0) + float(index) * 31.0) - 0.5) * width * 0.62;
-    float slit = abs(across - jagged);
-    float alongMask = smoothstep(riftLength * 0.52, riftLength * 0.28, abs(along));
-    float rim = smoothstep(width * 1.9, width * 0.26, slit) * alongMask * fade;
-    float coreMask = smoothstep(width * 0.92, 0.0, slit) * alongMask * fade;
-    float influence = smoothstep(riftLength * 0.86, 0.0, length(local)) * fade;
-    float signedSlitDistance = across - jagged;
-    float side = sign(signedSlitDistance);
-    float frontSide = smoothstep(0.0, width * 1.35, signedSlitDistance);
-    float backSide = smoothstep(0.0, width * 1.8, -signedSlitDistance);
-    float backMouth = smoothstep(width * 3.2, 0.0, abs(signedSlitDistance + width * 0.95)) * backSide * alongMask * fade;
-    float frontRim = smoothstep(width * 1.35, 0.0, abs(signedSlitDistance - width * 0.42)) * frontSide * alongMask * fade;
+    float ellipse = (along * along) / max(1.0, radiusX * radiusX) + (across * across) / max(1.0, radiusY * radiusY);
+    float portalMask = smoothstep(1.0, 0.985, ellipse) * fade;
+    float hardPortalMask = smoothstep(1.0, 0.98, ellipse) * fade;
+    float outsideMask = smoothstep(0.99, 1.025, ellipse) * fade;
+    float frontSide = smoothstep(0.0, radiusY * 0.25, across);
 
-    distortion += normal * side * rim * width * 0.44;
-    distortion += tangent * sin(along * 0.045 + u_now * 0.012 + float(index)) * influence * 5.0;
-    voidMask = max(voidMask, coreMask);
-    shadowMask = max(shadowMask, backMouth * 0.78);
-    glow += vec3(0.45, 0.95, 1.0) * rim * 0.56;
-    glow += vec3(0.62, 1.0, 1.0) * frontRim * 1.08;
-    glow += vec3(1.0, 0.22, 0.86) * smoothstep(width * 0.9, 0.0, slit) * alongMask * fade * 0.28;
-    glow += vec3(0.26, 0.2, 0.62) * backMouth * 0.42;
-    alpha = max(alpha, rim * 0.74 + coreMask + backMouth * 0.55 + frontRim * 0.72);
+    vec4 sourceInside = sampleSource(pixel);
+    vec4 sourceOutside = sampleSource(pixel);
+    float insideSourceAlpha = sourceInside.a * hardPortalMask;
+    float outsideSourceAlpha = sourceOutside.a * outsideMask * frontSide;
+    accumColor = mix(accumColor, sourceInside.rgb, insideSourceAlpha);
+    accumColor = mix(accumColor, sourceOutside.rgb, outsideSourceAlpha);
+    alpha = max(alpha, max(portalMask, max(insideSourceAlpha, outsideSourceAlpha)));
   }
 
   if (alpha <= 0.001) discard;
 
-  vec4 source = sampleSource(pixel + distortion);
-  vec3 fallback = vec3(0.01, 0.018, 0.035);
-  vec3 sampled = mix(fallback, source.rgb, step(0.004, dot(source.rgb, vec3(0.333))));
-  vec3 color = mix(sampled, vec3(0.0, 0.004, 0.015), max(voidMask * 0.94, shadowMask));
-  color += glow;
+  vec3 color = mix(vec3(0.0), accumColor, step(0.004, dot(accumColor, vec3(0.333))));
   gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
 }
 `;
@@ -106,18 +87,24 @@ export class ArcadeRiftShaderRenderer {
   private dataTexture: THREE.DataTexture | null = null;
   private material: THREE.ShaderMaterial | null = null;
   private renderer: THREE.WebGLRenderer | null = null;
-  private readonly rifts: ArcadeRift[] = [];
+  private readonly portals: RiftPortal[] = [];
   private scene: THREE.Scene | null = null;
   private texture: THREE.CanvasTexture | null = null;
 
   constructor(
-    private readonly sourceCanvas: HTMLCanvasElement,
+    private readonly hostCanvas: HTMLCanvasElement,
+    private readonly getPortalSourceCanvas: () => HTMLCanvasElement,
     private readonly getUnderlayCanvases: () => HTMLCanvasElement[] = () => [],
     private readonly debug = false,
   ) {}
 
-  add(rifts: ArcadeRift[]): void {
-    this.rifts.push(...rifts);
+  add(portal: RiftPortal): void {
+    this.portals.push(portal);
+  }
+
+  setPortals(portals: RiftPortal[]): void {
+    this.portals.length = 0;
+    this.portals.push(...portals);
   }
 
   render(now: number): void {
@@ -133,9 +120,8 @@ export class ArcadeRiftShaderRenderer {
     )
       return;
 
-    this.resize(this.sourceCanvas.width, this.sourceCanvas.height);
-    this.removeExpired(now);
-    const count = Math.min(this.rifts.length, MAX_RIFTS);
+    this.resize(this.hostCanvas.width, this.hostCanvas.height);
+    const count = Math.min(this.portals.length, MAX_RIFTS);
     this.material.uniforms.u_riftCount.value = count;
     if (count === 0) {
       this.canvas.style.display = 'none';
@@ -175,7 +161,7 @@ export class ArcadeRiftShaderRenderer {
     this.dataTexture = null;
     this.material = null;
     this.renderer = null;
-    this.rifts.length = 0;
+    this.portals.length = 0;
     this.scene = null;
     this.texture = null;
   }
@@ -188,7 +174,7 @@ export class ArcadeRiftShaderRenderer {
     this.canvas.style.inset = '0';
     this.canvas.style.pointerEvents = 'none';
     this.canvas.style.zIndex = this.debug ? '5' : '3';
-    this.sourceCanvas.parentElement?.appendChild(this.canvas);
+    this.hostCanvas.parentElement?.appendChild(this.canvas);
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
@@ -239,20 +225,21 @@ export class ArcadeRiftShaderRenderer {
     }
   }
 
-  private removeExpired(now: number): void {
-    const active = this.rifts.filter((rift) => now - rift.openedAt < rift.durationMs);
-    this.rifts.length = 0;
-    this.rifts.push(...active);
-  }
-
   private updateCompositeSource(): void {
     if (!this.compositeCanvas || !this.compositeContext) return;
     this.compositeContext.clearRect(0, 0, this.compositeCanvas.width, this.compositeCanvas.height);
+    const portalSourceCanvas = this.getPortalSourceCanvas();
     for (const canvas of this.getUnderlayCanvases()) {
-      this.compositeContext.drawImage(canvas, 0, 0, this.compositeCanvas.width, this.compositeCanvas.height);
+      this.compositeContext.drawImage(
+        canvas,
+        0,
+        0,
+        this.compositeCanvas.width,
+        this.compositeCanvas.height,
+      );
     }
     this.compositeContext.drawImage(
-      this.sourceCanvas,
+      portalSourceCanvas,
       0,
       0,
       this.compositeCanvas.width,
@@ -265,17 +252,17 @@ export class ArcadeRiftShaderRenderer {
     const data = this.dataTexture.image.data as Float32Array;
     data.fill(0);
     for (let index = 0; index < count; index += 1) {
-      const rift = this.rifts[index];
+      const portal = this.portals[index];
       const core = index * 4;
       const timing = (MAX_RIFTS + index) * 4;
-      data[core] = rift.position.x;
-      data[core + 1] = rift.position.y;
-      data[core + 2] = rift.length;
-      data[core + 3] = rift.width;
-      data[timing] = rift.angle;
-      data[timing + 1] = rift.openedAt;
-      data[timing + 2] = rift.releaseAt;
-      data[timing + 3] = rift.durationMs;
+      data[core] = portal.position.x;
+      data[core + 1] = portal.position.y;
+      data[core + 2] = portal.radiusX;
+      data[core + 3] = portal.radiusY;
+      data[timing] = portal.angle;
+      data[timing + 1] = portal.openedAt;
+      data[timing + 2] = portal.openDurationMs;
+      data[timing + 3] = portal.closeStartedAt ?? -1;
     }
   }
 }

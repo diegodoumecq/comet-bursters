@@ -33,8 +33,8 @@ const ARCADE_NEBULA_PALETTES: SpaceNebulaPalette[] = [
   },
 ];
 
-export function getArcadeNebulaPalette(wave: number): SpaceNebulaPalette {
-  const index = positiveModulo(Math.floor(wave) - 1, ARCADE_NEBULA_PALETTES.length);
+export function getArcadeNebulaPalette(burstCount: number): SpaceNebulaPalette {
+  const index = positiveModulo(Math.floor(burstCount) - 1, ARCADE_NEBULA_PALETTES.length);
   return ARCADE_NEBULA_PALETTES[index];
 }
 

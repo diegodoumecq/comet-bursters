@@ -31,6 +31,17 @@ import { updateBlackHoles } from '../projectiles/blackHoles';
 import { ProjectileBodies } from '../projectiles/bodies';
 import { updateProjectiles } from '../projectiles/logic';
 import type { ProjectileEntity } from '../projectiles/types';
+import { resolveRiftProjectileCombat } from '../rifts/combat';
+import { ArcadeRiftDirector } from '../rifts/director';
+import { projectRiftLocalVectorToScene, projectSceneVectorToRiftLocal } from '../rifts/geometry';
+import {
+  createRiftBurst,
+  getRenderableRiftPortals,
+  getRiftProjections,
+  syncRiftLifecycle,
+  updateRiftSourceSpace,
+} from '../rifts/sourceSpace';
+import type { RiftProjection, RiftSourceSpace } from '../rifts/types';
 import { getArcadeRiftDebugEnabled, getStartingWave } from '../runtime/startup';
 import { ALL_WEAPONS, type SceneWeaponPolicy } from '../weapons/scenePolicy';
 import { applyTractorBeam } from '../weapons/tractorBeam';
@@ -41,13 +52,11 @@ import { ArcadeRenderEffects } from './arcade/ArcadeRenderEffects';
 import { ArcadeRenderer } from './arcade/ArcadeRenderer';
 import { ArcadeRunState } from './arcade/arcadeRunState';
 import {
-  type ArcadeRiftAsteroid,
   chooseSafePlayerPositionWithExclusions,
   getBlackHoleSpawnExclusions,
   getPlayerSpawnCircle,
 } from './arcade/arcadeSpawns';
 import { createArcadeTextures } from './arcade/arcadeVisuals';
-import { createWaveRiftEvent } from './arcade/waves';
 import { BaseGameScene } from './BaseGameScene';
 
 const GAME_OVER_RESTART_DELAY_MS = 3000;
@@ -65,10 +74,11 @@ export class PhaserArcadeScene extends BaseGameScene {
   private particleViews!: ParticleViews;
   private runtime!: GameWorldRuntime;
   private renderEffects!: ArcadeRenderEffects;
+  private riftDirector!: ArcadeRiftDirector;
   private gameOverAt = 0;
   private lastThrusterAt = 0;
-  private nextRiftEventId = 1;
-  private readonly pendingRiftAsteroids: ArcadeRiftAsteroid[] = [];
+  private readonly riftSourceSpaces: RiftSourceSpace[] = [];
+  private riftProjections: RiftProjection[] = [];
   private readonly riftDebug = getArcadeRiftDebugEnabled();
   private testRiftKey: Phaser.Input.Keyboard.Key | null = null;
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: ALL_WEAPONS };
@@ -78,7 +88,9 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   create(): void {
-    this.session = new ArcadeRunState(getStartingWave());
+    const startingIntensity = getStartingWave();
+    this.session = new ArcadeRunState(startingIntensity);
+    this.riftDirector = new ArcadeRiftDirector(startingIntensity);
     this.worldSize = { width: this.scale.width, height: this.scale.height };
     this.actions = new ActionReader(this);
     createArcadeTextures(this);
@@ -124,7 +136,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     if (this.riftDebug) {
       this.testRiftKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.T) ?? null;
     }
-    this.spawnWave();
+    this.openRiftBurst(this.time.now);
     this.scale.on('resize', this.handleResize, this);
   }
 
@@ -151,7 +163,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     const deltaSeconds = (delta / 1000) * timeScale;
     this.updateDebugRiftInput();
     this.updatePlayerActions(action, deltaSeconds, time);
-    this.releaseRiftAsteroids(time);
+    this.updateRiftSourceSpaces(deltaSeconds);
     this.updateWorldState(delta, deltaSeconds);
     this.resolveCombat(time, action.shield, deltaSeconds);
     this.collectFuelBlobs(deltaSeconds);
@@ -286,10 +298,12 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private updateLifecycle(time: number): void {
     this.updateRespawn(time);
-    this.updateWave(time);
+    this.updateRiftDirector(time);
   }
 
   protected renderState(action: ReturnType<ActionReader['read']>, time: number): void {
+    this.sceneRenderer.setRiftPortals(getRenderableRiftPortals(this.riftSourceSpaces));
+    this.sceneRenderer.setRiftProjections(this.riftProjections);
     this.sceneRenderer.render(time, this.session, action, this.getTractorActive(action));
     this.renderEffects.render(this.session, time, this.worldSize);
   }
@@ -307,44 +321,67 @@ export class PhaserArcadeScene extends BaseGameScene {
     if (thrusting) this.spawnThrusterParticle(move, now, thrustScale);
   }
 
-  private spawnWave(): void {
-    this.createRiftEvent(this.session.wave);
-  }
-
-  private createRiftEvent(intensity: number): void {
-    const riftEvent = createWaveRiftEvent(
-      intensity,
-      this.worldSize,
-      [getPlayerSpawnCircle(this.session.player.position)],
-      this.nextRiftEventId,
-      this.time.now,
-    );
-    this.nextRiftEventId += 1;
-    this.sceneRenderer.addRifts(riftEvent.rifts);
-    this.pendingRiftAsteroids.push(...riftEvent.asteroids);
+  private openRiftBurst(now: number): void {
+    const asteroidCount = this.riftDirector.recordBurst(now);
+    this.session.burstCount = this.riftDirector.burstCount;
+    const burst = createRiftBurst({
+      asteroidCount,
+      burstIndex: this.riftDirector.burstCount,
+      exclusions: [getPlayerSpawnCircle(this.session.player.position)],
+      now,
+      world: this.worldSize,
+    });
+    this.riftSourceSpaces.push(burst.sourceSpace);
+    this.sceneRenderer.addRift(burst.portal);
   }
 
   private updateDebugRiftInput(): void {
     if (this.testRiftKey && Phaser.Input.Keyboard.JustDown(this.testRiftKey)) {
-      this.createRiftEvent(this.session.wave);
+      this.openRiftBurst(this.time.now);
     }
   }
 
-  private releaseRiftAsteroids(now: number): void {
-    const released: AsteroidEntity[] = [];
-    for (let index = this.pendingRiftAsteroids.length - 1; index >= 0; index -= 1) {
-      const pending = this.pendingRiftAsteroids[index];
-      if (now >= pending.releaseAt) {
-        released.push(pending.asteroid);
-        this.pendingRiftAsteroids.splice(index, 1);
+  private updateRiftSourceSpaces(deltaSeconds: number): void {
+    this.riftProjections = [];
+    const emerged: RiftProjection[] = [];
+    for (const sourceSpace of this.riftSourceSpaces) {
+      updateRiftSourceSpace({
+        deltaSeconds,
+        now: this.time.now,
+        sourceSpace,
+      });
+      const projections = getRiftProjections(sourceSpace.asteroids, sourceSpace.portal);
+      for (const projection of projections) {
+        if (projection.status === 'emerged') {
+          emerged.push(projection);
+        } else {
+          this.riftProjections.push(projection);
+        }
       }
     }
-    if (released.length > 0) this.addAsteroids(released);
+    for (const projection of emerged) this.activateRiftAsteroid(projection);
+    this.removeDisposedRiftSourceSpaces(this.time.now);
+  }
+
+  private activateRiftAsteroid(projection: RiftProjection): void {
+    const sourceAsteroid = projection.sourceAsteroid;
+    sourceAsteroid.asteroid.position = projection.scenePosition;
+    sourceAsteroid.asteroid.velocity = projectRiftLocalVectorToScene(
+      projection.portal,
+      sourceAsteroid.asteroid.velocity,
+    );
+    this.sceneRenderer.removeRiftAsteroid(projection);
+    this.removeRiftSourceAsteroid(projection);
+    this.addAsteroids([sourceAsteroid.asteroid]);
   }
 
   private applyProjectileCombat(): void {
+    this.applyRiftProjectileCombat();
+    const activeProjectiles = new Set(this.session.world.projectiles);
     for (const event of resolveProjectileContactCombat(
-      this.contacts.consumeProjectileAsteroids(),
+      this.contacts
+        .consumeProjectileAsteroids()
+        .filter((contact) => activeProjectiles.has(contact.projectile)),
       this.asteroidBodies,
     )) {
       if (event.type === 'projectileHitAsteroid') {
@@ -358,6 +395,33 @@ export class PhaserArcadeScene extends BaseGameScene {
         this.removeAsteroid(event.asteroid);
       }
     }
+  }
+
+  private applyRiftProjectileCombat(): void {
+    for (const event of resolveRiftProjectileCombat({
+      projectiles: this.session.world.projectiles,
+      projections: this.riftProjections,
+    })) {
+      if (event.type === 'projectileHitAsteroid') {
+        this.removeProjectile(event.projectile);
+      } else {
+        const asteroid = event.projection.sourceAsteroid.asteroid;
+        asteroid.velocity = projectRiftLocalVectorToScene(
+          event.projection.portal,
+          asteroid.velocity,
+        );
+        const destruction = destroyAsteroidWithWeapon(asteroid);
+        this.session.awardAsteroidScore(ASTEROIDS[asteroid.tier].points);
+        this.addParticles(destruction.particles);
+        this.addFuelBlobs(destruction.fuelBlobs);
+        this.addRiftAsteroidChildren(event.projection, destruction.children);
+        this.sceneRenderer.removeRiftAsteroid(event.projection);
+        this.removeRiftSourceAsteroid(event.projection);
+      }
+    }
+    this.riftProjections = this.riftProjections.filter((projection) =>
+      this.hasRiftSourceAsteroid(projection),
+    );
   }
 
   private applyPlayerCombat(now: number, shieldActive: boolean): void {
@@ -472,9 +536,68 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.sceneRenderer.showGameOver(this.worldSize);
   }
 
-  private updateWave(now: number): void {
-    if (this.pendingRiftAsteroids.length > 0) return;
-    if (this.session.advanceWave(now)) this.spawnWave();
+  private updateRiftDirector(now: number): void {
+    this.removeDisposedRiftSourceSpaces(now);
+    if (
+      this.riftDirector.shouldOpenBurst({
+        activeAsteroids: this.session.world.asteroids.length,
+        now,
+        openRifts: this.riftSourceSpaces.length,
+        stagedAsteroids: this.getStagedRiftAsteroidCount(),
+      })
+    ) {
+      this.openRiftBurst(now);
+    }
+  }
+
+  private getStagedRiftAsteroidCount(): number {
+    return this.riftSourceSpaces.reduce(
+      (count, sourceSpace) => count + sourceSpace.asteroids.length,
+      0,
+    );
+  }
+
+  private removeRiftSourceAsteroid(projection: RiftProjection): void {
+    for (const sourceSpace of this.riftSourceSpaces) {
+      const index = sourceSpace.asteroids.indexOf(projection.sourceAsteroid);
+      if (index >= 0) sourceSpace.asteroids.splice(index, 1);
+    }
+  }
+
+  private addRiftAsteroidChildren(projection: RiftProjection, children: AsteroidEntity[]): void {
+    if (children.length === 0) return;
+    const sourceSpace = this.riftSourceSpaces.find(
+      (candidate) => candidate.id === projection.sourceAsteroid.sourceSpaceId,
+    );
+    if (!sourceSpace) {
+      this.addAsteroids(children);
+      return;
+    }
+    for (const child of children) {
+      child.position = projection.scenePosition;
+      child.velocity = projectSceneVectorToRiftLocal(projection.portal, child.velocity);
+      sourceSpace.asteroids.push({
+        asteroid: child,
+        portalId: projection.portal.id,
+        sourcePosition: { ...projection.sourceAsteroid.sourcePosition },
+        sourceSpaceId: sourceSpace.id,
+      });
+    }
+  }
+
+  private hasRiftSourceAsteroid(projection: RiftProjection): boolean {
+    return this.riftSourceSpaces.some((sourceSpace) =>
+      sourceSpace.asteroids.includes(projection.sourceAsteroid),
+    );
+  }
+
+  private removeDisposedRiftSourceSpaces(now: number): void {
+    for (let index = this.riftSourceSpaces.length - 1; index >= 0; index -= 1) {
+      syncRiftLifecycle(this.riftSourceSpaces[index], now);
+      if (this.riftSourceSpaces[index].state === 'disposed') {
+        this.riftSourceSpaces.splice(index, 1);
+      }
+    }
   }
 
   private removeProjectile(projectile: ProjectileEntity): void {

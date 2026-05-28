@@ -18,7 +18,7 @@ type ArcadeSpaceBackgroundRenderOptions = {
   markers: boolean;
   starfield: boolean;
   threeBackground: boolean;
-  wave: number;
+  burstCount: number;
 };
 
 export class ArcadeSpaceBackground {
@@ -54,7 +54,7 @@ export class ArcadeSpaceBackground {
       withPerformanceMeasure('arcade.render.background.three', options.markers, () => {
         this.shader.render({
           mode: 'arcade',
-          nebulaPalette: getArcadeNebulaPalette(options.wave),
+          nebulaPalette: getArcadeNebulaPalette(options.burstCount),
           now,
           playerPosition: this.shaderOffset,
           screen: this.screen,

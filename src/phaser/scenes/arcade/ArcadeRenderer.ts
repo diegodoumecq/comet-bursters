@@ -11,14 +11,15 @@ import {
   renderPlayerTurret,
 } from '../../player/rendering';
 import { PLAYER_TURRET_TEXTURE_KEY } from '../../player/textures';
+import type { RiftPortal, RiftProjection } from '../../rifts/types';
+import { RiftAsteroidViews } from '../../rifts/views';
 import { getArcadeRiftDebugEnabled, getSandboxPerfToggles } from '../../runtime/startup';
 import { WeaponMenu } from '../../ui/WeaponMenu';
 import type { SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { drawTractorBeam } from '../../weapons/tractorBeam';
 import type { WeaponKind } from '../../weapons/types';
-import type { ArcadeRunState } from './arcadeRunState';
-import type { ArcadeRift } from './arcadeSpawns';
 import { ArcadeRiftShaderRenderer } from './ArcadeRiftShaderRenderer';
+import type { ArcadeRunState } from './arcadeRunState';
 import { ArcadeSpaceBackground } from './ArcadeSpaceBackground';
 import { createArcadeGameOverText, updateCameraShake } from './arcadeVisuals';
 
@@ -33,8 +34,10 @@ export class ArcadeRenderer {
   private readonly playerThruster: Phaser.GameObjects.Graphics;
   private readonly perfToggles = getSandboxPerfToggles();
   private readonly riftRenderer: ArcadeRiftShaderRenderer;
+  private readonly riftAsteroidViews: RiftAsteroidViews;
   private readonly weaponMenu: WeaponMenu;
   private gameOverText: Phaser.GameObjects.Text | null = null;
+  private riftProjections: RiftProjection[] = [];
   private shakeUntil = 0;
   private shakeIntensity = 0;
 
@@ -53,10 +56,13 @@ export class ArcadeRenderer {
     this.playerFuelMask = scene.make.graphics({ x: 0, y: 0 }, false);
     this.playerFuelFill.setMask(this.playerFuelMask.createGeometryMask());
     this.playerThruster = scene.add.graphics().setDepth(0);
-    this.riftRenderer = new ArcadeRiftShaderRenderer(scene.game.canvas, () => {
-      const canvas = this.getBackgroundCanvas();
-      return canvas ? [canvas] : [];
-    }, getArcadeRiftDebugEnabled());
+    this.riftAsteroidViews = new RiftAsteroidViews(scene);
+    this.riftRenderer = new ArcadeRiftShaderRenderer(
+      scene.game.canvas,
+      () => this.riftAsteroidViews.getSourceCanvas(),
+      () => [],
+      getArcadeRiftDebugEnabled(),
+    );
     this.weaponMenu = new WeaponMenu(scene, weaponPolicy.allowedWeapons);
   }
 
@@ -69,8 +75,20 @@ export class ArcadeRenderer {
     return this.background.getCanvas();
   }
 
-  addRifts(rifts: ArcadeRift[]): void {
-    this.riftRenderer.add(rifts);
+  addRift(portal: RiftPortal): void {
+    this.riftRenderer.add(portal);
+  }
+
+  setRiftPortals(portals: RiftPortal[]): void {
+    this.riftRenderer.setPortals(portals);
+  }
+
+  removeRiftAsteroid(projection: RiftProjection): void {
+    this.riftAsteroidViews.remove(projection.sourceAsteroid.asteroid);
+  }
+
+  setRiftProjections(projections: RiftProjection[]): void {
+    this.riftProjections = projections;
   }
 
   render(now: number, session: ArcadeRunState, action: ActionState, tractorActive: boolean): void {
@@ -80,7 +98,7 @@ export class ArcadeRenderer {
         markers: this.perfToggles.markers,
         starfield: this.perfToggles.starfield,
         threeBackground: this.perfToggles.threeBackground,
-        wave: session.wave,
+        burstCount: Math.max(1, session.burstCount),
       });
     });
     const playerAlive = session.playerAlive;
@@ -123,6 +141,11 @@ export class ArcadeRenderer {
       this.shakeUntil,
       this.shakeIntensity,
     ).shakeIntensity;
+    this.riftAsteroidViews.render(
+      this.riftProjections,
+      this.scene.scale.width,
+      this.scene.scale.height,
+    );
     this.riftRenderer.render(now);
   }
 
@@ -141,6 +164,7 @@ export class ArcadeRenderer {
   }
 
   destroy(): void {
+    this.riftAsteroidViews.destroy();
     this.riftRenderer.destroy();
   }
 }

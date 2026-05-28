@@ -1,20 +1,19 @@
 import { ShipState } from '../../player/shipState';
 import { PlayerState } from '../../player/state';
 import { GameWorld } from '../../world/state';
-import { getNextWaveState, RESPAWN_DELAY_MS } from './runFlow';
+import { RESPAWN_DELAY_MS } from './runFlow';
 
 export class ArcadeRunState {
   readonly world = new GameWorld();
   readonly ship = new ShipState();
   readonly player = new PlayerState();
-  wave: number;
+  burstCount: number;
   score = 0;
   lives = 3;
-  waveClearAt = 0;
   nextProjectileId = 1;
 
-  constructor(startingWave: number) {
-    this.wave = startingWave;
+  constructor(startingIntensity: number) {
+    this.burstCount = Math.max(0, Math.floor(startingIntensity) - 1);
   }
 
   get playerAlive(): boolean {
@@ -38,12 +37,5 @@ export class ArcadeRunState {
     this.player.respawnAt = 0;
     this.ship.resetFuel();
     this.player.invulnerableUntil = now + 2200;
-  }
-
-  advanceWave(now: number): boolean {
-    const state = getNextWaveState(this.world.asteroids.length, this.wave, this.waveClearAt, now);
-    this.wave = state.wave;
-    this.waveClearAt = state.waveClearAt;
-    return state.shouldSpawn;
   }
 }
