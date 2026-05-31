@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import { withPerformanceMeasure } from '../../core/performance';
 import type { MatterImage, Vector, WorldSize } from '../../core/types';
+import type { PortalEntity } from '../../dimensions/types';
 import type { ActionState } from '../../input/actions';
 import {
   getPlayerVisible,
@@ -11,7 +12,6 @@ import {
   renderPlayerTurret,
 } from '../../player/rendering';
 import { PLAYER_TURRET_TEXTURE_KEY } from '../../player/textures';
-import type { RiftPortal } from '../../rifts/types';
 import { getArcadeRiftDebugEnabled, getSandboxPerfToggles } from '../../runtime/startup';
 import { WeaponMenu } from '../../ui/WeaponMenu';
 import type { SceneWeaponPolicy } from '../../weapons/scenePolicy';
@@ -75,16 +75,16 @@ export class ArcadeRenderer {
     return this.background.getCanvas();
   }
 
-  addRift(portal: RiftPortal): void {
+  addRift(portal: PortalEntity): void {
     this.riftRenderer.add(portal);
   }
 
-  setRiftPortals(portals: RiftPortal[]): void {
+  setRiftPortals(portals: PortalEntity[]): void {
     this.riftRenderer.setPortals(portals);
   }
 
-  setRiftSourceCanvasProvider(getPortalSourceCanvas: () => HTMLCanvasElement): void {
-    this.riftRenderer.setPortalSourceCanvasProvider(getPortalSourceCanvas);
+  setPortalDestinationCanvasProvider(getDestinationCanvas: () => HTMLCanvasElement): void {
+    this.riftRenderer.setDestinationCanvasProvider(getDestinationCanvas);
   }
 
   setPlayerInRift(inRift: boolean): void {
@@ -98,7 +98,6 @@ export class ArcadeRenderer {
         markers: this.perfToggles.markers,
         starfield: this.perfToggles.starfield,
         threeBackground: this.perfToggles.threeBackground,
-        burstCount: Math.max(1, session.burstCount),
       });
     });
     const playerAlive = session.playerAlive;

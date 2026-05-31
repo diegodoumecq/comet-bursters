@@ -1,5 +1,5 @@
 import type { Vector } from '../core/types';
-import type { SpaceMembership } from '../rifts/types';
+import type { SpaceMembership } from '../dimensions/types';
 import type { ProjectileKind } from '../weapons/types';
 
 export type ProjectileEntity = {

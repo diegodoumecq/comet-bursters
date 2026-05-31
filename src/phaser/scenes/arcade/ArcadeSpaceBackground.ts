@@ -18,7 +18,6 @@ type ArcadeSpaceBackgroundRenderOptions = {
   markers: boolean;
   starfield: boolean;
   threeBackground: boolean;
-  burstCount: number;
 };
 
 export class ArcadeSpaceBackground {
@@ -27,6 +26,7 @@ export class ArcadeSpaceBackground {
   private drift: Vector = { x: -NEBULA_DRIFT_SPEED, y: NEBULA_DRIFT_SPEED * 0.45 };
   private lastRenderAt = 0;
   private nextDirectionChangeAt = 0;
+  private readonly paletteIndex = Phaser.Math.Between(1, 64);
   private shaderOffset: Vector = { x: 0, y: 0 };
   private readonly starfield: Starfield;
   private targetDrift: Vector = { x: -NEBULA_DRIFT_SPEED, y: NEBULA_DRIFT_SPEED * 0.45 };
@@ -54,7 +54,7 @@ export class ArcadeSpaceBackground {
       withPerformanceMeasure('arcade.render.background.three', options.markers, () => {
         this.shader.render({
           mode: 'arcade',
-          nebulaPalette: getArcadeNebulaPalette(options.burstCount),
+          nebulaPalette: getArcadeNebulaPalette(this.paletteIndex),
           now,
           playerPosition: this.shaderOffset,
           screen: this.screen,

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import type { Vector, WorldSize } from '../core/types';
 import { nebulaNoiseShader } from './nebulaShader';
 
-type SpaceBackgroundMode = 'arcade' | 'sandbox';
+type SpaceBackgroundMode = 'arcade' | 'rift' | 'sandbox';
 
 export type SpaceBackgroundColor = {
   r: number;
@@ -192,15 +192,17 @@ export class SpaceBackgroundRenderer {
     this.ensureMaterial(input.mode);
     if (!this.material) return;
 
-    const paletteChanged = input.mode === 'arcade' && this.setNebulaPalette(input.nebulaPalette);
+    const paletteChanged =
+      usesNebulaPalette(input.mode) && this.setNebulaPalette(input.nebulaPalette);
     const resized = this.resize(input.screen.width, input.screen.height, input.mode);
-    if (input.mode === 'arcade' && !this.arcadeRenderDirty && !paletteChanged && !resized) return;
+    if (usesNebulaPalette(input.mode) && !this.arcadeRenderDirty && !paletteChanged && !resized)
+      return;
 
     this.material.uniforms.u_screen.value.set(input.screen.width, input.screen.height);
-    this.material.uniforms.u_time.value = input.mode === 'arcade' ? 0 : input.now;
+    this.material.uniforms.u_time.value = usesNebulaPalette(input.mode) ? 0 : input.now;
     this.material.uniforms.u_camera?.value.set(
-      input.mode === 'arcade' ? 0 : input.playerPosition.x,
-      input.mode === 'arcade' ? 0 : input.playerPosition.y,
+      usesNebulaPalette(input.mode) ? 0 : input.playerPosition.x,
+      usesNebulaPalette(input.mode) ? 0 : input.playerPosition.y,
     );
     this.material.uniforms.u_camera_scroll.value.set(
       input.cameraScroll?.x ?? input.playerPosition.x,
@@ -214,7 +216,7 @@ export class SpaceBackgroundRenderer {
       input.world?.height ?? input.screen.height,
     );
     this.renderer.render(this.scene, this.camera);
-    if (input.mode === 'arcade') this.arcadeRenderDirty = false;
+    if (usesNebulaPalette(input.mode)) this.arcadeRenderDirty = false;
   }
 
   dispose(): void {
@@ -285,13 +287,13 @@ export class SpaceBackgroundRenderer {
         u_world: { value: new THREE.Vector2(1, 1) },
       },
       vertexShader,
-      fragmentShader: mode === 'arcade' ? arcadeFragmentShader : sandboxFragmentShader,
+      fragmentShader: usesNebulaPalette(mode) ? arcadeFragmentShader : sandboxFragmentShader,
       depthTest: false,
       depthWrite: false,
     });
     this.mesh.material = this.material;
     this.materialMode = mode;
-    if (mode === 'arcade') this.arcadeRenderDirty = true;
+    if (usesNebulaPalette(mode)) this.arcadeRenderDirty = true;
   }
 
   private setNebulaPalette(palette = DEFAULT_NEBULA_PALETTE): boolean {
@@ -310,7 +312,7 @@ export class SpaceBackgroundRenderer {
 
   private resize(width: number, height: number, mode: SpaceBackgroundMode): boolean {
     if (!this.renderer || !this.canvas || !this.material) return false;
-    const scale = mode === 'arcade' ? RENDER_SCALE : SANDBOX_RENDER_SCALE;
+    const scale = usesNebulaPalette(mode) ? RENDER_SCALE : SANDBOX_RENDER_SCALE;
     const renderWidth = Math.max(1, Math.ceil(width * scale));
     const renderHeight = Math.max(1, Math.ceil(height * scale));
     if (this.canvas.width !== renderWidth || this.canvas.height !== renderHeight) {
@@ -324,6 +326,10 @@ export class SpaceBackgroundRenderer {
     }
     return false;
   }
+}
+
+function usesNebulaPalette(mode: SpaceBackgroundMode): boolean {
+  return mode === 'arcade' || mode === 'rift';
 }
 
 function colorVector(color: SpaceBackgroundColor): THREE.Vector3 {

@@ -1,5 +1,5 @@
 import type { Vector } from '../core/types';
-import type { SpaceMembership } from '../rifts/types';
+import type { SpaceMembership } from '../dimensions/types';
 
 export type FuelBlobEntity = {
   id: number;

@@ -88,6 +88,11 @@ export class PlayerBody {
     this.state.visible = visible;
   }
 
+  destroy(): void {
+    this.body.destroy();
+    this.shieldSensor.destroy();
+  }
+
   private resizeCircle(target: MatterImage, radius: number): void {
     this.applyCircle(target, () => target.setCircle(radius));
   }

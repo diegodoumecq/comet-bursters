@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import * as THREE from 'three';
 
-import { RIFT_CLOSE_DURATION_MS } from '../../rifts/config';
-import type { RiftPortal } from '../../rifts/types';
+import { RIFT_CLOSE_DURATION_MS } from '../../dimensions/config';
+import type { PortalEntity } from '../../dimensions/types';
 
 const MAX_RIFTS = 8;
 const RIFT_SHADER_DEPTH = -25;
@@ -90,29 +90,29 @@ export class ArcadeRiftShaderRenderer {
   private outputTexture: Phaser.Textures.CanvasTexture | null = null;
   private readonly outputTextureKey = `phaser-arcade-rift-shader-${nextRiftTextureId++}`;
   private renderer: THREE.WebGLRenderer | null = null;
-  private readonly portals: RiftPortal[] = [];
+  private readonly portals: PortalEntity[] = [];
   private scene: THREE.Scene | null = null;
   private texture: THREE.CanvasTexture | null = null;
 
   constructor(
     private readonly phaserScene: Phaser.Scene,
     private readonly hostCanvas: HTMLCanvasElement,
-    private getPortalSourceCanvas: () => HTMLCanvasElement,
+    private getDestinationCanvas: () => HTMLCanvasElement,
     private readonly getUnderlayCanvases: () => HTMLCanvasElement[] = () => [],
     private readonly debug = false,
   ) {}
 
-  add(portal: RiftPortal): void {
+  add(portal: PortalEntity): void {
     this.portals.push(portal);
   }
 
-  setPortals(portals: RiftPortal[]): void {
+  setPortals(portals: PortalEntity[]): void {
     this.portals.length = 0;
     this.portals.push(...portals);
   }
 
-  setPortalSourceCanvasProvider(getPortalSourceCanvas: () => HTMLCanvasElement): void {
-    this.getPortalSourceCanvas = getPortalSourceCanvas;
+  setDestinationCanvasProvider(getDestinationCanvas: () => HTMLCanvasElement): void {
+    this.getDestinationCanvas = getDestinationCanvas;
   }
 
   render(now: number): void {
@@ -286,7 +286,7 @@ export class ArcadeRiftShaderRenderer {
   private updateCompositeSource(): void {
     if (!this.compositeCanvas || !this.compositeContext) return;
     this.compositeContext.clearRect(0, 0, this.compositeCanvas.width, this.compositeCanvas.height);
-    const portalSourceCanvas = this.getPortalSourceCanvas();
+    const destinationCanvas = this.getDestinationCanvas();
     for (const canvas of this.getUnderlayCanvases()) {
       this.compositeContext.drawImage(
         canvas,
@@ -297,7 +297,7 @@ export class ArcadeRiftShaderRenderer {
       );
     }
     this.compositeContext.drawImage(
-      portalSourceCanvas,
+      destinationCanvas,
       0,
       0,
       this.compositeCanvas.width,
@@ -315,11 +315,11 @@ export class ArcadeRiftShaderRenderer {
       const timing = (MAX_RIFTS + index) * 4;
       data[core] = portal.position.x;
       data[core + 1] = portal.position.y;
-      data[core + 2] = portal.apertureRadiusX;
-      data[core + 3] = portal.apertureRadiusY;
-      data[timing] = portal.angle;
+      data[core + 2] = portal.aperture.radiusX;
+      data[core + 3] = portal.aperture.radiusY;
+      data[timing] = Math.atan2(portal.normal.y, portal.normal.x);
       data[timing + 1] = portal.openedAt;
-      data[timing + 2] = portal.openDurationMs;
+      data[timing + 2] = portal.openingDurationMs;
       data[timing + 3] = portal.closeStartedAt ?? -1;
     }
   }
