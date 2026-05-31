@@ -1,5 +1,5 @@
 import type { AsteroidBodies } from './bodies';
-import { ASTEROIDS } from './logic';
+import { ASTEROIDS } from './config';
 import type { AsteroidEntity } from './types';
 
 const SEPARATION_BUFFER = 6;

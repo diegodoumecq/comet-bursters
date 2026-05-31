@@ -49,7 +49,7 @@ describe('projectile logic', () => {
     expect(bodies.synced).toEqual([projectile]);
   });
 
-  it('leaves rift projectiles for the rift-space updater', () => {
+  it('updates projectiles in whichever space owns the runtime', () => {
     const projectile = createProjectile({ membership: { portalId: 4, space: 'rift' } });
     const bodies = createProjectileBodies();
 
@@ -61,8 +61,8 @@ describe('projectile logic', () => {
       false,
     );
 
-    expect(expired).toEqual([]);
-    expect(projectile.ageMs).toBe(0);
+    expect(expired).toEqual([projectile]);
+    expect(projectile.ageMs).toBe(2000);
     expect(bodies.synced).toEqual([]);
   });
 });

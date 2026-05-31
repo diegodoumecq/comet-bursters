@@ -31,6 +31,10 @@ export class DimensionCoordinator {
   }
 
   getActiveViewSpace(now: number): SpaceId {
+    return this.getVisibleSpace(now);
+  }
+
+  getVisibleSpace(now: number): SpaceId {
     if (this.activeView.type === 'stable') return this.activeView.space;
     if (now - this.activeView.startedAt >= this.activeView.durationMs) {
       this.activeView = { space: this.activeView.to, type: 'stable' };
@@ -39,18 +43,19 @@ export class DimensionCoordinator {
     return this.activeView.from;
   }
 
+  getHiddenSpace(now: number): SpaceId {
+    return getOppositeSpace(this.getVisibleSpace(now));
+  }
+
   openPortal(plan: PortalDirectorPlan): void {
     this.activePortal = plan.portal;
     this.pendingSpawnPlan = plan;
   }
 
-  update(now: number): DimensionCommand[] {
+  updatePortalLifecycle(now: number): DimensionCommand[] {
     const commands: DimensionCommand[] = [];
     const portal = this.activePortal;
-    if (!portal) {
-      this.syncWorldPreviousPositions();
-      return commands;
-    }
+    if (!portal) return commands;
 
     const previousLifecycle = portal.lifecycle;
     const nextLifecycle = syncPortalLifecycle(portal, now);
@@ -58,20 +63,26 @@ export class DimensionCoordinator {
       commands.push({ plan: this.pendingSpawnPlan, portal, type: 'spawnPortal' });
     }
 
-    if (nextLifecycle === 'active') {
-      commands.push(...this.processTransfers(portal, now));
-    }
-
     if (portalFinishedClosing(previousLifecycle, nextLifecycle)) {
-      const hiddenSpace = getOppositeSpace(this.getActiveViewSpace(now));
+      const hiddenSpace = this.getHiddenSpace(now);
       commands.push({ hiddenSpace, type: 'cleanupHiddenWorld' });
       this.worlds.get(hiddenSpace)?.clearNonShipEntities();
       this.activePortal = null;
       this.pendingSpawnPlan = null;
     }
 
+    return commands;
+  }
+
+  processPortalTransfers(now: number): DimensionCommand[] {
+    const portal = this.activePortal;
+    const commands = portal?.lifecycle === 'active' ? this.processTransfers(portal, now) : [];
     this.syncWorldPreviousPositions();
     return commands;
+  }
+
+  update(now: number): DimensionCommand[] {
+    return [...this.updatePortalLifecycle(now), ...this.processPortalTransfers(now)];
   }
 
   private processTransfers(portal: PortalEntity, now: number): DimensionCommand[] {

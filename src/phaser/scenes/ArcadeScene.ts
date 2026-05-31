@@ -3,8 +3,14 @@ import Phaser from 'phaser';
 import { AsteroidBodies } from '../asteroids/bodies';
 import { ASTEROIDS } from '../asteroids/logic';
 import { updateAsteroidSplitCollisions } from '../asteroids/splitCollisions';
+import type { AsteroidEntity } from '../asteroids/types';
 import { destroyAsteroidWithWeapon } from '../combat/asteroidDestruction';
-import { resolvePlayerCombat, resolveProjectileContactCombat } from '../combat/asteroids';
+import {
+  applyProjectileImpulse,
+  damageAsteroid,
+  resolvePlayerCombat,
+  resolveProjectileContactCombat,
+} from '../combat/asteroids';
 import {
   createAsteroidExplosion,
   createExplosionBurst,
@@ -13,16 +19,23 @@ import {
   type EffectResult,
 } from '../combat/effects';
 import { MatterContacts } from '../combat/matterContacts';
-import { resolvePortalBridgeAsteroidCollisions } from '../combat/portalBridge';
+import {
+  getPortalBridgeProjectileAsteroidContacts,
+  resolvePortalBridgeAsteroidCollisions,
+} from '../combat/portalBridge';
+import { circlesOverlap } from '../core/collision';
 import { getTimeScale } from '../core/time';
 import type { Vector, WorldSize } from '../core/types';
 import type { DimensionCoordinator } from '../dimensions/DimensionCoordinator';
+import { DimensionDebugOverlay } from '../dimensions/DimensionDebugOverlay';
 import { createPortalAsteroidSpawn } from '../dimensions/PortalAsteroidSpawner';
 import { PortalDirector } from '../dimensions/PortalDirector';
+import { portalApertureContainsCenter } from '../dimensions/portalGeometry';
 import { resetDimensionCoordinator } from '../dimensions/runtime';
+import type { SpaceId } from '../dimensions/types';
 import { spawnFuelBlobs, updateFuelBlobs } from '../fuel/blobLogic';
 import { FuelBlobViews } from '../fuel/blobViews';
-import { MAX_FUEL, SHIELD_RADIUS } from '../fuel/rules';
+import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS, MAX_FUEL, SHIELD_RADIUS } from '../fuel/rules';
 import type { FuelBlobEntity } from '../fuel/types';
 import { ActionReader } from '../input/actions';
 import { updateParticles } from '../particles/logic';
@@ -30,12 +43,27 @@ import type { ParticleEntity } from '../particles/types';
 import { ParticleViews } from '../particles/views';
 import { PlayerBody } from '../player/body';
 import { PLAYER_COLLISION_RADIUS, PLAYER_MASS } from '../player/config';
-import { updatePlayerMotion, updatePlayerStateMotion } from '../player/motion';
-import { updateBlackHoles } from '../projectiles/blackHoles';
+import { updatePlayerMotion } from '../player/motion';
+import {
+  applyBlackHoleGravityToVelocity,
+  BLACK_HOLE_ABSORBED_FUEL_BLOBS,
+  BLACK_HOLE_FUEL_BLOB_MASS_SCALE,
+  BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
+  BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
+  getBlackHoleMass,
+  getBlackHoleRenderRadius,
+  getMatureBlackHoleRadius,
+  isMatureBlackHole,
+  updateBlackHoles,
+} from '../projectiles/blackHoles';
 import { ProjectileBodies } from '../projectiles/bodies';
 import { updateProjectiles } from '../projectiles/logic';
 import type { ProjectileEntity } from '../projectiles/types';
-import { getArcadeRiftDebugEnabled, getStartingWave } from '../runtime/startup';
+import {
+  getArcadeDimensionDebugEnabled,
+  getArcadeRiftDebugEnabled,
+  getStartingWave,
+} from '../runtime/startup';
 import { ALL_WEAPONS, type SceneWeaponPolicy } from '../weapons/scenePolicy';
 import { applyTractorBeam } from '../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../weapons/use';
@@ -67,6 +95,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   private particleViews!: ParticleViews;
   private runtime!: SpaceWorldRuntime;
   private renderEffects!: ArcadeRenderEffects;
+  private dimensionDebug!: DimensionDebugOverlay;
   private dimensionCoordinator!: DimensionCoordinator;
   private riftDirector!: PortalDirector;
   private gameOverAt = 0;
@@ -74,6 +103,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   private nextPortalId = 1;
   private riftSpaceScene: PhaserRiftSpaceScene | null = null;
   private readonly riftDebug = getArcadeRiftDebugEnabled();
+  private readonly dimensionDebugEnabled = getArcadeDimensionDebugEnabled();
   private testRiftKey: Phaser.Input.Keyboard.Key | null = null;
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: ALL_WEAPONS };
 
@@ -125,6 +155,7 @@ export class PhaserArcadeScene extends BaseGameScene {
       this.worldSize,
       this.weaponPolicy,
     );
+    this.dimensionDebug = new DimensionDebugOverlay(this);
     this.startRiftSpaceScene();
     this.renderEffects = new ArcadeRenderEffects(
       this.game.canvas,
@@ -162,13 +193,16 @@ export class PhaserArcadeScene extends BaseGameScene {
     }
     const timeScale = getTimeScale(action.timeDilation);
     this.matter.world.engine.timing.timeScale = timeScale;
+    this.riftSpaceScene?.setTimeScale(timeScale);
     const deltaSeconds = (delta / 1000) * timeScale;
     this.updateDebugRiftInput();
+    this.updateDimensionPortalLifecycle(time);
     this.updatePlayerActions(action, deltaSeconds, time);
     this.updateWorldState(delta, deltaSeconds);
-    this.updateDimensionPortals(time);
     this.resolveCombat(time, action.shield, deltaSeconds);
     this.collectFuelBlobs(deltaSeconds);
+    this.collectPortalBridgeFuelBlobs();
+    this.processDimensionPortalTransfers(time);
     this.updateLifecycle(time);
   }
 
@@ -211,8 +245,8 @@ export class PhaserArcadeScene extends BaseGameScene {
         y: velocity.y + weaponResult.recoil.y,
       };
       if (playerInRift) {
-        this.session.player.velocity = nextVelocity;
-        this.dimensionCoordinator.getWorld('rift')?.syncAttachedPlayerFromState();
+        const riftPlayerBody = this.dimensionCoordinator.getWorld('rift')?.getPlayerBody();
+        if (riftPlayerBody) riftPlayerBody.setVelocity(nextVelocity);
       } else {
         this.playerBody.setVelocity(nextVelocity);
       }
@@ -260,6 +294,7 @@ export class PhaserArcadeScene extends BaseGameScene {
       this.playerBody.setCollisionEnabled(false);
       this.playerBody.updateShieldSensor(false);
     }
+    this.applyPortalBridgeTractorBeam(tractorActive);
   }
 
   private getTractorActive(action: ReturnType<ActionReader['read']>): boolean {
@@ -269,6 +304,25 @@ export class PhaserArcadeScene extends BaseGameScene {
       playerActive: this.playerIsAlive(),
       timeDilation: action.timeDilation,
     });
+  }
+
+  private applyPortalBridgeTractorBeam(tractorActive: boolean): void {
+    const portal = this.dimensionCoordinator.getActivePortal();
+    const riftRuntime = this.dimensionCoordinator.getWorld('rift');
+    if (!portal || portal.lifecycle !== 'active' || !riftRuntime) return;
+    if (!portalApertureContainsCenter(portal, this.session.player.position)) return;
+
+    const playerRuntime = this.getPlayerRuntime();
+    const oppositeRuntime = playerRuntime.space === 'arcade' ? riftRuntime : this.runtime;
+    applyTractorBeam(
+      this.session.player.position,
+      this.session.player.lastAim,
+      oppositeRuntime.world.asteroids.filter((asteroid) =>
+        portalApertureContainsCenter(portal, asteroid.position),
+      ),
+      oppositeRuntime.getAsteroidBodies(),
+      tractorActive,
+    );
   }
 
   private updateWorldState(deltaMs: number, deltaSeconds: number): void {
@@ -295,7 +349,10 @@ export class PhaserArcadeScene extends BaseGameScene {
       this.updateRuntimeBlackHoles(riftRuntime, time, deltaSeconds);
     }
     this.resolvePortalBridgeCollisions();
+    this.resolvePortalBridgeProjectileCombat();
+    this.resolvePortalBridgeBlackHoles(deltaSeconds);
     this.applyPlayerCombat(this.getPlayerRuntime(), time, shieldActive);
+    this.applyPortalBridgePlayerCombat(time, shieldActive);
   }
 
   private updateLifecycle(time: number): void {
@@ -306,16 +363,40 @@ export class PhaserArcadeScene extends BaseGameScene {
   protected renderState(action: ReturnType<ActionReader['read']>, time: number): void {
     const activePortal = this.dimensionCoordinator.getActivePortal();
     const renderablePortals = activePortal ? [activePortal] : [];
+    const activeViewSpace = this.dimensionCoordinator.getActiveViewSpace(time);
+    this.cameras.main.visible = activeViewSpace === 'arcade';
+    this.riftSpaceScene?.setActiveView(activeViewSpace === 'rift');
     this.riftSpaceScene?.setPortals(renderablePortals);
+    this.riftSpaceScene?.renderPlayerOverlay({
+      action,
+      alive: this.session.playerAlive,
+      now: time,
+      player: this.session.player,
+      ship: this.session.ship,
+    });
+    this.dimensionDebug.render({
+      enabled: this.dimensionDebugEnabled,
+      runtime: this.runtime,
+    });
+    this.riftSpaceScene?.renderDimensionDebug({
+      enabled: this.dimensionDebugEnabled,
+    });
     this.sceneRenderer.setRiftPortals(renderablePortals);
     this.sceneRenderer.setPlayerInRift(this.session.player.membership.space === 'rift');
     this.sceneRenderer.render(time, this.session, action, this.getTractorActive(action));
-    this.renderEffects.render(this.session, time, this.worldSize);
+    if (activeViewSpace === 'arcade') {
+      this.renderEffects.render(this.session, time, this.worldSize);
+    } else {
+      this.renderEffects.setVisible(false);
+    }
   }
 
   private updatePlayer(move: Vector, deltaSeconds: number, now: number): void {
     if (this.session.player.membership.space === 'rift') {
-      const motion = updatePlayerStateMotion({
+      const riftPlayerBody = this.dimensionCoordinator.getWorld('rift')?.getPlayerBody();
+      if (!riftPlayerBody) return;
+      const motion = updatePlayerMotion({
+        body: riftPlayerBody,
         deltaSeconds,
         move,
         player: this.session.player,
@@ -325,7 +406,6 @@ export class PhaserArcadeScene extends BaseGameScene {
       });
       const { thrusting, thrustScale } = motion;
       if (thrusting) this.spawnThrusterParticle(move, now, thrustScale);
-      this.dimensionCoordinator.getWorld('rift')?.syncAttachedPlayerFromState();
       return;
     }
     const motion = updatePlayerMotion({
@@ -367,14 +447,27 @@ export class PhaserArcadeScene extends BaseGameScene {
       this.scene.launch('rift-space');
     }
     this.riftSpaceScene = this.scene.get('rift-space') as PhaserRiftSpaceScene;
-    this.sceneRenderer.setPortalDestinationCanvasProvider(() => {
-      if (this.riftSpaceScene) return this.riftSpaceScene.getRenderCanvas();
-      throw new Error('Rift space scene is not available');
+    this.riftSpaceScene.events.once('shutdown', this.handleRiftSpaceShutdown, this);
+    this.sceneRenderer.setPortalDestinationTextureKeyProvider(() => {
+      if (this.riftSpaceScene && this.scene.isActive('rift-space')) {
+        return this.riftSpaceScene.captureTextureKey();
+      }
+      return null;
     });
+    this.riftSpaceScene.setPortalDestinationTextureKeyProvider(() =>
+      this.sceneRenderer.captureTextureKey(),
+    );
   }
 
-  private updateDimensionPortals(now: number): void {
-    const commands = this.dimensionCoordinator.update(now);
+  private updateDimensionPortalLifecycle(now: number): void {
+    this.applyDimensionCommands(this.dimensionCoordinator.updatePortalLifecycle(now));
+  }
+
+  private processDimensionPortalTransfers(now: number): void {
+    this.applyDimensionCommands(this.dimensionCoordinator.processPortalTransfers(now));
+  }
+
+  private applyDimensionCommands(commands: ReturnType<DimensionCoordinator['update']>): void {
     for (const command of commands) {
       if (command.type === 'spawnPortal') {
         const riftRuntime =
@@ -387,8 +480,15 @@ export class PhaserArcadeScene extends BaseGameScene {
             }),
           );
         }
+      } else if (command.type === 'startCameraTransition') {
+        this.startDimensionTransitionEffect();
       }
     }
+  }
+
+  private startDimensionTransitionEffect(): void {
+    this.cameras.main.flash(220, 103, 232, 249);
+    this.riftSpaceScene?.cameras.main.flash(220, 103, 232, 249);
   }
 
   private applyRuntimeProjectileCombat(runtime: SpaceWorldRuntime): void {
@@ -493,6 +593,53 @@ export class PhaserArcadeScene extends BaseGameScene {
     }
   }
 
+  private resolvePortalBridgeProjectileCombat(): void {
+    const riftRuntime = this.dimensionCoordinator.getWorld('rift');
+    if (!riftRuntime) return;
+
+    const handledProjectiles = new Set<ProjectileEntity>();
+    for (const contact of getPortalBridgeProjectileAsteroidContacts({
+      arcadeAsteroids: this.runtime.world.asteroids,
+      arcadeProjectiles: this.runtime.world.projectiles,
+      getDelta: (from, to) => wrappedDelta(from, to, this.worldSize),
+      portal: this.dimensionCoordinator.getActivePortal(),
+      riftAsteroids: riftRuntime.world.asteroids,
+      riftProjectiles: riftRuntime.world.projectiles,
+    })) {
+      if (!handledProjectiles.has(contact.projectile)) {
+        handledProjectiles.add(contact.projectile);
+        this.applyProjectileAsteroidHit(contact);
+      }
+    }
+  }
+
+  private applyProjectileAsteroidHit(contact: {
+    asteroid: AsteroidEntity;
+    projectile: ProjectileEntity;
+  }): void {
+    if (contact.projectile.kind === 'blackHole' || contact.projectile.kind === 'inspectionProbe') {
+      return;
+    }
+    const asteroidRuntime = this.getRuntimeForEntitySpace(contact.asteroid.membership?.space);
+    const projectileRuntime = this.getRuntimeForEntitySpace(contact.projectile.membership?.space);
+    if (!asteroidRuntime || !projectileRuntime) return;
+
+    applyProjectileImpulse(
+      contact.projectile,
+      contact.asteroid,
+      asteroidRuntime.getAsteroidBodies(),
+    );
+    projectileRuntime.removeProjectile(contact.projectile);
+    if (damageAsteroid(contact.projectile, contact.asteroid)) {
+      const destruction = destroyAsteroidWithWeapon(contact.asteroid);
+      this.session.awardAsteroidScore(ASTEROIDS[contact.asteroid.tier].points);
+      asteroidRuntime.addParticles(destruction.particles);
+      asteroidRuntime.addFuelBlobs(destruction.fuelBlobs);
+      asteroidRuntime.addAsteroids(destruction.children);
+      asteroidRuntime.removeAsteroid(contact.asteroid);
+    }
+  }
+
   private applyPlayerCombat(runtime: SpaceWorldRuntime, now: number, shieldActive: boolean): void {
     if (this.session.player.membership.space !== runtime.space) return;
     const playerBody = runtime.getPlayerBody();
@@ -526,6 +673,208 @@ export class PhaserArcadeScene extends BaseGameScene {
       }
       if (mutation.position)
         runtime
+          .getAsteroidBodies()
+          .get(mutation.asteroid)
+          .setPosition(mutation.position.x, mutation.position.y);
+    }
+    if (result.playerDestroyed) this.killPlayer(now);
+  }
+
+  private getRuntimeForEntitySpace(space: SpaceId | undefined): SpaceWorldRuntime | null {
+    if (space === 'rift') return this.dimensionCoordinator.getWorld('rift');
+    return this.runtime;
+  }
+
+  private resolvePortalBridgeBlackHoles(deltaSeconds: number): void {
+    const portal = this.dimensionCoordinator.getActivePortal();
+    const riftRuntime = this.dimensionCoordinator.getWorld('rift');
+    if (!portal || portal.lifecycle !== 'active' || !riftRuntime) return;
+
+    this.applyBlackHoleBridgeForRuntime(this.runtime, riftRuntime, deltaSeconds);
+    this.applyBlackHoleBridgeForRuntime(riftRuntime, this.runtime, deltaSeconds);
+  }
+
+  private applyBlackHoleBridgeForRuntime(
+    sourceRuntime: SpaceWorldRuntime,
+    targetRuntime: SpaceWorldRuntime,
+    deltaSeconds: number,
+  ): void {
+    const portal = this.dimensionCoordinator.getActivePortal();
+    if (!portal) return;
+    const timeScale = deltaSeconds * 60;
+    const blackHoles = sourceRuntime.world.projectiles.filter(
+      (projectile) =>
+        projectile.kind === 'blackHole' &&
+        projectile.collapseStartedAt === null &&
+        portalApertureContainsCenter(portal, projectile.position),
+    );
+
+    for (const blackHole of blackHoles) {
+      const radius = getMatureBlackHoleRadius(blackHole);
+      for (const asteroid of targetRuntime.world.asteroids.filter((candidate) =>
+        portalApertureContainsCenter(portal, candidate.position),
+      )) {
+        if (
+          applyBlackHoleGravityToVelocity(
+            asteroid.velocity,
+            asteroid.position,
+            blackHole.position,
+            radius * 6,
+            radius,
+            (fromX, fromY, toX, toY) =>
+              wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize),
+            timeScale,
+          )
+        ) {
+          targetRuntime
+            .getAsteroidBodies()
+            .get(asteroid)
+            .setVelocity(asteroid.velocity.x, asteroid.velocity.y);
+        }
+      }
+      this.applyBridgeBlackHoleFuelGravity(blackHole, targetRuntime, radius, timeScale);
+      this.absorbBridgeBlackHoleTargets(blackHole, targetRuntime);
+      this.absorbBridgeBlackHolePlayer(blackHole, targetRuntime);
+    }
+  }
+
+  private applyBridgeBlackHoleFuelGravity(
+    blackHole: ProjectileEntity,
+    targetRuntime: SpaceWorldRuntime,
+    radius: number,
+    timeScale: number,
+  ): void {
+    const portal = this.dimensionCoordinator.getActivePortal();
+    if (!portal) return;
+    for (const blob of targetRuntime.world.fuelBlobs.filter((candidate) =>
+      portalApertureContainsCenter(portal, candidate.position),
+    )) {
+      applyBlackHoleGravityToVelocity(
+        blob.velocity,
+        blob.position,
+        blackHole.position,
+        radius * BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
+        radius,
+        (fromX, fromY, toX, toY) =>
+          wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize),
+        timeScale,
+        BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
+      );
+    }
+  }
+
+  private absorbBridgeBlackHoleTargets(
+    blackHole: ProjectileEntity,
+    targetRuntime: SpaceWorldRuntime,
+  ): void {
+    const portal = this.dimensionCoordinator.getActivePortal();
+    if (!portal || !isMatureBlackHole(blackHole)) return;
+    const renderRadius = getBlackHoleRenderRadius(blackHole);
+
+    for (const blob of [...targetRuntime.world.fuelBlobs]) {
+      if (
+        portalApertureContainsCenter(portal, blob.position) &&
+        circlesOverlap(
+          this.getWrappedDistance(blackHole.position, blob.position),
+          renderRadius,
+          FUEL_BLOB_RADIUS,
+        )
+      ) {
+        blackHole.absorbedFuel += 1;
+        blackHole.blackHoleMass = getBlackHoleMass(blackHole) + BLACK_HOLE_FUEL_BLOB_MASS_SCALE;
+        targetRuntime.removeFuelBlob(blob);
+      }
+    }
+
+    for (const asteroid of [...targetRuntime.world.asteroids]) {
+      if (
+        portalApertureContainsCenter(portal, asteroid.position) &&
+        circlesOverlap(
+          this.getWrappedDistance(blackHole.position, asteroid.position),
+          renderRadius,
+          ASTEROIDS[asteroid.tier].collisionRadius,
+        )
+      ) {
+        blackHole.absorbedFuel += BLACK_HOLE_ABSORBED_FUEL_BLOBS[asteroid.tier];
+        blackHole.blackHoleMass =
+          getBlackHoleMass(blackHole) +
+          BLACK_HOLE_ABSORBED_FUEL_BLOBS[asteroid.tier] * BLACK_HOLE_FUEL_BLOB_MASS_SCALE;
+        this.session.awardAsteroidScore(ASTEROIDS[asteroid.tier].points);
+        targetRuntime.addParticles(createAsteroidExplosion(asteroid, 0.7).particles);
+        targetRuntime.removeAsteroid(asteroid);
+      }
+    }
+  }
+
+  private absorbBridgeBlackHolePlayer(
+    blackHole: ProjectileEntity,
+    targetRuntime: SpaceWorldRuntime,
+  ): void {
+    const portal = this.dimensionCoordinator.getActivePortal();
+    if (
+      !portal ||
+      !isMatureBlackHole(blackHole) ||
+      this.session.player.membership.space !== targetRuntime.space ||
+      !portalApertureContainsCenter(portal, this.session.player.position)
+    )
+      return;
+
+    if (
+      circlesOverlap(
+        this.getWrappedDistance(blackHole.position, this.session.player.position),
+        getBlackHoleRenderRadius(blackHole),
+        PLAYER_COLLISION_RADIUS,
+      )
+    ) {
+      this.killPlayer(this.time.now);
+    }
+  }
+
+  private getWrappedDistance(from: Vector, to: Vector): number {
+    const delta = wrappedDelta(from, to, this.worldSize);
+    return Math.hypot(delta.x, delta.y);
+  }
+
+  private applyPortalBridgePlayerCombat(now: number, shieldActive: boolean): void {
+    const portal = this.dimensionCoordinator.getActivePortal();
+    const riftRuntime = this.dimensionCoordinator.getWorld('rift');
+    if (!portal || portal.lifecycle !== 'active' || !riftRuntime) return;
+    if (!portalApertureContainsCenter(portal, this.session.player.position)) return;
+
+    const playerRuntime = this.getPlayerRuntime();
+    const oppositeRuntime = playerRuntime.space === 'arcade' ? riftRuntime : this.runtime;
+    const playerBody = playerRuntime.getPlayerBody();
+    if (!playerBody) return;
+
+    const result = resolvePlayerCombat({
+      asteroids: oppositeRuntime.world.asteroids.filter((asteroid) =>
+        portalApertureContainsCenter(portal, asteroid.position),
+      ),
+      fuel: this.session.ship.fuel,
+      getDelta: (from, to) => wrappedDelta(from, to, this.worldSize),
+      invulnerable: now < this.session.player.invulnerableUntil,
+      now,
+      playerAlive: this.playerIsAlive(),
+      playerPosition: this.session.player.position,
+      playerRadius: PLAYER_COLLISION_RADIUS,
+      playerVelocity: this.session.player.velocity,
+      shieldActive,
+      shieldRadius: SHIELD_RADIUS,
+      shieldHitUntil: this.session.player.shieldHitUntil,
+    });
+    this.session.ship.setFuel(result.fuel);
+    this.session.player.shieldHitUntil = result.shieldHitUntil;
+    playerBody.setVelocity(result.playerVelocity);
+    for (const mutation of result.asteroidMutations) {
+      if (mutation.velocity) {
+        mutation.asteroid.velocity = mutation.velocity;
+        oppositeRuntime
+          .getAsteroidBodies()
+          .get(mutation.asteroid)
+          .setVelocity(mutation.velocity.x, mutation.velocity.y);
+      }
+      if (mutation.position)
+        oppositeRuntime
           .getAsteroidBodies()
           .get(mutation.asteroid)
           .setPosition(mutation.position.x, mutation.position.y);
@@ -584,6 +933,33 @@ export class PhaserArcadeScene extends BaseGameScene {
     for (const blob of this.session.world.fuelBlobs) this.fuelBlobViews.sync(blob);
     this.session.ship.collectFuel(result.fuelGain);
     for (const blob of result.collected) this.removeFuelBlob(blob);
+  }
+
+  private collectPortalBridgeFuelBlobs(): void {
+    const portal = this.dimensionCoordinator.getActivePortal();
+    const riftRuntime = this.dimensionCoordinator.getWorld('rift');
+    if (!portal || portal.lifecycle !== 'active' || !riftRuntime) return;
+    if (!this.playerIsAlive() || this.session.ship.fuel >= MAX_FUEL) return;
+    if (!portalApertureContainsCenter(portal, this.session.player.position)) return;
+
+    const playerRuntime = this.getPlayerRuntime();
+    const oppositeRuntime = playerRuntime.space === 'arcade' ? riftRuntime : this.runtime;
+    const collected = oppositeRuntime.world.fuelBlobs.filter(
+      (blob) =>
+        portalApertureContainsCenter(portal, blob.position) &&
+        circlesOverlap(
+          Phaser.Math.Distance.Between(
+            this.session.player.position.x,
+            this.session.player.position.y,
+            blob.position.x,
+            blob.position.y,
+          ),
+          PLAYER_COLLISION_RADIUS,
+          FUEL_BLOB_RADIUS,
+        ),
+    );
+    this.session.ship.collectFuel(collected.length * FUEL_BLOB_AMOUNT);
+    for (const blob of collected) oppositeRuntime.removeFuelBlob(blob);
   }
 
   private removeExpiredParticles(deltaMs: number): void {
@@ -690,7 +1066,13 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private disposeRenderEffects(): void {
     if (this.scene.isActive('rift-space')) this.scene.stop('rift-space');
+    this.riftSpaceScene = null;
+    this.dimensionDebug.destroy();
     this.sceneRenderer.destroy();
     this.renderEffects.dispose();
+  }
+
+  private handleRiftSpaceShutdown(): void {
+    this.riftSpaceScene = null;
   }
 }

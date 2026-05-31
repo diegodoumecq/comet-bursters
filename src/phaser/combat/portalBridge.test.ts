@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import type { AsteroidEntity } from '../asteroids/types';
 import type { PortalEntity } from '../dimensions/types';
-import { resolvePortalBridgeAsteroidCollisions } from './portalBridge';
+import type { ProjectileEntity } from '../projectiles/types';
+import {
+  getPortalBridgeProjectileAsteroidContacts,
+  resolvePortalBridgeAsteroidCollisions,
+} from './portalBridge';
 
 const portal: PortalEntity = {
   activeDurationMs: 1000,
@@ -52,6 +56,24 @@ describe('resolvePortalBridgeAsteroidCollisions', () => {
   });
 });
 
+describe('getPortalBridgeProjectileAsteroidContacts', () => {
+  it('connects projectile hits across dimensions inside the portal aperture', () => {
+    const projectile = createProjectile(1, 'arcade', { x: 90, y: 100 });
+    const asteroid = createAsteroid(2, 'rift', { x: 100, y: 100 }, { x: 0, y: 0 });
+
+    expect(
+      getPortalBridgeProjectileAsteroidContacts({
+        arcadeAsteroids: [],
+        arcadeProjectiles: [projectile],
+        getDelta: (from, to) => ({ x: to.x - from.x, y: to.y - from.y }),
+        portal,
+        riftAsteroids: [asteroid],
+        riftProjectiles: [],
+      }),
+    ).toEqual([{ asteroid, projectile }]);
+  });
+});
+
 function createAsteroid(
   id: number,
   space: 'arcade' | 'rift',
@@ -66,5 +88,25 @@ function createAsteroid(
     tier: 'small',
     velocity,
     visualVariant: 0,
+  };
+}
+
+function createProjectile(
+  id: number,
+  space: 'arcade' | 'rift',
+  position: ProjectileEntity['position'],
+): ProjectileEntity {
+  return {
+    absorbedFuel: 0,
+    ageMs: 0,
+    angle: 0,
+    collapseStartedAt: null,
+    createdAt: 0,
+    id,
+    kind: 'small',
+    lifetimeMs: 1000,
+    membership: { space },
+    position,
+    velocity: { x: 0, y: 0 },
   };
 }

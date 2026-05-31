@@ -13,7 +13,7 @@ export function buildArcadeBlackHoleScreenSamples(
 ): BlackHoleScreenSample[] {
   const samples: BlackHoleScreenSample[] = [];
   for (const projectile of projectiles) {
-    if (projectile.kind === 'blackHole' && projectile.membership?.space !== 'rift') {
+    if (projectile.kind === 'blackHole') {
       const radius = getBlackHoleRenderRadius(projectile);
       const influenceRadius = getBlackHoleInfluenceRadius(radius);
       const offsets = getWrapOffsets(

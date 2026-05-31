@@ -25,5 +25,5 @@ export function portalBecameActive(previous: PortalLifecycle, next: PortalLifecy
 }
 
 export function portalFinishedClosing(previous: PortalLifecycle, next: PortalLifecycle): boolean {
-  return previous === 'closingVisual' && next === 'closed';
+  return previous !== 'closed' && next === 'closed';
 }

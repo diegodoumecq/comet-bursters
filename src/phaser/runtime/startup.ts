@@ -12,6 +12,10 @@ export function getArcadeRiftDebugEnabled(): boolean {
   return getBooleanStartupFlag('arcadeRiftDebug', false);
 }
 
+export function getArcadeDimensionDebugEnabled(): boolean {
+  return getBooleanStartupFlag('arcadeDimensionDebug', false);
+}
+
 export type SandboxPerfToggles = {
   blackHoles: boolean;
   fuelMetaballs: boolean;

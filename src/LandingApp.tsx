@@ -4,6 +4,7 @@ import { CollapsibleSection } from './ui/components/CollapsibleSection';
 import { Switch } from './ui/components/Switch';
 
 type SandboxPerfToggleKey =
+  | 'arcadeDimensionDebug'
   | 'sandboxPerfMarkers'
   | 'sandboxBlackHoles'
   | 'sandboxFuelMetaballs'
@@ -17,6 +18,7 @@ const SANDBOX_PERF_TOGGLES: Array<{
   key: SandboxPerfToggleKey;
   label: string;
 }> = [
+  { defaultValue: false, key: 'arcadeDimensionDebug', label: 'Rift ownership rings' },
   { defaultValue: false, key: 'sandboxPerfMarkers', label: 'Perf markers' },
   { defaultValue: true, key: 'sandboxBlackHoles', label: 'Black holes' },
   { defaultValue: true, key: 'sandboxFuelMetaballs', label: 'Fuel metaballs' },
@@ -185,7 +187,7 @@ export function LandingApp() {
 
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-1">
             <CollapsibleSection
-              title="Sandbox profiling"
+              title="Debug/profiling"
               isOpen={sandboxProfilingOpen}
               onToggle={toggleSandboxProfiling}
             >

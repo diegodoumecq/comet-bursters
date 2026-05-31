@@ -12,12 +12,13 @@ import {
   renderPlayerTurret,
 } from '../../player/rendering';
 import { PLAYER_TURRET_TEXTURE_KEY } from '../../player/textures';
-import { getArcadeRiftDebugEnabled, getSandboxPerfToggles } from '../../runtime/startup';
+import { PortalSceneCapture } from '../../portals/PortalSceneCapture';
+import { PortalWindowRenderer } from '../../portals/PortalWindowRenderer';
+import { getSandboxPerfToggles } from '../../runtime/startup';
 import { WeaponMenu } from '../../ui/WeaponMenu';
 import type { SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { drawTractorBeam } from '../../weapons/tractorBeam';
 import type { WeaponKind } from '../../weapons/types';
-import { ArcadeRiftShaderRenderer } from './ArcadeRiftShaderRenderer';
 import type { ArcadeRunState } from './arcadeRunState';
 import { ArcadeSpaceBackground } from './ArcadeSpaceBackground';
 import { createArcadeGameOverText, updateCameraShake } from './arcadeVisuals';
@@ -31,8 +32,10 @@ export class ArcadeRenderer {
   private readonly playerFuelFill: Phaser.GameObjects.Graphics;
   private readonly playerFuelMask: Phaser.GameObjects.Graphics;
   private readonly playerThruster: Phaser.GameObjects.Graphics;
+  private readonly playerRiftSilhouette: Phaser.GameObjects.Graphics;
   private readonly perfToggles = getSandboxPerfToggles();
-  private readonly riftRenderer: ArcadeRiftShaderRenderer;
+  private readonly riftRenderer: PortalWindowRenderer;
+  private readonly sceneCapture: PortalSceneCapture;
   private readonly weaponMenu: WeaponMenu;
   private gameOverText: Phaser.GameObjects.Text | null = null;
   private playerInRift = false;
@@ -54,16 +57,13 @@ export class ArcadeRenderer {
     this.playerFuelMask = scene.make.graphics({ x: 0, y: 0 }, false);
     this.playerFuelFill.setMask(this.playerFuelMask.createGeometryMask());
     this.playerThruster = scene.add.graphics().setDepth(0);
-    this.riftRenderer = new ArcadeRiftShaderRenderer(
-      scene,
-      scene.game.canvas,
-      () => {
-        throw new Error('Rift source canvas provider has not been configured');
-      },
-      () => [],
-      getArcadeRiftDebugEnabled(),
-    );
+    this.playerRiftSilhouette = scene.add.graphics().setDepth(2.5);
+    this.riftRenderer = new PortalWindowRenderer(scene, {
+      height: world.height,
+      width: world.width,
+    });
     this.weaponMenu = new WeaponMenu(scene, weaponPolicy.allowedWeapons);
+    this.sceneCapture = new PortalSceneCapture(scene, world);
   }
 
   getSelectedWeapon(aim: Vector): WeaponKind {
@@ -75,6 +75,10 @@ export class ArcadeRenderer {
     return this.background.getCanvas();
   }
 
+  captureTextureKey(): string {
+    return this.sceneCapture.capture();
+  }
+
   addRift(portal: PortalEntity): void {
     this.riftRenderer.add(portal);
   }
@@ -83,8 +87,8 @@ export class ArcadeRenderer {
     this.riftRenderer.setPortals(portals);
   }
 
-  setPortalDestinationCanvasProvider(getDestinationCanvas: () => HTMLCanvasElement): void {
-    this.riftRenderer.setDestinationCanvasProvider(getDestinationCanvas);
+  setPortalDestinationTextureKeyProvider(getDestinationTextureKey: () => string | null): void {
+    this.riftRenderer.setDestinationTextureKeyProvider(getDestinationTextureKey);
   }
 
   setPlayerInRift(inRift: boolean): void {
@@ -130,6 +134,7 @@ export class ArcadeRenderer {
       session.ship.fuel,
       playerVisible,
     );
+    this.renderRiftPlayerSilhouette(session, now);
     drawTractorBeam(this.beam, this.player, session.player.lastAim, tractorActive);
     this.weaponMenu.draw(
       this.player,
@@ -159,9 +164,31 @@ export class ArcadeRenderer {
 
   resize(world: WorldSize): void {
     this.background.resize(world);
+    this.sceneCapture.resize(world);
+    this.riftRenderer.resize({ height: world.height, width: world.width });
   }
 
   destroy(): void {
     this.riftRenderer.destroy();
+    this.sceneCapture.destroy();
+  }
+
+  private renderRiftPlayerSilhouette(session: ArcadeRunState, now: number): void {
+    this.playerRiftSilhouette.clear();
+    if (!this.playerInRift || !session.playerAlive) return;
+    if (!getPlayerVisible(true, session.player.invulnerableUntil, now)) return;
+
+    this.playerRiftSilhouette.setPosition(session.player.position.x, session.player.position.y);
+    this.playerRiftSilhouette.setRotation(session.player.rotation);
+    this.playerRiftSilhouette.lineStyle(2, 0x67e8f9, 0.4);
+    this.playerRiftSilhouette.fillStyle(0x67e8f9, 0.11);
+    this.playerRiftSilhouette.beginPath();
+    this.playerRiftSilhouette.moveTo(24, 0);
+    this.playerRiftSilhouette.lineTo(-18, -14);
+    this.playerRiftSilhouette.lineTo(-8, 0);
+    this.playerRiftSilhouette.lineTo(-18, 14);
+    this.playerRiftSilhouette.closePath();
+    this.playerRiftSilhouette.fillPath();
+    this.playerRiftSilhouette.strokePath();
   }
 }

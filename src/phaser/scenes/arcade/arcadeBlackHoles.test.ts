@@ -78,7 +78,7 @@ describe('arcade black hole rendering', () => {
     expect(samples.length).toBeGreaterThan(MAX_BLACK_HOLES);
   });
 
-  it('excludes rift-owned black holes from arcade shader samples', () => {
+  it('renders whatever black holes belong to the runtime being sampled', () => {
     const samples = buildArcadeBlackHoleScreenSamples(
       [
         createBlackHole({
@@ -89,7 +89,7 @@ describe('arcade black hole rendering', () => {
       screen,
     );
 
-    expect(samples).toEqual([]);
+    expect(samples).toHaveLength(9);
   });
 });
 

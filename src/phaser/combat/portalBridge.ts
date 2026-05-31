@@ -4,6 +4,8 @@ import { circlesOverlap } from '../core/collision';
 import type { Vector } from '../core/types';
 import { portalApertureContainsCenter } from '../dimensions/portalGeometry';
 import type { PortalEntity } from '../dimensions/types';
+import type { ProjectileEntity } from '../projectiles/types';
+import { PROJECTILES } from '../weapons/config';
 
 export type PortalBridgeAsteroidMutation = {
   asteroid: AsteroidEntity;
@@ -54,6 +56,33 @@ export function resolvePortalBridgeAsteroidCollisions(input: {
     });
   }
   return mutations;
+}
+
+export function getPortalBridgeProjectileAsteroidContacts(input: {
+  arcadeAsteroids: AsteroidEntity[];
+  arcadeProjectiles: ProjectileEntity[];
+  getDelta: (from: Vector, to: Vector) => Vector;
+  portal: PortalEntity | null;
+  riftAsteroids: AsteroidEntity[];
+  riftProjectiles: ProjectileEntity[];
+}): Array<{ asteroid: AsteroidEntity; projectile: ProjectileEntity }> {
+  const { portal } = input;
+  if (!portal || portal.lifecycle !== 'active') return [];
+
+  return [
+    ...getProjectileAsteroidContacts({
+      asteroids: input.riftAsteroids,
+      getDelta: input.getDelta,
+      portal,
+      projectiles: input.arcadeProjectiles,
+    }),
+    ...getProjectileAsteroidContacts({
+      asteroids: input.arcadeAsteroids,
+      getDelta: input.getDelta,
+      portal,
+      projectiles: input.riftProjectiles,
+    }),
+  ];
 }
 
 function resolveAsteroidPair(input: {
@@ -108,4 +137,36 @@ function resolveAsteroidPair(input: {
       },
     },
   };
+}
+
+function getProjectileAsteroidContacts(input: {
+  asteroids: AsteroidEntity[];
+  getDelta: (from: Vector, to: Vector) => Vector;
+  portal: PortalEntity;
+  projectiles: ProjectileEntity[];
+}): Array<{ asteroid: AsteroidEntity; projectile: ProjectileEntity }> {
+  const contacts: Array<{ asteroid: AsteroidEntity; projectile: ProjectileEntity }> = [];
+  const projectiles = input.projectiles.filter((projectile) =>
+    portalApertureContainsCenter(input.portal, projectile.position),
+  );
+  const asteroids = input.asteroids.filter((asteroid) =>
+    portalApertureContainsCenter(input.portal, asteroid.position),
+  );
+
+  for (const projectile of projectiles) {
+    for (const asteroid of asteroids) {
+      const delta = input.getDelta(projectile.position, asteroid.position);
+      const distance = Math.hypot(delta.x, delta.y);
+      if (
+        circlesOverlap(
+          distance,
+          PROJECTILES[projectile.kind].radius,
+          ASTEROIDS[asteroid.tier].collisionRadius,
+        )
+      ) {
+        contacts.push({ asteroid, projectile });
+      }
+    }
+  }
+  return contacts;
 }

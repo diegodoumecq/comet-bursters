@@ -1,13 +1,13 @@
-import { withPerformanceMeasure } from '../../core/performance';
-import type { WorldSize } from '../../core/types';
-import { FuelMetaballRenderer } from '../../fuel/metaballs';
-import { buildFuelBlobMetaballSamples } from '../../fuel/metaballSamples';
-import { BlackHoleShaderRenderer } from '../../projectiles/blackHoleShader';
-import { getSandboxPerfToggles } from '../../runtime/startup';
-import { buildArcadeBlackHoleScreenSamples } from './arcadeBlackHoles';
-import type { ArcadeRunState } from './arcadeRunState';
+import { withPerformanceMeasure } from '../core/performance';
+import type { WorldSize } from '../core/types';
+import { FuelMetaballRenderer } from '../fuel/metaballs';
+import { buildFuelBlobMetaballSamples } from '../fuel/metaballSamples';
+import { buildBlackHoleScreenSamples } from '../projectiles/blackHoleSamples';
+import { BlackHoleShaderRenderer } from '../projectiles/blackHoleShader';
+import { getSandboxPerfToggles } from '../runtime/startup';
+import type { GameWorld } from './state';
 
-export class ArcadeRenderEffects {
+export class SpaceRenderEffects {
   private readonly blackHoleShader: BlackHoleShaderRenderer;
   private readonly fuelMetaballs: FuelMetaballRenderer | null;
   private readonly perfToggles = getSandboxPerfToggles();
@@ -29,13 +29,13 @@ export class ArcadeRenderEffects {
     );
   }
 
-  render(session: ArcadeRunState, now: number, screen: WorldSize): void {
+  render(world: GameWorld, now: number, screen: WorldSize): void {
     this.fuelMetaballs?.setVisible(this.perfToggles.fuelMetaballs);
     if (this.perfToggles.fuelMetaballs) {
-      withPerformanceMeasure('arcade.render.fuelMetaballs', this.perfToggles.markers, () => {
+      withPerformanceMeasure('space.render.fuelMetaballs', this.perfToggles.markers, () => {
         this.fuelMetaballs?.render(
           buildFuelBlobMetaballSamples({
-            blobs: session.world.fuelBlobs,
+            blobs: world.fuelBlobs,
             now,
             project: (position, radius) => {
               if (
@@ -57,22 +57,26 @@ export class ArcadeRenderEffects {
     }
 
     if (this.perfToggles.blackHoles) {
-      const blackHoles = buildArcadeBlackHoleScreenSamples(session.world.projectiles, screen);
-      withPerformanceMeasure('arcade.render.blackHoles', this.perfToggles.markers, () => {
-        this.blackHoleShader.render(blackHoles);
+      withPerformanceMeasure('space.render.blackHoles', this.perfToggles.markers, () => {
+        this.blackHoleShader.render(
+          buildBlackHoleScreenSamples({
+            projectiles: world.projectiles,
+            project: (position) => [position],
+          }),
+        );
       });
     } else {
       this.blackHoleShader.setVisible(false);
     }
   }
 
-  dispose(): void {
-    this.blackHoleShader.dispose();
-    this.fuelMetaballs?.dispose();
-  }
-
   setVisible(visible: boolean): void {
     this.blackHoleShader.setVisible(visible);
     this.fuelMetaballs?.setVisible(visible && this.perfToggles.fuelMetaballs);
+  }
+
+  dispose(): void {
+    this.blackHoleShader.dispose();
+    this.fuelMetaballs?.dispose();
   }
 }

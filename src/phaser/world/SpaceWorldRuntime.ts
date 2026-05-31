@@ -205,6 +205,7 @@ export class SpaceWorldRuntime {
       });
     }
     if (this.playerState) {
+      this.syncAttachedPlayerToState();
       snapshots.push({
         id: 'player',
         kind: 'player',
@@ -235,6 +236,10 @@ export class SpaceWorldRuntime {
     return this.playerBody;
   }
 
+  getPlayerState(): PlayerState | null {
+    return this.playerState;
+  }
+
   getProjectileBodies(): ProjectileBodies {
     return this.attachments.projectileBodies;
   }
@@ -244,7 +249,7 @@ export class SpaceWorldRuntime {
     deltaSeconds: number;
     worldSize: WorldSize;
   }): void {
-    this.syncAttachedPlayerFromState();
+    this.syncAttachedPlayerToState();
     this.attachments.asteroidBodies.syncToroidalAll(this.world.asteroids, input.worldSize);
     this.attachments.contacts.syncAsteroids(this.world.asteroids, this.attachments.asteroidBodies);
     updateAsteroidSplitCollisions(this.world.asteroids, this.attachments.asteroidBodies);
@@ -266,6 +271,11 @@ export class SpaceWorldRuntime {
     this.playerBody.setPosition(this.playerState.position);
     this.playerBody.setVelocity(this.playerState.velocity);
     this.playerBody.setRotation(this.playerState.rotation);
+  }
+
+  syncAttachedPlayerToState(): void {
+    if (!this.playerBody || !this.playerState) return;
+    this.playerBody.syncState();
   }
 
   detachTransferEntity(snapshot: TransferableEntitySnapshot): DetachedSpaceEntity | null {
@@ -294,6 +304,7 @@ export class SpaceWorldRuntime {
       return { entity: particle, kind: 'particle' };
     }
     if (!this.playerState) return null;
+    this.syncAttachedPlayerToState();
     const player = this.playerState;
     this.detachPlayer();
     return { entity: player, kind: 'player' };
