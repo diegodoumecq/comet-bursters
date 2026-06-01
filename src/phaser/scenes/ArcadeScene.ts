@@ -499,14 +499,17 @@ export class PhaserArcadeScene extends BaseGameScene {
           }),
         );
       } else if (command.type === 'startCameraTransition') {
-        this.startDimensionTransitionEffect();
+        this.startDimensionTransitionEffect(command.to);
       }
     }
   }
 
-  private startDimensionTransitionEffect(): void {
-    this.cameras.main.flash(220, 103, 232, 249);
-    this.riftSpaceScene?.cameras.main.flash(220, 103, 232, 249);
+  private startDimensionTransitionEffect(to: SpaceId): void {
+    if (to === 'arcade') {
+      this.cameras.main.flash(220, 103, 232, 249);
+    } else {
+      this.riftSpaceScene?.cameras.main.flash(220, 103, 232, 249);
+    }
   }
 
   private applyRuntimeProjectileCombat(runtime: SpaceWorldRuntime): void {

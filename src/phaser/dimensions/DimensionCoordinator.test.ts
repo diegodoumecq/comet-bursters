@@ -44,6 +44,25 @@ describe('DimensionCoordinator hidden-world cleanup', () => {
     expect(rift.clearCount).toBe(0);
   });
 
+  it('makes the destination view visible on the camera-transfer frame', () => {
+    const coordinator = new DimensionCoordinator();
+    const arcade = createWorld('arcade');
+    const rift = createWorld('rift');
+    coordinator.registerWorld(arcade.runtime);
+    coordinator.registerWorld(rift.runtime);
+
+    coordinator.openPortal(
+      createPlan({
+        lifecycle: 'active',
+        openedAt: 0,
+        viewPolicy: 'cameraTransfer',
+      }),
+    );
+    coordinator.processPortalTransfers(500, TRANSFER_TEST_WORLD);
+
+    expect(coordinator.getActiveViewSpace(500)).toBe('rift');
+  });
+
   it('preserves transferred player position past the portal plane', () => {
     const coordinator = new DimensionCoordinator();
     const arcade = createWorld('arcade', { snapshots: [] });

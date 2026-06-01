@@ -12,7 +12,7 @@ import type {
 } from './types';
 import { getOppositeSpace } from './types';
 
-const CAMERA_TRANSITION_MS = 360;
+const CAMERA_TRANSITION_MS = 0;
 const TRANSFER_PLANE_EPSILON = 0.5;
 
 export class DimensionCoordinator {
