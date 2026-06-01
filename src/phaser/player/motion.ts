@@ -29,7 +29,7 @@ export function updatePlayerMotion(input: {
   wrap?: boolean;
 }): { thrustScale: number; thrusting: boolean } {
   if (Math.hypot(input.move.x, input.move.y) > 0) {
-    input.body.setRotation(Math.atan2(input.move.y, input.move.x) + Math.PI * 0.5);
+    input.body.setRotation(Math.atan2(input.move.y, input.move.x));
   }
   const motion = applyPlayerThrust(
     input.body.body,
@@ -55,7 +55,7 @@ export function updatePlayerStateMotion(input: {
   wrap?: boolean;
 }): { thrustScale: number; thrusting: boolean } {
   if (Math.hypot(input.move.x, input.move.y) > 0) {
-    input.player.rotation = Math.atan2(input.move.y, input.move.x) + Math.PI * 0.5;
+    input.player.rotation = Math.atan2(input.move.y, input.move.x);
   }
   const motion = applyPlayerStateThrust(
     input.player,

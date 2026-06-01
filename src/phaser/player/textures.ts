@@ -12,7 +12,6 @@ export function createPlayerTexture(scene: Phaser.Scene): void {
     canvas.height = PLAYER_VISUAL_SIZE * 2;
     const ctx = canvas.getContext('2d')!;
     ctx.translate(PLAYER_VISUAL_SIZE, PLAYER_VISUAL_SIZE);
-    ctx.rotate(-Math.PI / 2);
     drawHull(ctx, PLAYER_VISUAL_SIZE * 0.5);
     scene.textures.addCanvas(PLAYER_TEXTURE_KEY, canvas);
   }
@@ -39,16 +38,15 @@ export function drawFuelContour(
   scale = 1,
 ): void {
   const size = PLAYER_VISUAL_SIZE * 0.5 * scale;
-  const renderRotation = rotation - Math.PI / 2;
   base.clear();
   fill.clear();
   mask.clear();
   base.setPosition(x, y);
   fill.setPosition(x, y);
   mask.setPosition(x, y);
-  base.setRotation(renderRotation);
-  fill.setRotation(renderRotation);
-  mask.setRotation(renderRotation);
+  base.setRotation(rotation);
+  fill.setRotation(rotation);
+  mask.setRotation(rotation);
   if (fuelRatio <= 0.1) {
     const pulse = 0.45 + Math.sin(now / 120) * 0.35;
     base.lineStyle(2, 0xff232d, 0.45 + pulse * 0.3);
@@ -188,7 +186,7 @@ function traceHull(ctx: CanvasRenderingContext2D, size: number): void {
   ctx.closePath();
 }
 
-function strokeHull(graphics: Phaser.GameObjects.Graphics, size: number): void {
+export function strokePlayerHull(graphics: Phaser.GameObjects.Graphics, size: number): void {
   graphics.beginPath();
   graphics.moveTo(size, 0);
   graphics.lineTo(size * 0.46, -size * 0.14);
@@ -206,4 +204,8 @@ function strokeHull(graphics: Phaser.GameObjects.Graphics, size: number): void {
   graphics.lineTo(size * 0.46, size * 0.14);
   graphics.closePath();
   graphics.strokePath();
+}
+
+function strokeHull(graphics: Phaser.GameObjects.Graphics, size: number): void {
+  strokePlayerHull(graphics, size);
 }

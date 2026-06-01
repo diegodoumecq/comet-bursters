@@ -41,19 +41,77 @@ describe('DimensionCoordinator hidden-world cleanup', () => {
     expect(arcade.clearCount).toBe(1);
     expect(rift.clearCount).toBe(0);
   });
+
+  it('places transferred players on the destination side of the portal plane', () => {
+    const coordinator = new DimensionCoordinator();
+    const arcade = createWorld('arcade', { snapshots: [] });
+    const rift = createWorld('rift', {
+      detachedEntity: {
+        membership: { space: 'rift' },
+        position: { x: 90, y: 100 },
+      },
+      snapshots: [
+        {
+          id: 'player',
+          kind: 'player',
+          membership: { space: 'rift' },
+          position: { x: 110, y: 100 },
+          previousPosition: { x: 90, y: 100 },
+        },
+      ],
+    });
+    coordinator.registerWorld(arcade.runtime);
+    coordinator.registerWorld(rift.runtime);
+
+    coordinator.openPortal(
+      createPlan({
+        lifecycle: 'active',
+        openedAt: 0,
+        viewPolicy: 'cameraTransfer',
+      }),
+    );
+    coordinator.processPortalTransfers(500);
+
+    expect(arcade.attached[0].entity.position).toEqual({ x: 136, y: 100 });
+  });
 });
 
-function createWorld(space: SpaceId): { clearCount: number; runtime: SpaceWorldRuntime } {
+type TestSnapshot = ReturnType<SpaceWorldRuntime['getTransferSnapshots']>[number];
+
+function createWorld(
+  space: SpaceId,
+  options: {
+    detachedEntity?: { membership: { space: SpaceId }; position: { x: number; y: number } };
+    snapshots?: TestSnapshot[];
+  } = {},
+): {
+  attached: Array<{ entity: { position: { x: number; y: number } }; kind: 'player' }>;
+  clearCount: number;
+  runtime: SpaceWorldRuntime;
+} {
   const world = {
+    attached: [] as Array<{ entity: { position: { x: number; y: number } }; kind: 'player' }>,
     clearCount: 0,
     runtime: {
-      attachTransferredEntity: () => {},
+      attachTransferredEntity: (entity: {
+        entity: { position: { x: number; y: number } };
+        kind: 'player';
+      }) => {
+        world.attached.push(entity);
+      },
       clearNonShipEntities: () => {
         world.clearCount += 1;
       },
-      detachTransferEntity: () => ({ entity: { membership: { space: 'arcade' } }, kind: 'player' }),
+      detachTransferEntity: () => ({
+        entity: options.detachedEntity ?? {
+          membership: { space: 'arcade' },
+          position: { x: 0, y: 0 },
+        },
+        kind: 'player',
+      }),
       getTransferSnapshots: () =>
-        space === 'arcade'
+        options.snapshots ??
+        (space === 'arcade'
           ? [
               {
                 id: 'player',
@@ -63,7 +121,7 @@ function createWorld(space: SpaceId): { clearCount: number; runtime: SpaceWorldR
                 previousPosition: { x: 130, y: 100 },
               },
             ]
-          : [],
+          : []),
       space,
       syncPreviousPositions: () => {},
     } as unknown as SpaceWorldRuntime,

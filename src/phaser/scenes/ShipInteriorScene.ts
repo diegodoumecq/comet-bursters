@@ -86,7 +86,6 @@ export class PhaserShipInteriorScene extends BaseGameScene {
     this.player.updateAim(normalize(action.aim));
     this.player.updateThrust(move, Math.hypot(move.x, move.y) > 0);
     this.playerBody.setVelocity({ x: move.x * PLAYER_SPEED, y: move.y * PLAYER_SPEED });
-    if (Math.hypot(move.x, move.y) > 0)
-      this.playerBody.setRotation(Math.atan2(move.y, move.x) + Math.PI * 0.5);
+    if (Math.hypot(move.x, move.y) > 0) this.playerBody.setRotation(Math.atan2(move.y, move.x));
   }
 }

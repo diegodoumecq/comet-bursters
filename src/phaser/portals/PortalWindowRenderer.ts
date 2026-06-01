@@ -6,6 +6,10 @@ import { markPortalCaptureExcluded } from './PortalSceneCapture';
 const PORTAL_DEPTH = 1.2;
 const PORTAL_EDGE_DEPTH = 1.3;
 const ELLIPSE_SEGMENTS = 48;
+const PORTAL_COLORS: Record<PortalEntity['viewPolicy'], { fill: number; rim: number }> = {
+  cameraTransfer: { fill: 0x052e16, rim: 0x22c55e },
+  window: { fill: 0x431407, rim: 0xf97316 },
+};
 
 export class PortalWindowRenderer {
   private destinationTextureKeyProvider: () => string | null = () => null;
@@ -59,11 +63,12 @@ export class PortalWindowRenderer {
     }
 
     const angle = Math.atan2(portal.normal.y, portal.normal.x);
+    const color = PORTAL_COLORS[portal.viewPolicy];
     this.maskGraphics.clear();
     drawPortalEllipse(this.maskGraphics, portal, angle, 0xffffff, 1, true);
     this.rimGraphics.clear();
-    drawPortalFill(this.rimGraphics, portal, angle, fade);
-    drawPortalEllipse(this.rimGraphics, portal, angle, 0x67e8f9, 0.9 * fade, false);
+    drawPortalFill(this.rimGraphics, portal, angle, color.fill, fade);
+    drawPortalEllipse(this.rimGraphics, portal, angle, color.rim, 0.9 * fade, false);
 
     const destinationTextureKey = this.destinationTextureKeyProvider();
     if (destinationTextureKey === null) {
@@ -141,7 +146,8 @@ function drawPortalFill(
   graphics: Phaser.GameObjects.Graphics,
   portal: PortalEntity,
   angle: number,
+  color: number,
   fade: number,
 ): void {
-  drawPortalEllipse(graphics, portal, angle, 0x06101f, 0.42 * fade, true);
+  drawPortalEllipse(graphics, portal, angle, color, 0.42 * fade, true);
 }

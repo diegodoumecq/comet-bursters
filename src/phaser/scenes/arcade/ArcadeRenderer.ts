@@ -11,7 +11,7 @@ import {
   renderPlayerThruster,
   renderPlayerTurret,
 } from '../../player/rendering';
-import { PLAYER_TURRET_TEXTURE_KEY } from '../../player/textures';
+import { PLAYER_TURRET_TEXTURE_KEY, strokePlayerHull } from '../../player/textures';
 import { PortalSceneCapture } from '../../portals/PortalSceneCapture';
 import { PortalWindowRenderer } from '../../portals/PortalWindowRenderer';
 import { getSandboxPerfToggles } from '../../runtime/startup';
@@ -181,14 +181,6 @@ export class ArcadeRenderer {
     this.playerRiftSilhouette.setPosition(session.player.position.x, session.player.position.y);
     this.playerRiftSilhouette.setRotation(session.player.rotation);
     this.playerRiftSilhouette.lineStyle(2, 0x67e8f9, 0.4);
-    this.playerRiftSilhouette.fillStyle(0x67e8f9, 0.11);
-    this.playerRiftSilhouette.beginPath();
-    this.playerRiftSilhouette.moveTo(24, 0);
-    this.playerRiftSilhouette.lineTo(-18, -14);
-    this.playerRiftSilhouette.lineTo(-8, 0);
-    this.playerRiftSilhouette.lineTo(-18, 14);
-    this.playerRiftSilhouette.closePath();
-    this.playerRiftSilhouette.fillPath();
-    this.playerRiftSilhouette.strokePath();
+    strokePlayerHull(this.playerRiftSilhouette, 30);
   }
 }

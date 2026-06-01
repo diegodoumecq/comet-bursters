@@ -101,8 +101,35 @@ describe('Phaser player motion tuning', () => {
 
     expect(player.position.x).toBeGreaterThan(11);
     expect(player.position.y).toBe(20);
-    expect(player.rotation).toBeCloseTo(Math.PI * 0.5);
+    expect(player.rotation).toBeCloseTo(0);
     expect(player.updateThrust).toHaveBeenCalledWith({ x: 1, y: 0 }, true);
     expect(ship.setFuel).toHaveBeenCalled();
+  });
+
+  it('uses world heading as player rotation', () => {
+    const player = {
+      position: { x: 10, y: 20 },
+      rotation: 0,
+      updateThrust: vi.fn(),
+      velocity: { x: 0, y: 0 },
+    } as unknown as PlayerState;
+    const ship = {
+      fuel: 100,
+      setFuel: vi.fn((fuel: number) => {
+        ship.fuel = fuel;
+      }),
+    } as unknown as ShipState;
+
+    updatePlayerStateMotion({
+      deltaSeconds: 1 / 60,
+      move: { x: 0, y: 1 },
+      player,
+      ship,
+      tuning: { acceleration: PLAYER_ACCELERATION, maxSpeed: PLAYER_MAX_SPEED },
+      world: { width: 1000, height: 1000 },
+      wrap: false,
+    });
+
+    expect(player.rotation).toBeCloseTo(Math.PI * 0.5);
   });
 });

@@ -1,9 +1,12 @@
+import type { Vector } from '../core/types';
 import type { DetachedSpaceEntity, SpaceWorldRuntime } from '../world/SpaceWorldRuntime';
+import { addVector, scaleVector } from './portalGeometry';
 import { portalBecameActive, portalFinishedClosing, syncPortalLifecycle } from './PortalLifecycle';
 import { getPortalTransferCommands } from './PortalTransferSystem';
 import type {
   ActiveViewState,
   DimensionCommand,
+  PortalCrossing,
   PortalDirectorPlan,
   PortalEntity,
   SpaceId,
@@ -11,6 +14,7 @@ import type {
 import { getOppositeSpace } from './types';
 
 const CAMERA_TRANSITION_MS = 360;
+const TRANSFER_EXIT_OFFSET = 36;
 
 export class DimensionCoordinator {
   private activePortal: PortalEntity | null = null;
@@ -94,6 +98,7 @@ export class DimensionCoordinator {
       if (fromWorld && toWorld) {
         const detached = fromWorld.detachTransferEntity(transfer.entity);
         if (detached) {
+          detached.entity.position = getTransferExitPosition(transfer.crossing, transfer.to);
           this.attachDetached(toWorld, detached);
           commands.push({
             entity: transfer.entity,
@@ -128,4 +133,12 @@ export class DimensionCoordinator {
   private attachDetached(runtime: SpaceWorldRuntime, detached: DetachedSpaceEntity): void {
     runtime.attachTransferredEntity(detached);
   }
+}
+
+function getTransferExitPosition(crossing: PortalCrossing, toSpace: SpaceId): Vector {
+  const direction = toSpace === 'arcade' ? 1 : -1;
+  return addVector(
+    crossing.intersection,
+    scaleVector(crossing.portal.normal, direction * TRANSFER_EXIT_OFFSET),
+  );
 }
