@@ -4,7 +4,11 @@ import type { AsteroidEntity } from '../asteroids/types';
 import { SHIELD_RADIUS } from '../fuel/rules';
 import { PLAYER_COLLISION_RADIUS } from '../player/config';
 import { wrappedDelta } from '../world/geometry';
-import { resolvePlayerAsteroidCollision } from './asteroids';
+import {
+  damageAsteroidByAmount,
+  resolvePlayerAsteroidCollision,
+  SHIP_ASTEROID_IMPACT_DAMAGE,
+} from './asteroids';
 
 function smallAsteroidAt(x: number, y: number): AsteroidEntity {
   return {
@@ -62,5 +66,15 @@ describe('resolvePlayerAsteroidCollision', () => {
 
     expect(normal.hitPlayer).toBe(false);
     expect(scaled.hitPlayer).toBe(true);
+  });
+});
+
+describe('damageAsteroidByAmount', () => {
+  it('destroys asteroids that take ship impact damage beyond their remaining hits', () => {
+    const asteroid = smallAsteroidAt(0, 0);
+    asteroid.hits = SHIP_ASTEROID_IMPACT_DAMAGE;
+
+    expect(damageAsteroidByAmount(asteroid, SHIP_ASTEROID_IMPACT_DAMAGE)).toBe(true);
+    expect(asteroid.hits).toBe(0);
   });
 });

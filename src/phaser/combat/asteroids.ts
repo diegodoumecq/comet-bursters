@@ -7,6 +7,8 @@ import { SHIELD_HIT_COOLDOWN_MS, spendShieldFuel } from '../fuel/rules';
 import type { ProjectileEntity } from '../projectiles/types';
 import { PROJECTILES } from '../weapons/config';
 
+export const SHIP_ASTEROID_IMPACT_DAMAGE = 20;
+
 export function applyProjectileImpulse(
   projectile: ProjectileEntity,
   asteroid: AsteroidEntity,
@@ -26,7 +28,11 @@ export function applyProjectileImpulse(
 }
 
 export function damageAsteroid(projectile: ProjectileEntity, asteroid: AsteroidEntity): boolean {
-  asteroid.hits = (asteroid.hits ?? 1) - PROJECTILES[projectile.kind].damage;
+  return damageAsteroidByAmount(asteroid, PROJECTILES[projectile.kind].damage);
+}
+
+export function damageAsteroidByAmount(asteroid: AsteroidEntity, damage: number): boolean {
+  asteroid.hits = (asteroid.hits ?? 1) - damage;
   return (asteroid.hits ?? 0) <= 0;
 }
 

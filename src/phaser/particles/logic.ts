@@ -9,6 +9,12 @@ type BurstOptions = {
   radius: { max: number; min: number };
   speed: { max: number; min: number };
 };
+
+type DirectedBurstOptions = BurstOptions & {
+  direction: Vector;
+  spreadRadians: number;
+};
+
 let nextParticleId = 1;
 
 export function spawnBurst(position: Vector, options: BurstOptions): ParticleEntity[] {
@@ -16,6 +22,43 @@ export function spawnBurst(position: Vector, options: BurstOptions): ParticleEnt
   const particles: ParticleEntity[] = [];
   for (let index = 0; index < options.count; index += 1) {
     const angle = Math.random() * Math.PI * 2;
+    const speed = Phaser.Math.FloatBetween(options.speed.min, options.speed.max);
+    particles.push({
+      alphaDecayPerSecond: 1 / (options.lifetimeMs / 1000),
+      color: options.color,
+      dragPerSecond: 1.8,
+      id: nextParticleId++,
+      kind: 'circle',
+      lifetimeMs: options.lifetimeMs,
+      maxLifetimeMs: options.lifetimeMs,
+      position: { x: position.x, y: position.y },
+      radius: Phaser.Math.FloatBetween(options.radius.min, options.radius.max),
+      rotation: 0,
+      velocity: {
+        x: inherited.x * 0.18 + Math.cos(angle) * speed,
+        y: inherited.y * 0.18 + Math.sin(angle) * speed,
+      },
+    });
+  }
+  return particles;
+}
+
+export function spawnDirectedBurst(
+  position: Vector,
+  options: DirectedBurstOptions,
+): ParticleEntity[] {
+  const inherited = options.inheritedVelocity ?? { x: 0, y: 0 };
+  const directionLength = Math.hypot(options.direction.x, options.direction.y);
+  const direction =
+    directionLength > 0
+      ? { x: options.direction.x / directionLength, y: options.direction.y / directionLength }
+      : { x: 1, y: 0 };
+  const baseAngle = Math.atan2(direction.y, direction.x);
+  const particles: ParticleEntity[] = [];
+  for (let index = 0; index < options.count; index += 1) {
+    const angle =
+      baseAngle +
+      Phaser.Math.FloatBetween(-options.spreadRadians * 0.5, options.spreadRadians * 0.5);
     const speed = Phaser.Math.FloatBetween(options.speed.min, options.speed.max);
     particles.push({
       alphaDecayPerSecond: 1 / (options.lifetimeMs / 1000),

@@ -6,15 +6,21 @@ import { updateAsteroidSplitCollisions } from '../asteroids/splitCollisions';
 import { createAsteroidTextures } from '../asteroids/textures';
 import type { AsteroidEntity } from '../asteroids/types';
 import { destroyAsteroidWithWeapon } from '../combat/asteroidDestruction';
-import { resolvePlayerCombat, resolveProjectileContactCombat } from '../combat/asteroids';
+import {
+  damageAsteroidByAmount,
+  resolvePlayerCombat,
+  resolveProjectileContactCombat,
+  SHIP_ASTEROID_IMPACT_DAMAGE,
+} from '../combat/asteroids';
 import {
   createAsteroidExplosion,
+  createAsteroidImpactDebris,
   createExplosionBurst,
   createShipExplosion,
   createThrusterParticles,
   type EffectResult,
 } from '../combat/effects';
-import { MatterContacts } from '../combat/matterContacts';
+import { MatterContacts, type PlayerAsteroidContact } from '../combat/matterContacts';
 import { getTimeScale } from '../core/time';
 import type { Vector, WorldSize } from '../core/types';
 import { spawnAsteroidFuelDrops, spawnFuelBlobs, updateFuelBlobs } from '../fuel/blobLogic';
@@ -406,10 +412,19 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   private resolvePlayerAsteroidCombat(now: number, shieldActive: boolean): void {
+    const playerContacts = this.contacts.consumePlayerAsteroidContacts();
+    const shieldContacts = this.contacts.consumeShieldAsteroids();
+    if (!shieldActive && this.player.visible && now >= this.player.invulnerableUntil) {
+      const impact = playerContacts.find((contact) =>
+        this.runtime.world.asteroids.includes(contact.asteroid),
+      );
+      if (impact) {
+        this.applyShipAsteroidImpact(impact, now);
+        return;
+      }
+    }
     const result = resolvePlayerCombat({
-      asteroids: shieldActive
-        ? this.contacts.consumeShieldAsteroids()
-        : this.contacts.consumePlayerAsteroids(),
+      asteroids: shieldActive ? shieldContacts : [],
       fuel: this.ship.fuel,
       getDelta: (from, to) => wrappedDelta(from, to, WORLD),
       invulnerable: now < this.player.invulnerableUntil,
@@ -438,6 +453,20 @@ export class PhaserSandboxScene extends BaseGameScene {
           .setPosition(mutation.position.x, mutation.position.y);
     }
     if (result.playerDestroyed) this.killPlayer(now);
+  }
+
+  private applyShipAsteroidImpact(contact: PlayerAsteroidContact, now: number): void {
+    const asteroid = contact.asteroid;
+    const impactVelocity = {
+      x: asteroid.velocity.x - contact.asteroidVelocityBefore.x,
+      y: asteroid.velocity.y - contact.asteroidVelocityBefore.y,
+    };
+    const destroyed = damageAsteroidByAmount(asteroid, SHIP_ASTEROID_IMPACT_DAMAGE);
+    if (destroyed) {
+      this.destroyAsteroid(asteroid, true);
+      this.applyEffect(createAsteroidImpactDebris(asteroid, impactVelocity));
+    }
+    this.killPlayer(now);
   }
 
   private playerCanCollideWithAsteroids(): boolean {

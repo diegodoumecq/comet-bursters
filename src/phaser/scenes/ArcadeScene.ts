@@ -8,17 +8,20 @@ import { destroyAsteroidWithWeapon } from '../combat/asteroidDestruction';
 import {
   applyProjectileImpulse,
   damageAsteroid,
+  damageAsteroidByAmount,
   resolvePlayerCombat,
   resolveProjectileContactCombat,
+  SHIP_ASTEROID_IMPACT_DAMAGE,
 } from '../combat/asteroids';
 import {
   createAsteroidExplosion,
+  createAsteroidImpactDebris,
   createExplosionBurst,
   createShipExplosion,
   createThrusterParticles,
   type EffectResult,
 } from '../combat/effects';
-import { MatterContacts } from '../combat/matterContacts';
+import { MatterContacts, type PlayerAsteroidContact } from '../combat/matterContacts';
 import {
   getPortalBridgeProjectileAsteroidContacts,
   resolvePortalBridgeAsteroidCollisions,
@@ -654,10 +657,19 @@ export class PhaserArcadeScene extends BaseGameScene {
     if (this.session.player.membership.space !== runtime.space) return;
     const playerBody = runtime.getPlayerBody();
     if (!playerBody) return;
+    const playerContacts = runtime.getContacts().consumePlayerAsteroidContacts();
+    const shieldContacts = runtime.getContacts().consumeShieldAsteroids();
+    if (!shieldActive && this.playerIsAlive() && now >= this.session.player.invulnerableUntil) {
+      const impact = playerContacts.find((contact) =>
+        runtime.world.asteroids.includes(contact.asteroid),
+      );
+      if (impact) {
+        this.applyShipAsteroidImpact(runtime, impact, now);
+        return;
+      }
+    }
     const result = resolvePlayerCombat({
-      asteroids: shieldActive
-        ? runtime.getContacts().consumeShieldAsteroids()
-        : runtime.getContacts().consumePlayerAsteroids(),
+      asteroids: shieldActive ? shieldContacts : [],
       fuel: this.session.ship.fuel,
       getDelta: (from, to) => wrappedDelta(from, to, this.worldSize),
       invulnerable: now < this.session.player.invulnerableUntil,
@@ -688,6 +700,29 @@ export class PhaserArcadeScene extends BaseGameScene {
           .setPosition(mutation.position.x, mutation.position.y);
     }
     if (result.playerDestroyed) this.killPlayer(now);
+  }
+
+  private applyShipAsteroidImpact(
+    runtime: SpaceWorldRuntime,
+    contact: PlayerAsteroidContact,
+    now: number,
+  ): void {
+    const asteroid = contact.asteroid;
+    const impactVelocity = {
+      x: asteroid.velocity.x - contact.asteroidVelocityBefore.x,
+      y: asteroid.velocity.y - contact.asteroidVelocityBefore.y,
+    };
+    const destroyed = damageAsteroidByAmount(asteroid, SHIP_ASTEROID_IMPACT_DAMAGE);
+    if (destroyed) {
+      this.session.awardAsteroidScore(ASTEROIDS[asteroid.tier].points);
+      const destruction = destroyAsteroidWithWeapon(asteroid);
+      runtime.addParticles(destruction.particles);
+      runtime.addFuelBlobs(destruction.fuelBlobs);
+      runtime.addAsteroids(destruction.children);
+      runtime.addParticles(createAsteroidImpactDebris(asteroid, impactVelocity).particles);
+      runtime.removeAsteroid(asteroid);
+    }
+    this.killPlayer(now);
   }
 
   private getRuntimeForEntitySpace(space: SpaceId | undefined): SpaceWorldRuntime | null {

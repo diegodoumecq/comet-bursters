@@ -1,7 +1,7 @@
 import { ASTEROIDS } from '../asteroids/logic';
 import type { AsteroidEntity } from '../asteroids/types';
 import type { Vector } from '../core/types';
-import { spawnBurst, spawnThrusterParticle } from '../particles/logic';
+import { spawnBurst, spawnDirectedBurst, spawnThrusterParticle } from '../particles/logic';
 import type { ParticleEntity } from '../particles/types';
 
 export type EffectResult = {
@@ -42,6 +42,29 @@ export function createExplosionBurst(
     }),
     shakeDurationMs: 240,
     shakeIntensity: 8 * scale,
+  };
+}
+
+export function createAsteroidImpactDebris(
+  asteroid: AsteroidEntity,
+  impactVelocity: Vector,
+): EffectResult {
+  const config = ASTEROIDS[asteroid.tier];
+  const speed = Math.hypot(impactVelocity.x, impactVelocity.y);
+  const direction = speed > 0 ? impactVelocity : asteroid.velocity;
+  return {
+    particles: spawnDirectedBurst(asteroid.position, {
+      color: config.color,
+      count: Math.max(6, Math.round(config.radius * 0.14)),
+      direction,
+      inheritedVelocity: impactVelocity,
+      lifetimeMs: 520,
+      radius: { min: 2, max: Math.max(4, config.radius * 0.06) },
+      speed: { min: 1.5 + speed * 0.18, max: 4.5 + speed * 0.5 },
+      spreadRadians: Math.PI * 0.55,
+    }),
+    shakeDurationMs: 0,
+    shakeIntensity: 0,
   };
 }
 

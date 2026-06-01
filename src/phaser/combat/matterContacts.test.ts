@@ -19,7 +19,7 @@ function asteroid(): AsteroidEntity {
     position: { x: 0, y: 0 },
     rotation: 0,
     tier: 'small',
-    velocity: { x: 0, y: 0 },
+    velocity: { x: 3, y: -2 },
     visualVariant: 0,
   };
 }
@@ -30,20 +30,31 @@ function runtimeWithBodyIds(bodyIds: number[]): AsteroidBodies {
   } as unknown as AsteroidBodies;
 }
 
-function createContacts(): { contacts: MatterContacts; emitCollision: CollisionHandler } {
+function createContacts(): {
+  contacts: MatterContacts;
+  emitBeforeUpdate: () => void;
+  emitCollision: CollisionHandler;
+} {
+  let beforeUpdateHandler: (() => void) | null = null;
   let collisionHandler: CollisionHandler | null = null;
   const scene = {
     matter: {
       world: {
-        on: (_event: string, handler: CollisionHandler) => {
-          collisionHandler = handler;
+        on: (event: string, handler: CollisionHandler | (() => void)) => {
+          if (event === 'beforeupdate') {
+            beforeUpdateHandler = handler as () => void;
+          }
+          if (event === 'collisionstart') {
+            collisionHandler = handler as CollisionHandler;
+          }
         },
       },
     },
   };
   const contacts = new MatterContacts(scene as Phaser.Scene);
+  if (!beforeUpdateHandler) throw new Error('Matter beforeupdate handler was not registered');
   if (!collisionHandler) throw new Error('Matter collision handler was not registered');
-  return { contacts, emitCollision: collisionHandler };
+  return { contacts, emitBeforeUpdate: beforeUpdateHandler, emitCollision: collisionHandler };
 }
 
 describe('MatterContacts', () => {
@@ -59,6 +70,24 @@ describe('MatterContacts', () => {
 
     emitCollision({ pairs: [{ bodyA: body(20), bodyB: body(30) }] });
     expect(contacts.consumePlayerAsteroids()).toEqual([target]);
+  });
+
+  it('captures the asteroid velocity from before scene sync for player contacts', () => {
+    const { contacts, emitBeforeUpdate, emitCollision } = createContacts();
+    const target = asteroid();
+    contacts.addAsteroid(target, runtimeWithBodyIds([30]));
+    contacts.setPlayer(body(10));
+
+    emitBeforeUpdate();
+    target.velocity = { x: 8, y: 1 };
+    emitCollision({ pairs: [{ bodyA: body(10), bodyB: body(30) }] });
+
+    expect(contacts.consumePlayerAsteroidContacts()).toEqual([
+      {
+        asteroid: target,
+        asteroidVelocityBefore: { x: 3, y: -2 },
+      },
+    ]);
   });
 
   it('uses the latest registered shield body for asteroid contacts', () => {
