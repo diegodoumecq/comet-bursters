@@ -51,18 +51,24 @@ describe('Phaser player motion tuning', () => {
     expect(forces).toEqual([{ x: PLAYER_ACCELERATION * 2 * 0.000001, y: 0 }]);
   });
 
-  it('caps velocity at the tuned max speed without changing direction', () => {
+  it('preserves external momentum when the player is not thrusting', () => {
     const { body } = createBody({ velocity: { x: 30, y: 40 } });
 
     applyPlayerThrust(body, { x: 0, y: 0 }, 100, 1 / 60);
 
-    expect(body.body.velocity.x).toBeCloseTo(15);
-    expect(body.body.velocity.y).toBeCloseTo(20);
-    expect(Math.hypot(body.body.velocity.x, body.body.velocity.y)).toBeCloseTo(PLAYER_MAX_SPEED);
+    expect(body.body.velocity).toEqual({ x: 30, y: 40 });
+  });
+
+  it('does not add thrust along a direction already at max speed', () => {
+    const { body, forces } = createBody({ velocity: { x: PLAYER_MAX_SPEED, y: 0 } });
+
+    applyPlayerThrust(body, { x: 1, y: 0 }, 100, 1 / 60);
+
+    expect(forces).toEqual([]);
   });
 
   it('supports scene-local motion tuning overrides', () => {
-    const { body, forces } = createBody({ mass: 2, velocity: { x: 60, y: 80 } });
+    const { body, forces } = createBody({ mass: 2, velocity: { x: 20, y: 80 } });
 
     applyPlayerThrust(body, { x: 1, y: 0 }, 100, 1 / 60, {
       acceleration: 720,
@@ -70,9 +76,7 @@ describe('Phaser player motion tuning', () => {
     });
 
     expect(forces).toEqual([{ x: 720 * 2 * 0.000001, y: 0 }]);
-    expect(body.body.velocity.x).toBeCloseTo(30);
-    expect(body.body.velocity.y).toBeCloseTo(40);
-    expect(Math.hypot(body.body.velocity.x, body.body.velocity.y)).toBeCloseTo(50);
+    expect(body.body.velocity).toEqual({ x: 20, y: 80 });
   });
 
   it('updates player state directly for non-Matter spaces', () => {
@@ -131,5 +135,32 @@ describe('Phaser player motion tuning', () => {
     });
 
     expect(player.rotation).toBeCloseTo(Math.PI * 0.5);
+  });
+
+  it('preserves external state momentum above max speed without extra thrust', () => {
+    const player = {
+      position: { x: 10, y: 20 },
+      rotation: 0,
+      updateThrust: vi.fn(),
+      velocity: { x: PLAYER_MAX_SPEED + 5, y: 0 },
+    } as unknown as PlayerState;
+    const ship = {
+      fuel: 100,
+      setFuel: vi.fn((fuel: number) => {
+        ship.fuel = fuel;
+      }),
+    } as unknown as ShipState;
+
+    updatePlayerStateMotion({
+      deltaSeconds: 1 / 60,
+      move: { x: 1, y: 0 },
+      player,
+      ship,
+      tuning: { acceleration: PLAYER_ACCELERATION, maxSpeed: PLAYER_MAX_SPEED },
+      world: { width: 1000, height: 1000 },
+      wrap: false,
+    });
+
+    expect(player.velocity).toEqual({ x: PLAYER_MAX_SPEED + 5, y: 0 });
   });
 });

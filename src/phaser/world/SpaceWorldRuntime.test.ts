@@ -47,9 +47,48 @@ describe('SpaceWorldRuntime player transfer authority', () => {
     expect(detached?.entity.position).toEqual({ x: 70, y: 80 });
     expect(detached?.entity.velocity).toEqual({ x: -4, y: 11 });
   });
+
+  it('preserves incoming player momentum while attaching to a destination body', () => {
+    const player = createPlayer('rift');
+    player.position = { x: 140, y: 150 };
+    player.velocity = { x: 9, y: -3 };
+    player.rotation = 0.75;
+    const playerBody = createPlayerBodyWithStateSync(player);
+    const runtime = createRuntime('arcade');
+
+    runtime.attachPlayer(player, playerBody);
+
+    expect(playerBody.appliedVelocity).toEqual({ x: 9, y: -3 });
+    expect(player.velocity).toEqual({ x: 9, y: -3 });
+    expect(player.rotation).toBe(0.75);
+  });
+
+  it('preserves incoming player momentum when creating a fresh destination body', () => {
+    const player = createPlayer('rift');
+    player.position = { x: 220, y: 230 };
+    player.velocity = { x: 12, y: -6 };
+    player.rotation = 1.1;
+    const playerBody = createPlayerBodyWithStateSync(player);
+    const runtime = createRuntime('rift', {
+      createPlayerBody: vi.fn(() => {
+        playerBody.syncState();
+        return playerBody;
+      }),
+    });
+
+    runtime.attachPlayer(player);
+
+    expect(playerBody.appliedVelocity).toEqual({ x: 12, y: -6 });
+    expect(player.position).toEqual({ x: 220, y: 230 });
+    expect(player.velocity).toEqual({ x: 12, y: -6 });
+    expect(player.rotation).toBe(1.1);
+  });
 });
 
-function createRuntime(space: SpaceId): SpaceWorldRuntime {
+function createRuntime(
+  space: SpaceId,
+  overrides: Partial<ConstructorParameters<typeof SpaceWorldRuntime>[1]> = {},
+): SpaceWorldRuntime {
   return new SpaceWorldRuntime(space, {
     asteroidBodies: {} as never,
     contacts: {
@@ -60,6 +99,7 @@ function createRuntime(space: SpaceId): SpaceWorldRuntime {
     particleViews: {} as never,
     persistentPlayerBody: true,
     projectileBodies: {} as never,
+    ...overrides,
   });
 }
 
@@ -100,4 +140,47 @@ function createPlayerBodySync(
     }),
     updateShieldSensor: vi.fn(),
   } as unknown as PlayerBody;
+}
+
+function createPlayerBodyWithStateSync(player: PlayerState): PlayerBody & {
+  appliedVelocity: { x: number; y: number };
+} {
+  const bodyState = {
+    position: { x: 0, y: 0 },
+    rotation: 0,
+    velocity: { x: 0, y: 0 },
+  };
+  const playerBody = {
+    appliedVelocity: { x: 0, y: 0 },
+    body: {
+      body: { velocity: bodyState.velocity },
+      rotation: bodyState.rotation,
+      x: bodyState.position.x,
+      y: bodyState.position.y,
+    } as MatterImage,
+    destroy: vi.fn(),
+    setCollisionEnabled: vi.fn(),
+    setPosition: vi.fn((position: { x: number; y: number }) => {
+      bodyState.position = { ...position };
+      playerBody.syncState();
+    }),
+    setRotation: vi.fn((rotation: number) => {
+      bodyState.rotation = rotation;
+      playerBody.syncState();
+    }),
+    setVelocity: vi.fn((velocity: { x: number; y: number }) => {
+      bodyState.velocity = { ...velocity };
+      playerBody.appliedVelocity = { ...velocity };
+      playerBody.syncState();
+    }),
+    setVisible: vi.fn(),
+    shieldSensor: { body: {} },
+    syncState: vi.fn(() => {
+      player.position = { ...bodyState.position };
+      player.velocity = { ...bodyState.velocity };
+      player.rotation = bodyState.rotation;
+    }),
+    updateShieldSensor: vi.fn(),
+  } as unknown as PlayerBody & { appliedVelocity: { x: number; y: number } };
+  return playerBody;
 }

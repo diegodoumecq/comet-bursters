@@ -80,17 +80,9 @@ export function applyPlayerThrust(
   const thrusting = Math.hypot(move.x, move.y) > 0;
   const nextFuel = consumeThrustFuel(fuel, deltaSeconds, thrusting);
   const thrustScale = nextFuel > 0 ? 1 : FUELLESS_THRUST_SCALE;
-  if (thrusting) {
+  if (thrusting && canApplyThrust(body.body.velocity, move, tuning.maxSpeed)) {
     const forceScale = tuning.acceleration * body.body.mass * thrustScale * 0.000001;
     body.applyForce(new Phaser.Math.Vector2(move.x * forceScale, move.y * forceScale));
-  }
-  const velocity = body.body.velocity;
-  const speed = Math.hypot(velocity.x, velocity.y);
-  if (speed > tuning.maxSpeed) {
-    body.setVelocity(
-      (velocity.x / speed) * tuning.maxSpeed,
-      (velocity.y / speed) * tuning.maxSpeed,
-    );
   }
   return { fuel: nextFuel, thrustScale, thrusting };
 }
@@ -108,16 +100,47 @@ export function applyPlayerStateThrust(
   if (thrusting) {
     const frameScale = deltaSeconds * 60;
     const acceleration = tuning.acceleration * thrustScale * 0.000001 * frameScale;
-    player.velocity.x += move.x * acceleration;
-    player.velocity.y += move.y * acceleration;
-  }
-  const speed = Math.hypot(player.velocity.x, player.velocity.y);
-  if (speed > tuning.maxSpeed) {
-    player.velocity.x = (player.velocity.x / speed) * tuning.maxSpeed;
-    player.velocity.y = (player.velocity.y / speed) * tuning.maxSpeed;
+    const thrust = getAllowedThrust(player.velocity, move, acceleration, tuning.maxSpeed);
+    player.velocity.x += thrust.x;
+    player.velocity.y += thrust.y;
   }
   const frameScale = deltaSeconds * 60;
   player.position.x += player.velocity.x * frameScale;
   player.position.y += player.velocity.y * frameScale;
   return { fuel: nextFuel, thrustScale, thrusting };
+}
+
+function canApplyThrust(velocity: Vector, move: Vector, maxSpeed: number): boolean {
+  const direction = normalizeMove(move);
+  if (!direction) return false;
+  return dot(velocity, direction) < maxSpeed;
+}
+
+function getAllowedThrust(
+  velocity: Vector,
+  move: Vector,
+  acceleration: number,
+  maxSpeed: number,
+): Vector {
+  const direction = normalizeMove(move);
+  if (!direction) return { x: 0, y: 0 };
+  const speedInThrustDirection = dot(velocity, direction);
+  const allowedAcceleration = Math.max(
+    0,
+    Math.min(acceleration, maxSpeed - speedInThrustDirection),
+  );
+  return {
+    x: direction.x * allowedAcceleration,
+    y: direction.y * allowedAcceleration,
+  };
+}
+
+function normalizeMove(move: Vector): Vector | null {
+  const length = Math.hypot(move.x, move.y);
+  if (length === 0) return null;
+  return { x: move.x / length, y: move.y / length };
+}
+
+function dot(a: Vector, b: Vector): number {
+  return a.x * b.x + a.y * b.y;
 }

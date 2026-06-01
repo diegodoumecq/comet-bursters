@@ -48,6 +48,9 @@ export class SpaceWorldRuntime {
   }
 
   attachPlayer(player: PlayerState, body?: PlayerBody): void {
+    const position = { ...player.position };
+    const velocity = { ...player.velocity };
+    const rotation = player.rotation;
     this.playerState = player;
     this.playerBody =
       body ?? this.playerBody ?? this.attachments.createPlayerBody?.(player) ?? null;
@@ -55,9 +58,9 @@ export class SpaceWorldRuntime {
       throw new Error(`Cannot attach player to ${this.space} without a scene-local body`);
     }
     player.membership = { space: this.space };
-    this.playerBody.setPosition(player.position);
-    this.playerBody.setVelocity(player.velocity);
-    this.playerBody.setRotation(player.rotation);
+    this.playerBody.setPosition(position);
+    this.playerBody.setVelocity(velocity);
+    this.playerBody.setRotation(rotation);
     this.attachments.contacts.setPlayer(this.playerBody.body.body);
     this.attachments.contacts.setShield(this.playerBody.shieldSensor.body);
     this.playerBody.setVisible(true);
