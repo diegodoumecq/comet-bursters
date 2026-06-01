@@ -6,7 +6,9 @@ export function buildPortalMetaballData(
   portal: PortalEntity,
   now: number,
   data = new Float32Array(PORTAL_METABALL_COUNT * 4),
+  scale = 1,
 ): Float32Array {
+  const visualScale = Math.max(0, scale);
   for (let index = 0; index < PORTAL_METABALL_COUNT; index += 1) {
     const noise = seededUnit(portal.id, index, 3);
     const theta = seededUnit(portal.id, index, 11) * Math.PI * 2;
@@ -21,16 +23,14 @@ export function buildPortalMetaballData(
 
     data[index * 4] = along * portal.visualRadiusX * jag;
     data[index * 4 + 1] = side * portal.visualRadiusY * jag;
-    data[index * 4 + 2] = radius;
+    data[index * 4 + 2] = radius * visualScale;
     data[index * 4 + 3] = side;
   }
   return data;
 }
 
 function seededUnit(portalId: number, index: number, seed: number): number {
-  return (
-    Math.abs(Math.sin((portalId * 97 + index + 1) * 12.9898 + seed * 78.233) * 43758.5453) % 1
-  );
+  return Math.abs(Math.sin((portalId * 97 + index + 1) * 12.9898 + seed * 78.233) * 43758.5453) % 1;
 }
 
 function lerp(start: number, end: number, amount: number): number {

@@ -99,6 +99,7 @@ type PortalMetaballRendererInput = {
   portal: PortalEntity;
   now: number;
   alpha: number;
+  scale: number;
   tint: { b: number; g: number; r: number };
 };
 
@@ -122,10 +123,12 @@ export class PortalMetaballRenderer {
     destinationTextureKey,
     now,
     portal,
+    scale,
     screen,
     tint,
   }: PortalMetaballRendererInput): void {
     const bounds = getPortalShaderBounds(screen);
+    const metaballScale = Math.max(0, scale);
 
     this.shader
       .setPosition(bounds.x, bounds.y)
@@ -145,10 +148,13 @@ export class PortalMetaballRenderer {
       .setUniform('u_tint.value.x', tint.r)
       .setUniform('u_tint.value.y', tint.g)
       .setUniform('u_tint.value.z', tint.b)
-      .setUniform('u_metaballs.value', buildPortalMetaballData(portal, now, this.metaballData))
+      .setUniform(
+        'u_metaballs.value',
+        buildPortalMetaballData(portal, now, this.metaballData, metaballScale),
+      )
       .setUniform('u_time.value', now)
       .setChannel0(destinationTextureKey)
-      .setVisible(alpha > 0);
+      .setVisible(alpha > 0 && metaballScale > 0);
   }
 
   setVisible(visible: boolean): void {

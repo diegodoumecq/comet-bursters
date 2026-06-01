@@ -1,7 +1,6 @@
-import Phaser from 'phaser';
-
 import type { PortalEntity } from '../dimensions/types';
 import { PortalMetaballRenderer } from './PortalMetaballRenderer';
+import { getPortalVisualScale } from './portalVisualScale';
 
 const PORTAL_CAPTURE_DEPTH = -1.9;
 const CAMERA_TRANSFER_PORTAL_TINT = { b: 0.22, g: 0.42, r: 1 };
@@ -39,8 +38,8 @@ export class PortalWindowRenderer {
       return;
     }
 
-    const fade = getPortalFade(portal, now);
-    if (fade <= 0) {
+    const scale = getPortalVisualScale(portal, now);
+    if (scale <= 0) {
       this.hidePortal();
       return;
     }
@@ -51,11 +50,12 @@ export class PortalWindowRenderer {
       return;
     }
     this.metaballRenderer.render({
-      alpha: fade,
+      alpha: 1,
       depth: PORTAL_CAPTURE_DEPTH,
       destinationTextureKey,
       now,
       portal,
+      scale,
       screen: this.screen,
       tint: getPortalTint(portal),
     });
@@ -81,18 +81,4 @@ export class PortalWindowRenderer {
 
 function getPortalTint(portal: PortalEntity): { b: number; g: number; r: number } {
   return portal.viewPolicy === 'cameraTransfer' ? CAMERA_TRANSFER_PORTAL_TINT : WINDOW_PORTAL_TINT;
-}
-
-function getPortalFade(portal: PortalEntity, now: number): number {
-  const age = Math.max(0, now - portal.openedAt);
-  const opening = Phaser.Math.Clamp(age / Math.max(1, portal.openingDurationMs), 0, 1);
-  const closing =
-    portal.closeStartedAt === null
-      ? 0
-      : Phaser.Math.Clamp(
-          (now - portal.closeStartedAt) / Math.max(1, portal.closingDurationMs),
-          0,
-          1,
-        );
-  return Phaser.Math.SmoothStep(opening, 0, 1) * (1 - Phaser.Math.SmoothStep(closing, 0, 1));
 }

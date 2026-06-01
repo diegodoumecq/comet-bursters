@@ -28,7 +28,7 @@ import { getSandboxPerfToggles } from '../runtime/startup';
 import { DimensionBackground } from '../world/DimensionBackground';
 import { SpaceRenderEffects } from '../world/SpaceRenderEffects';
 import { SpaceWorldRuntime } from '../world/SpaceWorldRuntime';
-import { createArcadeTextures } from './arcade/arcadeVisuals';
+import { createArcadeGameOverText, createArcadeTextures } from './arcade/arcadeVisuals';
 
 export class PhaserRiftSpaceScene extends Phaser.Scene {
   private background!: DimensionBackground;
@@ -46,6 +46,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
   private playerArcadeSilhouette!: Phaser.GameObjects.Graphics;
   private playerThruster!: Phaser.GameObjects.Graphics;
   private playerTurret!: Phaser.GameObjects.Image;
+  private gameOverText: Phaser.GameObjects.Text | null = null;
   private activeView = false;
   private timeScale = 1;
   private worldSize!: WorldSize;
@@ -216,6 +217,13 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
     this.matter.world.engine.timing.timeScale = timeScale;
   }
 
+  renderGameOver(input: { visible: boolean; world: WorldSize }): void {
+    if (input.visible && !this.gameOverText) {
+      this.gameOverText = createArcadeGameOverText(this, input.world);
+    }
+    this.gameOverText?.setVisible(input.visible);
+  }
+
   private prepareBackgroundForCapture(): void {
     this.background.render(this.time.now, {
       grid: this.perfToggles.grid,
@@ -244,6 +252,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
     this.playerFuelMask.destroy();
     this.playerThruster.destroy();
     this.playerArcadeSilhouette.destroy();
+    this.gameOverText?.destroy();
     this.renderEffects.dispose();
     this.sceneCapture.destroy();
   }

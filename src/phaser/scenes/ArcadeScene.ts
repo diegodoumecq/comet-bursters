@@ -371,6 +371,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     const activePortal = this.dimensionCoordinator.getActivePortal();
     const renderablePortals = activePortal ? [activePortal] : [];
     const activeViewSpace = this.dimensionCoordinator.getActiveViewSpace(time);
+    const gameOverVisible = this.session.lives <= 0;
     this.cameras.main.visible = activeViewSpace === 'arcade';
     this.riftSpaceScene?.setActiveView(activeViewSpace === 'rift');
     this.riftSpaceScene?.setPortals(renderablePortals);
@@ -388,6 +389,10 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.riftSpaceScene?.renderDimensionDebug({
       enabled: this.dimensionDebugEnabled,
     });
+    this.riftSpaceScene?.renderGameOver({
+      visible: gameOverVisible,
+      world: this.worldSize,
+    });
     this.sceneRenderer.setRiftPortals(renderablePortals);
     this.sceneRenderer.setPlayerInRift(this.session.player.membership.space === 'rift');
     this.sceneRenderer.render(
@@ -397,6 +402,10 @@ export class PhaserArcadeScene extends BaseGameScene {
       this.getTractorActive(action),
       activeViewSpace === 'arcade',
     );
+    this.sceneRenderer.renderGameOver({
+      visible: gameOverVisible,
+      world: this.worldSize,
+    });
     if (activeViewSpace === 'arcade') {
       this.renderEffects.render(this.session, time, this.worldSize);
     } else {
@@ -1082,7 +1091,6 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private showGameOver(): void {
     if (this.gameOverAt === 0) this.gameOverAt = this.time.now;
-    this.sceneRenderer.showGameOver(this.worldSize);
   }
 
   private updateRiftDirector(now: number): void {

@@ -186,9 +186,11 @@ export class ArcadeRenderer {
     this.shakeUntil = Math.max(this.shakeUntil, this.scene.time.now + durationMs);
   }
 
-  showGameOver(world: WorldSize): void {
-    if (this.gameOverText) return;
-    this.gameOverText = createArcadeGameOverText(this.scene, world);
+  renderGameOver(input: { visible: boolean; world: WorldSize }): void {
+    if (input.visible && !this.gameOverText) {
+      this.gameOverText = createArcadeGameOverText(this.scene, input.world);
+    }
+    this.gameOverText?.setVisible(input.visible);
   }
 
   resize(world: WorldSize): void {
