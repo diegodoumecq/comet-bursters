@@ -25,8 +25,22 @@ export class DimensionCoordinator {
     this.worlds.set(runtime.space, runtime);
   }
 
+  unregisterWorld(space: SpaceId, runtime: SpaceWorldRuntime): void {
+    if (this.worlds.get(space) === runtime) {
+      this.worlds.delete(space);
+    }
+  }
+
   getWorld(space: SpaceId): SpaceWorldRuntime | null {
     return this.worlds.get(space) ?? null;
+  }
+
+  requireWorld(space: SpaceId): SpaceWorldRuntime {
+    const runtime = this.getWorld(space);
+    if (!runtime) {
+      throw new Error(`Dimension world is not registered: ${space}`);
+    }
+    return runtime;
   }
 
   getActivePortal(): PortalEntity | null {
@@ -62,6 +76,7 @@ export class DimensionCoordinator {
 
     const previousLifecycle = portal.lifecycle;
     const nextLifecycle = syncPortalLifecycle(portal, now);
+    if (nextLifecycle === 'active') this.requireDimensionWorlds();
     if (portalBecameActive(previousLifecycle, nextLifecycle) && this.pendingSpawnPlan) {
       commands.push({ plan: this.pendingSpawnPlan, portal, type: 'spawnPortal' });
     }
@@ -90,6 +105,7 @@ export class DimensionCoordinator {
     now: number,
     world: WorldSize,
   ): DimensionCommand[] {
+    this.requireDimensionWorlds();
     const commands: DimensionCommand[] = [];
     const snapshots = [...this.worlds.values()].flatMap((runtime) =>
       runtime.getTransferSnapshots(),
@@ -138,6 +154,11 @@ export class DimensionCoordinator {
 
   private attachDetached(runtime: SpaceWorldRuntime, detached: DetachedSpaceEntity): void {
     runtime.attachTransferredEntity(detached);
+  }
+
+  private requireDimensionWorlds(): void {
+    this.requireWorld('arcade');
+    this.requireWorld('rift');
   }
 }
 

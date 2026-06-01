@@ -127,10 +127,6 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
     }
   }
 
-  getRuntime(): SpaceWorldRuntime {
-    return this.runtime;
-  }
-
   captureTextureKey(): string {
     return this.sceneCapture.capture();
   }
@@ -219,6 +215,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
 
   private handleShutdown(): void {
     this.scale.off('resize', this.handleResize, this);
+    getDimensionCoordinator().unregisterWorld('rift', this.runtime);
     this.runtime.clearNonShipEntities();
     this.portalRenderer.destroy();
     this.dimensionDebug.destroy();

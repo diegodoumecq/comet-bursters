@@ -109,6 +109,37 @@ describe('DimensionCoordinator hidden-world cleanup', () => {
 
     expect(arcade.attached[0].entity.position).toEqual({ x: 100.5, y: 100 });
   });
+
+  it('unregisters only the matching world runtime', () => {
+    const coordinator = new DimensionCoordinator();
+    const staleRift = createWorld('rift');
+    const liveRift = createWorld('rift');
+
+    coordinator.registerWorld(liveRift.runtime);
+    coordinator.unregisterWorld('rift', staleRift.runtime);
+
+    expect(coordinator.requireWorld('rift')).toBe(liveRift.runtime);
+
+    coordinator.unregisterWorld('rift', liveRift.runtime);
+
+    expect(coordinator.getWorld('rift')).toBeNull();
+  });
+
+  it('requires both worlds before active portal gameplay', () => {
+    const coordinator = new DimensionCoordinator();
+    coordinator.registerWorld(createWorld('arcade').runtime);
+    coordinator.openPortal(
+      createPlan({
+        lifecycle: 'active',
+        openedAt: 0,
+        viewPolicy: 'cameraTransfer',
+      }),
+    );
+
+    expect(() => coordinator.processPortalTransfers(500, TRANSFER_TEST_WORLD)).toThrow(
+      'Dimension world is not registered: rift',
+    );
+  });
 });
 
 type TestSnapshot = ReturnType<SpaceWorldRuntime['getTransferSnapshots']>[number];

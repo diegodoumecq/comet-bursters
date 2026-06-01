@@ -112,6 +112,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   create(): void {
+    this.resetRunFields();
     const startingIntensity = getStartingWave();
     this.session = new ArcadeRunState(startingIntensity);
     this.riftDirector = new PortalDirector(startingIntensity);
@@ -169,7 +170,6 @@ export class PhaserArcadeScene extends BaseGameScene {
     if (this.riftDebug) {
       this.testRiftKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.T) ?? null;
     }
-    this.openRiftBurst(this.time.now);
     this.scale.on('resize', this.handleResize, this);
   }
 
@@ -245,15 +245,16 @@ export class PhaserArcadeScene extends BaseGameScene {
         y: velocity.y + weaponResult.recoil.y,
       };
       if (playerInRift) {
-        const riftPlayerBody = this.dimensionCoordinator.getWorld('rift')?.getPlayerBody();
-        if (riftPlayerBody) riftPlayerBody.setVelocity(nextVelocity);
+        const riftPlayerBody = this.dimensionCoordinator.requireWorld('rift').getPlayerBody();
+        if (!riftPlayerBody) throw new Error('Rift player body is not attached');
+        riftPlayerBody.setVelocity(nextVelocity);
       } else {
         this.playerBody.setVelocity(nextVelocity);
       }
     }
     for (const projectile of weaponResult.projectiles) {
       if (playerInRift) {
-        this.dimensionCoordinator.getWorld('rift')?.addProjectile(projectile);
+        this.dimensionCoordinator.requireWorld('rift').addProjectile(projectile);
       } else {
         this.addProjectile(projectile);
       }
@@ -274,23 +275,22 @@ export class PhaserArcadeScene extends BaseGameScene {
         asteroidCollisionEnabled,
       );
     } else {
-      const riftRuntime = this.dimensionCoordinator.getWorld('rift');
-      const riftPlayerBody = riftRuntime?.getPlayerBody();
-      if (riftRuntime && riftPlayerBody) {
-        applyTractorBeam(
-          this.session.player.position,
-          this.session.player.lastAim,
-          riftRuntime.world.asteroids,
-          riftRuntime.getAsteroidBodies(),
-          tractorActive,
-        );
-        const asteroidCollisionEnabled = this.playerCanCollideWithAsteroids();
-        riftPlayerBody.setAsteroidCollisionEnabled(asteroidCollisionEnabled);
-        riftPlayerBody.updateShieldSensor(
-          action.shield && this.playerIsAlive() && this.session.ship.fuel > 0,
-          asteroidCollisionEnabled,
-        );
-      }
+      const riftRuntime = this.dimensionCoordinator.requireWorld('rift');
+      const riftPlayerBody = riftRuntime.getPlayerBody();
+      if (!riftPlayerBody) throw new Error('Rift player body is not attached');
+      applyTractorBeam(
+        this.session.player.position,
+        this.session.player.lastAim,
+        riftRuntime.world.asteroids,
+        riftRuntime.getAsteroidBodies(),
+        tractorActive,
+      );
+      const asteroidCollisionEnabled = this.playerCanCollideWithAsteroids();
+      riftPlayerBody.setAsteroidCollisionEnabled(asteroidCollisionEnabled);
+      riftPlayerBody.updateShieldSensor(
+        action.shield && this.playerIsAlive() && this.session.ship.fuel > 0,
+        asteroidCollisionEnabled,
+      );
       this.playerBody.setCollisionEnabled(false);
       this.playerBody.updateShieldSensor(false);
     }
@@ -308,8 +308,8 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private applyPortalBridgeTractorBeam(tractorActive: boolean): void {
     const portal = this.dimensionCoordinator.getActivePortal();
-    const riftRuntime = this.dimensionCoordinator.getWorld('rift');
-    if (!portal || portal.lifecycle !== 'active' || !riftRuntime) return;
+    if (!portal || portal.lifecycle !== 'active') return;
+    const riftRuntime = this.dimensionCoordinator.requireWorld('rift');
     if (!portalApertureContainsCenter(portal, this.session.player.position)) return;
 
     const playerRuntime = this.getPlayerRuntime();
@@ -393,8 +393,8 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private updatePlayer(move: Vector, deltaSeconds: number, now: number): void {
     if (this.session.player.membership.space === 'rift') {
-      const riftPlayerBody = this.dimensionCoordinator.getWorld('rift')?.getPlayerBody();
-      if (!riftPlayerBody) return;
+      const riftPlayerBody = this.dimensionCoordinator.requireWorld('rift').getPlayerBody();
+      if (!riftPlayerBody) throw new Error('Rift player body is not attached');
       const motion = updatePlayerMotion({
         body: riftPlayerBody,
         deltaSeconds,
@@ -437,26 +437,37 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private updateDebugRiftInput(): void {
-    if (this.testRiftKey && Phaser.Input.Keyboard.JustDown(this.testRiftKey)) {
+    if (
+      this.testRiftKey &&
+      this.riftWorldIsReady() &&
+      Phaser.Input.Keyboard.JustDown(this.testRiftKey)
+    ) {
       this.openRiftBurst(this.time.now);
     }
   }
 
   private startRiftSpaceScene(): void {
-    if (!this.scene.isActive('rift-space')) {
-      this.scene.launch('rift-space');
+    const riftScene = this.scene.get('rift-space') as PhaserRiftSpaceScene;
+    if (this.scene.isActive('rift-space')) {
+      this.bindRiftSpaceScene(riftScene);
+      return;
     }
-    this.riftSpaceScene = this.scene.get('rift-space') as PhaserRiftSpaceScene;
-    this.riftSpaceScene.events.once('shutdown', this.handleRiftSpaceShutdown, this);
+    riftScene.events.once(Phaser.Scenes.Events.CREATE, () => this.bindRiftSpaceScene(riftScene));
+    this.scene.launch('rift-space');
+  }
+
+  private bindRiftSpaceScene(riftScene: PhaserRiftSpaceScene): void {
+    this.riftSpaceScene = riftScene;
+    riftScene.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
+      this.handleRiftSpaceShutdown(riftScene),
+    );
     this.sceneRenderer.setPortalDestinationTextureKeyProvider(() => {
       if (this.riftSpaceScene && this.scene.isActive('rift-space')) {
         return this.riftSpaceScene.captureTextureKey();
       }
       return null;
     });
-    this.riftSpaceScene.setPortalDestinationTextureKeyProvider(() =>
-      this.sceneRenderer.captureTextureKey(),
-    );
+    riftScene.setPortalDestinationTextureKeyProvider(() => this.sceneRenderer.captureTextureKey());
   }
 
   private updateDimensionPortalLifecycle(now: number): void {
@@ -472,16 +483,12 @@ export class PhaserArcadeScene extends BaseGameScene {
   private applyDimensionCommands(commands: DimensionCommand[]): void {
     for (const command of commands) {
       if (command.type === 'spawnPortal') {
-        const riftRuntime =
-          this.riftSpaceScene?.getRuntime() ?? this.dimensionCoordinator.getWorld('rift');
-        if (riftRuntime) {
-          riftRuntime.addAsteroids(
-            createPortalAsteroidSpawn({
-              burstIndex: this.riftDirector.burstCount,
-              plan: command.plan,
-            }),
-          );
-        }
+        this.dimensionCoordinator.requireWorld('rift').addAsteroids(
+          createPortalAsteroidSpawn({
+            burstIndex: this.riftDirector.burstCount,
+            plan: command.plan,
+          }),
+        );
       } else if (command.type === 'startCameraTransition') {
         this.startDimensionTransitionEffect();
       }
@@ -572,8 +579,8 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private resolvePortalBridgeCollisions(): void {
     const portal = this.dimensionCoordinator.getActivePortal();
-    const riftRuntime = this.dimensionCoordinator.getWorld('rift');
-    if (!riftRuntime) return;
+    if (!portal || portal.lifecycle !== 'active') return;
+    const riftRuntime = this.dimensionCoordinator.requireWorld('rift');
 
     for (const mutation of resolvePortalBridgeAsteroidCollisions({
       arcadeAsteroids: this.runtime.world.asteroids,
@@ -596,15 +603,16 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private resolvePortalBridgeProjectileCombat(): void {
-    const riftRuntime = this.dimensionCoordinator.getWorld('rift');
-    if (!riftRuntime) return;
+    const portal = this.dimensionCoordinator.getActivePortal();
+    if (!portal || portal.lifecycle !== 'active') return;
+    const riftRuntime = this.dimensionCoordinator.requireWorld('rift');
 
     const handledProjectiles = new Set<ProjectileEntity>();
     for (const contact of getPortalBridgeProjectileAsteroidContacts({
       arcadeAsteroids: this.runtime.world.asteroids,
       arcadeProjectiles: this.runtime.world.projectiles,
       getDelta: (from, to) => wrappedDelta(from, to, this.worldSize),
-      portal: this.dimensionCoordinator.getActivePortal(),
+      portal,
       riftAsteroids: riftRuntime.world.asteroids,
       riftProjectiles: riftRuntime.world.projectiles,
     })) {
@@ -683,14 +691,14 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private getRuntimeForEntitySpace(space: SpaceId | undefined): SpaceWorldRuntime | null {
-    if (space === 'rift') return this.dimensionCoordinator.getWorld('rift');
+    if (space === 'rift') return this.dimensionCoordinator.requireWorld('rift');
     return this.runtime;
   }
 
   private resolvePortalBridgeBlackHoles(deltaSeconds: number): void {
     const portal = this.dimensionCoordinator.getActivePortal();
-    const riftRuntime = this.dimensionCoordinator.getWorld('rift');
-    if (!portal || portal.lifecycle !== 'active' || !riftRuntime) return;
+    if (!portal || portal.lifecycle !== 'active') return;
+    const riftRuntime = this.dimensionCoordinator.requireWorld('rift');
 
     this.applyBlackHoleBridgeForRuntime(this.runtime, riftRuntime, deltaSeconds);
     this.applyBlackHoleBridgeForRuntime(riftRuntime, this.runtime, deltaSeconds);
@@ -839,8 +847,8 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private applyPortalBridgePlayerCombat(now: number, shieldActive: boolean): void {
     const portal = this.dimensionCoordinator.getActivePortal();
-    const riftRuntime = this.dimensionCoordinator.getWorld('rift');
-    if (!portal || portal.lifecycle !== 'active' || !riftRuntime) return;
+    if (!portal || portal.lifecycle !== 'active') return;
+    const riftRuntime = this.dimensionCoordinator.requireWorld('rift');
     if (!portalApertureContainsCenter(portal, this.session.player.position)) return;
 
     const playerRuntime = this.getPlayerRuntime();
@@ -889,10 +897,8 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.session.destroyPlayer(now);
     const effects = createShipExplosion(this.session.player.position, this.session.player.velocity);
     if (this.session.player.membership.space === 'rift') {
-      const riftRuntime = this.dimensionCoordinator.getWorld('rift');
-      if (riftRuntime) {
-        for (const effect of effects) riftRuntime.addParticles(effect.particles);
-      }
+      const riftRuntime = this.dimensionCoordinator.requireWorld('rift');
+      for (const effect of effects) riftRuntime.addParticles(effect.particles);
     } else {
       for (const effect of effects) this.applyEffect(effect);
     }
@@ -905,15 +911,14 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private getPlayerRuntime(): SpaceWorldRuntime {
     if (this.session.player.membership.space === 'rift') {
-      return this.dimensionCoordinator.getWorld('rift') ?? this.runtime;
+      return this.dimensionCoordinator.requireWorld('rift');
     }
     return this.runtime;
   }
 
   private collectFuelBlobs(deltaSeconds: number): void {
     if (this.session.player.membership.space === 'rift') {
-      const riftRuntime = this.dimensionCoordinator.getWorld('rift');
-      if (!riftRuntime) return;
+      const riftRuntime = this.dimensionCoordinator.requireWorld('rift');
       const result = updateFuelBlobs(
         riftRuntime.world.fuelBlobs,
         this.session.player.position,
@@ -939,8 +944,8 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private collectPortalBridgeFuelBlobs(): void {
     const portal = this.dimensionCoordinator.getActivePortal();
-    const riftRuntime = this.dimensionCoordinator.getWorld('rift');
-    if (!portal || portal.lifecycle !== 'active' || !riftRuntime) return;
+    if (!portal || portal.lifecycle !== 'active') return;
+    const riftRuntime = this.dimensionCoordinator.requireWorld('rift');
     if (!this.playerIsAlive() || this.session.ship.fuel >= MAX_FUEL) return;
     if (!portalApertureContainsCenter(portal, this.session.player.position)) return;
 
@@ -978,9 +983,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     if (!this.session.shouldRespawn(now)) return;
     const activeSpace = this.dimensionCoordinator.getActiveViewSpace(now);
     const activeWorld =
-      activeSpace === 'arcade'
-        ? this.runtime
-        : (this.dimensionCoordinator.getWorld('rift') ?? this.runtime);
+      activeSpace === 'arcade' ? this.runtime : this.dimensionCoordinator.requireWorld('rift');
     const position = chooseSafePlayerPositionWithExclusions(
       activeWorld.world.asteroids,
       this.worldSize,
@@ -1027,6 +1030,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private updateRiftDirector(now: number): void {
+    if (!this.riftWorldIsReady()) return;
     if (
       this.riftDirector.shouldOpenPortal({
         activePortal: this.dimensionCoordinator.getActivePortal() !== null,
@@ -1035,6 +1039,10 @@ export class PhaserArcadeScene extends BaseGameScene {
     ) {
       this.openRiftBurst(now);
     }
+  }
+
+  private riftWorldIsReady(): boolean {
+    return this.dimensionCoordinator.getWorld('rift') !== null;
   }
 
   private removeProjectile(projectile: ProjectileEntity): void {
@@ -1061,20 +1069,31 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.runtime.addParticles(particles);
   }
 
+  private resetRunFields(): void {
+    this.gameOverAt = 0;
+    this.lastThrusterAt = 0;
+    this.nextPortalId = 1;
+    this.riftSpaceScene = null;
+    this.testRiftKey = null;
+  }
+
   private handleResize(gameSize: Phaser.Structs.Size): void {
     this.worldSize = { width: gameSize.width, height: gameSize.height };
     this.sceneRenderer.resize(this.worldSize);
   }
 
   private disposeRenderEffects(): void {
-    if (this.scene.isActive('rift-space')) this.scene.stop('rift-space');
+    this.scale.off('resize', this.handleResize, this);
+    if (this.scene.isActive('rift-space')) this.scene.manager.stop('rift-space');
     this.riftSpaceScene = null;
     this.dimensionDebug.destroy();
     this.sceneRenderer.destroy();
     this.renderEffects.dispose();
   }
 
-  private handleRiftSpaceShutdown(): void {
-    this.riftSpaceScene = null;
+  private handleRiftSpaceShutdown(scene: PhaserRiftSpaceScene): void {
+    if (this.riftSpaceScene === scene) {
+      this.riftSpaceScene = null;
+    }
   }
 }
