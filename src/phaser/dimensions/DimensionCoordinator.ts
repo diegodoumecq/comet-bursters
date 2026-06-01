@@ -1,12 +1,10 @@
-import type { Vector } from '../core/types';
 import type { DetachedSpaceEntity, SpaceWorldRuntime } from '../world/SpaceWorldRuntime';
-import { addVector, scaleVector } from './portalGeometry';
+import { addVector, dotVector, scaleVector, subtractVector } from './portalGeometry';
 import { portalBecameActive, portalFinishedClosing, syncPortalLifecycle } from './PortalLifecycle';
 import { getPortalTransferCommands } from './PortalTransferSystem';
 import type {
   ActiveViewState,
   DimensionCommand,
-  PortalCrossing,
   PortalDirectorPlan,
   PortalEntity,
   SpaceId,
@@ -14,7 +12,7 @@ import type {
 import { getOppositeSpace } from './types';
 
 const CAMERA_TRANSITION_MS = 360;
-const TRANSFER_EXIT_OFFSET = 36;
+const TRANSFER_PLANE_EPSILON = 0.5;
 
 export class DimensionCoordinator {
   private activePortal: PortalEntity | null = null;
@@ -98,7 +96,11 @@ export class DimensionCoordinator {
       if (fromWorld && toWorld) {
         const detached = fromWorld.detachTransferEntity(transfer.entity);
         if (detached) {
-          detached.entity.position = getTransferExitPosition(transfer.crossing, transfer.to);
+          detached.entity.position = getTransferExitPosition(
+            portal,
+            transfer.entity.position,
+            transfer.to,
+          );
           this.attachDetached(toWorld, detached);
           commands.push({
             entity: transfer.entity,
@@ -135,10 +137,13 @@ export class DimensionCoordinator {
   }
 }
 
-function getTransferExitPosition(crossing: PortalCrossing, toSpace: SpaceId): Vector {
+function getTransferExitPosition(
+  portal: PortalEntity,
+  position: { x: number; y: number },
+  toSpace: SpaceId,
+): { x: number; y: number } {
+  const currentSide = dotVector(subtractVector(position, portal.position), portal.normal);
+  if (Math.abs(currentSide) >= TRANSFER_PLANE_EPSILON) return position;
   const direction = toSpace === 'arcade' ? 1 : -1;
-  return addVector(
-    crossing.intersection,
-    scaleVector(crossing.portal.normal, direction * TRANSFER_EXIT_OFFSET),
-  );
+  return addVector(position, scaleVector(portal.normal, direction * TRANSFER_PLANE_EPSILON));
 }

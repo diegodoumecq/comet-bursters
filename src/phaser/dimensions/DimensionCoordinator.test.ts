@@ -42,7 +42,7 @@ describe('DimensionCoordinator hidden-world cleanup', () => {
     expect(rift.clearCount).toBe(0);
   });
 
-  it('places transferred players on the destination side of the portal plane', () => {
+  it('preserves transferred player position past the portal plane', () => {
     const coordinator = new DimensionCoordinator();
     const arcade = createWorld('arcade', { snapshots: [] });
     const rift = createWorld('rift', {
@@ -72,7 +72,40 @@ describe('DimensionCoordinator hidden-world cleanup', () => {
     );
     coordinator.processPortalTransfers(500);
 
-    expect(arcade.attached[0].entity.position).toEqual({ x: 136, y: 100 });
+    expect(arcade.attached[0].entity.position).toEqual({ x: 110, y: 100 });
+  });
+
+  it('nudges transferred players only when they land exactly on the portal plane', () => {
+    const coordinator = new DimensionCoordinator();
+    const arcade = createWorld('arcade', { snapshots: [] });
+    const rift = createWorld('rift', {
+      detachedEntity: {
+        membership: { space: 'rift' },
+        position: { x: 90, y: 100 },
+      },
+      snapshots: [
+        {
+          id: 'player',
+          kind: 'player',
+          membership: { space: 'rift' },
+          position: { x: 100, y: 100 },
+          previousPosition: { x: 90, y: 100 },
+        },
+      ],
+    });
+    coordinator.registerWorld(arcade.runtime);
+    coordinator.registerWorld(rift.runtime);
+
+    coordinator.openPortal(
+      createPlan({
+        lifecycle: 'active',
+        openedAt: 0,
+        viewPolicy: 'cameraTransfer',
+      }),
+    );
+    coordinator.processPortalTransfers(500);
+
+    expect(arcade.attached[0].entity.position).toEqual({ x: 100.5, y: 100 });
   });
 });
 
