@@ -68,7 +68,7 @@ void main() {
   vec3 ember = vec3(1.0, 0.34, 0.08);
   vec2 sourceUv = vec2(
     clamp(worldPosition.x / max(u_screen.x, 1.0), 0.0, 1.0),
-    1.0 - clamp(worldPosition.y / max(u_screen.y, 1.0), 0.0, 1.0)
+    clamp(worldPosition.y / max(u_screen.y, 1.0), 0.0, 1.0)
   );
   vec4 sourceColor = texture2D(iChannel0, sourceUv);
   vec3 rimColor = mix(shadow, violet, 0.42 + light * 0.28);
