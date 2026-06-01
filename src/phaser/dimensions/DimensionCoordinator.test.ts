@@ -4,6 +4,8 @@ import type { SpaceWorldRuntime } from '../world/SpaceWorldRuntime';
 import { DimensionCoordinator } from './DimensionCoordinator';
 import type { PortalDirectorPlan, PortalEntity, SpaceId } from './types';
 
+const TRANSFER_TEST_WORLD = { width: 800, height: 600 };
+
 describe('DimensionCoordinator hidden-world cleanup', () => {
   it('cleans the rift when a window portal closes while the ship remains in rift', () => {
     const coordinator = new DimensionCoordinator();
@@ -13,7 +15,7 @@ describe('DimensionCoordinator hidden-world cleanup', () => {
     coordinator.registerWorld(rift.runtime);
 
     coordinator.openPortal(createPlan({ viewPolicy: 'window' }));
-    const commands = coordinator.update(2000);
+    const commands = coordinator.updatePortalLifecycle(2000);
 
     expect(commands).toContainEqual({ hiddenSpace: 'rift', type: 'cleanupHiddenWorld' });
     expect(arcade.clearCount).toBe(0);
@@ -34,8 +36,8 @@ describe('DimensionCoordinator hidden-world cleanup', () => {
         viewPolicy: 'cameraTransfer',
       }),
     );
-    coordinator.update(500);
-    const commands = coordinator.update(2000);
+    coordinator.processPortalTransfers(500, TRANSFER_TEST_WORLD);
+    const commands = coordinator.updatePortalLifecycle(2000);
 
     expect(commands).toContainEqual({ hiddenSpace: 'arcade', type: 'cleanupHiddenWorld' });
     expect(arcade.clearCount).toBe(1);
@@ -70,7 +72,7 @@ describe('DimensionCoordinator hidden-world cleanup', () => {
         viewPolicy: 'cameraTransfer',
       }),
     );
-    coordinator.processPortalTransfers(500);
+    coordinator.processPortalTransfers(500, TRANSFER_TEST_WORLD);
 
     expect(arcade.attached[0].entity.position).toEqual({ x: 110, y: 100 });
   });
@@ -103,7 +105,7 @@ describe('DimensionCoordinator hidden-world cleanup', () => {
         viewPolicy: 'cameraTransfer',
       }),
     );
-    coordinator.processPortalTransfers(500);
+    coordinator.processPortalTransfers(500, TRANSFER_TEST_WORLD);
 
     expect(arcade.attached[0].entity.position).toEqual({ x: 100.5, y: 100 });
   });

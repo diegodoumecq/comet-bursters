@@ -1,3 +1,4 @@
+import type { WorldSize } from '../core/types';
 import {
   dotVector,
   lerpVector,
@@ -10,9 +11,13 @@ import { getOppositeSpace } from './types';
 export function getPortalCrossing(input: {
   current: TransferableEntitySnapshot;
   portal: PortalEntity | null;
+  world?: WorldSize;
 }): PortalCrossing | null {
-  const { current, portal } = input;
+  const { current, portal, world } = input;
   if (!portal || portal.lifecycle !== 'active') return null;
+  if (world && isWrappedDiscontinuity(current.previousPosition, current.position, world)) {
+    return null;
+  }
 
   const previousSide = dotVector(
     subtractVector(current.previousPosition, portal.position),
@@ -51,6 +56,7 @@ export function crossedAllowedDirection(
 export function getPortalTransferCommands(input: {
   portal: PortalEntity | null;
   snapshots: TransferableEntitySnapshot[];
+  world: WorldSize;
 }): Array<{
   crossing: PortalCrossing;
   entity: TransferableEntitySnapshot;
@@ -64,7 +70,11 @@ export function getPortalTransferCommands(input: {
     to: SpaceId;
   }> = [];
   for (const snapshot of input.snapshots) {
-    const crossing = getPortalCrossing({ current: snapshot, portal: input.portal });
+    const crossing = getPortalCrossing({
+      current: snapshot,
+      portal: input.portal,
+      world: input.world,
+    });
     if (crossing) {
       commands.push({
         crossing,
@@ -75,4 +85,15 @@ export function getPortalTransferCommands(input: {
     }
   }
   return commands;
+}
+
+export function isWrappedDiscontinuity(
+  previousPosition: TransferableEntitySnapshot['previousPosition'],
+  position: TransferableEntitySnapshot['position'],
+  world: WorldSize,
+): boolean {
+  return (
+    Math.abs(position.x - previousPosition.x) > world.width * 0.5 ||
+    Math.abs(position.y - previousPosition.y) > world.height * 0.5
+  );
 }

@@ -74,6 +74,22 @@ describe('getPortalCrossing', () => {
       }),
     ).toBeNull();
   });
+
+  it('does not treat world wrapping as a portal crossing', () => {
+    const entity = createEntity({
+      previousPosition: { x: 790, y: 200 },
+      position: { x: 10, y: 200 },
+      space: 'arcade',
+    });
+
+    expect(
+      getPortalCrossing({
+        current: entity,
+        portal: { ...portal, position: { x: 400, y: 200 } },
+        world: { width: 800, height: 600 },
+      }),
+    ).toBeNull();
+  });
 });
 
 function createEntity(input: {

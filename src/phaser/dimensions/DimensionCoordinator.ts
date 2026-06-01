@@ -1,3 +1,4 @@
+import type { WorldSize } from '../core/types';
 import type { DetachedSpaceEntity, SpaceWorldRuntime } from '../world/SpaceWorldRuntime';
 import { addVector, dotVector, scaleVector, subtractVector } from './portalGeometry';
 import { portalBecameActive, portalFinishedClosing, syncPortalLifecycle } from './PortalLifecycle';
@@ -76,21 +77,24 @@ export class DimensionCoordinator {
     return commands;
   }
 
-  processPortalTransfers(now: number): DimensionCommand[] {
+  processPortalTransfers(now: number, world: WorldSize): DimensionCommand[] {
     const portal = this.activePortal;
-    const commands = portal?.lifecycle === 'active' ? this.processTransfers(portal, now) : [];
+    const commands =
+      portal?.lifecycle === 'active' ? this.processTransfers(portal, now, world) : [];
     this.syncWorldPreviousPositions();
     return commands;
   }
 
-  update(now: number): DimensionCommand[] {
-    return [...this.updatePortalLifecycle(now), ...this.processPortalTransfers(now)];
-  }
-
-  private processTransfers(portal: PortalEntity, now: number): DimensionCommand[] {
+  private processTransfers(
+    portal: PortalEntity,
+    now: number,
+    world: WorldSize,
+  ): DimensionCommand[] {
     const commands: DimensionCommand[] = [];
-    const snapshots = [...this.worlds.values()].flatMap((world) => world.getTransferSnapshots());
-    for (const transfer of getPortalTransferCommands({ portal, snapshots })) {
+    const snapshots = [...this.worlds.values()].flatMap((runtime) =>
+      runtime.getTransferSnapshots(),
+    );
+    for (const transfer of getPortalTransferCommands({ portal, snapshots, world })) {
       const fromWorld = this.worlds.get(transfer.from);
       const toWorld = this.worlds.get(transfer.to);
       if (fromWorld && toWorld) {

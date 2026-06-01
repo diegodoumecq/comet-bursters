@@ -32,7 +32,7 @@ import { createPortalAsteroidSpawn } from '../dimensions/PortalAsteroidSpawner';
 import { PortalDirector } from '../dimensions/PortalDirector';
 import { portalApertureContainsCenter } from '../dimensions/portalGeometry';
 import { resetDimensionCoordinator } from '../dimensions/runtime';
-import type { SpaceId } from '../dimensions/types';
+import type { DimensionCommand, SpaceId } from '../dimensions/types';
 import { spawnFuelBlobs, updateFuelBlobs } from '../fuel/blobLogic';
 import { FuelBlobViews } from '../fuel/blobViews';
 import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS, MAX_FUEL, SHIELD_RADIUS } from '../fuel/rules';
@@ -464,10 +464,12 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private processDimensionPortalTransfers(now: number): void {
-    this.applyDimensionCommands(this.dimensionCoordinator.processPortalTransfers(now));
+    this.applyDimensionCommands(
+      this.dimensionCoordinator.processPortalTransfers(now, this.worldSize),
+    );
   }
 
-  private applyDimensionCommands(commands: ReturnType<DimensionCoordinator['update']>): void {
+  private applyDimensionCommands(commands: DimensionCommand[]): void {
     for (const command of commands) {
       if (command.type === 'spawnPortal') {
         const riftRuntime =
