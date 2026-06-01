@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 
 import { AsteroidBodies } from '../asteroids/bodies';
 import { MatterContacts } from '../combat/matterContacts';
-import type { WorldSize } from '../core/types';
+import type { Vector, WorldSize } from '../core/types';
 import { DimensionDebugOverlay } from '../dimensions/DimensionDebugOverlay';
 import { getDimensionCoordinator } from '../dimensions/runtime';
 import type { PortalEntity } from '../dimensions/types';
@@ -20,7 +20,7 @@ import {
 } from '../player/rendering';
 import type { ShipState } from '../player/shipState';
 import type { PlayerState } from '../player/state';
-import { PLAYER_TURRET_TEXTURE_KEY } from '../player/textures';
+import { fillPlayerHull, PLAYER_TURRET_TEXTURE_KEY, strokePlayerHull } from '../player/textures';
 import { PortalSceneCapture } from '../portals/PortalSceneCapture';
 import { PortalWindowRenderer } from '../portals/PortalWindowRenderer';
 import { ProjectileBodies } from '../projectiles/bodies';
@@ -43,6 +43,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
   private playerFuelFill!: Phaser.GameObjects.Graphics;
   private playerFuelMask!: Phaser.GameObjects.Graphics;
   private playerShield!: Phaser.GameObjects.Graphics;
+  private playerArcadeSilhouette!: Phaser.GameObjects.Graphics;
   private playerThruster!: Phaser.GameObjects.Graphics;
   private playerTurret!: Phaser.GameObjects.Image;
   private activeView = false;
@@ -88,6 +89,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
     this.playerFuelMask = this.make.graphics({ x: 0, y: 0 }, false);
     this.playerFuelFill.setMask(this.playerFuelMask.createGeometryMask());
     this.playerThruster = this.add.graphics().setDepth(0);
+    this.playerArcadeSilhouette = this.add.graphics().setDepth(2.5);
     this.setPlayerOverlayVisible(false);
     this.portalRenderer.setDestinationTextureKeyProvider(() =>
       this.destinationTextureKeyProvider(),
@@ -146,6 +148,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
       input.player.invulnerableUntil,
       input.now,
     );
+    this.renderArcadePlayerSilhouette(input);
     if (!playerBody) {
       this.setPlayerOverlayVisible(false);
       return;
@@ -187,7 +190,10 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
     this.activeView = active;
     this.cameras.main.visible = active;
     this.input.enabled = active;
-    if (!active) this.setPlayerOverlayVisible(false);
+    if (!active) {
+      this.setPlayerOverlayVisible(false);
+      this.playerArcadeSilhouette.clear();
+    }
   }
 
   setPortalDestinationTextureKeyProvider(getDestinationTextureKey: () => string | null): void {
@@ -222,6 +228,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
     this.playerFuelFill.destroy();
     this.playerFuelMask.destroy();
     this.playerThruster.destroy();
+    this.playerArcadeSilhouette.destroy();
     this.renderEffects.dispose();
     this.sceneCapture.destroy();
   }
@@ -233,5 +240,40 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
     this.playerFuelFill.setVisible(visible);
     this.playerFuelMask.setVisible(visible);
     this.playerThruster.setVisible(visible);
+  }
+
+  private renderArcadePlayerSilhouette(input: {
+    alive: boolean;
+    now: number;
+    player: PlayerState;
+  }): void {
+    this.playerArcadeSilhouette.clear();
+    if (!this.activeView || !input.alive || input.player.membership.space !== 'arcade') return;
+    if (!getPlayerVisible(true, input.player.invulnerableUntil, input.now)) return;
+
+    const size = 30;
+    const pulse = 0.55 + Math.sin(input.now / 220) * 0.18;
+    this.playerArcadeSilhouette.setPosition(input.player.position.x, input.player.position.y);
+    this.playerArcadeSilhouette.setRotation(input.player.rotation);
+    this.playerArcadeSilhouette.fillStyle(0xf97316, 0.1 + pulse * 0.12);
+    fillPlayerHull(this.playerArcadeSilhouette, size);
+    this.playerArcadeSilhouette.lineStyle(2, 0xf97316, 0.38 + pulse * 0.2);
+    strokePlayerHull(this.playerArcadeSilhouette, size);
+    this.playerArcadeSilhouette.lineStyle(1, 0xffffff, 0.16 + pulse * 0.1);
+    strokePlayerHull(this.playerArcadeSilhouette, size * 0.78);
+    this.drawArcadePlayerSilhouetteTurret(input.player.lastAim, input.player.rotation, size);
+  }
+
+  private drawArcadePlayerSilhouetteTurret(aim: Vector, hullRotation: number, size: number): void {
+    const magnitude = Math.hypot(aim.x, aim.y);
+    const angle = magnitude > 0 ? Math.atan2(aim.y, aim.x) - hullRotation : 0;
+    const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+    this.playerArcadeSilhouette.lineStyle(3, 0xf97316, 0.32);
+    this.playerArcadeSilhouette.beginPath();
+    this.playerArcadeSilhouette.moveTo(direction.x * size * 0.12, direction.y * size * 0.12);
+    this.playerArcadeSilhouette.lineTo(direction.x * size * 0.86, direction.y * size * 0.86);
+    this.playerArcadeSilhouette.strokePath();
+    this.playerArcadeSilhouette.fillStyle(0xf97316, 0.28);
+    this.playerArcadeSilhouette.fillCircle(0, 0, size * 0.17);
   }
 }

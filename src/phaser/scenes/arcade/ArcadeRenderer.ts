@@ -11,7 +11,7 @@ import {
   renderPlayerThruster,
   renderPlayerTurret,
 } from '../../player/rendering';
-import { PLAYER_TURRET_TEXTURE_KEY, strokePlayerHull } from '../../player/textures';
+import { fillPlayerHull, PLAYER_TURRET_TEXTURE_KEY, strokePlayerHull } from '../../player/textures';
 import { PortalSceneCapture } from '../../portals/PortalSceneCapture';
 import { PortalWindowRenderer } from '../../portals/PortalWindowRenderer';
 import { getSandboxPerfToggles } from '../../runtime/startup';
@@ -178,9 +178,29 @@ export class ArcadeRenderer {
     if (!this.playerInRift || !session.playerAlive) return;
     if (!getPlayerVisible(true, session.player.invulnerableUntil, now)) return;
 
+    const size = 30;
+    const pulse = 0.55 + Math.sin(now / 220) * 0.18;
     this.playerRiftSilhouette.setPosition(session.player.position.x, session.player.position.y);
     this.playerRiftSilhouette.setRotation(session.player.rotation);
-    this.playerRiftSilhouette.lineStyle(2, 0x67e8f9, 0.4);
-    strokePlayerHull(this.playerRiftSilhouette, 30);
+    this.playerRiftSilhouette.fillStyle(0x67e8f9, 0.1 + pulse * 0.12);
+    fillPlayerHull(this.playerRiftSilhouette, size);
+    this.playerRiftSilhouette.lineStyle(2, 0x67e8f9, 0.38 + pulse * 0.2);
+    strokePlayerHull(this.playerRiftSilhouette, size);
+    this.playerRiftSilhouette.lineStyle(1, 0xffffff, 0.16 + pulse * 0.1);
+    strokePlayerHull(this.playerRiftSilhouette, size * 0.78);
+    this.drawRiftPlayerSilhouetteTurret(session.player.lastAim, session.player.rotation, size);
+  }
+
+  private drawRiftPlayerSilhouetteTurret(aim: Vector, hullRotation: number, size: number): void {
+    const magnitude = Math.hypot(aim.x, aim.y);
+    const angle = magnitude > 0 ? Math.atan2(aim.y, aim.x) - hullRotation : 0;
+    const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+    this.playerRiftSilhouette.lineStyle(3, 0x67e8f9, 0.32);
+    this.playerRiftSilhouette.beginPath();
+    this.playerRiftSilhouette.moveTo(direction.x * size * 0.12, direction.y * size * 0.12);
+    this.playerRiftSilhouette.lineTo(direction.x * size * 0.86, direction.y * size * 0.86);
+    this.playerRiftSilhouette.strokePath();
+    this.playerRiftSilhouette.fillStyle(0x67e8f9, 0.28);
+    this.playerRiftSilhouette.fillCircle(0, 0, size * 0.17);
   }
 }

@@ -186,7 +186,7 @@ function traceHull(ctx: CanvasRenderingContext2D, size: number): void {
   ctx.closePath();
 }
 
-export function strokePlayerHull(graphics: Phaser.GameObjects.Graphics, size: number): void {
+export function tracePlayerHull(graphics: Phaser.GameObjects.Graphics, size: number): void {
   graphics.beginPath();
   graphics.moveTo(size, 0);
   graphics.lineTo(size * 0.46, -size * 0.14);
@@ -203,6 +203,15 @@ export function strokePlayerHull(graphics: Phaser.GameObjects.Graphics, size: nu
   graphics.lineTo(size * 0.18, size * 0.2);
   graphics.lineTo(size * 0.46, size * 0.14);
   graphics.closePath();
+}
+
+export function fillPlayerHull(graphics: Phaser.GameObjects.Graphics, size: number): void {
+  tracePlayerHull(graphics, size);
+  graphics.fillPath();
+}
+
+export function strokePlayerHull(graphics: Phaser.GameObjects.Graphics, size: number): void {
+  tracePlayerHull(graphics, size);
   graphics.strokePath();
 }
 
