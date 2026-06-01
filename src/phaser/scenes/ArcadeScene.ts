@@ -35,7 +35,7 @@ import { createPortalAsteroidSpawn } from '../dimensions/PortalAsteroidSpawner';
 import { PortalDirector } from '../dimensions/PortalDirector';
 import { portalApertureContainsCenter } from '../dimensions/portalGeometry';
 import { resetDimensionCoordinator } from '../dimensions/runtime';
-import type { DimensionCommand, SpaceId } from '../dimensions/types';
+import type { DimensionCommand, PortalViewPolicy, SpaceId } from '../dimensions/types';
 import { spawnFuelBlobs, updateFuelBlobs } from '../fuel/blobLogic';
 import { FuelBlobViews } from '../fuel/blobViews';
 import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS, MAX_FUEL, SHIELD_RADIUS } from '../fuel/rules';
@@ -107,7 +107,8 @@ export class PhaserArcadeScene extends BaseGameScene {
   private riftSpaceScene: PhaserRiftSpaceScene | null = null;
   private readonly riftDebug = getArcadeRiftDebugEnabled();
   private readonly dimensionDebugEnabled = getArcadeDimensionDebugEnabled();
-  private testRiftKey: Phaser.Input.Keyboard.Key | null = null;
+  private testCameraRiftKey: Phaser.Input.Keyboard.Key | null = null;
+  private testWindowRiftKey: Phaser.Input.Keyboard.Key | null = null;
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: ALL_WEAPONS };
 
   constructor() {
@@ -171,7 +172,10 @@ export class PhaserArcadeScene extends BaseGameScene {
     );
     this.events.once('shutdown', this.disposeRenderEffects, this);
     if (this.riftDebug) {
-      this.testRiftKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.T) ?? null;
+      this.testWindowRiftKey =
+        this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.T) ?? null;
+      this.testCameraRiftKey =
+        this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.G) ?? null;
     }
     this.scale.on('resize', this.handleResize, this);
   }
@@ -433,11 +437,12 @@ export class PhaserArcadeScene extends BaseGameScene {
     return this.session.player.position;
   }
 
-  private openRiftBurst(now: number): void {
+  private openRiftBurst(now: number, viewPolicy?: PortalViewPolicy): void {
     const plan = this.riftDirector.createPortalPlan({
       now,
       playerPosition: this.session.player.position,
       portalId: this.nextPortalId,
+      viewPolicy,
       world: this.worldSize,
     });
     this.nextPortalId += 1;
@@ -447,11 +452,18 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private updateDebugRiftInput(): void {
     if (
-      this.testRiftKey &&
+      this.testWindowRiftKey &&
       this.riftWorldIsReady() &&
-      Phaser.Input.Keyboard.JustDown(this.testRiftKey)
+      Phaser.Input.Keyboard.JustDown(this.testWindowRiftKey)
     ) {
-      this.openRiftBurst(this.time.now);
+      this.openRiftBurst(this.time.now, 'window');
+    }
+    if (
+      this.testCameraRiftKey &&
+      this.riftWorldIsReady() &&
+      Phaser.Input.Keyboard.JustDown(this.testCameraRiftKey)
+    ) {
+      this.openRiftBurst(this.time.now, 'cameraTransfer');
     }
   }
 
@@ -1118,7 +1130,8 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.lastThrusterAt = 0;
     this.nextPortalId = 1;
     this.riftSpaceScene = null;
-    this.testRiftKey = null;
+    this.testCameraRiftKey = null;
+    this.testWindowRiftKey = null;
   }
 
   private handleResize(gameSize: Phaser.Structs.Size): void {

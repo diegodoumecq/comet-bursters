@@ -28,4 +28,18 @@ describe('PortalDirector', () => {
 
     expect(director.shouldOpenPortal({ activePortal: true, now: 10_000 })).toBe(false);
   });
+
+  it('uses an explicit portal view policy when provided', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.25);
+    const director = new PortalDirector();
+    const plan = director.createPortalPlan({
+      now: 100,
+      playerPosition: { x: 50, y: 50 },
+      portalId: 7,
+      viewPolicy: 'cameraTransfer',
+      world: { width: 1200, height: 800 },
+    });
+
+    expect(plan.portal.viewPolicy).toBe('cameraTransfer');
+  });
 });

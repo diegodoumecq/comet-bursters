@@ -37,7 +37,9 @@ export class PortalDirector {
     return input.now >= this.nextPortalAt;
   }
 
-  createPortalPlan(input: PortalPlacementInput): PortalDirectorPlan {
+  createPortalPlan(
+    input: PortalPlacementInput & { viewPolicy?: PortalViewPolicy },
+  ): PortalDirectorPlan {
     this.burstCount += 1;
     this.nextPortalAt = input.now + this.getIntervalMs();
     const position = this.choosePortalPosition(input);
@@ -58,7 +60,7 @@ export class PortalDirector {
         openedAt: input.now,
         openingDurationMs: RIFT_OPEN_DURATION_MS,
         position,
-        viewPolicy: this.chooseViewPolicy(),
+        viewPolicy: input.viewPolicy ?? this.chooseViewPolicy(),
         visualRadiusX: RIFT_PORTAL_RADIUS_X,
         visualRadiusY: RIFT_PORTAL_RADIUS_Y,
       },
