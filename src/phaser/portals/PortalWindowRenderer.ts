@@ -4,6 +4,8 @@ import type { PortalEntity } from '../dimensions/types';
 import { PortalMetaballRenderer } from './PortalMetaballRenderer';
 
 const PORTAL_CAPTURE_DEPTH = -1.9;
+const CAMERA_TRANSFER_PORTAL_TINT = { b: 0.22, g: 0.42, r: 1 };
+const WINDOW_PORTAL_TINT = { b: 1, g: 0.72, r: 0.12 };
 
 export class PortalWindowRenderer {
   private destinationTextureKeyProvider: () => string | null = () => null;
@@ -55,6 +57,7 @@ export class PortalWindowRenderer {
       now,
       portal,
       screen: this.screen,
+      tint: getPortalTint(portal),
     });
   }
 
@@ -70,6 +73,10 @@ export class PortalWindowRenderer {
   private hidePortal(): void {
     this.metaballRenderer.setVisible(false);
   }
+}
+
+function getPortalTint(portal: PortalEntity): { b: number; g: number; r: number } {
+  return portal.viewPolicy === 'cameraTransfer' ? CAMERA_TRANSFER_PORTAL_TINT : WINDOW_PORTAL_TINT;
 }
 
 function getPortalFade(portal: PortalEntity, now: number): number {

@@ -18,6 +18,7 @@ uniform vec2 u_normal;
 uniform vec2 u_radius;
 uniform vec2 u_region_origin;
 uniform vec2 u_screen;
+uniform vec3 u_tint;
 uniform sampler2D iChannel0;
 uniform vec2 resolution;
 
@@ -76,6 +77,7 @@ void main() {
   rimColor = mix(rimColor, cyan, forward * 0.44 + body * 0.16);
   rimColor = mix(rimColor, ember, smoothstep(0.58, 1.0, light) * 0.2);
   rimColor += vec3(0.08, 0.55, 0.95) * border * 0.48;
+  rimColor = mix(rimColor, u_tint, 0.58);
   rimColor *= 0.5 + contour * 0.28 + border * 0.42 + glow * 0.1;
   vec3 color = mix(sourceColor.rgb, rimColor, border * 0.68 + contour * 0.24 + core * 0.08);
 
@@ -97,6 +99,7 @@ type PortalMetaballRendererInput = {
   portal: PortalEntity;
   now: number;
   alpha: number;
+  tint: { b: number; g: number; r: number };
 };
 
 export class PortalMetaballRenderer {
@@ -120,6 +123,7 @@ export class PortalMetaballRenderer {
     now,
     portal,
     screen,
+    tint,
   }: PortalMetaballRendererInput): void {
     const bounds = getPortalShaderBounds(screen);
 
@@ -138,6 +142,9 @@ export class PortalMetaballRenderer {
       .setUniform('u_region_origin.value.y', bounds.y)
       .setUniform('u_screen.value.x', screen.width)
       .setUniform('u_screen.value.y', screen.height)
+      .setUniform('u_tint.value.x', tint.r)
+      .setUniform('u_tint.value.y', tint.g)
+      .setUniform('u_tint.value.z', tint.b)
       .setUniform('u_metaballs.value', buildPortalMetaballData(portal, now, this.metaballData))
       .setUniform('u_time.value', now)
       .setChannel0(destinationTextureKey)
@@ -163,6 +170,7 @@ export class PortalMetaballRenderer {
         u_radius: { type: '2f', value: { x: 1, y: 1 } },
         u_region_origin: { type: '2f', value: { x: 0, y: 0 } },
         u_screen: { type: '2f', value: { x: 1, y: 1 } },
+        u_tint: { type: '3f', value: { x: 0.12, y: 0.72, z: 1 } },
         u_metaballs: { type: '4fv', value: new Float32Array(PORTAL_METABALL_COUNT * 4) },
         u_time: { type: '1f', value: 0 },
       }),
