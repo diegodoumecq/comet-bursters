@@ -80,6 +80,12 @@ export class ArcadeSpaceBackground {
     return this.shader.getCanvas();
   }
 
+  hide(): void {
+    this.shader.setVisible(false);
+    this.starfield.setVisible(false);
+    this.grid.setVisible(false);
+  }
+
   private dispose(): void {
     this.shader.dispose();
     this.starfield.destroy();

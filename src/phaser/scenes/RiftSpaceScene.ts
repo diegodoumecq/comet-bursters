@@ -76,7 +76,10 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
         return canvas ? [canvas] : [];
       },
     );
-    this.sceneCapture = new PortalSceneCapture(this, this.worldSize);
+    this.sceneCapture = new PortalSceneCapture(this, this.worldSize, () => {
+      const canvas = this.background.getCanvas();
+      return canvas ? [canvas] : [];
+    });
     this.dimensionDebug = new DimensionDebugOverlay(this);
     this.portalRenderer = new PortalWindowRenderer(this, {
       height: this.worldSize.height,
@@ -114,12 +117,16 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
       worldSize: this.worldSize,
     });
     this.background.render(time, {
-      grid: this.perfToggles.grid,
-      starfield: this.perfToggles.starfield,
-      threeBackground: this.perfToggles.threeBackground,
+      grid: this.activeView && this.perfToggles.grid,
+      starfield: this.activeView && this.perfToggles.starfield,
+      threeBackground: this.activeView && this.perfToggles.threeBackground,
     });
     this.portalRenderer.setPortals(this.portals);
-    this.portalRenderer.render(time);
+    if (this.activeView) {
+      this.portalRenderer.render(time);
+    } else {
+      this.portalRenderer.setVisible(false);
+    }
     if (this.activeView) {
       this.renderEffects.render(this.runtime.world, time, this.worldSize);
     } else {
@@ -128,7 +135,10 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
   }
 
   captureTextureKey(): string {
-    return this.sceneCapture.capture();
+    this.prepareBackgroundForCapture();
+    const textureKey = this.sceneCapture.capture();
+    this.background.hide();
+    return textureKey;
   }
 
   renderPlayerOverlay(input: {
@@ -204,6 +214,14 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
   setTimeScale(timeScale: number): void {
     this.timeScale = timeScale;
     this.matter.world.engine.timing.timeScale = timeScale;
+  }
+
+  private prepareBackgroundForCapture(): void {
+    this.background.render(this.time.now, {
+      grid: this.perfToggles.grid,
+      starfield: this.perfToggles.starfield,
+      threeBackground: this.perfToggles.threeBackground,
+    });
   }
 
   private handleResize(gameSize: Phaser.Structs.Size): void {

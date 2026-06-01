@@ -63,7 +63,10 @@ export class ArcadeRenderer {
       width: world.width,
     });
     this.weaponMenu = new WeaponMenu(scene, weaponPolicy.allowedWeapons);
-    this.sceneCapture = new PortalSceneCapture(scene, world);
+    this.sceneCapture = new PortalSceneCapture(scene, world, () => {
+      const canvas = this.getBackgroundCanvas();
+      return canvas ? [canvas] : [];
+    });
   }
 
   getSelectedWeapon(aim: Vector): WeaponKind {
@@ -76,7 +79,10 @@ export class ArcadeRenderer {
   }
 
   captureTextureKey(): string {
-    return this.sceneCapture.capture();
+    this.prepareBackgroundForCapture();
+    const textureKey = this.sceneCapture.capture();
+    this.background.hide();
+    return textureKey;
   }
 
   addRift(portal: PortalEntity): void {
@@ -95,13 +101,19 @@ export class ArcadeRenderer {
     this.playerInRift = inRift;
   }
 
-  render(now: number, session: ArcadeRunState, action: ActionState, tractorActive: boolean): void {
+  render(
+    now: number,
+    session: ArcadeRunState,
+    action: ActionState,
+    tractorActive: boolean,
+    backgroundVisible = true,
+  ): void {
     withPerformanceMeasure('arcade.render.background', this.perfToggles.markers, () => {
       this.background.render(now, session.player.velocity, {
-        grid: this.perfToggles.grid,
+        grid: backgroundVisible && this.perfToggles.grid,
         markers: this.perfToggles.markers,
-        starfield: this.perfToggles.starfield,
-        threeBackground: this.perfToggles.threeBackground,
+        starfield: backgroundVisible && this.perfToggles.starfield,
+        threeBackground: backgroundVisible && this.perfToggles.threeBackground,
       });
     });
     const playerAlive = session.playerAlive;
@@ -149,7 +161,24 @@ export class ArcadeRenderer {
       this.shakeUntil,
       this.shakeIntensity,
     ).shakeIntensity;
-    this.riftRenderer.render(now);
+    if (backgroundVisible) {
+      this.riftRenderer.render(now);
+    } else {
+      this.riftRenderer.setVisible(false);
+    }
+  }
+
+  private prepareBackgroundForCapture(): void {
+    this.background.render(
+      this.scene.time.now,
+      { x: 0, y: 0 },
+      {
+        grid: this.perfToggles.grid,
+        markers: this.perfToggles.markers,
+        starfield: this.perfToggles.starfield,
+        threeBackground: this.perfToggles.threeBackground,
+      },
+    );
   }
 
   startShake(intensity: number, durationMs: number): void {

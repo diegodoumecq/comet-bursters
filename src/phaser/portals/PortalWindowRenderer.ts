@@ -66,6 +66,10 @@ export class PortalWindowRenderer {
     this.screen.height = screen.height;
   }
 
+  setVisible(visible: boolean): void {
+    this.metaballRenderer.setVisible(visible);
+  }
+
   destroy(): void {
     this.metaballRenderer.destroy();
   }

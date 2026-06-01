@@ -33,6 +33,7 @@ export class Starfield {
     private readonly scene: Phaser.Scene,
     private screen: WorldSize,
     private readonly depthShift = 0,
+    private readonly seedOffset = 0,
   ) {
     this.createLayers();
   }
@@ -101,7 +102,7 @@ export class Starfield {
       return textureKey;
     }
 
-    for (const star of createStars(this.screen, config, layerIndex)) {
+    for (const star of createStars(this.screen, config, layerIndex, this.seedOffset)) {
       context.globalAlpha = star.alpha;
       context.fillStyle = toCanvasColor(star.tint);
       context.beginPath();
@@ -142,9 +143,10 @@ function createStars(
   screen: WorldSize,
   config: (typeof LAYERS)[number],
   layerIndex: number,
+  seedOffset: number,
 ): Star[] {
   return Array.from({ length: config.count }, (_, index) => {
-    const seed = layerIndex * 1000 + index;
+    const seed = seedOffset + layerIndex * 1000 + index;
     const brightness = 0.55 + seededUnit(seed, 29) * 0.45;
     return {
       alpha: (0.28 + seededUnit(seed, 41) * 0.48) * brightness,

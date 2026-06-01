@@ -386,7 +386,13 @@ export class PhaserArcadeScene extends BaseGameScene {
     });
     this.sceneRenderer.setRiftPortals(renderablePortals);
     this.sceneRenderer.setPlayerInRift(this.session.player.membership.space === 'rift');
-    this.sceneRenderer.render(time, this.session, action, this.getTractorActive(action));
+    this.sceneRenderer.render(
+      time,
+      this.session,
+      action,
+      this.getTractorActive(action),
+      activeViewSpace === 'arcade',
+    );
     if (activeViewSpace === 'arcade') {
       this.renderEffects.render(this.session, time, this.worldSize);
     } else {
