@@ -51,14 +51,15 @@ void main() {
   }
 
   float normalizedEllipse = length(localPosition / radius);
-  float portalGate = 1.0 - smoothstep(1.08, 1.28, normalizedEllipse);
-  float body = smoothstep(0.5, 0.58, field) * portalGate;
-  float contour = (smoothstep(0.28, 0.36, field) - smoothstep(0.58, 0.68, field)) * portalGate;
-  float border = (smoothstep(0.38, 0.5, field) - smoothstep(0.58, 0.72, field)) * portalGate;
+  float windowGate = 1.0 - smoothstep(1.08, 1.28, normalizedEllipse);
+  float rimGate = 1.0 - smoothstep(1.72, 2.08, normalizedEllipse);
+  float body = smoothstep(0.5, 0.58, field) * windowGate;
+  float contour = (smoothstep(0.28, 0.36, field) - smoothstep(0.58, 0.68, field)) * rimGate;
+  float border = (smoothstep(0.38, 0.5, field) - smoothstep(0.58, 0.72, field)) * rimGate;
   float outerBorder = (smoothstep(0.16, 0.24, field) - smoothstep(0.34, 0.44, field)) *
-    portalGate;
-  float core = smoothstep(0.9, 1.18, field) * portalGate;
-  float glow = smoothstep(0.12, 0.22, glowField) * portalGate * 0.08;
+    rimGate;
+  float core = smoothstep(0.9, 1.18, field) * windowGate;
+  float glow = smoothstep(0.12, 0.22, glowField) * rimGate * 0.08;
 
   float forward = smoothstep(-0.7, 1.0, localPosition.y / radius.y);
   float light = clamp(directionalLight / max(field, 0.001), 0.0, 1.0);
@@ -120,13 +121,7 @@ export class PortalMetaballRenderer {
     portal,
     screen,
   }: PortalMetaballRendererInput): void {
-    const padding = portal.visualRadiusY * 1.35;
-    const bounds = {
-      height: portal.visualRadiusY * 2 + padding * 2,
-      width: portal.visualRadiusX * 2 + padding * 2,
-      x: portal.position.x - portal.visualRadiusX - padding,
-      y: portal.position.y - portal.visualRadiusY - padding,
-    };
+    const bounds = getPortalShaderBounds(screen);
 
     this.shader
       .setPosition(bounds.x, bounds.y)
@@ -173,4 +168,18 @@ export class PortalMetaballRenderer {
       }),
     );
   }
+}
+
+function getPortalShaderBounds(screen: { height: number; width: number }): {
+  height: number;
+  width: number;
+  x: number;
+  y: number;
+} {
+  return {
+    height: screen.height,
+    width: screen.width,
+    x: 0,
+    y: 0,
+  };
 }
