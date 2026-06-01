@@ -119,6 +119,9 @@ describe('SpaceWorldRuntime asteroid transfer authority', () => {
 
     expect(destinationBodies.addedAsteroid?.rotation).toBe(1.4);
     expect(destinationBodies.addedAsteroid?.angularVelocity).toBe(-0.025);
+    expect(sourceBodies.detach).toHaveBeenCalledWith(asteroid);
+    expect(sourceBodies.destroy).not.toHaveBeenCalled();
+    expect(destinationBodies.attach).toHaveBeenCalledWith(asteroid);
   });
 });
 
@@ -183,6 +186,11 @@ function createAsteroidBodiesSync(
     add: vi.fn((asteroid: AsteroidEntity) => {
       bodies.addedAsteroid = asteroid;
     }),
+    attach: vi.fn((asteroid: AsteroidEntity) => {
+      bodies.addedAsteroid = asteroid;
+    }),
+    destroy: vi.fn(),
+    detach: vi.fn(),
     remove: vi.fn(),
     sync: vi.fn((asteroid: AsteroidEntity) => {
       asteroid.position = { ...state.position };

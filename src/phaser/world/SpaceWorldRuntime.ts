@@ -89,20 +89,11 @@ export class SpaceWorldRuntime {
   }
 
   addAsteroids(asteroids: AsteroidEntity[]): void {
-    this.world.addAsteroids(asteroids);
-    for (const asteroid of asteroids) {
-      asteroid.membership = { space: this.space };
-      this.attachments.asteroidBodies.add(asteroid);
-      this.attachments.contacts.addAsteroid(asteroid, this.attachments.asteroidBodies);
-      this.rememberPreviousPosition(`asteroid:${asteroid.id}`, asteroid.position);
-    }
+    for (const asteroid of asteroids) this.addAsteroidToRuntime(asteroid);
   }
 
   removeAsteroid(asteroid: AsteroidEntity): void {
-    this.attachments.contacts.removeAsteroid(asteroid);
-    this.attachments.asteroidBodies.remove(asteroid);
-    this.world.removeAsteroid(asteroid);
-    this.previousPositions.delete(`asteroid:${asteroid.id}`);
+    this.destroyAsteroidInRuntime(asteroid);
   }
 
   addProjectile(projectile: ProjectileEntity): void {
@@ -286,7 +277,7 @@ export class SpaceWorldRuntime {
       const asteroid = this.world.asteroids.find((candidate) => candidate.id === snapshot.id);
       if (!asteroid) return null;
       this.attachments.asteroidBodies.sync(asteroid);
-      this.removeAsteroid(asteroid);
+      this.detachAsteroidFromRuntimeForTransfer(asteroid);
       return { entity: asteroid, kind: 'asteroid' };
     }
     if (snapshot.kind === 'projectile') {
@@ -316,7 +307,7 @@ export class SpaceWorldRuntime {
 
   attachTransferredEntity(detached: DetachedSpaceEntity): void {
     if (detached.kind === 'asteroid') {
-      this.addAsteroids([detached.entity]);
+      this.attachAsteroidToRuntimeForTransfer(detached.entity);
     } else if (detached.kind === 'projectile') {
       this.addProjectile(detached.entity);
     } else if (detached.kind === 'fuelBlob') {
@@ -326,6 +317,36 @@ export class SpaceWorldRuntime {
     } else {
       this.attachPlayer(detached.entity);
     }
+  }
+
+  private addAsteroidToRuntime(asteroid: AsteroidEntity): void {
+    this.world.addAsteroids([asteroid]);
+    asteroid.membership = { space: this.space };
+    this.attachments.asteroidBodies.attach(asteroid);
+    this.attachments.contacts.addAsteroid(asteroid, this.attachments.asteroidBodies);
+    this.rememberPreviousPosition(`asteroid:${asteroid.id}`, asteroid.position);
+  }
+
+  private attachAsteroidToRuntimeForTransfer(asteroid: AsteroidEntity): void {
+    this.world.addAsteroids([asteroid]);
+    asteroid.membership = { space: this.space };
+    this.attachments.asteroidBodies.attach(asteroid);
+    this.attachments.contacts.addAsteroid(asteroid, this.attachments.asteroidBodies);
+    this.rememberPreviousPosition(`asteroid:${asteroid.id}`, asteroid.position);
+  }
+
+  private detachAsteroidFromRuntimeForTransfer(asteroid: AsteroidEntity): void {
+    this.attachments.contacts.removeAsteroid(asteroid);
+    this.attachments.asteroidBodies.detach(asteroid);
+    this.world.removeAsteroid(asteroid);
+    this.previousPositions.delete(`asteroid:${asteroid.id}`);
+  }
+
+  private destroyAsteroidInRuntime(asteroid: AsteroidEntity): void {
+    this.attachments.contacts.removeAsteroid(asteroid);
+    this.attachments.asteroidBodies.destroy(asteroid);
+    this.world.removeAsteroid(asteroid);
+    this.previousPositions.delete(`asteroid:${asteroid.id}`);
   }
 
   private rememberPreviousPosition(key: string, position: Vector): void {

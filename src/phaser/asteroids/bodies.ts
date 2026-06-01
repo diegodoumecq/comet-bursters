@@ -23,6 +23,7 @@ type Snapshot = {
 };
 
 export class AsteroidBodies {
+  private readonly attached = new Set<number>();
   private readonly bodies = new Map<number, MatterImage>();
   private readonly toroidalCopies = new Map<number, ToroidalCopy[]>();
   private readonly snapshots = new Map<number, Snapshot>();
@@ -30,6 +31,25 @@ export class AsteroidBodies {
   constructor(private readonly scene: Phaser.Scene) {}
 
   add(asteroid: AsteroidEntity): MatterImage {
+    return this.attach(asteroid);
+  }
+
+  attach(asteroid: AsteroidEntity): MatterImage {
+    const existing = this.bodies.get(asteroid.id);
+    if (existing) {
+      this.attached.add(asteroid.id);
+      this.placeBody(
+        existing,
+        asteroid.position,
+        asteroid.velocity,
+        asteroid.rotation,
+        asteroid.angularVelocity,
+        true,
+      );
+      this.syncCollisionFilter(asteroid);
+      return existing;
+    }
+
     const config = ASTEROIDS[asteroid.tier];
     const body = this.scene.matter.add.image(
       asteroid.position.x,
@@ -45,6 +65,7 @@ export class AsteroidBodies {
     body.setRotation(asteroid.rotation);
     body.setAngularVelocity(asteroid.angularVelocity);
     this.bodies.set(asteroid.id, body);
+    this.attached.add(asteroid.id);
     this.syncCollisionFilter(asteroid);
     return body;
   }
@@ -56,8 +77,29 @@ export class AsteroidBodies {
   }
 
   remove(asteroid: AsteroidEntity): void {
+    this.destroy(asteroid);
+  }
+
+  detach(asteroid: AsteroidEntity): void {
+    const body = this.get(asteroid);
+    asteroid.position = { x: body.x, y: body.y };
+    asteroid.velocity = { x: body.body.velocity.x, y: body.body.velocity.y };
+    asteroid.rotation = body.rotation;
+    asteroid.angularVelocity = body.body.angularVelocity;
+    for (const current of this.getAllBodies(asteroid)) {
+      current.setVisible(false);
+      current.body.collisionFilter.mask = 0;
+      current.setVelocity(0, 0);
+      current.setAngularVelocity(0);
+    }
+    this.attached.delete(asteroid.id);
+    this.snapshots.delete(asteroid.id);
+  }
+
+  destroy(asteroid: AsteroidEntity): void {
     this.get(asteroid).destroy();
     this.bodies.delete(asteroid.id);
+    this.attached.delete(asteroid.id);
     const copies = this.toroidalCopies.get(asteroid.id) ?? [];
     for (const copy of copies) copy.body.destroy();
     this.toroidalCopies.delete(asteroid.id);
@@ -65,6 +107,7 @@ export class AsteroidBodies {
   }
 
   sync(asteroid: AsteroidEntity): void {
+    if (!this.attached.has(asteroid.id)) return;
     const body = this.get(asteroid);
     asteroid.position = { x: body.x, y: body.y };
     asteroid.velocity = { x: body.body.velocity.x, y: body.body.velocity.y };
@@ -77,8 +120,9 @@ export class AsteroidBodies {
   }
 
   syncToroidalAll(asteroids: AsteroidEntity[], world: WorldSize): void {
-    for (const asteroid of asteroids) this.reconcileToroidal(asteroid, world);
-    for (const asteroid of asteroids) this.prepareToroidalCopies(asteroid, world);
+    const attachedAsteroids = asteroids.filter((asteroid) => this.attached.has(asteroid.id));
+    for (const asteroid of attachedAsteroids) this.reconcileToroidal(asteroid, world);
+    for (const asteroid of attachedAsteroids) this.prepareToroidalCopies(asteroid, world);
   }
 
   getBodyIds(asteroid: AsteroidEntity): number[] {
@@ -97,7 +141,10 @@ export class AsteroidBodies {
   }
 
   setVisible(asteroid: AsteroidEntity, visible: boolean): void {
-    for (const body of this.getAllBodies(asteroid)) body.setVisible(visible);
+    for (const body of this.getAllBodies(asteroid)) {
+      body.setVisible(visible);
+      body.body.collisionFilter.mask = visible && this.attached.has(asteroid.id) ? 0xffffffff : 0;
+    }
   }
 
   private reconcileToroidal(asteroid: AsteroidEntity, world: WorldSize): void {
