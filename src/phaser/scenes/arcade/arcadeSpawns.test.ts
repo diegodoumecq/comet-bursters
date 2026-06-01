@@ -34,9 +34,11 @@ describe('arcade spawns', () => {
   it('chooses a player respawn outside asteroid circles', () => {
     const asteroids = [
       {
+        angularVelocity: 0,
         id: 1,
         hits: 1,
         position: { x: world.width * 0.5, y: world.height * 0.5 },
+        rotation: 0,
         tier: 'mega' as const,
         velocity: { x: 0, y: 0 },
         visualVariant: 0,

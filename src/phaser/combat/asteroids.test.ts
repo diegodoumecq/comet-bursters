@@ -8,8 +8,10 @@ import { resolvePlayerAsteroidCollision } from './asteroids';
 
 function smallAsteroidAt(x: number, y: number): AsteroidEntity {
   return {
+    angularVelocity: 0,
     id: 1,
     position: { x, y },
+    rotation: 0,
     tier: 'small',
     velocity: { x: 0, y: 0 },
     visualVariant: 0,

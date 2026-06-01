@@ -14,8 +14,10 @@ function body(id: number): MatterJS.BodyType {
 
 function asteroid(): AsteroidEntity {
   return {
+    angularVelocity: 0,
     id: 1,
     position: { x: 0, y: 0 },
+    rotation: 0,
     tier: 'small',
     velocity: { x: 0, y: 0 },
     visualVariant: 0,

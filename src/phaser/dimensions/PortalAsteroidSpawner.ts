@@ -27,10 +27,12 @@ export function createPortalAsteroidSpawn(input: {
     const speed = input.plan.spawn.asteroidSpeed * randomBetween(0.88, 1.12);
     const velocity = scaleVector(portal.normal, speed);
     asteroids.push({
+      angularVelocity: randomBetween(-0.025, 0.025),
       id: nextPortalAsteroidId++,
       hits: ASTEROIDS[tier].hits,
       membership: { space: 'rift' },
       position,
+      rotation: randomBetween(0, Math.PI * 2),
       tier,
       velocity,
       visualVariant: randomInt(0, 1),

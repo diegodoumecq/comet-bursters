@@ -285,6 +285,7 @@ export class SpaceWorldRuntime {
     if (snapshot.kind === 'asteroid') {
       const asteroid = this.world.asteroids.find((candidate) => candidate.id === snapshot.id);
       if (!asteroid) return null;
+      this.attachments.asteroidBodies.sync(asteroid);
       this.removeAsteroid(asteroid);
       return { entity: asteroid, kind: 'asteroid' };
     }

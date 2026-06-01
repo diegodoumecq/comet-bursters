@@ -42,6 +42,8 @@ export class AsteroidBodies {
     body.setBounce(1);
     body.body.collisionFilter.category = ASTEROID_COLLISION_CATEGORY;
     body.setVelocity(asteroid.velocity.x, asteroid.velocity.y);
+    body.setRotation(asteroid.rotation);
+    body.setAngularVelocity(asteroid.angularVelocity);
     this.bodies.set(asteroid.id, body);
     this.syncCollisionFilter(asteroid);
     return body;
@@ -66,6 +68,8 @@ export class AsteroidBodies {
     const body = this.get(asteroid);
     asteroid.position = { x: body.x, y: body.y };
     asteroid.velocity = { x: body.body.velocity.x, y: body.body.velocity.y };
+    asteroid.rotation = body.rotation;
+    asteroid.angularVelocity = body.body.angularVelocity;
   }
 
   syncAll(asteroids: AsteroidEntity[]): void {
@@ -131,6 +135,8 @@ export class AsteroidBodies {
     const angularVelocity = authority.body.body.angularVelocity;
     asteroid.position = position;
     asteroid.velocity = velocity;
+    asteroid.rotation = rotation;
+    asteroid.angularVelocity = angularVelocity;
     this.placeBody(primary, position, velocity, rotation, angularVelocity, true);
   }
 
@@ -143,8 +149,8 @@ export class AsteroidBodies {
     );
     const velocity = asteroid.velocity;
     const primary = this.get(asteroid);
-    const rotation = primary.rotation;
-    const angularVelocity = primary.body.angularVelocity;
+    const rotation = asteroid.rotation;
+    const angularVelocity = asteroid.angularVelocity;
     this.placeBody(primary, asteroid.position, velocity, rotation, angularVelocity, true);
     for (const copy of copies) {
       const offset = getWorldOffset(copy.direction, world);
@@ -202,6 +208,8 @@ export class AsteroidBodies {
     body.setBounce(1);
     body.body.collisionFilter.category = ASTEROID_COLLISION_CATEGORY;
     body.setVelocity(asteroid.velocity.x, asteroid.velocity.y);
+    body.setRotation(asteroid.rotation);
+    body.setAngularVelocity(asteroid.angularVelocity);
     return body;
   }
 

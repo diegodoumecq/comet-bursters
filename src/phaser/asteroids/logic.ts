@@ -34,10 +34,12 @@ export function createAsteroid(
   const config = ASTEROIDS[tier];
   const visualVariant = Phaser.Math.Between(0, ASTEROID_TEXTURES[tier].length - 1);
   return {
+    angularVelocity: Phaser.Math.FloatBetween(-0.025, 0.025),
     id: nextAsteroidId++,
     hits: config.hits,
     membership: { space: 'arcade' },
     position,
+    rotation: Phaser.Math.FloatBetween(0, Math.PI * 2),
     tier,
     velocity,
     visualVariant,

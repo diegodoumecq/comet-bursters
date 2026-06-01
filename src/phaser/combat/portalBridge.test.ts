@@ -81,10 +81,12 @@ function createAsteroid(
   velocity: AsteroidEntity['velocity'],
 ): AsteroidEntity {
   return {
+    angularVelocity: 0,
     hits: 1,
     id,
     membership: { space },
     position,
+    rotation: 0,
     tier: 'small',
     velocity,
     visualVariant: 0,

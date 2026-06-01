@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { AsteroidBodies } from '../asteroids/bodies';
+import type { AsteroidEntity } from '../asteroids/types';
 import type { MatterImage } from '../core/types';
 import type { SpaceId } from '../dimensions/types';
 import type { PlayerBody } from '../player/body';
@@ -85,6 +87,41 @@ describe('SpaceWorldRuntime player transfer authority', () => {
   });
 });
 
+describe('SpaceWorldRuntime asteroid transfer authority', () => {
+  it('preserves asteroid rotation and spin through detach and attach', () => {
+    const asteroid = createAsteroid('arcade');
+    const sourceBodies = createAsteroidBodiesSync({
+      angularVelocity: -0.025,
+      position: { x: 55, y: 65 },
+      rotation: 1.4,
+      velocity: { x: 6, y: -2 },
+    });
+    const source = createRuntime('arcade', { asteroidBodies: sourceBodies });
+    source.addAsteroids([asteroid]);
+
+    const detached = source.detachTransferEntity({
+      id: asteroid.id,
+      kind: 'asteroid',
+      membership: { space: 'arcade' },
+      position: asteroid.position,
+      previousPosition: { x: 40, y: 65 },
+    });
+
+    if (!detached || detached.kind !== 'asteroid') throw new Error('Expected asteroid detach');
+    expect(detached.entity.position).toEqual({ x: 55, y: 65 });
+    expect(detached.entity.velocity).toEqual({ x: 6, y: -2 });
+    expect(detached.entity.rotation).toBe(1.4);
+    expect(detached.entity.angularVelocity).toBe(-0.025);
+
+    const destinationBodies = createAsteroidBodiesSync();
+    const destination = createRuntime('rift', { asteroidBodies: destinationBodies });
+    destination.attachTransferredEntity(detached);
+
+    expect(destinationBodies.addedAsteroid?.rotation).toBe(1.4);
+    expect(destinationBodies.addedAsteroid?.angularVelocity).toBe(-0.025);
+  });
+});
+
 function createRuntime(
   space: SpaceId,
   overrides: Partial<ConstructorParameters<typeof SpaceWorldRuntime>[1]> = {},
@@ -92,6 +129,8 @@ function createRuntime(
   return new SpaceWorldRuntime(space, {
     asteroidBodies: {} as never,
     contacts: {
+      addAsteroid: vi.fn(),
+      removeAsteroid: vi.fn(),
       setPlayer: vi.fn(),
       setShield: vi.fn(),
     } as never,
@@ -109,6 +148,50 @@ function createPlayer(space: SpaceId): PlayerState {
   player.position = { x: 10, y: 20 };
   player.velocity = { x: 1, y: 2 };
   return player;
+}
+
+function createAsteroid(space: SpaceId): AsteroidEntity {
+  return {
+    angularVelocity: 0,
+    id: 1,
+    membership: { space },
+    position: { x: 10, y: 20 },
+    rotation: 0,
+    tier: 'small',
+    velocity: { x: 1, y: 2 },
+    visualVariant: 0,
+  };
+}
+
+function createAsteroidBodiesSync(
+  state: {
+    angularVelocity: number;
+    position: { x: number; y: number };
+    rotation: number;
+    velocity: { x: number; y: number };
+  } = {
+    angularVelocity: 0,
+    position: { x: 0, y: 0 },
+    rotation: 0,
+    velocity: { x: 0, y: 0 },
+  },
+): AsteroidBodies & {
+  addedAsteroid: AsteroidEntity | null;
+} {
+  const bodies = {
+    addedAsteroid: null as AsteroidEntity | null,
+    add: vi.fn((asteroid: AsteroidEntity) => {
+      bodies.addedAsteroid = asteroid;
+    }),
+    remove: vi.fn(),
+    sync: vi.fn((asteroid: AsteroidEntity) => {
+      asteroid.position = { ...state.position };
+      asteroid.velocity = { ...state.velocity };
+      asteroid.rotation = state.rotation;
+      asteroid.angularVelocity = state.angularVelocity;
+    }),
+  };
+  return bodies as unknown as AsteroidBodies & { addedAsteroid: AsteroidEntity | null };
 }
 
 function createPlayerBodySync(
