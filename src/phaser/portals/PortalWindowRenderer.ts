@@ -1,35 +1,20 @@
 import Phaser from 'phaser';
 
 import type { PortalEntity } from '../dimensions/types';
-import { markPortalCaptureExcluded } from './PortalSceneCapture';
+import { PortalMetaballRenderer } from './PortalMetaballRenderer';
 
-const PORTAL_DEPTH = 1.2;
-const PORTAL_EDGE_DEPTH = 1.3;
-const ELLIPSE_SEGMENTS = 48;
-const PORTAL_COLORS: Record<PortalEntity['viewPolicy'], { fill: number; rim: number }> = {
-  cameraTransfer: { fill: 0x052e16, rim: 0x22c55e },
-  window: { fill: 0x431407, rim: 0xf97316 },
-};
+const PORTAL_CAPTURE_DEPTH = -1.9;
 
 export class PortalWindowRenderer {
   private destinationTextureKeyProvider: () => string | null = () => null;
-  private maskGraphics: Phaser.GameObjects.Graphics;
-  private portalImage: Phaser.GameObjects.Image;
-  private rimGraphics: Phaser.GameObjects.Graphics;
+  private metaballRenderer: PortalMetaballRenderer;
   private readonly portals: PortalEntity[] = [];
 
   constructor(
     scene: Phaser.Scene,
     private readonly screen: { height: number; width: number },
   ) {
-    this.portalImage = scene.add.image(0, 0, '__DEFAULT').setOrigin(0).setDepth(PORTAL_DEPTH);
-    this.maskGraphics = scene.add.graphics().setVisible(false);
-    this.rimGraphics = scene.add.graphics().setDepth(PORTAL_EDGE_DEPTH);
-    this.portalImage.setMask(this.maskGraphics.createGeometryMask());
-    this.portalImage.setVisible(false);
-    markPortalCaptureExcluded(this.portalImage);
-    markPortalCaptureExcluded(this.maskGraphics);
-    markPortalCaptureExcluded(this.rimGraphics);
+    this.metaballRenderer = new PortalMetaballRenderer(scene);
   }
 
   setDestinationTextureKeyProvider(provider: () => string | null): void {
@@ -48,51 +33,42 @@ export class PortalWindowRenderer {
   render(now: number): void {
     const portal = this.portals[0] ?? null;
     if (!portal) {
-      this.portalImage.setVisible(false);
-      this.rimGraphics.clear();
-      this.maskGraphics.clear();
+      this.hidePortal();
       return;
     }
 
     const fade = getPortalFade(portal, now);
     if (fade <= 0) {
-      this.portalImage.setVisible(false);
-      this.rimGraphics.clear();
-      this.maskGraphics.clear();
+      this.hidePortal();
       return;
     }
-
-    const angle = Math.atan2(portal.normal.y, portal.normal.x);
-    const color = PORTAL_COLORS[portal.viewPolicy];
-    this.maskGraphics.clear();
-    drawPortalEllipse(this.maskGraphics, portal, angle, 0xffffff, 1, true);
-    this.rimGraphics.clear();
-    drawPortalFill(this.rimGraphics, portal, angle, color.fill, fade);
-    drawPortalEllipse(this.rimGraphics, portal, angle, color.rim, 0.9 * fade, false);
 
     const destinationTextureKey = this.destinationTextureKeyProvider();
     if (destinationTextureKey === null) {
-      this.portalImage.setVisible(false);
+      this.metaballRenderer.setVisible(false);
       return;
     }
-    this.portalImage
-      .setTexture(destinationTextureKey)
-      .setPosition(0, 0)
-      .setDisplaySize(this.screen.width, this.screen.height)
-      .setAlpha(fade)
-      .setVisible(true);
+    this.metaballRenderer.render({
+      alpha: fade,
+      depth: PORTAL_CAPTURE_DEPTH,
+      destinationTextureKey,
+      now,
+      portal,
+      screen: this.screen,
+    });
   }
 
   resize(screen: { height: number; width: number }): void {
     this.screen.width = screen.width;
     this.screen.height = screen.height;
-    this.portalImage.setDisplaySize(screen.width, screen.height);
   }
 
   destroy(): void {
-    this.portalImage.destroy();
-    this.maskGraphics.destroy();
-    this.rimGraphics.destroy();
+    this.metaballRenderer.destroy();
+  }
+
+  private hidePortal(): void {
+    this.metaballRenderer.setVisible(false);
   }
 }
 
@@ -108,46 +84,4 @@ function getPortalFade(portal: PortalEntity, now: number): number {
           1,
         );
   return Phaser.Math.SmoothStep(opening, 0, 1) * (1 - Phaser.Math.SmoothStep(closing, 0, 1));
-}
-
-function drawPortalEllipse(
-  graphics: Phaser.GameObjects.Graphics,
-  portal: PortalEntity,
-  angle: number,
-  color: number,
-  alpha: number,
-  fill: boolean,
-): void {
-  const tangent = { x: -Math.sin(angle), y: Math.cos(angle) };
-  const normal = { x: Math.cos(angle), y: Math.sin(angle) };
-  const points = [];
-  for (let index = 0; index < ELLIPSE_SEGMENTS; index += 1) {
-    const theta = (index / ELLIPSE_SEGMENTS) * Math.PI * 2;
-    const along = Math.cos(theta) * portal.aperture.radiusX;
-    const across = Math.sin(theta) * portal.aperture.radiusY;
-    points.push({
-      x: portal.position.x + tangent.x * along + normal.x * across,
-      y: portal.position.y + tangent.y * along + normal.y * across,
-    });
-  }
-
-  if (fill) graphics.fillStyle(color, alpha);
-  else graphics.lineStyle(3, color, alpha);
-  graphics.beginPath();
-  graphics.moveTo(points[0].x, points[0].y);
-  for (let index = 1; index < points.length; index += 1)
-    graphics.lineTo(points[index].x, points[index].y);
-  graphics.closePath();
-  if (fill) graphics.fillPath();
-  else graphics.strokePath();
-}
-
-function drawPortalFill(
-  graphics: Phaser.GameObjects.Graphics,
-  portal: PortalEntity,
-  angle: number,
-  color: number,
-  fade: number,
-): void {
-  drawPortalEllipse(graphics, portal, angle, color, 0.42 * fade, true);
 }
