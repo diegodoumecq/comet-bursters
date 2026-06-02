@@ -6,7 +6,7 @@ import type { NebulaRegion, NebulaRegionColor, NebulaRegionVisuals } from './neb
 
 const MAX_REGION_POINTS = 12;
 const NEBULA_REGION_DEPTH = 20;
-const SHADER_KEY = 'sandbox-nebula-region-shader-v7';
+const SHADER_KEY = 'sandbox-nebula-region-shader-v8';
 const COPY_OFFSETS = [-1, 0, 1] as const;
 const VISIBLE_ALPHA_THRESHOLD = 0.003;
 const DEFAULT_NEBULA_VISUALS: NebulaRegionVisuals = {
@@ -99,6 +99,7 @@ uniform vec3 u_color_cyan;
 uniform vec3 u_color_highlight;
 uniform vec3 u_color_tint;
 uniform vec3 u_color_violet;
+uniform float u_region_seed;
 uniform float u_seed;
 uniform vec2 u_world;
 
@@ -109,19 +110,49 @@ ${nebulaNoiseShader}
 const float VISIBLE_ALPHA_THRESHOLD = ${VISIBLE_ALPHA_THRESHOLD.toFixed(3)};
 
 vec4 sampleRegionNebula(vec2 world01, float alphaScale) {
-  vec2 p = world01 * 8.0;
-  float broad = noisePeriodic(p + vec2(u_seed * 0.013, u_seed * 0.021), vec2(8.0));
-  float detail = noisePeriodic(p * 3.0 + vec2(5.7, 2.1), vec2(24.0));
-  float colorNoise = noisePeriodic(p * 1.5 + vec2(9.2, 4.4), vec2(12.0));
-  float nebula = smoothstep(0.36, 0.82, broad * 0.82 + detail * 0.3);
-  float core = smoothstep(0.66, 0.94, broad * 0.76 + detail * 0.28);
-  float haze = smoothstep(0.18, 0.72, broad * 0.62 + detail * 0.26 + 0.18);
+  const float TAU = 6.28318530718;
+  vec2 seedOffset = vec2(u_region_seed * 0.137, u_region_seed * 0.071);
+  vec2 p = world01 * 34.0 + seedOffset;
+
+  vec2 wave = vec2(
+    sin((p.y * 0.42 + p.x * 0.08) * TAU + u_region_seed * 0.013),
+    cos((p.x * 0.36 - p.y * 0.1) * TAU + u_region_seed * 0.017)
+  );
+  vec2 ribbonFlow = vec2(
+    sin((p.x * 0.24 + p.y * 0.4) * TAU),
+    cos((p.x * 0.4 + p.y * 0.22) * TAU)
+  );
+  vec2 curve = wave * 0.18 + ribbonFlow * 0.055;
+  vec2 basePeriod = vec2(48.0);
+
+  vec2 warp = vec2(
+    fbmPeriodic(p + curve + vec2(2.0, 3.0), basePeriod),
+    fbmPeriodic(p - curve + vec2(5.0, 1.0), basePeriod)
+  );
+  vec2 q = p + (warp - 0.5) * 1.05 + curve * 0.45;
+  float broad = fbmPeriodic(q + vec2(1.0, 2.0), basePeriod);
+  float cloud = fbmPeriodic(q + warp * 0.85 + vec2(6.0, 4.0), basePeriod);
+  float detail = fbmPeriodic(q * 4.0 + warp * 2.4, basePeriod * 4.0);
+  float filamentA = fbmPeriodic(q * vec2(4.5, 2.0) + curve * 3.0, basePeriod * vec2(4.0, 2.0));
+  float filamentB = fbmPeriodic(q * vec2(2.0, 4.5) - curve * 2.6, basePeriod * vec2(2.0, 4.0));
+  float colorNoise = fbmPeriodic(q * 2.0 + 11.0, basePeriod * 2.0);
+  float ribbon = sin((world01.x * 11.0 + world01.y * 7.0) * TAU + warp.x * 1.4 + detail * 0.55) * 0.5 + 0.5;
+  float ridge = 1.0 - abs(detail * 2.0 - 1.0);
+  float cloudMass = broad * 0.6 + cloud * 0.4;
+  float filamentBlend = (filamentA + filamentB) * 0.5;
+  float thread = smoothstep(0.58, 0.95, filamentBlend * 0.62 + ridge * 0.34 + ribbon * 0.08);
+  float nebula = smoothstep(0.28, 0.82, cloudMass * 0.9 + ridge * 0.14 + thread * 0.08);
+  float core = smoothstep(0.62, 0.98, cloudMass * 0.78 + detail * 0.16 + thread * 0.12);
+  float haze = smoothstep(0.16, 0.72, cloudMass * 0.68 + detail * 0.24 + 0.18);
   float density = max(nebula, haze * u_haze_strength);
 
   vec3 color = mix(u_color_blue, u_color_violet, smoothstep(0.25, 0.82, colorNoise));
-  color = mix(color, u_color_cyan, smoothstep(0.46, 0.9, detail) * 0.52);
-  color = color * (density * u_density_scale + 0.16) + u_color_highlight * core * u_core_strength;
-  return vec4(color, clamp((density * 1.05 + core * 0.52 + 0.28) * alphaScale, 0.0, 1.0));
+  color = mix(color, u_color_cyan, smoothstep(0.52, 0.94, detail) * 0.42);
+  color = color * (density * u_density_scale + 0.09);
+  color += u_color_highlight * core * u_core_strength;
+  color += mix(color, u_color_highlight, 0.5) * thread * 0.18;
+  color += u_color_cyan * ribbon * density * 0.045;
+  return vec4(color, clamp((density * 0.96 + core * 0.42 + thread * 0.22) * alphaScale, 0.0, 1.0));
 }
 
 float polygonMask(vec2 worldPosition) {
@@ -171,7 +202,6 @@ type NebulaRegionRenderInput = {
 export class NebulaRegionRenderer {
   private readonly pointDataCache = new Map<string, Float32Array>();
   private readonly regionBoundsCache = new Map<string, RegionBounds>();
-  private readonly seed = Math.random() * 1000 + 4000;
   private readonly shaders: Phaser.GameObjects.Shader[] = [];
 
   constructor(private readonly scene: Phaser.Scene) {
@@ -228,7 +258,8 @@ export class NebulaRegionRenderer {
         u_point_count: { type: '1i', value: 0 },
         u_region_origin: { type: '2f', value: { x: 0, y: 0 } },
         u_region_points: { type: '2fv', value: new Float32Array(MAX_REGION_POINTS * 2) },
-        u_seed: { type: '1f', value: this.seed },
+        u_region_seed: { type: '1f', value: 1 },
+        u_seed: { type: '1f', value: 1 },
         u_tint_strength: { type: '1f', value: DEFAULT_NEBULA_VISUALS.tintStrength },
         u_world: { type: '2f', value: { x: 1, y: 1 } },
       }),
@@ -265,7 +296,8 @@ export class NebulaRegionRenderer {
         .setUniform('u_region_origin.value.x', copy.bounds.x)
         .setUniform('u_region_origin.value.y', copy.bounds.y)
         .setUniform('u_region_points.value', copy.pointData)
-        .setUniform('u_seed.value', this.seed)
+        .setUniform('u_region_seed.value', copy.region.seed)
+        .setUniform('u_seed.value', copy.region.seed)
         .setUniform('u_tint_strength.value', visuals.tintStrength)
         .setUniform('u_world.value.x', world.width)
         .setUniform('u_world.value.y', world.height)

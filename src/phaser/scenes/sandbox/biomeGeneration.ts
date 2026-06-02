@@ -293,6 +293,7 @@ function createNebulaPlans(
           featherPx: Math.round(random.floatBetween(260, 440)),
           id: `${biome.id}-nebula-${index}`,
           points: createBlobPolygon(position, radius, random),
+          seed: random.floatBetween(0, 10000),
           visuals: biome.profile.nebulaVisuals,
         });
         occupied.push({ position, radius });

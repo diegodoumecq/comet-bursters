@@ -27,6 +27,7 @@ export type NebulaRegion = {
   featherPx: number;
   id: string;
   points: Vector[];
+  seed: number;
   visuals?: NebulaRegionVisuals;
 };
 
@@ -44,6 +45,7 @@ export const SANDBOX_NEBULA_REGIONS: NebulaRegion[] = [
       { x: 5200, y: 7200 },
       { x: 1900, y: 6100 },
     ],
+    seed: 1001,
   },
   {
     alpha: 0.9,
@@ -58,6 +60,7 @@ export const SANDBOX_NEBULA_REGIONS: NebulaRegion[] = [
       { x: 13200, y: 7200 },
       { x: 10100, y: 6100 },
     ],
+    seed: 1002,
   },
   {
     alpha: 0.98,
@@ -72,6 +75,7 @@ export const SANDBOX_NEBULA_REGIONS: NebulaRegion[] = [
       { x: 10800, y: 17400 },
       { x: 7600, y: 16000 },
     ],
+    seed: 1003,
   },
   {
     alpha: 0.92,
@@ -86,6 +90,7 @@ export const SANDBOX_NEBULA_REGIONS: NebulaRegion[] = [
       { x: 23800, y: 22500 },
       { x: 19800, y: 21000 },
     ],
+    seed: 1004,
   },
   {
     alpha: 0.96,
@@ -100,6 +105,7 @@ export const SANDBOX_NEBULA_REGIONS: NebulaRegion[] = [
       { x: 35200, y: 10300 },
       { x: 31200, y: 9100 },
     ],
+    seed: 1005,
   },
   {
     alpha: 0.93,
@@ -114,6 +120,7 @@ export const SANDBOX_NEBULA_REGIONS: NebulaRegion[] = [
       { x: 43000, y: 24000 },
       { x: 39600, y: 22200 },
     ],
+    seed: 1006,
   },
   {
     alpha: 0.91,
@@ -128,6 +135,7 @@ export const SANDBOX_NEBULA_REGIONS: NebulaRegion[] = [
       { x: 6500, y: 39000 },
       { x: 3000, y: 37400 },
     ],
+    seed: 1007,
   },
   {
     alpha: 0.97,
@@ -142,5 +150,6 @@ export const SANDBOX_NEBULA_REGIONS: NebulaRegion[] = [
       { x: 38800, y: 39000 },
       { x: 34400, y: 37400 },
     ],
+    seed: 1008,
   },
 ];
