@@ -10,7 +10,7 @@ import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import { wrappedDelta } from '../../world/geometry';
 import { createSandboxBiomeSpawnPlan, type SandboxBiomeRegion } from './biomeGeneration';
 import { MOTHERSHIP_CARGO_BAY_OFFSET, MOTHERSHIP_WIDTH } from './Mothership';
-import type { NebulaRegion } from './nebulaRegions';
+import type { NebulaRegion, NebulaRegionVisuals } from './nebulaRegions';
 import type { SandboxPlanetEntity } from './planetFuel';
 import { SANDBOX_WORLD_CONFIG, type SandboxWorldConfig } from './sandboxWorldConfig';
 
@@ -32,6 +32,19 @@ const PLANET_GRID_STEP = 1800;
 const ASTEROID_MARGIN = 200;
 const ASTEROID_PADDING = 80;
 const PLAYER_GRAVITY_SAFE_PADDING = 240;
+const SPAWN_NEBULA_RADIUS = 2600;
+const SPAWN_NEBULA_VISUALS: NebulaRegionVisuals = {
+  alphaScale: 1.28,
+  blue: { b: 0.576, g: 0.22, r: 0.078 },
+  coreStrength: 0.34,
+  cyan: { b: 0.62, g: 0.502, r: 0.078 },
+  densityScale: 1.28,
+  hazeStrength: 0.42,
+  highlight: { b: 0.937, g: 0.678, r: 0.361 },
+  tint: { b: 0.878, g: 0.78, r: 0.259 },
+  tintStrength: 0.42,
+  violet: { b: 0.478, g: 0.11, r: 0.278 },
+};
 
 export function createSandboxStartup(
   world: WorldSize = SANDBOX_WORLD_CONFIG.world,
@@ -47,6 +60,7 @@ export function createSandboxStartup(
     { position: getCargoBayPosition(spawnPoint), radius: PLAYER_COLLISION_RADIUS + 120 },
   ];
   const plan = createSandboxBiomeSpawnPlan(config, reservations);
+  const spawnNebula = createSpawnTestNebula(getCargoBayPosition(spawnPoint));
   const planets = createStartupPlanets(
     world,
     getCargoBayPosition(spawnPoint),
@@ -58,7 +72,13 @@ export function createSandboxStartup(
   for (const planet of planets)
     reservations.push({ position: planet.position, radius: planet.radius });
   const asteroids = createStartupAsteroids(world, asteroidCount, reservations, plan, entityRandom);
-  return { asteroids, biomes: plan.biomes, nebulaRegions: plan.nebulaRegions, planets, spawnPoint };
+  return {
+    asteroids,
+    biomes: plan.biomes,
+    nebulaRegions: [spawnNebula, ...plan.nebulaRegions],
+    planets,
+    spawnPoint,
+  };
 }
 
 export function circlesOverlapWrapped(
@@ -270,6 +290,31 @@ function getCargoBayPosition(mothershipPosition: Vector): Vector {
     x: mothershipPosition.x + MOTHERSHIP_CARGO_BAY_OFFSET.x,
     y: mothershipPosition.y + MOTHERSHIP_CARGO_BAY_OFFSET.y,
   };
+}
+
+function createSpawnTestNebula(center: Vector): NebulaRegion {
+  return {
+    alpha: 0.96,
+    effects: [],
+    featherPx: 520,
+    id: 'spawn-test-nebula',
+    points: createNebulaBlobPoints(center, SPAWN_NEBULA_RADIUS),
+    seed: 4242,
+    visuals: SPAWN_NEBULA_VISUALS,
+  };
+}
+
+function createNebulaBlobPoints(center: Vector, radius: number): Vector[] {
+  return [
+    { x: center.x + radius * 0.96, y: center.y - radius * 0.08 },
+    { x: center.x + radius * 0.66, y: center.y + radius * 0.68 },
+    { x: center.x + radius * 0.06, y: center.y + radius * 1.02 },
+    { x: center.x - radius * 0.74, y: center.y + radius * 0.62 },
+    { x: center.x - radius * 1.04, y: center.y - radius * 0.04 },
+    { x: center.x - radius * 0.58, y: center.y - radius * 0.78 },
+    { x: center.x + radius * 0.18, y: center.y - radius * 0.96 },
+    { x: center.x + radius * 0.82, y: center.y - radius * 0.56 },
+  ];
 }
 
 function withSandboxFuel(planet: PlanetEntity, random: RandomSource): SandboxPlanetEntity {
