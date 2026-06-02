@@ -1,0 +1,439 @@
+{
+  "authoredBiomes": [
+    {
+      "id": "western-veil",
+      "points": [
+        {
+          "x": 2400,
+          "y": 4800
+        },
+        {
+          "x": 7200,
+          "y": 2800
+        },
+        {
+          "x": 13600,
+          "y": 5600
+        },
+        {
+          "x": 15200,
+          "y": 11200
+        },
+        {
+          "x": 10400,
+          "y": 14400
+        },
+        {
+          "x": 3800,
+          "y": 12200
+        }
+      ],
+      "presets": ["nebulaVeil", "sparsePlanets"]
+    },
+    {
+      "id": "northern-belt",
+      "points": [
+        {
+          "x": 18800,
+          "y": 4400
+        },
+        {
+          "x": 31000,
+          "y": 2600
+        },
+        {
+          "x": 41800,
+          "y": 7400
+        },
+        {
+          "x": 39600,
+          "y": 14200
+        },
+        {
+          "x": 25000,
+          "y": 13600
+        }
+      ],
+      "presets": ["asteroidBelt", "sparseNebula"]
+    },
+    {
+      "id": "southern-drift",
+      "points": [
+        {
+          "x": 13600,
+          "y": 24800
+        },
+        {
+          "x": 20000,
+          "y": 20800
+        },
+        {
+          "x": 26000,
+          "y": 23600
+        },
+        {
+          "x": 27600,
+          "y": 30400
+        },
+        {
+          "x": 21600,
+          "y": 34800
+        },
+        {
+          "x": 15200,
+          "y": 32000
+        }
+      ],
+      "presets": ["nebulaVeil", "planetCluster"]
+    },
+    {
+      "id": "deep-east-graveyard",
+      "points": [
+        {
+          "x": 60400,
+          "y": 9200
+        },
+        {
+          "x": 75200,
+          "y": 9600
+        },
+        {
+          "x": 80000,
+          "y": 18800
+        },
+        {
+          "x": 70000,
+          "y": 25000
+        },
+        {
+          "x": 58600,
+          "y": 21000
+        }
+      ],
+      "presets": ["asteroidBelt", "dangerousNebula"]
+    },
+    {
+      "id": "far-southern-bloom",
+      "points": [
+        {
+          "x": 66000,
+          "y": 62800
+        },
+        {
+          "x": 74800,
+          "y": 60000
+        },
+        {
+          "x": 83600,
+          "y": 65200
+        },
+        {
+          "x": 86000,
+          "y": 73200
+        },
+        {
+          "x": 77600,
+          "y": 78000
+        },
+        {
+          "x": 68800,
+          "y": 74800
+        }
+      ],
+      "presets": ["planetCluster", "nebulaVeil", "dangerousNebula"]
+    }
+  ],
+  "biomePresets": {
+    "asteroidBelt": {
+      "asteroidDensity": 0.012,
+      "asteroidTiers": [
+        {
+          "value": "small",
+          "weight": 45
+        },
+        {
+          "value": "medium",
+          "weight": 34
+        },
+        {
+          "value": "big",
+          "weight": 16
+        },
+        {
+          "value": "mega",
+          "weight": 5
+        }
+      ],
+      "planetDensity": 0.004
+    },
+    "dangerousNebula": {
+      "nebulaDensity": 0.0025,
+      "nebulaEffectCombos": [
+        {
+          "value": {
+            "effects": ["damage"]
+          },
+          "weight": 28
+        },
+        {
+          "value": {
+            "effects": ["damage", "fuelAbsorb"]
+          },
+          "weight": 10
+        },
+        {
+          "value": {
+            "effects": []
+          },
+          "weight": 8
+        }
+      ],
+      "nebulaVisuals": {
+        "alphaScale": 1.35,
+        "blue": {
+          "r": 0.122,
+          "g": 0.102,
+          "b": 0.345
+        },
+        "coreStrength": 0.42,
+        "cyan": {
+          "r": 0.192,
+          "g": 0.345,
+          "b": 0.416
+        },
+        "densityScale": 1.4,
+        "hazeStrength": 0.55,
+        "highlight": {
+          "r": 0.784,
+          "g": 0.298,
+          "b": 0.486
+        },
+        "tint": {
+          "r": 0.878,
+          "g": 0.373,
+          "b": 0.529
+        },
+        "tintStrength": 0.5,
+        "violet": {
+          "r": 0.392,
+          "g": 0.114,
+          "b": 0.282
+        }
+      }
+    },
+    "nebulaVeil": {
+      "asteroidDensity": 0.005,
+      "nebulaDensity": 0.002,
+      "nebulaEffectCombos": [
+        {
+          "value": {
+            "effects": []
+          },
+          "weight": 60
+        },
+        {
+          "value": {
+            "effects": ["fuelReplenish"]
+          },
+          "weight": 14
+        },
+        {
+          "value": {
+            "effects": ["fuelAbsorb"]
+          },
+          "weight": 8
+        }
+      ],
+      "nebulaVisuals": {
+        "alphaScale": 1.22,
+        "blue": {
+          "r": 0.078,
+          "g": 0.22,
+          "b": 0.576
+        },
+        "coreStrength": 0.34,
+        "cyan": {
+          "r": 0.078,
+          "g": 0.502,
+          "b": 0.62
+        },
+        "densityScale": 1.28,
+        "hazeStrength": 0.42,
+        "highlight": {
+          "r": 0.361,
+          "g": 0.678,
+          "b": 0.937
+        },
+        "tint": {
+          "r": 0.259,
+          "g": 0.78,
+          "b": 0.878
+        },
+        "tintStrength": 0.42,
+        "violet": {
+          "r": 0.278,
+          "g": 0.11,
+          "b": 0.478
+        }
+      }
+    },
+    "planetCluster": {
+      "asteroidDensity": 0.006,
+      "planetDensity": 0.02,
+      "planetKinds": [
+        {
+          "value": "lush",
+          "weight": 12
+        },
+        {
+          "value": "desert",
+          "weight": 14
+        },
+        {
+          "value": "ice",
+          "weight": 12
+        },
+        {
+          "value": "lava",
+          "weight": 8
+        },
+        {
+          "value": "gas",
+          "weight": 14
+        },
+        {
+          "value": "toxic",
+          "weight": 9
+        },
+        {
+          "value": "crystal",
+          "weight": 8
+        }
+      ]
+    },
+    "sandboxFallback": {
+      "asteroidDensity": 0.007,
+      "asteroidTiers": [
+        {
+          "value": "small",
+          "weight": 50
+        },
+        {
+          "value": "medium",
+          "weight": 32
+        },
+        {
+          "value": "big",
+          "weight": 14
+        },
+        {
+          "value": "mega",
+          "weight": 4
+        }
+      ],
+      "nebulaDensity": 0.0009,
+      "nebulaEffectCombos": [
+        {
+          "value": {
+            "effects": []
+          },
+          "weight": 80
+        },
+        {
+          "value": {
+            "effects": ["fuelReplenish"]
+          },
+          "weight": 8
+        },
+        {
+          "value": {
+            "effects": ["fuelAbsorb"]
+          },
+          "weight": 5
+        },
+        {
+          "value": {
+            "effects": ["damage"]
+          },
+          "weight": 2
+        }
+      ],
+      "nebulaVisuals": {
+        "alphaScale": 1.12,
+        "blue": {
+          "r": 0.071,
+          "g": 0.208,
+          "b": 0.435
+        },
+        "coreStrength": 0.28,
+        "cyan": {
+          "r": 0.114,
+          "g": 0.408,
+          "b": 0.471
+        },
+        "densityScale": 1.12,
+        "hazeStrength": 0.36,
+        "highlight": {
+          "r": 0.306,
+          "g": 0.569,
+          "b": 0.788
+        },
+        "tint": {
+          "r": 0.235,
+          "g": 0.663,
+          "b": 0.741
+        },
+        "tintStrength": 0.34,
+        "violet": {
+          "r": 0.196,
+          "g": 0.098,
+          "b": 0.353
+        }
+      },
+      "planetDensity": 0.012,
+      "planetKinds": [
+        {
+          "value": "lush",
+          "weight": 10
+        },
+        {
+          "value": "desert",
+          "weight": 18
+        },
+        {
+          "value": "ice",
+          "weight": 14
+        },
+        {
+          "value": "lava",
+          "weight": 8
+        },
+        {
+          "value": "gas",
+          "weight": 10
+        },
+        {
+          "value": "toxic",
+          "weight": 8
+        },
+        {
+          "value": "crystal",
+          "weight": 7
+        }
+      ]
+    },
+    "sparseNebula": {
+      "nebulaDensity": 0.0005
+    },
+    "sparsePlanets": {
+      "planetDensity": 0.006
+    }
+  },
+  "defaultBiomePresets": ["sandboxFallback"],
+  "generatedBiomeSize": 12000,
+  "seed": "sandbox-biomes-v1",
+  "world": {
+    "width": 96000,
+    "height": 96000
+  }
+}

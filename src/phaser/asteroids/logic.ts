@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import type { RandomSource } from '../core/random';
 import type { Vector, WorldSize } from '../core/types';
 import type { AsteroidBodies } from './bodies';
 import { ASTEROIDS } from './config';
@@ -30,21 +31,29 @@ export function createAsteroid(
   tier: AsteroidTier,
   position: Vector,
   velocity: Vector,
+  random: RandomSource = phaserRandom,
 ): AsteroidEntity {
   const config = ASTEROIDS[tier];
-  const visualVariant = Phaser.Math.Between(0, ASTEROID_TEXTURES[tier].length - 1);
+  const visualVariant = random.between(0, ASTEROID_TEXTURES[tier].length - 1);
   return {
-    angularVelocity: Phaser.Math.FloatBetween(-0.025, 0.025),
+    angularVelocity: random.floatBetween(-0.025, 0.025),
     id: nextAsteroidId++,
     hits: config.hits,
     membership: { space: 'arcade' },
     position,
-    rotation: Phaser.Math.FloatBetween(0, Math.PI * 2),
+    rotation: random.floatBetween(0, Math.PI * 2),
     tier,
     velocity,
     visualVariant,
   };
 }
+
+const phaserRandom: RandomSource = {
+  between: (min, max) => Phaser.Math.Between(min, max),
+  float: () => Math.random(),
+  floatBetween: (min, max) => Phaser.Math.FloatBetween(min, max),
+  pick: (items) => items[Phaser.Math.Between(0, items.length - 1)],
+};
 
 export function splitAsteroid(asteroid: AsteroidEntity): AsteroidEntity[] {
   const config = ASTEROIDS[asteroid.tier];

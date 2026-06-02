@@ -21,7 +21,7 @@ import { drawTractorBeam } from '../../weapons/tractorBeam';
 import type { WeaponKind } from '../../weapons/types';
 import { MINIMAP_COLUMNS, MINIMAP_ROWS, type SandboxDiscovery } from './discovery';
 import { NebulaRegionRenderer } from './NebulaRegionRenderer';
-import { SANDBOX_NEBULA_REGIONS } from './nebulaRegions';
+import type { NebulaRegion } from './nebulaRegions';
 import type { SandboxPlanetEntity } from './planetFuel';
 import { SandboxBackground } from './SandboxBackground';
 import { SandboxPlanetOverlay } from './SandboxPlanetOverlay';
@@ -48,6 +48,7 @@ export class SandboxRenderer {
     private readonly player: Phaser.Physics.Matter.Image,
     weaponPolicy: SceneWeaponPolicy,
     world: WorldSize,
+    private readonly sandboxNebulaRegions: NebulaRegion[],
   ) {
     this.background = new SandboxBackground(scene, world);
     this.nebulaRegions = new NebulaRegionRenderer(scene);
@@ -119,7 +120,7 @@ export class SandboxRenderer {
       withPerformanceMeasure('sandbox.render.nebulaRegions', this.perfToggles.markers, () => {
         this.nebulaRegions.render({
           camera: this.scene.cameras.main,
-          regions: SANDBOX_NEBULA_REGIONS,
+          regions: this.sandboxNebulaRegions,
           screen: { width: this.scene.scale.width, height: this.scene.scale.height },
           world: input.world,
         });
@@ -184,7 +185,7 @@ export class SandboxRenderer {
                 visibleCells: input.discovery.visibleCells,
               }
             : undefined,
-          nebulaRegions: SANDBOX_NEBULA_REGIONS,
+          nebulaRegions: this.sandboxNebulaRegions,
           planets: input.planets,
           player: input.player.position,
           playerAim: input.player.lastAim,

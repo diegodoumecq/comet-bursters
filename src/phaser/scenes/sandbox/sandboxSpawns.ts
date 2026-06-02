@@ -1,18 +1,23 @@
-import Phaser from 'phaser';
-
 import { ASTEROIDS, createAsteroid } from '../../asteroids/logic';
 import type { AsteroidEntity, AsteroidTier } from '../../asteroids/types';
+import { createSeededRandom, type RandomSource } from '../../core/random';
 import { overlapsAnySpawnCircle, spawnCirclesOverlap, type SpawnCircle } from '../../core/spawn';
 import type { Vector, WorldSize } from '../../core/types';
+import { PLANET_SPECS } from '../../planets/config';
 import { createPlanet, getFuelReserveForPlanet } from '../../planets/logic';
 import type { PlanetEntity } from '../../planets/types';
 import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import { wrappedDelta } from '../../world/geometry';
+import { createSandboxBiomeSpawnPlan, type SandboxBiomeRegion } from './biomeGeneration';
 import { MOTHERSHIP_CARGO_BAY_OFFSET, MOTHERSHIP_WIDTH } from './Mothership';
+import type { NebulaRegion } from './nebulaRegions';
 import type { SandboxPlanetEntity } from './planetFuel';
+import { SANDBOX_WORLD_CONFIG, type SandboxWorldConfig } from './sandboxWorldConfig';
 
 export type SandboxStartup = {
   asteroids: AsteroidEntity[];
+  biomes: SandboxBiomeRegion[];
+  nebulaRegions: NebulaRegion[];
   planets: SandboxPlanetEntity[];
   spawnPoint: Vector;
 };
@@ -29,25 +34,31 @@ const ASTEROID_PADDING = 80;
 const PLAYER_GRAVITY_SAFE_PADDING = 240;
 
 export function createSandboxStartup(
-  world: WorldSize,
-  asteroidCount: number,
+  world: WorldSize = SANDBOX_WORLD_CONFIG.world,
+  asteroidCount = 22,
   planetCount = PLANET_COUNT,
+  config: SandboxWorldConfig = { ...SANDBOX_WORLD_CONFIG, world },
 ): SandboxStartup {
-  const spawnPoint = chooseMothershipSpawn(world);
+  const random = createSeededRandom(`${config.seed}:startup`);
+  const entityRandom = createSeededRandom(`${config.seed}:entities`);
+  const spawnPoint = chooseMothershipSpawn(world, random);
   const reservations: SpawnCircle[] = [
     { position: spawnPoint, radius: MOTHERSHIP_RESERVE_RADIUS },
     { position: getCargoBayPosition(spawnPoint), radius: PLAYER_COLLISION_RADIUS + 120 },
   ];
+  const plan = createSandboxBiomeSpawnPlan(config, reservations);
   const planets = createStartupPlanets(
     world,
     getCargoBayPosition(spawnPoint),
     reservations,
+    plan,
+    entityRandom,
     planetCount,
   );
   for (const planet of planets)
     reservations.push({ position: planet.position, radius: planet.radius });
-  const asteroids = createStartupAsteroids(world, asteroidCount, reservations);
-  return { asteroids, planets, spawnPoint };
+  const asteroids = createStartupAsteroids(world, asteroidCount, reservations, plan, entityRandom);
+  return { asteroids, biomes: plan.biomes, nebulaRegions: plan.nebulaRegions, planets, spawnPoint };
 }
 
 export function circlesOverlapWrapped(
@@ -69,10 +80,10 @@ export function planetInfluencesPlayerAtSpawn(
   return Math.hypot(delta.x, delta.y) <= safeDistance;
 }
 
-function chooseMothershipSpawn(world: WorldSize): Vector {
+function chooseMothershipSpawn(world: WorldSize, random: RandomSource): Vector {
   return {
-    x: world.width * 0.5 + Phaser.Math.Between(-700, 700),
-    y: world.height * 0.5 + Phaser.Math.Between(-700, 700),
+    x: world.width * 0.5 + random.between(-700, 700),
+    y: world.height * 0.5 + random.between(-700, 700),
   };
 }
 
@@ -80,11 +91,32 @@ function createStartupPlanets(
   world: WorldSize,
   playerSpawn: Vector,
   reservations: SpawnCircle[],
+  plan: ReturnType<typeof createSandboxBiomeSpawnPlan>,
+  random: RandomSource,
+  planetCount: number,
+): SandboxPlanetEntity[] {
+  const plannedPlanets = plan.planets
+    .map((planned) =>
+      withSandboxFuel(
+        createPlanet(planned.position.x, planned.position.y, PLANET_SPECS[planned.kind], random),
+        random,
+      ),
+    )
+    .filter((planet) => planetPlacementIsValid(planet, reservations, playerSpawn, world));
+  if (plannedPlanets.length > 0) return plannedPlanets;
+  return createFallbackPlanets(world, playerSpawn, reservations, random, planetCount);
+}
+
+function createFallbackPlanets(
+  world: WorldSize,
+  playerSpawn: Vector,
+  reservations: SpawnCircle[],
+  random: RandomSource,
   planetCount: number,
 ): SandboxPlanetEntity[] {
   const planets: SandboxPlanetEntity[] = [];
   for (let index = 0; index < planetCount; index += 1) {
-    const planet = createSeparatedPlanet(planets, world, playerSpawn, reservations);
+    const planet = createSeparatedPlanet(planets, world, playerSpawn, reservations, random);
     planets.push(planet);
   }
   return planets;
@@ -95,6 +127,7 @@ function createSeparatedPlanet(
   world: WorldSize,
   playerSpawn: Vector,
   reservations: SpawnCircle[],
+  random: RandomSource,
 ): SandboxPlanetEntity {
   const allReservations = [
     ...reservations,
@@ -103,26 +136,30 @@ function createSeparatedPlanet(
   for (let attempt = 0; attempt < DEFAULT_ATTEMPTS; attempt += 1) {
     const candidate = withSandboxFuel(
       createPlanet(
-        Phaser.Math.Between(PLANET_MARGIN, world.width - PLANET_MARGIN),
-        Phaser.Math.Between(PLANET_MARGIN, world.height - PLANET_MARGIN),
+        random.between(PLANET_MARGIN, world.width - PLANET_MARGIN),
+        random.between(PLANET_MARGIN, world.height - PLANET_MARGIN),
+        undefined,
+        random,
       ),
+      random,
     );
     if (planetPlacementIsValid(candidate, allReservations, playerSpawn, world)) return candidate;
   }
-  return createGridSeparatedPlanet(allReservations, world, playerSpawn);
+  return createGridSeparatedPlanet(allReservations, world, playerSpawn, random);
 }
 
 function createGridSeparatedPlanet(
   reservations: SpawnCircle[],
   world: WorldSize,
   playerSpawn: Vector,
+  random: RandomSource,
 ): SandboxPlanetEntity {
   let bestCandidate: SandboxPlanetEntity | null = null;
   let y = PLANET_MARGIN;
   while (!bestCandidate && y <= world.height - PLANET_MARGIN) {
     let x = PLANET_MARGIN;
     while (!bestCandidate && x <= world.width - PLANET_MARGIN) {
-      const candidate = withSandboxFuel(createPlanet(x, y));
+      const candidate = withSandboxFuel(createPlanet(x, y, undefined, random), random);
       if (planetPlacementIsValid(candidate, reservations, playerSpawn, world)) {
         bestCandidate = candidate;
       }
@@ -152,17 +189,37 @@ function createStartupAsteroids(
   world: WorldSize,
   asteroidCount: number,
   reservations: SpawnCircle[],
+  plan: ReturnType<typeof createSandboxBiomeSpawnPlan>,
+  random: RandomSource,
+): AsteroidEntity[] {
+  const asteroids = plan.asteroids.map((planned) =>
+    createAsteroid(planned.tier, planned.position, planned.velocity, random),
+  );
+  if (asteroids.length > 0) return asteroids;
+  return createFallbackAsteroids(world, asteroidCount, reservations, random);
+}
+
+function createFallbackAsteroids(
+  world: WorldSize,
+  asteroidCount: number,
+  reservations: SpawnCircle[],
+  random: RandomSource,
 ): AsteroidEntity[] {
   const asteroids: AsteroidEntity[] = [];
   for (let index = 0; index < asteroidCount; index += 1) {
-    const tier = ASTEROID_TIERS[Phaser.Math.Between(0, ASTEROID_TIERS.length - 1)];
-    const asteroid = createSeparatedAsteroid(tier, world, [
-      ...reservations,
-      ...asteroids.map((existing) => ({
-        position: existing.position,
-        radius: ASTEROIDS[existing.tier].collisionRadius,
-      })),
-    ]);
+    const tier = ASTEROID_TIERS[random.between(0, ASTEROID_TIERS.length - 1)];
+    const asteroid = createSeparatedAsteroid(
+      tier,
+      world,
+      [
+        ...reservations,
+        ...asteroids.map((existing) => ({
+          position: existing.position,
+          radius: ASTEROIDS[existing.tier].collisionRadius,
+        })),
+      ],
+      random,
+    );
     asteroids.push(asteroid);
   }
   return asteroids;
@@ -172,14 +229,15 @@ function createSeparatedAsteroid(
   tier: AsteroidTier,
   world: WorldSize,
   reservations: SpawnCircle[],
+  random: RandomSource,
 ): AsteroidEntity {
   const radius = ASTEROIDS[tier].collisionRadius;
-  const angle = Math.random() * Math.PI * 2;
-  const speed = ASTEROIDS[tier].speed * Phaser.Math.FloatBetween(0.35, 0.8);
+  const angle = random.float() * Math.PI * 2;
+  const speed = ASTEROIDS[tier].speed * random.floatBetween(0.35, 0.8);
   for (let attempt = 0; attempt < DEFAULT_ATTEMPTS; attempt += 1) {
     const position = {
-      x: Phaser.Math.Between(ASTEROID_MARGIN, world.width - ASTEROID_MARGIN),
-      y: Phaser.Math.Between(ASTEROID_MARGIN, world.height - ASTEROID_MARGIN),
+      x: random.between(ASTEROID_MARGIN, world.width - ASTEROID_MARGIN),
+      y: random.between(ASTEROID_MARGIN, world.height - ASTEROID_MARGIN),
     };
     const separated = !overlapsAnySpawnCircle(
       { position, radius },
@@ -188,16 +246,22 @@ function createSeparatedAsteroid(
       { type: 'wrapped', world },
     );
     if (separated) {
-      return createAsteroid(tier, position, {
-        x: Math.cos(angle) * speed,
-        y: Math.sin(angle) * speed,
-      });
+      return createAsteroid(
+        tier,
+        position,
+        {
+          x: Math.cos(angle) * speed,
+          y: Math.sin(angle) * speed,
+        },
+        random,
+      );
     }
   }
   return createAsteroid(
     tier,
     { x: world.width * 0.5, y: world.height * 0.5 },
     { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
+    random,
   );
 }
 
@@ -208,16 +272,16 @@ function getCargoBayPosition(mothershipPosition: Vector): Vector {
   };
 }
 
-function withSandboxFuel(planet: PlanetEntity): SandboxPlanetEntity {
+function withSandboxFuel(planet: PlanetEntity, random: RandomSource): SandboxPlanetEntity {
   return {
     ...planet,
     extractor: {
-      angle: Math.random() * Math.PI * 2,
+      angle: random.float() * Math.PI * 2,
       blobs: [],
       nextExtractAt: 0,
     },
-    fuelReserve: getFuelReserveForPlanet(planet),
+    fuelReserve: getFuelReserveForPlanet(planet, random),
     inspectedUntil: 0,
-    visualSeed: Math.random() * Math.PI * 2,
+    visualSeed: random.float() * Math.PI * 2,
   };
 }

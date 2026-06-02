@@ -8,6 +8,7 @@ import type { PlanetEntity } from '../planets/types';
 const WIDTH = 220;
 const HEIGHT = 220;
 const PADDING = 20;
+const NEBULA_SAMPLE_SCALE = 4;
 
 export type MinimapFog = {
   columns: number;
@@ -153,17 +154,21 @@ export class Minimap {
 
     const columns = fog?.columns ?? MINIMAP_DEFAULT_COLUMNS;
     const rows = fog?.rows ?? MINIMAP_DEFAULT_ROWS;
-    const cellWidth = WIDTH / columns;
-    const cellHeight = HEIGHT / rows;
+    const sampleColumns = columns * NEBULA_SAMPLE_SCALE;
+    const sampleRows = rows * NEBULA_SAMPLE_SCALE;
+    const cellWidth = WIDTH / sampleColumns;
+    const cellHeight = HEIGHT / sampleRows;
 
-    for (let row = 0; row < rows; row += 1) {
-      for (let col = 0; col < columns; col += 1) {
-        const index = row * columns + col;
+    for (let row = 0; row < sampleRows; row += 1) {
+      for (let col = 0; col < sampleColumns; col += 1) {
+        const fogCol = Math.floor(col / NEBULA_SAMPLE_SCALE);
+        const fogRow = Math.floor(row / NEBULA_SAMPLE_SCALE);
+        const index = fogRow * columns + fogCol;
         const discovered = !fog || fog.exploredCells[index];
         if (discovered) {
           const worldPosition = {
-            x: ((col + 0.5) / columns) * world.width,
-            y: ((row + 0.5) / rows) * world.height,
+            x: ((col + 0.5) / sampleColumns) * world.width,
+            y: ((row + 0.5) / sampleRows) * world.height,
           };
           const region = getNebulaRegionAt(worldPosition, regions);
           if (region) {

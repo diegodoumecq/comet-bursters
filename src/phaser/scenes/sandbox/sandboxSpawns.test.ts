@@ -7,9 +7,9 @@ import { MOTHERSHIP_CARGO_BAY_OFFSET, MOTHERSHIP_WIDTH } from './Mothership';
 import {
   circlesOverlapWrapped,
   createSandboxStartup,
-  PLANET_COUNT,
   planetInfluencesPlayerAtSpawn,
 } from './sandboxSpawns';
+import { SANDBOX_WORLD_CONFIG } from './sandboxWorldConfig';
 
 vi.mock('phaser', () => ({
   default: {
@@ -27,12 +27,14 @@ vi.mock('phaser', () => ({
   },
 }));
 
-const world = { width: 48000, height: 48000 };
+const world = SANDBOX_WORLD_CONFIG.world;
 
 describe('sandbox startup spawns', () => {
   it('places startup entities without overlapping reservations', () => {
     const startup = createSandboxStartup(world, 22);
-    expect(startup.planets).toHaveLength(PLANET_COUNT);
+    expect(startup.planets.length).toBeGreaterThan(40);
+    expect(startup.asteroids.length).toBeGreaterThan(22);
+    expect(startup.nebulaRegions.length).toBeGreaterThan(0);
     const cargoBay = {
       x: startup.spawnPoint.x + MOTHERSHIP_CARGO_BAY_OFFSET.x,
       y: startup.spawnPoint.y + MOTHERSHIP_CARGO_BAY_OFFSET.y,
@@ -67,6 +69,22 @@ describe('sandbox startup spawns', () => {
     expect(
       startup.planets.every((planet) => !planetInfluencesPlayerAtSpawn(planet, cargoBay, world)),
     ).toBe(true);
+  });
+
+  it('creates deterministic startup entities from the sandbox seed', () => {
+    const first = createSandboxStartup(world, 22);
+    const second = createSandboxStartup(world, 22);
+
+    expect(first.spawnPoint).toEqual(second.spawnPoint);
+    expect(first.planets.map((planet) => [planet.kind, planet.position])).toEqual(
+      second.planets.map((planet) => [planet.kind, planet.position]),
+    );
+    expect(first.asteroids.map((asteroid) => [asteroid.tier, asteroid.position])).toEqual(
+      second.asteroids.map((asteroid) => [asteroid.tier, asteroid.position]),
+    );
+    expect(first.nebulaRegions.map((region) => [region.effects, region.points])).toEqual(
+      second.nebulaRegions.map((region) => [region.effects, region.points]),
+    );
   });
 
   it('uses wrapped distance for reservation overlap checks', () => {
