@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 
 import { ALL_COLLISION_CATEGORIES } from '../combat/collisionCategories';
 import type { MatterArc, Vector } from '../core/types';
-import { createProjectileShape } from '../weapons/rendering';
+import { createProjectileShape, syncProjectileVisual } from '../weapons/rendering';
 import type { ProjectileEntity } from './types';
 
 export class ProjectileBodies {
@@ -16,6 +16,7 @@ export class ProjectileBodies {
       projectile.position,
       projectile.kind,
       projectile.angle,
+      projectile.velocity,
     );
     shape.setVelocity(projectile.velocity.x, projectile.velocity.y);
     this.shapes.set(projectile.id, shape);
@@ -37,6 +38,15 @@ export class ProjectileBodies {
     const shape = this.get(projectile);
     projectile.position = { x: shape.x, y: shape.y };
     projectile.velocity = { x: shape.body.velocity.x, y: shape.body.velocity.y };
+    projectile.angle =
+      Math.hypot(projectile.velocity.x, projectile.velocity.y) > 0
+        ? Math.atan2(projectile.velocity.y, projectile.velocity.x)
+        : projectile.angle;
+    syncProjectileVisual(shape, projectile.kind, projectile.velocity, projectile.angle);
+  }
+
+  syncVisual(projectile: ProjectileEntity, visualVelocity: Vector): void {
+    syncProjectileVisual(this.get(projectile), projectile.kind, visualVelocity, projectile.angle);
   }
 
   setPosition(projectile: ProjectileEntity, position: Vector): void {
@@ -45,8 +55,12 @@ export class ProjectileBodies {
   }
 
   setVelocity(projectile: ProjectileEntity, velocity: Vector): void {
-    this.get(projectile).setVelocity(velocity.x, velocity.y);
+    const shape = this.get(projectile);
+    shape.setVelocity(velocity.x, velocity.y);
     projectile.velocity = velocity;
+    projectile.angle =
+      Math.hypot(velocity.x, velocity.y) > 0 ? Math.atan2(velocity.y, velocity.x) : projectile.angle;
+    syncProjectileVisual(shape, projectile.kind, velocity, projectile.angle);
   }
 
   setCollisionEnabled(projectile: ProjectileEntity, enabled: boolean): void {

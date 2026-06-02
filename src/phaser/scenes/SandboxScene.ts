@@ -113,6 +113,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private inspectionProbes = STARTING_INSPECTION_PROBES;
   private lastThrusterAt = 0;
   private lastMaxSpeedTrailAt = 0;
+  private lastProjectileVisualCameraCenter: Vector | null = null;
 
   constructor() {
     super('sandbox');
@@ -187,6 +188,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   protected renderState(action: ReturnType<ActionReader['read']>, time: number): void {
+    this.syncProjectileVisualsToCamera();
     this.sceneRenderer.render({
       asteroidCount: this.runtime.world.asteroids.length,
       asteroids: this.runtime.world.asteroids,
@@ -676,6 +678,26 @@ export class PhaserSandboxScene extends BaseGameScene {
       runtime: this.runtime,
       world: WORLD,
     };
+  }
+
+  private syncProjectileVisualsToCamera(): void {
+    const camera = this.cameras.main;
+    camera.preRender();
+    const cameraCenter = {
+      x: camera.worldView.x + camera.worldView.width * 0.5,
+      y: camera.worldView.y + camera.worldView.height * 0.5,
+    };
+    const cameraDelta = this.lastProjectileVisualCameraCenter
+      ? wrappedDelta(this.lastProjectileVisualCameraCenter, cameraCenter, WORLD)
+      : { x: 0, y: 0 };
+    this.lastProjectileVisualCameraCenter = cameraCenter;
+
+    for (const projectile of this.runtime.world.projectiles) {
+      this.projectileBodies.syncVisual(projectile, {
+        x: projectile.velocity.x - cameraDelta.x,
+        y: projectile.velocity.y - cameraDelta.y,
+      });
+    }
   }
 
   private spawnThrusterParticle(move: Vector, now: number, thrustScale: number): void {
