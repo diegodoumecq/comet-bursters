@@ -4,11 +4,12 @@ import { ASTEROIDS } from '../asteroids/config';
 import type { AsteroidEntity } from '../asteroids/types';
 import type { Vector, WorldSize } from '../core/types';
 import type { PlanetEntity } from '../planets/types';
+import type { NebulaRegionColor, NebulaRegionVisuals } from '../scenes/sandbox/nebulaRegions';
 
 const WIDTH = 220;
 const HEIGHT = 220;
 const PADDING = 20;
-const NEBULA_SAMPLE_SCALE = 4;
+const NEBULA_SAMPLE_SCALE = 2;
 
 export type MinimapFog = {
   columns: number;
@@ -21,10 +22,24 @@ export type MinimapFog = {
 export type MinimapNebulaRegion = {
   alpha: number;
   points: Vector[];
+  visuals?: NebulaRegionVisuals;
+};
+
+type MinimapNebulaCoverageCell = {
+  alpha: number;
+  color: number;
+};
+
+type MinimapNebulaCoverage = {
+  cells: Array<MinimapNebulaCoverageCell | null>;
+  columns: number;
+  key: string;
+  rows: number;
 };
 
 export class Minimap {
   private readonly graphics: Phaser.GameObjects.Graphics;
+  private nebulaCoverage: MinimapNebulaCoverage | null = null;
 
   constructor(private readonly scene: Phaser.Scene) {
     this.graphics = scene.add.graphics().setScrollFactor(0).setDepth(200);
@@ -158,6 +173,7 @@ export class Minimap {
     const sampleRows = rows * NEBULA_SAMPLE_SCALE;
     const cellWidth = WIDTH / sampleColumns;
     const cellHeight = HEIGHT / sampleRows;
+    const coverage = this.getNebulaCoverage(regions, world, sampleColumns, sampleRows);
 
     for (let row = 0; row < sampleRows; row += 1) {
       for (let col = 0; col < sampleColumns; col += 1) {
@@ -166,14 +182,13 @@ export class Minimap {
         const index = fogRow * columns + fogCol;
         const discovered = !fog || fog.exploredCells[index];
         if (discovered) {
-          const worldPosition = {
-            x: ((col + 0.5) / sampleColumns) * world.width,
-            y: ((row + 0.5) / sampleRows) * world.height,
-          };
-          const region = getNebulaRegionAt(worldPosition, regions);
-          if (region) {
+          const coverageCell = coverage.cells[row * sampleColumns + col];
+          if (coverageCell) {
             const visible = !fog || fog.visibleCells[index];
-            this.graphics.fillStyle(0x2d7185, (visible ? 0.42 : 0.24) * region.alpha);
+            this.graphics.fillStyle(
+              coverageCell.color,
+              (visible ? 0.46 : 0.26) * coverageCell.alpha,
+            );
             this.graphics.fillRect(
               x + col * cellWidth,
               y + row * cellHeight,
@@ -184,6 +199,38 @@ export class Minimap {
         }
       }
     }
+  }
+
+  private getNebulaCoverage(
+    regions: MinimapNebulaRegion[],
+    world: WorldSize,
+    columns: number,
+    rows: number,
+  ): MinimapNebulaCoverage {
+    const key = `${world.width}:${world.height}:${columns}:${rows}:${regions.map((region) => region.alpha).join(',')}`;
+    if (this.nebulaCoverage?.key === key) return this.nebulaCoverage;
+
+    const cells: Array<MinimapNebulaCoverageCell | null> = Array.from(
+      { length: columns * rows },
+      () => null,
+    );
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < columns; col += 1) {
+        const worldPosition = {
+          x: ((col + 0.5) / columns) * world.width,
+          y: ((row + 0.5) / rows) * world.height,
+        };
+        const region = getNebulaRegionAt(worldPosition, regions);
+        if (region) {
+          cells[row * columns + col] = {
+            alpha: region.alpha,
+            color: getNebulaMinimapColor(region),
+          };
+        }
+      }
+    }
+    this.nebulaCoverage = { cells, columns, key, rows };
+    return this.nebulaCoverage;
   }
 
   private isVisibleOnMinimap(
@@ -335,4 +382,17 @@ function pointInPolygon(point: Vector, polygon: Vector[]): boolean {
     if (crossesY && point.x < intersectionX) inside = !inside;
   }
   return inside;
+}
+
+function getNebulaMinimapColor(region: MinimapNebulaRegion): number {
+  const visuals = region.visuals;
+  if (!visuals) return 0x2d7185;
+  return rgbToNumber(visuals.tint);
+}
+
+function rgbToNumber(color: NebulaRegionColor): number {
+  const r = Phaser.Math.Clamp(Math.round(color.r * 255), 0, 255);
+  const g = Phaser.Math.Clamp(Math.round(color.g * 255), 0, 255);
+  const b = Phaser.Math.Clamp(Math.round(color.b * 255), 0, 255);
+  return (r << 16) | (g << 8) | b;
 }

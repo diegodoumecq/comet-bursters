@@ -164,10 +164,42 @@
           "weight": 5
         }
       ],
-      "planetDensity": 0.004
+      "planetDensity": 0.004,
+      "nebulaVisuals": {
+        "alphaScale": 1.18,
+        "blue": {
+          "r": 0.18,
+          "g": 0.13,
+          "b": 0.08
+        },
+        "coreStrength": 0.32,
+        "cyan": {
+          "r": 0.58,
+          "g": 0.38,
+          "b": 0.14
+        },
+        "densityScale": 1.2,
+        "hazeStrength": 0.4,
+        "highlight": {
+          "r": 0.95,
+          "g": 0.63,
+          "b": 0.22
+        },
+        "tint": {
+          "r": 0.78,
+          "g": 0.48,
+          "b": 0.18
+        },
+        "tintStrength": 0.38,
+        "violet": {
+          "r": 0.34,
+          "g": 0.18,
+          "b": 0.1
+        }
+      }
     },
     "dangerousNebula": {
-      "nebulaDensity": 0.0025,
+      "nebulaDensity": 0.009,
       "nebulaEffectCombos": [
         {
           "value": {
@@ -223,7 +255,7 @@
     },
     "nebulaVeil": {
       "asteroidDensity": 0.005,
-      "nebulaDensity": 0.002,
+      "nebulaDensity": 0.008,
       "nebulaEffectCombos": [
         {
           "value": {
@@ -280,6 +312,38 @@
     "planetCluster": {
       "asteroidDensity": 0.006,
       "planetDensity": 0.02,
+      "nebulaVisuals": {
+        "alphaScale": 1.16,
+        "blue": {
+          "r": 0.04,
+          "g": 0.21,
+          "b": 0.16
+        },
+        "coreStrength": 0.3,
+        "cyan": {
+          "r": 0.1,
+          "g": 0.56,
+          "b": 0.36
+        },
+        "densityScale": 1.18,
+        "hazeStrength": 0.38,
+        "highlight": {
+          "r": 0.42,
+          "g": 0.86,
+          "b": 0.5
+        },
+        "tint": {
+          "r": 0.18,
+          "g": 0.72,
+          "b": 0.42
+        },
+        "tintStrength": 0.36,
+        "violet": {
+          "r": 0.08,
+          "g": 0.34,
+          "b": 0.24
+        }
+      },
       "planetKinds": [
         {
           "value": "lush",
@@ -331,7 +395,7 @@
           "weight": 4
         }
       ],
-      "nebulaDensity": 0.0009,
+      "nebulaDensity": 0.004,
       "nebulaEffectCombos": [
         {
           "value": {
@@ -423,10 +487,74 @@
       ]
     },
     "sparseNebula": {
-      "nebulaDensity": 0.0005
+      "nebulaDensity": 0.003,
+      "nebulaVisuals": {
+        "alphaScale": 1.08,
+        "blue": {
+          "r": 0.07,
+          "g": 0.12,
+          "b": 0.42
+        },
+        "coreStrength": 0.24,
+        "cyan": {
+          "r": 0.2,
+          "g": 0.3,
+          "b": 0.72
+        },
+        "densityScale": 1.02,
+        "hazeStrength": 0.28,
+        "highlight": {
+          "r": 0.44,
+          "g": 0.52,
+          "b": 0.92
+        },
+        "tint": {
+          "r": 0.3,
+          "g": 0.36,
+          "b": 0.82
+        },
+        "tintStrength": 0.32,
+        "violet": {
+          "r": 0.16,
+          "g": 0.1,
+          "b": 0.42
+        }
+      }
     },
     "sparsePlanets": {
-      "planetDensity": 0.006
+      "planetDensity": 0.006,
+      "nebulaVisuals": {
+        "alphaScale": 1.1,
+        "blue": {
+          "r": 0.12,
+          "g": 0.18,
+          "b": 0.24
+        },
+        "coreStrength": 0.25,
+        "cyan": {
+          "r": 0.45,
+          "g": 0.46,
+          "b": 0.28
+        },
+        "densityScale": 1.05,
+        "hazeStrength": 0.3,
+        "highlight": {
+          "r": 0.78,
+          "g": 0.76,
+          "b": 0.42
+        },
+        "tint": {
+          "r": 0.64,
+          "g": 0.62,
+          "b": 0.34
+        },
+        "tintStrength": 0.34,
+        "violet": {
+          "r": 0.24,
+          "g": 0.22,
+          "b": 0.18
+        }
+      }
     }
   },
   "defaultBiomePresets": ["sandboxFallback"],

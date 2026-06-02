@@ -28,7 +28,13 @@ export type SandboxBiomeSpawnPlan = {
 };
 
 const AREA_UNIT = 1_000_000;
-const GENERATED_BIOME_PRESETS = ['sandboxFallback', 'asteroidBelt', 'planetCluster', 'nebulaVeil'];
+const GENERATED_BIOME_PRESETS = [
+  'sandboxFallback',
+  'asteroidBelt',
+  'planetCluster',
+  'nebulaVeil',
+  'dangerousNebula',
+];
 const DEFAULT_PROFILE: Required<SandboxBiomePreset> = {
   asteroidDensity: 0,
   asteroidTiers: [{ value: 'small', weight: 1 }],
@@ -208,6 +214,7 @@ function chooseGeneratedPreset(points: Vector[], world: WorldSize, random: Rando
       { value: 'planetCluster', weight: 22 - danger * 8 },
       { value: 'asteroidBelt', weight: 18 + danger * 18 },
       { value: 'nebulaVeil', weight: 12 + danger * 10 },
+      { value: 'dangerousNebula', weight: Math.max(0, danger - 0.42) * 18 },
     ].filter((entry) => GENERATED_BIOME_PRESETS.includes(entry.value)),
     random,
   );
