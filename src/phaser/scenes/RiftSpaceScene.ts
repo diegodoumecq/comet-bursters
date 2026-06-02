@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 
 import { AsteroidBodies } from '../asteroids/bodies';
+import { getGameAudio } from '../audio/AudioManager';
+import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
 import { MatterContacts } from '../combat/matterContacts';
 import type { Vector, WorldSize } from '../core/types';
 import { DimensionDebugOverlay } from '../dimensions/DimensionDebugOverlay';
@@ -37,6 +39,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
   private readonly portals: PortalEntity[] = [];
   private dimensionDebug!: DimensionDebugOverlay;
   private renderEffects!: SpaceRenderEffects;
+  private audioDirector!: SceneAudioDirector;
   private runtime!: SpaceWorldRuntime;
   private sceneCapture!: PortalSceneCapture;
   private playerFuelBase!: Phaser.GameObjects.Graphics;
@@ -57,6 +60,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.audioDirector = getGameAudio(this).createSceneDirector(this, 'rift-space');
     this.worldSize = { width: this.scale.width, height: this.scale.height };
     createArcadeTextures(this);
     this.runtime = new SpaceWorldRuntime('rift', {
@@ -194,6 +198,8 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
   }
 
   setActiveView(active: boolean): void {
+    if (active && !this.activeView) this.audioDirector.enter();
+    if (!active && this.activeView) this.audioDirector.exit();
     this.activeView = active;
     this.cameras.main.visible = active;
     this.input.enabled = active;
@@ -240,6 +246,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
   }
 
   private handleShutdown(): void {
+    this.audioDirector.exit();
     this.scale.off('resize', this.handleResize, this);
     getDimensionCoordinator().unregisterWorld('rift', this.runtime);
     this.runtime.clearNonShipEntities();

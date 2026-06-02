@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
 
+import { getGameAudio } from '../audio/AudioManager';
+import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
+
 const MENU_ITEMS = [
   { key: 'demo', label: 'Demo Scene' },
   { key: 'arcade', label: 'Arcade Scene' },
@@ -8,11 +11,16 @@ const MENU_ITEMS = [
 ] as const;
 
 export class SceneMenuScene extends Phaser.Scene {
+  private audioDirector!: SceneAudioDirector;
+
   constructor() {
     super('scene-menu');
   }
 
   create(): void {
+    this.audioDirector = getGameAudio(this).createSceneDirector(this, 'scene-menu');
+    this.audioDirector.enter();
+    this.events.once('shutdown', () => this.audioDirector.exit());
     const centerX = this.scale.width * 0.5;
     const centerY = this.scale.height * 0.5;
     this.add
@@ -40,7 +48,10 @@ export class SceneMenuScene extends Phaser.Scene {
       button.on('pointerout', () =>
         button.setStyle({ backgroundColor: '#111827', color: '#bae6fd' }),
       );
-      button.on('pointerdown', () => this.scene.start(item.key));
+      button.on('pointerdown', () => {
+        this.audioDirector.emit({ type: 'uiSelect' });
+        this.scene.start(item.key);
+      });
     });
   }
 }

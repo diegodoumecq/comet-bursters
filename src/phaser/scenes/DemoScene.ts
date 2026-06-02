@@ -1,4 +1,6 @@
 import { AsteroidBodies } from '../asteroids/bodies';
+import { getGameAudio } from '../audio/AudioManager';
+import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
 import { ASTEROIDS, createAsteroid } from '../asteroids/logic';
 import { ASTEROID_TEXTURES, createAsteroidTextures } from '../asteroids/textures';
 import type { AsteroidEntity } from '../asteroids/types';
@@ -33,6 +35,7 @@ export class PhaserDemoScene extends BaseGameScene {
   private asteroids: AsteroidEntity[] = [];
   private asteroidBodies!: AsteroidBodies;
   private planetViews!: PlanetViews;
+  private audioDirector!: SceneAudioDirector;
   private readonly playerState = new PlayerState();
   private readonly ship = new ShipState();
 
@@ -41,6 +44,9 @@ export class PhaserDemoScene extends BaseGameScene {
   }
 
   create(): void {
+    this.audioDirector = getGameAudio(this).createSceneDirector(this, 'demo');
+    this.audioDirector.enter();
+    this.events.once('shutdown', () => this.audioDirector.exit());
     this.matter.world.setBounds(0, 0, WORLD.width, WORLD.height, 64, true, true, true, true);
     this.cameras.main.setBounds(0, 0, WORLD.width, WORLD.height);
     this.actions = new ActionReader(this);
@@ -86,6 +92,9 @@ export class PhaserDemoScene extends BaseGameScene {
   }
 
   protected renderState(_action: ReturnType<ActionReader['read']>, time: number): void {
+    this.audioDirector.update({
+      playerSpeed: Math.hypot(this.playerState.velocity.x, this.playerState.velocity.y),
+    });
     this.sceneRenderer.render({
       asteroids: this.asteroids,
       now: time,

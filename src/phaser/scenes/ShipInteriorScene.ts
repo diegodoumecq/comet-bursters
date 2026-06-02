@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 
+import { getGameAudio } from '../audio/AudioManager';
+import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
 import { ActionReader, type ActionState } from '../input/actions';
 import { PlayerBody } from '../player/body';
 import { PLAYER_MASS } from '../player/config';
@@ -21,6 +23,7 @@ export class PhaserShipInteriorScene extends BaseGameScene {
   private loadStatus: 'loading' | 'ready' | 'error' = 'loading';
   private loadError = '';
   private playerBody: PlayerBody | null = null;
+  private audioDirector!: SceneAudioDirector;
   private readonly player = new PlayerState();
   private statusText!: Phaser.GameObjects.Text;
 
@@ -29,6 +32,9 @@ export class PhaserShipInteriorScene extends BaseGameScene {
   }
 
   create(): void {
+    this.audioDirector = getGameAudio(this).createSceneDirector(this, 'ship-interior');
+    this.audioDirector.enter();
+    this.events.once('shutdown', () => this.audioDirector.exit());
     this.actions = new ActionReader(this);
     createPlayerTexture(this);
     this.statusText = this.add
@@ -53,6 +59,9 @@ export class PhaserShipInteriorScene extends BaseGameScene {
   }
 
   protected renderState(): void {
+    this.audioDirector.update({
+      playerSpeed: Math.hypot(this.player.velocity.x, this.player.velocity.y),
+    });
     if (this.loadStatus === 'error') {
       this.statusText.setText(`Failed to load ship interior\n${this.loadError}`);
     }

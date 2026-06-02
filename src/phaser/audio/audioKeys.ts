@@ -1,0 +1,31 @@
+export const AUDIO_KEYS = {
+  ambience: {
+    arcade: 'ambience:arcade',
+    rift: 'ambience:rift',
+    sandbox: 'ambience:sandbox',
+    shipInterior: 'ambience:shipInterior',
+  },
+  music: {
+    arcade: 'music:arcade',
+    demo: 'music:demo',
+    menu: 'music:menu',
+    rift: 'music:rift',
+    sandbox: 'music:sandbox',
+    shipInterior: 'music:shipInterior',
+  },
+  sfx: {
+    asteroidDestroyed: 'sfx:asteroidDestroyed',
+    asteroidImpact: 'sfx:asteroidImpact',
+    fuelCollected: 'sfx:fuelCollected',
+    playerDestroyed: 'sfx:playerDestroyed',
+    portalClosed: 'sfx:portalClosed',
+    portalOpened: 'sfx:portalOpened',
+    shieldHit: 'sfx:shieldHit',
+    uiSelect: 'sfx:uiSelect',
+    weaponBlackHole: 'sfx:weaponBlackHole',
+    weaponInspectionProbe: 'sfx:weaponInspectionProbe',
+    weaponPusher: 'sfx:weaponPusher',
+    weaponShotgun: 'sfx:weaponShotgun',
+    weaponSmall: 'sfx:weaponSmall',
+  },
+} as const;

@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 
 import { AsteroidBodies } from '../asteroids/bodies';
+import { getGameAudio } from '../audio/AudioManager';
+import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
 import { ASTEROIDS } from '../asteroids/logic';
 import { updateAsteroidSplitCollisions } from '../asteroids/splitCollisions';
 import type { AsteroidEntity } from '../asteroids/types';
@@ -99,6 +101,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   private runtime!: SpaceWorldRuntime;
   private renderEffects!: ArcadeRenderEffects;
   private dimensionDebug!: DimensionDebugOverlay;
+  private audioDirector!: SceneAudioDirector;
   private dimensionCoordinator!: DimensionCoordinator;
   private riftDirector!: PortalDirector;
   private gameOverAt = 0;
@@ -116,6 +119,8 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   create(): void {
+    this.audioDirector = getGameAudio(this).createSceneDirector(this, 'arcade');
+    this.audioDirector.enter();
     this.resetRunFields();
     const startingIntensity = getStartingWave();
     this.session = new ArcadeRunState(startingIntensity);
@@ -211,6 +216,12 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.collectPortalBridgeFuelBlobs();
     this.processDimensionPortalTransfers(time);
     this.updateLifecycle(time);
+    this.audioDirector.update({
+      playerSpeed: Math.hypot(this.session.player.velocity.x, this.session.player.velocity.y),
+      riftVisible: this.dimensionCoordinator.getActiveViewSpace(time) === 'rift',
+      threatLevel: this.session.burstCount,
+      timeDilation: action.timeDilation,
+    });
   }
 
   private updatePlayerActions(
@@ -260,6 +271,11 @@ export class PhaserArcadeScene extends BaseGameScene {
       }
     }
     for (const projectile of weaponResult.projectiles) {
+      this.audioDirector.emit({
+        position: projectile.position,
+        projectile: projectile.kind,
+        type: 'weaponFired',
+      });
       if (playerInRift) {
         this.dimensionCoordinator.requireWorld('rift').addProjectile(projectile);
       } else {
@@ -457,6 +473,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.nextPortalId += 1;
     this.session.burstCount = this.riftDirector.burstCount;
     this.dimensionCoordinator.openPortal(plan);
+    this.audioDirector.emit({ position: plan.portal.position, type: 'portalOpened' });
   }
 
   private updateDebugRiftInput(): void {
@@ -546,6 +563,10 @@ export class PhaserArcadeScene extends BaseGameScene {
         runtime.removeProjectile(event.projectile);
       } else {
         const destruction = destroyAsteroidWithWeapon(event.asteroid);
+        this.audioDirector.emit({
+          position: event.asteroid.position,
+          type: 'asteroidDestroyed',
+        });
         this.session.awardAsteroidScore(ASTEROIDS[event.asteroid.tier].points);
         runtime.addParticles(destruction.particles);
         runtime.addFuelBlobs(destruction.fuelBlobs);
@@ -573,6 +594,7 @@ export class PhaserArcadeScene extends BaseGameScene {
         wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize),
       now: time,
       onAsteroidAbsorbed: (asteroid) => {
+        this.audioDirector.emit({ position: asteroid.position, type: 'asteroidDestroyed' });
         this.session.awardAsteroidScore(ASTEROIDS[asteroid.tier].points);
         runtime.addParticles(createAsteroidExplosion(asteroid, 0.7).particles);
       },
@@ -675,6 +697,10 @@ export class PhaserArcadeScene extends BaseGameScene {
     projectileRuntime.removeProjectile(contact.projectile);
     if (damageAsteroid(contact.projectile, contact.asteroid)) {
       const destruction = destroyAsteroidWithWeapon(contact.asteroid);
+      this.audioDirector.emit({
+        position: contact.asteroid.position,
+        type: 'asteroidDestroyed',
+      });
       this.session.awardAsteroidScore(ASTEROIDS[contact.asteroid.tier].points);
       asteroidRuntime.addParticles(destruction.particles);
       asteroidRuntime.addFuelBlobs(destruction.fuelBlobs);
@@ -746,6 +772,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     if (destroyed) {
       this.session.awardAsteroidScore(ASTEROIDS[asteroid.tier].points);
       const destruction = destroyAsteroidWithWeapon(asteroid);
+      this.audioDirector.emit({ position: asteroid.position, type: 'asteroidDestroyed' });
       runtime.addParticles(destruction.particles);
       runtime.addFuelBlobs(destruction.fuelBlobs);
       runtime.addAsteroids(destruction.children);
@@ -875,6 +902,7 @@ export class PhaserArcadeScene extends BaseGameScene {
           getBlackHoleMass(blackHole) +
           BLACK_HOLE_ABSORBED_FUEL_BLOBS[asteroid.tier] * BLACK_HOLE_FUEL_BLOB_MASS_SCALE;
         this.session.awardAsteroidScore(ASTEROIDS[asteroid.tier].points);
+        this.audioDirector.emit({ position: asteroid.position, type: 'asteroidDestroyed' });
         targetRuntime.addParticles(createAsteroidExplosion(asteroid, 0.7).particles);
         targetRuntime.removeAsteroid(asteroid);
       }
@@ -959,6 +987,10 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private killPlayer(now: number): void {
     if (!this.playerIsAlive()) return;
+    this.audioDirector.emit({
+      position: this.session.player.position,
+      type: 'playerDestroyed',
+    });
     this.session.destroyPlayer(now);
     const effects = createShipExplosion(this.session.player.position, this.session.player.velocity);
     if (this.session.player.membership.space === 'rift') {
@@ -1148,6 +1180,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private disposeRenderEffects(): void {
+    this.audioDirector.exit();
     this.scale.off('resize', this.handleResize, this);
     if (this.scene.isActive('rift-space')) this.scene.manager.stop('rift-space');
     this.riftSpaceScene = null;
