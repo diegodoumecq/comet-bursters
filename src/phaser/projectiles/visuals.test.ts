@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { PROJECTILES } from './config';
-import { getProjectileVisualScale } from './rendering';
+import { PROJECTILES } from '../weapons/config';
+import { getProjectileVisualScale } from './visuals';
 
 describe('projectile rendering', () => {
   it('stretches projectile length proportionally to speed', () => {

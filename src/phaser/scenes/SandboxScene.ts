@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 
 import { AsteroidBodies } from '../asteroids/bodies';
+import { getGameAudio } from '../audio/AudioManager';
+import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
 import { ASTEROIDS } from '../asteroids/logic';
 import { updateAsteroidSplitCollisions } from '../asteroids/splitCollisions';
 import { createAsteroidTextures } from '../asteroids/textures';
@@ -74,6 +76,7 @@ const SANDBOX_MAX_SPEED_TRAIL_THRESHOLD = SANDBOX_PLAYER_MAX_SPEED * 0.96;
 const SANDBOX_MAX_SPEED_TRAIL_INTERVAL_MS = 45;
 const SANDBOX_MAX_SPEED_TRAIL_OFFSET = 34;
 const SANDBOX_MAX_SPEED_TRAIL_SPREAD = 9;
+const PROJECTILE_VISUAL_TELEPORT_THRESHOLD = 180;
 const INITIAL_ASTEROIDS = 22;
 const RESPAWN_DELAY_MS = 1800;
 const STARTING_INSPECTION_PROBES = 300;
@@ -98,6 +101,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private contacts!: MatterContacts;
   private runtime!: GameWorldRuntime;
   private renderEffects!: SandboxRenderEffects;
+  private audioDirector!: SceneAudioDirector;
   private readonly player = new PlayerState();
   private readonly ship = mainGameState.ship;
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: SANDBOX_WEAPONS };
@@ -113,7 +117,6 @@ export class PhaserSandboxScene extends BaseGameScene {
   private inspectionProbes = STARTING_INSPECTION_PROBES;
   private lastThrusterAt = 0;
   private lastMaxSpeedTrailAt = 0;
-  private lastProjectileVisualCameraCenter: Vector | null = null;
 
   constructor() {
     super('sandbox');
@@ -124,6 +127,8 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   create(): void {
+    this.audioDirector = getGameAudio(this).createSceneDirector(this, 'sandbox');
+    this.audioDirector.enter();
     this.actions = new ActionReader(this);
     createPlayerTexture(this);
     createAsteroidTextures(this);
@@ -189,6 +194,11 @@ export class PhaserSandboxScene extends BaseGameScene {
 
   protected renderState(action: ReturnType<ActionReader['read']>, time: number): void {
     this.syncProjectileVisualsToCamera();
+    this.audioDirector.update({
+      playerSpeed: Math.hypot(this.player.velocity.x, this.player.velocity.y),
+      threatLevel: this.runtime.world.asteroids.length,
+      timeDilation: action.timeDilation,
+    });
     this.sceneRenderer.render({
       asteroidCount: this.runtime.world.asteroids.length,
       asteroids: this.runtime.world.asteroids,
@@ -281,7 +291,14 @@ export class PhaserSandboxScene extends BaseGameScene {
         y: this.player.velocity.y + weaponResult.recoil.y,
       });
     }
-    for (const projectile of weaponResult.projectiles) this.addProjectile(projectile);
+    for (const projectile of weaponResult.projectiles) {
+      this.audioDirector.emit({
+        position: projectile.position,
+        projectile: projectile.kind,
+        type: 'weaponFired',
+      });
+      this.addProjectile(projectile);
+    }
     applyTractorBeam(
       this.player.position,
       this.player.lastAim,
@@ -368,7 +385,10 @@ export class PhaserSandboxScene extends BaseGameScene {
       getDelta: (fromX, fromY, toX, toY) =>
         wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, WORLD),
       now,
-      onAsteroidAbsorbed: (asteroid) => this.applyEffect(createAsteroidExplosion(asteroid, 0.7)),
+      onAsteroidAbsorbed: (asteroid) => {
+        this.audioDirector.emit({ position: asteroid.position, type: 'asteroidDestroyed' });
+        this.applyEffect(createAsteroidExplosion(asteroid, 0.7));
+      },
       onAsteroidRemoved: (asteroid) => this.removeAsteroid(asteroid),
       onBlackHoleRemoved: (projectile) => this.removeProjectile(projectile),
       onFuelBurst: (projectile) => {
@@ -534,6 +554,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   private destroyAsteroid(asteroid: AsteroidEntity, split: boolean): void {
+    this.audioDirector.emit({ position: asteroid.position, type: 'asteroidDestroyed' });
     if (split) {
       const destruction = destroyAsteroidWithWeapon(asteroid);
       this.addParticles(destruction.particles);
@@ -548,6 +569,7 @@ export class PhaserSandboxScene extends BaseGameScene {
 
   private killPlayer(now: number): void {
     if (!this.player.visible) return;
+    this.audioDirector.emit({ position: this.player.position, type: 'playerDestroyed' });
     this.player.visible = false;
     this.player.respawnAt = now + RESPAWN_DELAY_MS;
     for (const effect of createShipExplosion(this.player.position, this.player.velocity))
@@ -681,23 +703,12 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   private syncProjectileVisualsToCamera(): void {
-    const camera = this.cameras.main;
-    camera.preRender();
-    const cameraCenter = {
-      x: camera.worldView.x + camera.worldView.width * 0.5,
-      y: camera.worldView.y + camera.worldView.height * 0.5,
-    };
-    const cameraDelta = this.lastProjectileVisualCameraCenter
-      ? wrappedDelta(this.lastProjectileVisualCameraCenter, cameraCenter, WORLD)
-      : { x: 0, y: 0 };
-    this.lastProjectileVisualCameraCenter = cameraCenter;
-
-    for (const projectile of this.runtime.world.projectiles) {
-      this.projectileBodies.syncVisual(projectile, {
-        x: projectile.velocity.x - cameraDelta.x,
-        y: projectile.velocity.y - cameraDelta.y,
-      });
-    }
+    this.projectileBodies.syncVisualsRelativeToCamera({
+      camera: this.cameras.main,
+      cameraVelocity: this.player.velocity,
+      projectiles: this.runtime.world.projectiles,
+      teleportThreshold: PROJECTILE_VISUAL_TELEPORT_THRESHOLD,
+    });
   }
 
   private spawnThrusterParticle(move: Vector, now: number, thrustScale: number): void {
@@ -791,6 +802,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   private disposeRenderEffects(): void {
+    this.audioDirector.exit();
     this.renderEffects.dispose();
   }
 }

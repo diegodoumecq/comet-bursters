@@ -2,24 +2,20 @@ import Phaser from 'phaser';
 
 import { ALL_COLLISION_CATEGORIES } from '../combat/collisionCategories';
 import type { MatterArc, Vector } from '../core/types';
-import { createProjectileShape, syncProjectileVisual } from '../weapons/rendering';
 import type { ProjectileEntity } from './types';
+import { createProjectileShape, ProjectileVisuals } from './visuals';
 
 export class ProjectileBodies {
   private readonly shapes = new Map<number, MatterArc>();
+  private readonly visuals = new ProjectileVisuals((projectile) => this.get(projectile));
 
   constructor(private readonly scene: Phaser.Scene) {}
 
   add(projectile: ProjectileEntity): MatterArc {
-    const shape = createProjectileShape(
-      this.scene,
-      projectile.position,
-      projectile.kind,
-      projectile.angle,
-      projectile.velocity,
-    );
+    const shape = createProjectileShape(this.scene, projectile.position, projectile.kind);
     shape.setVelocity(projectile.velocity.x, projectile.velocity.y);
     this.shapes.set(projectile.id, shape);
+    this.visuals.syncWorld(projectile);
     return shape;
   }
 
@@ -32,6 +28,7 @@ export class ProjectileBodies {
   remove(projectile: ProjectileEntity): void {
     this.get(projectile).destroy();
     this.shapes.delete(projectile.id);
+    this.visuals.forget(projectile);
   }
 
   sync(projectile: ProjectileEntity): void {
@@ -42,11 +39,16 @@ export class ProjectileBodies {
       Math.hypot(projectile.velocity.x, projectile.velocity.y) > 0
         ? Math.atan2(projectile.velocity.y, projectile.velocity.x)
         : projectile.angle;
-    syncProjectileVisual(shape, projectile.kind, projectile.velocity, projectile.angle);
+    this.visuals.syncWorld(projectile);
   }
 
-  syncVisual(projectile: ProjectileEntity, visualVelocity: Vector): void {
-    syncProjectileVisual(this.get(projectile), projectile.kind, visualVelocity, projectile.angle);
+  syncVisualsRelativeToCamera(input: {
+    camera: Phaser.Cameras.Scene2D.Camera;
+    cameraVelocity?: Vector;
+    projectiles: ProjectileEntity[];
+    teleportThreshold: number;
+  }): void {
+    this.visuals.syncCameraRelative(input);
   }
 
   setPosition(projectile: ProjectileEntity, position: Vector): void {
@@ -60,7 +62,7 @@ export class ProjectileBodies {
     projectile.velocity = velocity;
     projectile.angle =
       Math.hypot(velocity.x, velocity.y) > 0 ? Math.atan2(velocity.y, velocity.x) : projectile.angle;
-    syncProjectileVisual(shape, projectile.kind, velocity, projectile.angle);
+    this.visuals.syncWorld(projectile);
   }
 
   setCollisionEnabled(projectile: ProjectileEntity, enabled: boolean): void {
