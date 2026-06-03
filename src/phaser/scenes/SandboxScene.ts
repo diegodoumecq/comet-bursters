@@ -1,12 +1,12 @@
 import Phaser from 'phaser';
 
 import { AsteroidBodies } from '../asteroids/bodies';
-import { getGameAudio } from '../audio/AudioManager';
-import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
 import { ASTEROIDS } from '../asteroids/logic';
 import { updateAsteroidSplitCollisions } from '../asteroids/splitCollisions';
 import { createAsteroidTextures } from '../asteroids/textures';
 import type { AsteroidEntity } from '../asteroids/types';
+import { getGameAudio } from '../audio/AudioManager';
+import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
 import { destroyAsteroidWithWeapon } from '../combat/asteroidDestruction';
 import {
   damageAsteroidByAmount,
@@ -67,10 +67,11 @@ import {
 import { SandboxRenderEffects } from './sandbox/SandboxRenderEffects';
 import { SandboxRenderer } from './sandbox/SandboxRenderer';
 import { createSandboxStartup } from './sandbox/sandboxSpawns';
+import { SANDBOX_WORLD_CONFIG } from './sandbox/sandboxWorldConfig';
 import { getWrappedDistance } from './sandbox/screenWrapping';
 import { keepMovingEntitiesNearPlayer, rebaseWorldAroundPlayer } from './sandbox/worldPositioning';
 
-const WORLD: WorldSize = { width: 48000, height: 48000 };
+const WORLD: WorldSize = SANDBOX_WORLD_CONFIG.world;
 const SANDBOX_PLAYER_MAX_SPEED = 50;
 const SANDBOX_MAX_SPEED_TRAIL_THRESHOLD = SANDBOX_PLAYER_MAX_SPEED * 0.96;
 const SANDBOX_MAX_SPEED_TRAIL_INTERVAL_MS = 45;
@@ -155,7 +156,14 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.playerBody.body.setMass(PLAYER_MASS);
     this.playerBody.body.setFrictionAir(0);
     this.syncPlayerContactBodies();
-    this.sceneRenderer = new SandboxRenderer(this, this.playerBody.body, this.weaponPolicy, WORLD);
+    this.sceneRenderer = new SandboxRenderer(
+      this,
+      this.playerBody.body,
+      this.weaponPolicy,
+      WORLD,
+      startup.nebulaRegions,
+      startup.biomes,
+    );
     this.renderEffects = new SandboxRenderEffects(
       this.game.canvas,
       this.game.canvas.parentElement,

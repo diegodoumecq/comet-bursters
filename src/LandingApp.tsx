@@ -6,6 +6,7 @@ import { Switch } from './ui/components/Switch';
 type SandboxPerfToggleKey =
   | 'arcadeDimensionDebug'
   | 'sandboxPerfMarkers'
+  | 'sandboxBiomeDebug'
   | 'sandboxBlackHoles'
   | 'sandboxFuelMetaballs'
   | 'sandboxMinimap'
@@ -20,6 +21,7 @@ const SANDBOX_PERF_TOGGLES: Array<{
 }> = [
   { defaultValue: false, key: 'arcadeDimensionDebug', label: 'Rift ownership rings' },
   { defaultValue: false, key: 'sandboxPerfMarkers', label: 'Perf markers' },
+  { defaultValue: false, key: 'sandboxBiomeDebug', label: 'Biome polygons' },
   { defaultValue: true, key: 'sandboxBlackHoles', label: 'Black holes' },
   { defaultValue: true, key: 'sandboxFuelMetaballs', label: 'Fuel metaballs' },
   { defaultValue: true, key: 'sandboxMinimap', label: 'Minimap' },

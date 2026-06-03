@@ -7,9 +7,9 @@ import { MOTHERSHIP_CARGO_BAY_OFFSET, MOTHERSHIP_WIDTH } from './Mothership';
 import {
   circlesOverlapWrapped,
   createSandboxStartup,
-  PLANET_COUNT,
   planetInfluencesPlayerAtSpawn,
 } from './sandboxSpawns';
+import { SANDBOX_WORLD_CONFIG } from './sandboxWorldConfig';
 
 vi.mock('phaser', () => ({
   default: {
@@ -27,12 +27,15 @@ vi.mock('phaser', () => ({
   },
 }));
 
-const world = { width: 48000, height: 48000 };
+const world = SANDBOX_WORLD_CONFIG.world;
+const PLAYTHROUGH_SEED = 'test-playthrough';
 
 describe('sandbox startup spawns', () => {
   it('places startup entities without overlapping reservations', () => {
     const startup = createSandboxStartup(world, 22);
-    expect(startup.planets).toHaveLength(PLANET_COUNT);
+    expect(startup.planets.length).toBeGreaterThan(40);
+    expect(startup.asteroids.length).toBeGreaterThan(22);
+    expect(startup.nebulaRegions.length).toBeGreaterThan(0);
     const cargoBay = {
       x: startup.spawnPoint.x + MOTHERSHIP_CARGO_BAY_OFFSET.x,
       y: startup.spawnPoint.y + MOTHERSHIP_CARGO_BAY_OFFSET.y,
@@ -67,6 +70,47 @@ describe('sandbox startup spawns', () => {
     expect(
       startup.planets.every((planet) => !planetInfluencesPlayerAtSpawn(planet, cargoBay, world)),
     ).toBe(true);
+  });
+
+  it('creates deterministic startup entities from the playthrough seed', () => {
+    const first = createSandboxStartup(world, 22, undefined, SANDBOX_WORLD_CONFIG, PLAYTHROUGH_SEED);
+    const second = createSandboxStartup(
+      world,
+      22,
+      undefined,
+      SANDBOX_WORLD_CONFIG,
+      PLAYTHROUGH_SEED,
+    );
+
+    expect(first.spawnPoint).toEqual(second.spawnPoint);
+    expect(first.planets.map((planet) => [planet.kind, planet.position])).toEqual(
+      second.planets.map((planet) => [planet.kind, planet.position]),
+    );
+    expect(first.asteroids.map((asteroid) => [asteroid.tier, asteroid.position])).toEqual(
+      second.asteroids.map((asteroid) => [asteroid.tier, asteroid.position]),
+    );
+    expect(first.nebulaRegions.map((region) => [region.effects, region.points])).toEqual(
+      second.nebulaRegions.map((region) => [region.effects, region.points]),
+    );
+  });
+
+  it('changes procedural startup entities when the playthrough seed changes', () => {
+    const first = createSandboxStartup(world, 22, undefined, SANDBOX_WORLD_CONFIG, 'seed-a');
+    const second = createSandboxStartup(world, 22, undefined, SANDBOX_WORLD_CONFIG, 'seed-b');
+
+    expect(first.spawnPoint).toEqual(second.spawnPoint);
+    expect(first.nebulaRegions.map((region) => region.points)).not.toEqual(
+      second.nebulaRegions.map((region) => region.points),
+    );
+  });
+
+  it('uses the configured sandbox spawn point', () => {
+    const startup = createSandboxStartup(world, 22, undefined, {
+      ...SANDBOX_WORLD_CONFIG,
+      spawnPoint: { x: 12345, y: 23456 },
+    });
+
+    expect(startup.spawnPoint).toEqual({ x: 12345, y: 23456 });
   });
 
   it('uses wrapped distance for reservation overlap checks', () => {

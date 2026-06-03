@@ -21,9 +21,11 @@ import { drawTractorBeam } from '../../weapons/tractorBeam';
 import type { WeaponKind } from '../../weapons/types';
 import { MINIMAP_COLUMNS, MINIMAP_ROWS, type SandboxDiscovery } from './discovery';
 import { NebulaRegionRenderer } from './NebulaRegionRenderer';
-import { SANDBOX_NEBULA_REGIONS } from './nebulaRegions';
+import type { NebulaRegion } from './nebulaRegions';
 import type { SandboxPlanetEntity } from './planetFuel';
 import { SandboxBackground } from './SandboxBackground';
+import { SandboxBiomeDebugOverlay } from './SandboxBiomeDebugOverlay';
+import type { SandboxBiomeRegion } from './biomeGeneration';
 import { SandboxPlanetOverlay } from './SandboxPlanetOverlay';
 
 const PLAYER_FUEL_HUD_DEPTH = 30;
@@ -31,6 +33,7 @@ const PLAYER_FUEL_HUD_DEPTH = 30;
 export class SandboxRenderer {
   private readonly background: SandboxBackground;
   private readonly beam: Phaser.GameObjects.Graphics;
+  private readonly biomeDebug: SandboxBiomeDebugOverlay;
   private readonly nebulaRegions: NebulaRegionRenderer;
   private readonly playerTurret: Phaser.GameObjects.Image;
   private readonly playerShield: Phaser.GameObjects.Graphics;
@@ -48,8 +51,11 @@ export class SandboxRenderer {
     private readonly player: Phaser.Physics.Matter.Image,
     weaponPolicy: SceneWeaponPolicy,
     world: WorldSize,
+    private readonly sandboxNebulaRegions: NebulaRegion[],
+    private readonly sandboxBiomes: SandboxBiomeRegion[],
   ) {
     this.background = new SandboxBackground(scene, world);
+    this.biomeDebug = new SandboxBiomeDebugOverlay(scene);
     this.nebulaRegions = new NebulaRegionRenderer(scene);
     this.beam = scene.add.graphics();
     this.playerTurret = scene.add.image(player.x, player.y, PLAYER_TURRET_TEXTURE_KEY).setDepth(3);
@@ -119,7 +125,7 @@ export class SandboxRenderer {
       withPerformanceMeasure('sandbox.render.nebulaRegions', this.perfToggles.markers, () => {
         this.nebulaRegions.render({
           camera: this.scene.cameras.main,
-          regions: SANDBOX_NEBULA_REGIONS,
+          regions: this.sandboxNebulaRegions,
           screen: { width: this.scene.scale.width, height: this.scene.scale.height },
           world: input.world,
         });
@@ -174,6 +180,14 @@ export class SandboxRenderer {
       withPerformanceMeasure('sandbox.render.minimap', this.perfToggles.markers, () => {
         this.minimap.render({
           asteroids: input.asteroids,
+          biomeRegions: this.perfToggles.biomeDebug
+            ? this.sandboxBiomes
+                .filter((biome) => biome.source === 'generated')
+                .map((biome) => ({
+                  color: biome.profile.color,
+                  points: biome.points,
+                }))
+            : undefined,
           camera: this.scene.cameras.main,
           fog: input.fogEnabled
             ? {
@@ -184,7 +198,7 @@ export class SandboxRenderer {
                 visibleCells: input.discovery.visibleCells,
               }
             : undefined,
-          nebulaRegions: SANDBOX_NEBULA_REGIONS,
+          nebulaRegions: this.sandboxNebulaRegions,
           planets: input.planets,
           player: input.player.position,
           playerAim: input.player.lastAim,
@@ -194,5 +208,11 @@ export class SandboxRenderer {
       });
     }
     this.planetOverlay.render(input.planets, input.now);
+    this.biomeDebug.render({
+      biomes: this.sandboxBiomes,
+      camera: this.scene.cameras.main,
+      enabled: this.perfToggles.biomeDebug,
+      world: input.world,
+    });
   }
 }

@@ -4,10 +4,12 @@ import { ASTEROIDS } from '../asteroids/config';
 import type { AsteroidEntity } from '../asteroids/types';
 import type { Vector, WorldSize } from '../core/types';
 import type { PlanetEntity } from '../planets/types';
+import type { NebulaRegionColor, NebulaRegionVisuals } from '../scenes/sandbox/nebulaRegions';
 
 const WIDTH = 220;
 const HEIGHT = 220;
 const PADDING = 20;
+const NEBULA_SAMPLE_SCALE = 2;
 
 export type MinimapFog = {
   columns: number;
@@ -20,10 +22,29 @@ export type MinimapFog = {
 export type MinimapNebulaRegion = {
   alpha: number;
   points: Vector[];
+  visuals?: NebulaRegionVisuals;
+};
+
+export type MinimapBiomeRegion = {
+  color: NebulaRegionColor;
+  points: Vector[];
+};
+
+type MinimapNebulaCoverageCell = {
+  alpha: number;
+  color: number;
+};
+
+type MinimapNebulaCoverage = {
+  cells: Array<MinimapNebulaCoverageCell | null>;
+  columns: number;
+  key: string;
+  rows: number;
 };
 
 export class Minimap {
   private readonly graphics: Phaser.GameObjects.Graphics;
+  private nebulaCoverage: MinimapNebulaCoverage | null = null;
 
   constructor(private readonly scene: Phaser.Scene) {
     this.graphics = scene.add.graphics().setScrollFactor(0).setDepth(200);
@@ -35,6 +56,7 @@ export class Minimap {
 
   render(input: {
     asteroids?: AsteroidEntity[];
+    biomeRegions?: MinimapBiomeRegion[];
     camera: Phaser.Cameras.Scene2D.Camera;
     fog?: MinimapFog;
     nebulaRegions?: MinimapNebulaRegion[];
@@ -57,6 +79,7 @@ export class Minimap {
 
     if (input.fog) this.drawFog(input.fog, x, y);
     this.drawNebulaRegions(input.nebulaRegions ?? [], input.fog, input.world, x, y);
+    this.drawBiomeRegions(input.biomeRegions ?? [], input.world, x, y, scaleX, scaleY);
     this.drawGrid(x, y);
     this.drawPlanets(input.planets, input.fog, input.world, x, y, scaleX, scaleY);
     this.drawAsteroids(input.asteroids ?? [], input.fog, input.world, x, y, scaleX, scaleY);
@@ -142,6 +165,55 @@ export class Minimap {
     }
   }
 
+  private drawBiomeRegions(
+    regions: MinimapBiomeRegion[],
+    world: WorldSize,
+    x: number,
+    y: number,
+    scaleX: number,
+    scaleY: number,
+  ): void {
+    if (regions.length === 0) return;
+
+    for (const region of regions) {
+      this.graphics.lineStyle(1, rgbToNumber(region.color), 0.78);
+      for (const offsetX of [-world.width, 0, world.width]) {
+        for (const offsetY of [-world.height, 0, world.height]) {
+          this.drawBiomeRegionCopy(region, offsetX, offsetY, x, y, scaleX, scaleY);
+        }
+      }
+    }
+  }
+
+  private drawBiomeRegionCopy(
+    region: MinimapBiomeRegion,
+    offsetX: number,
+    offsetY: number,
+    x: number,
+    y: number,
+    scaleX: number,
+    scaleY: number,
+  ): void {
+    for (let index = 0; index < region.points.length; index += 1) {
+      const start = region.points[index];
+      const end = region.points[(index + 1) % region.points.length];
+      const clipped = clipLineToRect(
+        {
+          x: x + (start.x + offsetX) * scaleX,
+          y: y + (start.y + offsetY) * scaleY,
+        },
+        {
+          x: x + (end.x + offsetX) * scaleX,
+          y: y + (end.y + offsetY) * scaleY,
+        },
+        { bottom: y + HEIGHT, left: x, right: x + WIDTH, top: y },
+      );
+      if (clipped) {
+        this.graphics.lineBetween(clipped.start.x, clipped.start.y, clipped.end.x, clipped.end.y);
+      }
+    }
+  }
+
   private drawNebulaRegions(
     regions: MinimapNebulaRegion[],
     fog: MinimapFog | undefined,
@@ -153,22 +225,26 @@ export class Minimap {
 
     const columns = fog?.columns ?? MINIMAP_DEFAULT_COLUMNS;
     const rows = fog?.rows ?? MINIMAP_DEFAULT_ROWS;
-    const cellWidth = WIDTH / columns;
-    const cellHeight = HEIGHT / rows;
+    const sampleColumns = columns * NEBULA_SAMPLE_SCALE;
+    const sampleRows = rows * NEBULA_SAMPLE_SCALE;
+    const cellWidth = WIDTH / sampleColumns;
+    const cellHeight = HEIGHT / sampleRows;
+    const coverage = this.getNebulaCoverage(regions, world, sampleColumns, sampleRows);
 
-    for (let row = 0; row < rows; row += 1) {
-      for (let col = 0; col < columns; col += 1) {
-        const index = row * columns + col;
+    for (let row = 0; row < sampleRows; row += 1) {
+      for (let col = 0; col < sampleColumns; col += 1) {
+        const fogCol = Math.floor(col / NEBULA_SAMPLE_SCALE);
+        const fogRow = Math.floor(row / NEBULA_SAMPLE_SCALE);
+        const index = fogRow * columns + fogCol;
         const discovered = !fog || fog.exploredCells[index];
         if (discovered) {
-          const worldPosition = {
-            x: ((col + 0.5) / columns) * world.width,
-            y: ((row + 0.5) / rows) * world.height,
-          };
-          const region = getNebulaRegionAt(worldPosition, regions);
-          if (region) {
+          const coverageCell = coverage.cells[row * sampleColumns + col];
+          if (coverageCell) {
             const visible = !fog || fog.visibleCells[index];
-            this.graphics.fillStyle(0x2d7185, (visible ? 0.42 : 0.24) * region.alpha);
+            this.graphics.fillStyle(
+              coverageCell.color,
+              (visible ? 0.46 : 0.26) * coverageCell.alpha,
+            );
             this.graphics.fillRect(
               x + col * cellWidth,
               y + row * cellHeight,
@@ -179,6 +255,38 @@ export class Minimap {
         }
       }
     }
+  }
+
+  private getNebulaCoverage(
+    regions: MinimapNebulaRegion[],
+    world: WorldSize,
+    columns: number,
+    rows: number,
+  ): MinimapNebulaCoverage {
+    const key = `${world.width}:${world.height}:${columns}:${rows}:${regions.map((region) => region.alpha).join(',')}`;
+    if (this.nebulaCoverage?.key === key) return this.nebulaCoverage;
+
+    const cells: Array<MinimapNebulaCoverageCell | null> = Array.from(
+      { length: columns * rows },
+      () => null,
+    );
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < columns; col += 1) {
+        const worldPosition = {
+          x: ((col + 0.5) / columns) * world.width,
+          y: ((row + 0.5) / rows) * world.height,
+        };
+        const region = getNebulaRegionAt(worldPosition, regions);
+        if (region) {
+          cells[row * columns + col] = {
+            alpha: region.alpha,
+            color: getNebulaMinimapColor(region),
+          };
+        }
+      }
+    }
+    this.nebulaCoverage = { cells, columns, key, rows };
+    return this.nebulaCoverage;
   }
 
   private isVisibleOnMinimap(
@@ -330,4 +438,55 @@ function pointInPolygon(point: Vector, polygon: Vector[]): boolean {
     if (crossesY && point.x < intersectionX) inside = !inside;
   }
   return inside;
+}
+
+function getNebulaMinimapColor(region: MinimapNebulaRegion): number {
+  const visuals = region.visuals;
+  if (!visuals) return 0x2d7185;
+  return rgbToNumber(visuals.tint);
+}
+
+function rgbToNumber(color: NebulaRegionColor): number {
+  const r = Phaser.Math.Clamp(Math.round(color.r * 255), 0, 255);
+  const g = Phaser.Math.Clamp(Math.round(color.g * 255), 0, 255);
+  const b = Phaser.Math.Clamp(Math.round(color.b * 255), 0, 255);
+  return (r << 16) | (g << 8) | b;
+}
+
+function clipLineToRect(
+  start: Vector,
+  end: Vector,
+  rect: { bottom: number; left: number; right: number; top: number },
+): { end: Vector; start: Vector } | null {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  let enter = 0;
+  let exit = 1;
+  let visible = true;
+  const edges = [
+    { p: -dx, q: start.x - rect.left },
+    { p: dx, q: rect.right - start.x },
+    { p: -dy, q: start.y - rect.top },
+    { p: dy, q: rect.bottom - start.y },
+  ];
+
+  for (const edge of edges) {
+    if (edge.p === 0) {
+      if (edge.q < 0) visible = false;
+    } else {
+      const ratio = edge.q / edge.p;
+      if (edge.p < 0) {
+        enter = Math.max(enter, ratio);
+      } else {
+        exit = Math.min(exit, ratio);
+      }
+      if (enter > exit) visible = false;
+    }
+  }
+
+  if (!visible) return null;
+  return {
+    end: { x: start.x + dx * exit, y: start.y + dy * exit },
+    start: { x: start.x + dx * enter, y: start.y + dy * enter },
+  };
 }
