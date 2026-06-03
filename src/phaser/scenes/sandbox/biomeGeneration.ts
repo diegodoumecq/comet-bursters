@@ -288,7 +288,7 @@ function createNebulaPlans(
       if (position) {
         const combo = pickWeighted(biome.profile.nebulaEffectCombos, random);
         regions.push({
-          alpha: random.floatBetween(0.82, 0.98),
+          alpha: random.floatBetween(0.42, 0.68),
           effects: combo.effects,
           featherPx: Math.round(random.floatBetween(260, 440)),
           id: `${biome.id}-nebula-${index}`,

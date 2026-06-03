@@ -35,15 +35,15 @@ const PLAYER_GRAVITY_SAFE_PADDING = 240;
 const SPAWN_NEBULA_RADIUS = 2600;
 const SPAWN_NEBULA_VISUALS: NebulaRegionVisuals = {
   alphaScale: 1.28,
-  blue: { b: 0.576, g: 0.22, r: 0.078 },
-  coreStrength: 0.34,
-  cyan: { b: 0.62, g: 0.502, r: 0.078 },
-  densityScale: 1.28,
-  hazeStrength: 0.42,
-  highlight: { b: 0.937, g: 0.678, r: 0.361 },
-  tint: { b: 0.878, g: 0.78, r: 0.259 },
-  tintStrength: 0.42,
-  violet: { b: 0.478, g: 0.11, r: 0.278 },
+  blue: { b: 0.78, g: 0.16, r: 0.04 },
+  coreStrength: 0.4,
+  cyan: { b: 0.76, g: 0.62, r: 0.2 },
+  densityScale: 1,
+  hazeStrength: 0.82,
+  highlight: { b: 0.86, g: 0.64, r: 0.36 },
+  tint: { b: 0.74, g: 0.28, r: 0.72 },
+  tintStrength: 0.32,
+  violet: { b: 0.82, g: 0.08, r: 0.66 },
 };
 
 export function createSandboxStartup(
@@ -294,7 +294,7 @@ function getCargoBayPosition(mothershipPosition: Vector): Vector {
 
 function createSpawnTestNebula(center: Vector): NebulaRegion {
   return {
-    alpha: 0.96,
+    alpha: 0.6,
     effects: [],
     featherPx: 520,
     id: 'spawn-test-nebula',
