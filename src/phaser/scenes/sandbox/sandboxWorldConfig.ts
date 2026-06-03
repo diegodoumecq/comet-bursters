@@ -29,6 +29,11 @@ export type SandboxBiomeConfig = SandboxBiomePreset & {
   presets: string[];
 };
 
+export type SandboxGeneratedBiomePreset = WeightedValue<string> & {
+  maxDistance?: number;
+  minDistance?: number;
+};
+
 export type SandboxAuthoredAsteroidConfig = {
   position: Vector;
   tier: AsteroidTier;
@@ -58,6 +63,7 @@ export type SandboxWorldConfig = {
   authoredPlanets: SandboxAuthoredPlanetConfig[];
   biomePresets: Record<string, SandboxBiomePreset>;
   defaultBiomePresets: string[];
+  generatedBiomePresets: SandboxGeneratedBiomePreset[];
   generatedBiomeSize: number;
   landmarks: SandboxLandmarkConfig[];
   spawnPoint: Vector;

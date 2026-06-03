@@ -36,13 +36,6 @@ export type SandboxBiomeSpawnPlan = {
 };
 
 const AREA_UNIT = 1_000_000;
-const GENERATED_BIOME_PRESETS = [
-  'sandboxFallback',
-  'asteroidBelt',
-  'planetCluster',
-  'nebulaVeil',
-  'dangerousNebula',
-];
 const VORONOI_NEIGHBOR_LIMIT = 10;
 const VORONOI_SITE_CANDIDATES = 12;
 const GENERATED_BIOME_OVERLAP_SHRINK_STEPS = [0.82, 0.68, 0.54, 0.42];
@@ -257,7 +250,7 @@ function createGeneratedBiomeRegions(
       config.world,
     );
     if (points.length >= 3 && !polygonTouchesAnyWrapped(points, authoredPolygons, config.world)) {
-      const preset = chooseGeneratedPreset(points, config.world, random);
+      const preset = chooseGeneratedPreset(points, config, random);
       generated.push(
         resolveBiomeConfig(
           config,
@@ -442,19 +435,28 @@ function squaredWrappedDistance(left: Vector, right: Vector, world: WorldSize): 
   return wrappedX ** 2 + wrappedY ** 2;
 }
 
-function chooseGeneratedPreset(points: Vector[], world: WorldSize, random: RandomSource): string {
+function positiveModulo(value: number, modulo: number): number {
+  return ((value % modulo) + modulo) % modulo;
+}
+
+function chooseGeneratedPreset(
+  points: Vector[],
+  config: SandboxWorldConfig,
+  random: RandomSource,
+): string {
   const center = getPolygonCenter(points);
-  const distance = Math.hypot(center.x - world.width * 0.5, center.y - world.height * 0.5);
-  const maxDistance = Math.hypot(world.width * 0.5, world.height * 0.5);
-  const danger = distance / maxDistance;
+  const wrappedCenter = {
+    x: positiveModulo(center.x, config.world.width),
+    y: positiveModulo(center.y, config.world.height),
+  };
+  const distance = Math.sqrt(squaredWrappedDistance(wrappedCenter, config.spawnPoint, config.world));
+  const maxDistance = Math.hypot(config.world.width * 0.5, config.world.height * 0.5);
+  const progression = distance / maxDistance;
   return pickWeighted(
-    [
-      { value: 'sandboxFallback', weight: 40 },
-      { value: 'planetCluster', weight: 22 - danger * 8 },
-      { value: 'asteroidBelt', weight: 18 + danger * 18 },
-      { value: 'nebulaVeil', weight: 12 + danger * 10 },
-      { value: 'dangerousNebula', weight: Math.max(0, danger - 0.42) * 18 },
-    ].filter((entry) => GENERATED_BIOME_PRESETS.includes(entry.value)),
+    config.generatedBiomePresets.filter(
+      (entry) =>
+        progression >= (entry.minDistance ?? 0) && progression <= (entry.maxDistance ?? 1),
+    ),
     random,
   );
 }

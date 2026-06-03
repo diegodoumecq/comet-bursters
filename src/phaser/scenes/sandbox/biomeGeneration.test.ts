@@ -27,6 +27,7 @@ describe('sandbox biome generation', () => {
         authoredPlanets: [],
         generatedBiomeSize: 3600,
         landmarks: [],
+        spawnPoint: { x: 5000, y: 5000 },
         world,
       },
       [],
@@ -42,6 +43,39 @@ describe('sandbox biome generation', () => {
         ),
       ),
     ).toBe(true);
+  });
+
+  it('uses the configured generated biome preset pool', () => {
+    const plan = createSandboxBiomeSpawnPlan(
+      {
+        ...SANDBOX_WORLD_CONFIG,
+        authoredAsteroids: [],
+        authoredBiomes: [],
+        authoredNebulaRegions: [],
+        authoredPlanets: [],
+        biomePresets: {
+          ...SANDBOX_WORLD_CONFIG.biomePresets,
+          forcedGenerated: {
+            asteroidDensity: 0.017,
+            nebulaDensity: 0.013,
+            planetDensity: 0.031,
+          },
+        },
+        generatedBiomePresets: [{ value: 'forcedGenerated', weight: 1 }],
+        generatedBiomeSize: 3600,
+        landmarks: [],
+        spawnPoint: { x: 5000, y: 5000 },
+        world: { height: 10000, width: 10000 },
+      },
+      [],
+      PLAYTHROUGH_SEED,
+    );
+    const generated = plan.biomes.filter((biome) => biome.source === 'generated');
+
+    expect(generated).not.toHaveLength(0);
+    expect(generated.every((biome) => biome.profile.asteroidDensity === 0.017)).toBe(true);
+    expect(generated.every((biome) => biome.profile.nebulaDensity === 0.013)).toBe(true);
+    expect(generated.every((biome) => biome.profile.planetDensity === 0.031)).toBe(true);
   });
 
   it('does not place generated biome vertices inside authored biome polygons', () => {

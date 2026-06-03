@@ -927,10 +927,1044 @@
           "b": 0.18
         }
       }
+    },
+    "quietRim": {
+      "asteroidDensity": 0.004,
+      "asteroidTiers": [
+        {
+          "value": "small",
+          "weight": 62
+        },
+        {
+          "value": "medium",
+          "weight": 28
+        },
+        {
+          "value": "big",
+          "weight": 8
+        },
+        {
+          "value": "mega",
+          "weight": 2
+        }
+      ],
+      "nebulaDensity": 0.002,
+      "nebulaEffectCombos": [
+        {
+          "value": {
+            "effects": []
+          },
+          "weight": 92
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelReplenish"
+            ]
+          },
+          "weight": 8
+        }
+      ],
+      "nebulaVisuals": {
+        "alphaScale": 1.06,
+        "blue": {
+          "r": 0.08,
+          "g": 0.16,
+          "b": 0.24
+        },
+        "coreStrength": 0.22,
+        "cyan": {
+          "r": 0.18,
+          "g": 0.46,
+          "b": 0.48
+        },
+        "densityScale": 0.96,
+        "hazeStrength": 0.26,
+        "highlight": {
+          "r": 0.54,
+          "g": 0.82,
+          "b": 0.72
+        },
+        "tint": {
+          "r": 0.28,
+          "g": 0.62,
+          "b": 0.54
+        },
+        "tintStrength": 0.28,
+        "violet": {
+          "r": 0.14,
+          "g": 0.16,
+          "b": 0.28
+        }
+      },
+      "planetDensity": 0.01,
+      "planetKinds": [
+        {
+          "value": "lush",
+          "weight": 18
+        },
+        {
+          "value": "desert",
+          "weight": 16
+        },
+        {
+          "value": "ice",
+          "weight": 14
+        },
+        {
+          "value": "gas",
+          "weight": 10
+        },
+        {
+          "value": "crystal",
+          "weight": 6
+        }
+      ]
+    },
+    "dustShoals": {
+      "asteroidDensity": 0.011,
+      "asteroidTiers": [
+        {
+          "value": "small",
+          "weight": 54
+        },
+        {
+          "value": "medium",
+          "weight": 30
+        },
+        {
+          "value": "big",
+          "weight": 13
+        },
+        {
+          "value": "mega",
+          "weight": 3
+        }
+      ],
+      "nebulaDensity": 0.004,
+      "nebulaEffectCombos": [
+        {
+          "value": {
+            "effects": []
+          },
+          "weight": 70
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 12
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelReplenish"
+            ]
+          },
+          "weight": 8
+        }
+      ],
+      "nebulaVisuals": {
+        "alphaScale": 1.14,
+        "blue": {
+          "r": 0.16,
+          "g": 0.12,
+          "b": 0.08
+        },
+        "coreStrength": 0.3,
+        "cyan": {
+          "r": 0.52,
+          "g": 0.34,
+          "b": 0.12
+        },
+        "densityScale": 1.16,
+        "hazeStrength": 0.36,
+        "highlight": {
+          "r": 0.96,
+          "g": 0.72,
+          "b": 0.3
+        },
+        "tint": {
+          "r": 0.78,
+          "g": 0.54,
+          "b": 0.2
+        },
+        "tintStrength": 0.36,
+        "violet": {
+          "r": 0.3,
+          "g": 0.16,
+          "b": 0.1
+        }
+      },
+      "planetDensity": 0.005,
+      "planetKinds": [
+        {
+          "value": "desert",
+          "weight": 24
+        },
+        {
+          "value": "lava",
+          "weight": 8
+        },
+        {
+          "value": "gas",
+          "weight": 8
+        },
+        {
+          "value": "ice",
+          "weight": 5
+        }
+      ]
+    },
+    "gasGarden": {
+      "asteroidDensity": 0.004,
+      "nebulaDensity": 0.006,
+      "nebulaEffectCombos": [
+        {
+          "value": {
+            "effects": []
+          },
+          "weight": 58
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelReplenish"
+            ]
+          },
+          "weight": 22
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 6
+        }
+      ],
+      "nebulaVisuals": {
+        "alphaScale": 1.2,
+        "blue": {
+          "r": 0.04,
+          "g": 0.2,
+          "b": 0.18
+        },
+        "coreStrength": 0.32,
+        "cyan": {
+          "r": 0.12,
+          "g": 0.62,
+          "b": 0.42
+        },
+        "densityScale": 1.24,
+        "hazeStrength": 0.4,
+        "highlight": {
+          "r": 0.44,
+          "g": 0.92,
+          "b": 0.58
+        },
+        "tint": {
+          "r": 0.2,
+          "g": 0.78,
+          "b": 0.44
+        },
+        "tintStrength": 0.4,
+        "violet": {
+          "r": 0.08,
+          "g": 0.28,
+          "b": 0.24
+        }
+      },
+      "planetDensity": 0.024,
+      "planetKinds": [
+        {
+          "value": "gas",
+          "weight": 26
+        },
+        {
+          "value": "lush",
+          "weight": 12
+        },
+        {
+          "value": "toxic",
+          "weight": 10
+        },
+        {
+          "value": "ice",
+          "weight": 8
+        }
+      ]
+    },
+    "cometNursery": {
+      "asteroidDensity": 0.007,
+      "asteroidTiers": [
+        {
+          "value": "small",
+          "weight": 58
+        },
+        {
+          "value": "medium",
+          "weight": 28
+        },
+        {
+          "value": "big",
+          "weight": 10
+        },
+        {
+          "value": "mega",
+          "weight": 4
+        }
+      ],
+      "nebulaDensity": 0.01,
+      "nebulaEffectCombos": [
+        {
+          "value": {
+            "effects": []
+          },
+          "weight": 42
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelReplenish"
+            ]
+          },
+          "weight": 34
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelReplenish",
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 8
+        }
+      ],
+      "nebulaVisuals": {
+        "alphaScale": 1.26,
+        "blue": {
+          "r": 0.06,
+          "g": 0.2,
+          "b": 0.64
+        },
+        "coreStrength": 0.36,
+        "cyan": {
+          "r": 0.08,
+          "g": 0.58,
+          "b": 0.72
+        },
+        "densityScale": 1.32,
+        "hazeStrength": 0.46,
+        "highlight": {
+          "r": 0.38,
+          "g": 0.78,
+          "b": 0.98
+        },
+        "tint": {
+          "r": 0.2,
+          "g": 0.68,
+          "b": 0.9
+        },
+        "tintStrength": 0.44,
+        "violet": {
+          "r": 0.24,
+          "g": 0.14,
+          "b": 0.56
+        }
+      },
+      "planetDensity": 0.012,
+      "planetKinds": [
+        {
+          "value": "ice",
+          "weight": 18
+        },
+        {
+          "value": "crystal",
+          "weight": 14
+        },
+        {
+          "value": "gas",
+          "weight": 12
+        },
+        {
+          "value": "lush",
+          "weight": 8
+        }
+      ]
+    },
+    "crystalBloom": {
+      "asteroidDensity": 0.006,
+      "nebulaDensity": 0.009,
+      "nebulaEffectCombos": [
+        {
+          "value": {
+            "effects": []
+          },
+          "weight": 48
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelReplenish"
+            ]
+          },
+          "weight": 18
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 14
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelReplenish",
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 7
+        }
+      ],
+      "nebulaVisuals": {
+        "alphaScale": 1.28,
+        "blue": {
+          "r": 0.12,
+          "g": 0.16,
+          "b": 0.62
+        },
+        "coreStrength": 0.38,
+        "cyan": {
+          "r": 0.18,
+          "g": 0.58,
+          "b": 0.82
+        },
+        "densityScale": 1.34,
+        "hazeStrength": 0.48,
+        "highlight": {
+          "r": 0.72,
+          "g": 0.56,
+          "b": 0.98
+        },
+        "tint": {
+          "r": 0.54,
+          "g": 0.36,
+          "b": 0.88
+        },
+        "tintStrength": 0.46,
+        "violet": {
+          "r": 0.34,
+          "g": 0.12,
+          "b": 0.72
+        }
+      },
+      "planetDensity": 0.018,
+      "planetKinds": [
+        {
+          "value": "crystal",
+          "weight": 26
+        },
+        {
+          "value": "ice",
+          "weight": 14
+        },
+        {
+          "value": "lush",
+          "weight": 6
+        },
+        {
+          "value": "toxic",
+          "weight": 6
+        }
+      ]
+    },
+    "ironGraveyard": {
+      "asteroidDensity": 0.018,
+      "asteroidTiers": [
+        {
+          "value": "small",
+          "weight": 22
+        },
+        {
+          "value": "medium",
+          "weight": 34
+        },
+        {
+          "value": "big",
+          "weight": 28
+        },
+        {
+          "value": "mega",
+          "weight": 16
+        }
+      ],
+      "nebulaDensity": 0.005,
+      "nebulaEffectCombos": [
+        {
+          "value": {
+            "effects": []
+          },
+          "weight": 54
+        },
+        {
+          "value": {
+            "effects": [
+              "damage"
+            ]
+          },
+          "weight": 18
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 10
+        },
+        {
+          "value": {
+            "effects": [
+              "damage",
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 7
+        }
+      ],
+      "nebulaVisuals": {
+        "alphaScale": 1.18,
+        "blue": {
+          "r": 0.18,
+          "g": 0.12,
+          "b": 0.1
+        },
+        "coreStrength": 0.34,
+        "cyan": {
+          "r": 0.54,
+          "g": 0.22,
+          "b": 0.16
+        },
+        "densityScale": 1.22,
+        "hazeStrength": 0.38,
+        "highlight": {
+          "r": 0.92,
+          "g": 0.42,
+          "b": 0.24
+        },
+        "tint": {
+          "r": 0.68,
+          "g": 0.28,
+          "b": 0.18
+        },
+        "tintStrength": 0.4,
+        "violet": {
+          "r": 0.3,
+          "g": 0.08,
+          "b": 0.12
+        }
+      },
+      "planetDensity": 0.003,
+      "planetKinds": [
+        {
+          "value": "desert",
+          "weight": 16
+        },
+        {
+          "value": "lava",
+          "weight": 12
+        },
+        {
+          "value": "toxic",
+          "weight": 8
+        }
+      ]
+    },
+    "solarScars": {
+      "asteroidDensity": 0.01,
+      "asteroidTiers": [
+        {
+          "value": "small",
+          "weight": 36
+        },
+        {
+          "value": "medium",
+          "weight": 34
+        },
+        {
+          "value": "big",
+          "weight": 22
+        },
+        {
+          "value": "mega",
+          "weight": 8
+        }
+      ],
+      "nebulaDensity": 0.008,
+      "nebulaEffectCombos": [
+        {
+          "value": {
+            "effects": []
+          },
+          "weight": 44
+        },
+        {
+          "value": {
+            "effects": [
+              "damage"
+            ]
+          },
+          "weight": 24
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 10
+        },
+        {
+          "value": {
+            "effects": [
+              "damage",
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 8
+        }
+      ],
+      "nebulaVisuals": {
+        "alphaScale": 1.24,
+        "blue": {
+          "r": 0.24,
+          "g": 0.1,
+          "b": 0.06
+        },
+        "coreStrength": 0.38,
+        "cyan": {
+          "r": 0.72,
+          "g": 0.28,
+          "b": 0.1
+        },
+        "densityScale": 1.3,
+        "hazeStrength": 0.46,
+        "highlight": {
+          "r": 1,
+          "g": 0.46,
+          "b": 0.18
+        },
+        "tint": {
+          "r": 0.88,
+          "g": 0.24,
+          "b": 0.1
+        },
+        "tintStrength": 0.48,
+        "violet": {
+          "r": 0.36,
+          "g": 0.06,
+          "b": 0.1
+        }
+      },
+      "planetDensity": 0.014,
+      "planetKinds": [
+        {
+          "value": "lava",
+          "weight": 26
+        },
+        {
+          "value": "desert",
+          "weight": 18
+        },
+        {
+          "value": "toxic",
+          "weight": 10
+        },
+        {
+          "value": "gas",
+          "weight": 6
+        }
+      ]
+    },
+    "stormfront": {
+      "asteroidDensity": 0.008,
+      "nebulaDensity": 0.014,
+      "nebulaEffectCombos": [
+        {
+          "value": {
+            "effects": []
+          },
+          "weight": 28
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 26
+        },
+        {
+          "value": {
+            "effects": [
+              "damage"
+            ]
+          },
+          "weight": 18
+        },
+        {
+          "value": {
+            "effects": [
+              "damage",
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 14
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelReplenish",
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 6
+        }
+      ],
+      "nebulaVisuals": {
+        "alphaScale": 1.36,
+        "blue": {
+          "r": 0.04,
+          "g": 0.12,
+          "b": 0.72
+        },
+        "coreStrength": 0.46,
+        "cyan": {
+          "r": 0.12,
+          "g": 0.42,
+          "b": 0.9
+        },
+        "densityScale": 1.44,
+        "hazeStrength": 0.58,
+        "highlight": {
+          "r": 0.42,
+          "g": 0.5,
+          "b": 1
+        },
+        "tint": {
+          "r": 0.26,
+          "g": 0.28,
+          "b": 0.92
+        },
+        "tintStrength": 0.52,
+        "violet": {
+          "r": 0.3,
+          "g": 0.1,
+          "b": 0.8
+        }
+      },
+      "planetDensity": 0.006,
+      "planetKinds": [
+        {
+          "value": "gas",
+          "weight": 18
+        },
+        {
+          "value": "ice",
+          "weight": 10
+        },
+        {
+          "value": "toxic",
+          "weight": 10
+        }
+      ]
+    },
+    "voidReef": {
+      "asteroidDensity": 0.006,
+      "nebulaDensity": 0.011,
+      "nebulaEffectCombos": [
+        {
+          "value": {
+            "effects": []
+          },
+          "weight": 34
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 24
+        },
+        {
+          "value": {
+            "effects": [
+              "damage"
+            ]
+          },
+          "weight": 18
+        },
+        {
+          "value": {
+            "effects": [
+              "damage",
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 10
+        }
+      ],
+      "nebulaVisuals": {
+        "alphaScale": 1.3,
+        "blue": {
+          "r": 0.08,
+          "g": 0.08,
+          "b": 0.42
+        },
+        "coreStrength": 0.4,
+        "cyan": {
+          "r": 0.24,
+          "g": 0.22,
+          "b": 0.62
+        },
+        "densityScale": 1.36,
+        "hazeStrength": 0.5,
+        "highlight": {
+          "r": 0.84,
+          "g": 0.34,
+          "b": 0.86
+        },
+        "tint": {
+          "r": 0.62,
+          "g": 0.22,
+          "b": 0.78
+        },
+        "tintStrength": 0.5,
+        "violet": {
+          "r": 0.36,
+          "g": 0.08,
+          "b": 0.62
+        }
+      },
+      "planetDensity": 0.008,
+      "planetKinds": [
+        {
+          "value": "toxic",
+          "weight": 18
+        },
+        {
+          "value": "crystal",
+          "weight": 14
+        },
+        {
+          "value": "gas",
+          "weight": 10
+        },
+        {
+          "value": "ice",
+          "weight": 6
+        }
+      ]
+    },
+    "deadZone": {
+      "asteroidDensity": 0.004,
+      "asteroidTiers": [
+        {
+          "value": "small",
+          "weight": 30
+        },
+        {
+          "value": "medium",
+          "weight": 30
+        },
+        {
+          "value": "big",
+          "weight": 24
+        },
+        {
+          "value": "mega",
+          "weight": 16
+        }
+      ],
+      "nebulaDensity": 0.005,
+      "nebulaEffectCombos": [
+        {
+          "value": {
+            "effects": []
+          },
+          "weight": 36
+        },
+        {
+          "value": {
+            "effects": [
+              "damage"
+            ]
+          },
+          "weight": 26
+        },
+        {
+          "value": {
+            "effects": [
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 18
+        },
+        {
+          "value": {
+            "effects": [
+              "damage",
+              "fuelAbsorb"
+            ]
+          },
+          "weight": 12
+        }
+      ],
+      "nebulaVisuals": {
+        "alphaScale": 1.16,
+        "blue": {
+          "r": 0.06,
+          "g": 0.08,
+          "b": 0.18
+        },
+        "coreStrength": 0.3,
+        "cyan": {
+          "r": 0.18,
+          "g": 0.24,
+          "b": 0.32
+        },
+        "densityScale": 1.1,
+        "hazeStrength": 0.34,
+        "highlight": {
+          "r": 0.42,
+          "g": 0.5,
+          "b": 0.58
+        },
+        "tint": {
+          "r": 0.2,
+          "g": 0.26,
+          "b": 0.36
+        },
+        "tintStrength": 0.34,
+        "violet": {
+          "r": 0.14,
+          "g": 0.1,
+          "b": 0.26
+        }
+      },
+      "planetDensity": 0.002,
+      "planetKinds": [
+        {
+          "value": "ice",
+          "weight": 12
+        },
+        {
+          "value": "toxic",
+          "weight": 10
+        },
+        {
+          "value": "crystal",
+          "weight": 6
+        }
+      ]
     }
   },
   "defaultBiomePresets": [
     "sandboxFallback"
+  ],
+  "generatedBiomePresets": [
+    {
+      "value": "quietRim",
+      "weight": 36,
+      "maxDistance": 0.24
+    },
+    {
+      "value": "sandboxFallback",
+      "weight": 22,
+      "maxDistance": 0.34
+    },
+    {
+      "value": "gasGarden",
+      "weight": 18,
+      "maxDistance": 0.38
+    },
+    {
+      "value": "planetCluster",
+      "weight": 16,
+      "maxDistance": 0.42
+    },
+    {
+      "value": "cometNursery",
+      "weight": 10,
+      "minDistance": 0.12,
+      "maxDistance": 0.48
+    },
+    {
+      "value": "dustShoals",
+      "weight": 22,
+      "minDistance": 0.2,
+      "maxDistance": 0.58
+    },
+    {
+      "value": "asteroidBelt",
+      "weight": 18,
+      "minDistance": 0.24,
+      "maxDistance": 0.66
+    },
+    {
+      "value": "nebulaVeil",
+      "weight": 16,
+      "minDistance": 0.24,
+      "maxDistance": 0.68
+    },
+    {
+      "value": "crystalBloom",
+      "weight": 16,
+      "minDistance": 0.34,
+      "maxDistance": 0.74
+    },
+    {
+      "value": "ironGraveyard",
+      "weight": 18,
+      "minDistance": 0.44,
+      "maxDistance": 0.9
+    },
+    {
+      "value": "solarScars",
+      "weight": 16,
+      "minDistance": 0.48,
+      "maxDistance": 0.94
+    },
+    {
+      "value": "stormfront",
+      "weight": 20,
+      "minDistance": 0.52,
+      "maxDistance": 1
+    },
+    {
+      "value": "voidReef",
+      "weight": 18,
+      "minDistance": 0.58,
+      "maxDistance": 1
+    },
+    {
+      "value": "dangerousNebula",
+      "weight": 16,
+      "minDistance": 0.68,
+      "maxDistance": 1
+    },
+    {
+      "value": "deadZone",
+      "weight": 10,
+      "minDistance": 0.72,
+      "maxDistance": 1
+    }
   ],
   "generatedBiomeSize": 12500,
   "landmarks": [],
