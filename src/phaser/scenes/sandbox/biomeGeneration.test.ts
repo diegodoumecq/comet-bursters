@@ -16,6 +16,34 @@ describe('sandbox biome generation', () => {
     expect(plan.biomes.every((biome) => biome.points.length >= 3)).toBe(true);
   });
 
+  it('lets generated filler biomes cross world wrap seams', () => {
+    const world = { height: 10000, width: 10000 };
+    const plan = createSandboxBiomeSpawnPlan(
+      {
+        ...SANDBOX_WORLD_CONFIG,
+        authoredAsteroids: [],
+        authoredBiomes: [],
+        authoredNebulaRegions: [],
+        authoredPlanets: [],
+        generatedBiomeSize: 3600,
+        landmarks: [],
+        world,
+      },
+      [],
+      PLAYTHROUGH_SEED,
+    );
+    const generated = plan.biomes.filter((biome) => biome.source === 'generated');
+
+    expect(generated).not.toHaveLength(0);
+    expect(
+      generated.some((biome) =>
+        biome.points.some(
+          (point) => point.x < 0 || point.x > world.width || point.y < 0 || point.y > world.height,
+        ),
+      ),
+    ).toBe(true);
+  });
+
   it('does not place generated biome vertices inside authored biome polygons', () => {
     const plan = createSandboxBiomeSpawnPlan(SANDBOX_WORLD_CONFIG, [], PLAYTHROUGH_SEED);
     const authored = plan.biomes.filter((biome) => biome.source === 'authored');

@@ -176,21 +176,40 @@ export class Minimap {
 
     this.graphics.lineStyle(1, 0x7dd3fc, 0.7);
     for (const region of regions) {
-      const [firstPoint] = region.points;
-      this.graphics.beginPath();
-      this.graphics.moveTo(
-        x + positiveModulo(firstPoint.x, world.width) * scaleX,
-        y + positiveModulo(firstPoint.y, world.height) * scaleY,
-      );
-      for (let index = 1; index < region.points.length; index += 1) {
-        const point = region.points[index];
-        this.graphics.lineTo(
-          x + positiveModulo(point.x, world.width) * scaleX,
-          y + positiveModulo(point.y, world.height) * scaleY,
-        );
+      for (const offsetX of [-world.width, 0, world.width]) {
+        for (const offsetY of [-world.height, 0, world.height]) {
+          this.drawBiomeRegionCopy(region, offsetX, offsetY, x, y, scaleX, scaleY);
+        }
       }
-      this.graphics.closePath();
-      this.graphics.strokePath();
+    }
+  }
+
+  private drawBiomeRegionCopy(
+    region: MinimapBiomeRegion,
+    offsetX: number,
+    offsetY: number,
+    x: number,
+    y: number,
+    scaleX: number,
+    scaleY: number,
+  ): void {
+    for (let index = 0; index < region.points.length; index += 1) {
+      const start = region.points[index];
+      const end = region.points[(index + 1) % region.points.length];
+      const clipped = clipLineToRect(
+        {
+          x: x + (start.x + offsetX) * scaleX,
+          y: y + (start.y + offsetY) * scaleY,
+        },
+        {
+          x: x + (end.x + offsetX) * scaleX,
+          y: y + (end.y + offsetY) * scaleY,
+        },
+        { bottom: y + HEIGHT, left: x, right: x + WIDTH, top: y },
+      );
+      if (clipped) {
+        this.graphics.lineBetween(clipped.start.x, clipped.start.y, clipped.end.x, clipped.end.y);
+      }
     }
   }
 
@@ -431,4 +450,42 @@ function rgbToNumber(color: NebulaRegionColor): number {
   const g = Phaser.Math.Clamp(Math.round(color.g * 255), 0, 255);
   const b = Phaser.Math.Clamp(Math.round(color.b * 255), 0, 255);
   return (r << 16) | (g << 8) | b;
+}
+
+function clipLineToRect(
+  start: Vector,
+  end: Vector,
+  rect: { bottom: number; left: number; right: number; top: number },
+): { end: Vector; start: Vector } | null {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  let enter = 0;
+  let exit = 1;
+  let visible = true;
+  const edges = [
+    { p: -dx, q: start.x - rect.left },
+    { p: dx, q: rect.right - start.x },
+    { p: -dy, q: start.y - rect.top },
+    { p: dy, q: rect.bottom - start.y },
+  ];
+
+  for (const edge of edges) {
+    if (edge.p === 0) {
+      if (edge.q < 0) visible = false;
+    } else {
+      const ratio = edge.q / edge.p;
+      if (edge.p < 0) {
+        enter = Math.max(enter, ratio);
+      } else {
+        exit = Math.min(exit, ratio);
+      }
+      if (enter > exit) visible = false;
+    }
+  }
+
+  if (!visible) return null;
+  return {
+    end: { x: start.x + dx * exit, y: start.y + dy * exit },
+    start: { x: start.x + dx * enter, y: start.y + dy * enter },
+  };
 }

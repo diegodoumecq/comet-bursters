@@ -43,6 +43,9 @@ const GENERATED_BIOME_PRESETS = [
   'nebulaVeil',
   'dangerousNebula',
 ];
+const VORONOI_NEIGHBOR_LIMIT = 10;
+const VORONOI_SITE_CANDIDATES = 12;
+const GENERATED_BIOME_OVERLAP_SHRINK_STEPS = [0.82, 0.68, 0.54, 0.42];
 const DEFAULT_PROFILE: Required<SandboxBiomePreset> = {
   asteroidDensity: 0,
   asteroidTiers: [{ value: 'small', weight: 1 }],
@@ -244,69 +247,199 @@ function createGeneratedBiomeRegions(
   random: RandomSource,
 ): SandboxBiomeRegion[] {
   const generated: SandboxBiomeRegion[] = [];
-  let index = 0;
-  let y = 0;
-  while (y < config.world.height) {
-    let x = 0;
-    while (x < config.world.width) {
-      const points = createJitteredCellPolygon(
-        x,
-        y,
-        config.generatedBiomeSize,
-        config.world,
-        random,
+  const authoredPolygons = authored.map((biome) => biome.points);
+  const sites = createGeneratedBiomeSites(config.world, config.generatedBiomeSize, random);
+  for (let index = 0; index < sites.length; index += 1) {
+    const points = resolveGeneratedBiomePolygon(
+      createVoronoiBiomePolygon(sites[index], sites, config.world),
+      sites[index],
+      authoredPolygons,
+      config.world,
+    );
+    if (points.length >= 3 && !polygonTouchesAnyWrapped(points, authoredPolygons, config.world)) {
+      const preset = chooseGeneratedPreset(points, config.world, random);
+      generated.push(
+        resolveBiomeConfig(
+          config,
+          { id: `generated-${generated.length}`, points, presets: [preset] },
+          'generated',
+        ),
       );
-      if (
-        !polygonTouchesAny(
-          points,
-          authored.map((biome) => biome.points),
-        )
-      ) {
-        const preset = chooseGeneratedPreset(points, config.world, random);
-        generated.push(
-          resolveBiomeConfig(
-            config,
-            { id: `generated-${index}`, points, presets: [preset] },
-            'generated',
-          ),
-        );
-        index += 1;
-      }
-      x += config.generatedBiomeSize;
     }
-    y += config.generatedBiomeSize;
   }
   return generated;
 }
 
-function createJitteredCellPolygon(
-  x: number,
-  y: number,
-  size: number,
+function resolveGeneratedBiomePolygon(
+  points: Vector[],
+  site: Vector,
+  authoredPolygons: Vector[][],
   world: WorldSize,
+): Vector[] {
+  if (!polygonTouchesAnyWrapped(points, authoredPolygons, world)) return points;
+  for (const scale of GENERATED_BIOME_OVERLAP_SHRINK_STEPS) {
+    const candidate = points.map((point) => ({
+      x: site.x + (point.x - site.x) * scale,
+      y: site.y + (point.y - site.y) * scale,
+    }));
+    if (!polygonTouchesAnyWrapped(candidate, authoredPolygons, world)) return candidate;
+  }
+  return [];
+}
+
+function createGeneratedBiomeSites(
+  world: WorldSize,
+  spacing: number,
   random: RandomSource,
 ): Vector[] {
-  const right = Math.min(world.width, x + size);
-  const bottom = Math.min(world.height, y + size);
-  const jitter = size * 0.16;
+  const sites: Vector[] = [];
+  const targetCount = Math.max(1, Math.round((world.width * world.height) / (spacing * spacing)));
+  sites.push({
+    x: random.floatBetween(spacing * 0.25, world.width - spacing * 0.25),
+    y: random.floatBetween(spacing * 0.25, world.height - spacing * 0.25),
+  });
+  while (sites.length < targetCount) {
+    sites.push(createBestCandidateBiomeSite(sites, world, spacing, random));
+  }
+  return sites;
+}
+
+function createBestCandidateBiomeSite(
+  sites: Vector[],
+  world: WorldSize,
+  spacing: number,
+  random: RandomSource,
+): Vector {
+  let bestCandidate = createBiomeSiteCandidate(world, spacing, random);
+  let bestDistance = nearestWrappedSiteDistanceSquared(bestCandidate, sites, world);
+  for (let index = 1; index < VORONOI_SITE_CANDIDATES; index += 1) {
+    const candidate = createBiomeSiteCandidate(world, spacing, random);
+    const distance = nearestWrappedSiteDistanceSquared(candidate, sites, world);
+    if (distance > bestDistance) {
+      bestCandidate = candidate;
+      bestDistance = distance;
+    }
+  }
+  return bestCandidate;
+}
+
+function createBiomeSiteCandidate(world: WorldSize, spacing: number, random: RandomSource): Vector {
+  const margin = Math.min(spacing * 0.2, world.width * 0.05, world.height * 0.05);
+  return {
+    x: random.floatBetween(margin, world.width - margin),
+    y: random.floatBetween(margin, world.height - margin),
+  };
+}
+
+function nearestWrappedSiteDistanceSquared(
+  point: Vector,
+  sites: Vector[],
+  world: WorldSize,
+): number {
+  return sites.reduce(
+    (nearest, site) => Math.min(nearest, squaredWrappedDistance(point, site, world)),
+    Number.POSITIVE_INFINITY,
+  );
+}
+
+function createVoronoiBiomePolygon(site: Vector, sites: Vector[], world: WorldSize): Vector[] {
+  let polygon = getLocalWrappedWorldPolygon(site, world);
+  const neighbors = createWrappedVoronoiNeighborSites(site, sites, world)
+    .map((neighbor) => ({
+      distance: squaredDistance(site, neighbor),
+      site: neighbor,
+    }))
+    .sort((left, right) => left.distance - right.distance)
+    .slice(0, VORONOI_NEIGHBOR_LIMIT);
+
+  for (const neighbor of neighbors) {
+    polygon = clipPolygonToVoronoiHalfPlane(polygon, site, neighbor.site);
+    if (polygon.length === 0) return [];
+  }
+  return polygon;
+}
+
+function createWrappedVoronoiNeighborSites(
+  site: Vector,
+  sites: Vector[],
+  world: WorldSize,
+): Vector[] {
+  const neighbors: Vector[] = [];
+  for (const neighbor of sites) {
+    for (const offsetX of [-world.width, 0, world.width]) {
+      for (const offsetY of [-world.height, 0, world.height]) {
+        if (neighbor !== site || offsetX !== 0 || offsetY !== 0) {
+          neighbors.push({ x: neighbor.x + offsetX, y: neighbor.y + offsetY });
+        }
+      }
+    }
+  }
+  return neighbors;
+}
+
+function getLocalWrappedWorldPolygon(site: Vector, world: WorldSize): Vector[] {
+  const left = site.x - world.width * 0.5;
+  const right = site.x + world.width * 0.5;
+  const top = site.y - world.height * 0.5;
+  const bottom = site.y + world.height * 0.5;
   return [
-    {
-      x: clamp(x + random.floatBetween(0, jitter), 0, world.width),
-      y: clamp(y + random.floatBetween(0, jitter), 0, world.height),
-    },
-    {
-      x: clamp(right - random.floatBetween(0, jitter), 0, world.width),
-      y: clamp(y + random.floatBetween(0, jitter), 0, world.height),
-    },
-    {
-      x: clamp(right - random.floatBetween(0, jitter), 0, world.width),
-      y: clamp(bottom - random.floatBetween(0, jitter), 0, world.height),
-    },
-    {
-      x: clamp(x + random.floatBetween(0, jitter), 0, world.width),
-      y: clamp(bottom - random.floatBetween(0, jitter), 0, world.height),
-    },
+    { x: left, y: top },
+    { x: right, y: top },
+    { x: right, y: bottom },
+    { x: left, y: bottom },
   ];
+}
+
+function clipPolygonToVoronoiHalfPlane(polygon: Vector[], site: Vector, neighbor: Vector): Vector[] {
+  const clipped: Vector[] = [];
+  for (let index = 0; index < polygon.length; index += 1) {
+    const current = polygon[index];
+    const next = polygon[(index + 1) % polygon.length];
+    const currentInside = pointCloserToSite(current, site, neighbor);
+    const nextInside = pointCloserToSite(next, site, neighbor);
+    if (currentInside && nextInside) {
+      clipped.push(next);
+    } else if (currentInside && !nextInside) {
+      clipped.push(getVoronoiEdgeIntersection(current, next, site, neighbor));
+    } else if (!currentInside && nextInside) {
+      clipped.push(getVoronoiEdgeIntersection(current, next, site, neighbor), next);
+    }
+  }
+  return clipped;
+}
+
+function pointCloserToSite(point: Vector, site: Vector, neighbor: Vector): boolean {
+  return squaredDistance(point, site) <= squaredDistance(point, neighbor);
+}
+
+function getVoronoiEdgeIntersection(
+  start: Vector,
+  end: Vector,
+  site: Vector,
+  neighbor: Vector,
+): Vector {
+  const direction = { x: end.x - start.x, y: end.y - start.y };
+  const normal = { x: neighbor.x - site.x, y: neighbor.y - site.y };
+  const midpoint = { x: (site.x + neighbor.x) * 0.5, y: (site.y + neighbor.y) * 0.5 };
+  const numerator = normal.x * (midpoint.x - start.x) + normal.y * (midpoint.y - start.y);
+  const denominator = normal.x * direction.x + normal.y * direction.y;
+  const t = denominator === 0 ? 0 : numerator / denominator;
+  return {
+    x: start.x + direction.x * t,
+    y: start.y + direction.y * t,
+  };
+}
+
+function squaredDistance(left: Vector, right: Vector): number {
+  return (left.x - right.x) ** 2 + (left.y - right.y) ** 2;
+}
+
+function squaredWrappedDistance(left: Vector, right: Vector, world: WorldSize): number {
+  const dx = Math.abs(left.x - right.x);
+  const dy = Math.abs(left.y - right.y);
+  const wrappedX = Math.min(dx, world.width - dx);
+  const wrappedY = Math.min(dy, world.height - dy);
+  return wrappedX ** 2 + wrappedY ** 2;
 }
 
 function chooseGeneratedPreset(points: Vector[], world: WorldSize, random: RandomSource): string {
@@ -423,23 +556,64 @@ function findOpenPointInPolygon(
   world: WorldSize,
   random: RandomSource,
 ): Vector | null {
-  const bounds = polygonBounds(polygon);
+  const wrappedPolygons = createWorldIntersectingPolygons(polygon, world);
   let selected: Vector | null = null;
   for (let attempt = 0; attempt < 80; attempt += 1) {
-    const candidate = {
-      x: random.floatBetween(bounds.left + radius, bounds.right - radius),
-      y: random.floatBetween(bounds.top + radius, bounds.bottom - radius),
-    };
-    if (
-      pointInPolygon(candidate, polygon) &&
-      !overlapsReservations(candidate, radius, reservations)
-    ) {
-      selected = candidate;
-      attempt = 80;
+    const wrappedPolygon = wrappedPolygons[random.between(0, wrappedPolygons.length - 1)];
+    const bounds = polygonBounds(wrappedPolygon);
+    const left = Math.max(0, bounds.left + radius);
+    const right = Math.min(world.width, bounds.right - radius);
+    const top = Math.max(0, bounds.top + radius);
+    const bottom = Math.min(world.height, bounds.bottom - radius);
+    if (left <= right && top <= bottom) {
+      const candidate = {
+        x: random.floatBetween(left, right),
+        y: random.floatBetween(top, bottom),
+      };
+      if (
+        pointInPolygon(candidate, wrappedPolygon) &&
+        !overlapsReservations(candidate, radius, reservations)
+      ) {
+        selected = candidate;
+        attempt = 80;
+      }
     }
   }
-  if (selected && withinWorld(selected, world)) return selected;
-  return null;
+  return selected;
+}
+
+function createWorldIntersectingPolygons(polygon: Vector[], world: WorldSize): Vector[][] {
+  const polygons: Vector[][] = [];
+  for (const offsetX of [-world.width, 0, world.width]) {
+    for (const offsetY of [-world.height, 0, world.height]) {
+      const candidate = polygon.map((point) => ({
+        x: point.x + offsetX,
+        y: point.y + offsetY,
+      }));
+      if (polygonIntersectsWorld(candidate, world)) polygons.push(candidate);
+    }
+  }
+  return polygons.length > 0 ? polygons : [polygon];
+}
+
+function polygonTouchesAnyWrapped(
+  points: Vector[],
+  polygons: Vector[][],
+  world: WorldSize,
+): boolean {
+  return createWorldIntersectingPolygons(points, world).some((polygon) =>
+    polygonTouchesAny(polygon, polygons),
+  );
+}
+
+function polygonIntersectsWorld(polygon: Vector[], world: WorldSize): boolean {
+  const bounds = polygonBounds(polygon);
+  return (
+    bounds.right >= 0 &&
+    bounds.left <= world.width &&
+    bounds.bottom >= 0 &&
+    bounds.top <= world.height
+  );
 }
 
 function overlapsReservations(point: Vector, radius: number, reservations: SpawnCircle[]): boolean {
@@ -556,12 +730,4 @@ function getPolygonCenter(points: Vector[]): Vector {
     y: 0,
   });
   return { x: total.x / points.length, y: total.y / points.length };
-}
-
-function withinWorld(point: Vector, world: WorldSize): boolean {
-  return point.x >= 0 && point.x <= world.width && point.y >= 0 && point.y <= world.height;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
 }

@@ -932,7 +932,7 @@
   "defaultBiomePresets": [
     "sandboxFallback"
   ],
-  "generatedBiomeSize": 12000,
+  "generatedBiomeSize": 12500,
   "landmarks": [],
   "spawnPoint": {
     "x": 48580,
