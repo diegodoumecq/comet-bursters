@@ -25,6 +25,10 @@ export type MinimapNebulaRegion = {
   visuals?: NebulaRegionVisuals;
 };
 
+export type MinimapBiomeRegion = {
+  points: Vector[];
+};
+
 type MinimapNebulaCoverageCell = {
   alpha: number;
   color: number;
@@ -51,6 +55,7 @@ export class Minimap {
 
   render(input: {
     asteroids?: AsteroidEntity[];
+    biomeRegions?: MinimapBiomeRegion[];
     camera: Phaser.Cameras.Scene2D.Camera;
     fog?: MinimapFog;
     nebulaRegions?: MinimapNebulaRegion[];
@@ -73,6 +78,7 @@ export class Minimap {
 
     if (input.fog) this.drawFog(input.fog, x, y);
     this.drawNebulaRegions(input.nebulaRegions ?? [], input.fog, input.world, x, y);
+    this.drawBiomeRegions(input.biomeRegions ?? [], input.world, x, y, scaleX, scaleY);
     this.drawGrid(x, y);
     this.drawPlanets(input.planets, input.fog, input.world, x, y, scaleX, scaleY);
     this.drawAsteroids(input.asteroids ?? [], input.fog, input.world, x, y, scaleX, scaleY);
@@ -155,6 +161,36 @@ export class Minimap {
           Math.max(2, ASTEROIDS[asteroid.tier].collisionRadius * scaleX),
         );
       }
+    }
+  }
+
+  private drawBiomeRegions(
+    regions: MinimapBiomeRegion[],
+    world: WorldSize,
+    x: number,
+    y: number,
+    scaleX: number,
+    scaleY: number,
+  ): void {
+    if (regions.length === 0) return;
+
+    this.graphics.lineStyle(1, 0x7dd3fc, 0.7);
+    for (const region of regions) {
+      const [firstPoint] = region.points;
+      this.graphics.beginPath();
+      this.graphics.moveTo(
+        x + positiveModulo(firstPoint.x, world.width) * scaleX,
+        y + positiveModulo(firstPoint.y, world.height) * scaleY,
+      );
+      for (let index = 1; index < region.points.length; index += 1) {
+        const point = region.points[index];
+        this.graphics.lineTo(
+          x + positiveModulo(point.x, world.width) * scaleX,
+          y + positiveModulo(point.y, world.height) * scaleY,
+        );
+      }
+      this.graphics.closePath();
+      this.graphics.strokePath();
     }
   }
 

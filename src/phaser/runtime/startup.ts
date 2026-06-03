@@ -17,6 +17,7 @@ export function getArcadeDimensionDebugEnabled(): boolean {
 }
 
 export type SandboxPerfToggles = {
+  biomeDebug: boolean;
   blackHoles: boolean;
   fuelMetaballs: boolean;
   grid: boolean;
@@ -29,6 +30,7 @@ export type SandboxPerfToggles = {
 
 export function getSandboxPerfToggles(): SandboxPerfToggles {
   return {
+    biomeDebug: getBooleanStartupFlag('sandboxBiomeDebug', false),
     blackHoles: getBooleanStartupFlag('sandboxBlackHoles', true),
     fuelMetaballs: getBooleanStartupFlag('sandboxFuelMetaballs', true),
     grid: getBooleanStartupFlag('sandboxGrid', true),

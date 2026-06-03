@@ -162,6 +162,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.weaponPolicy,
       WORLD,
       startup.nebulaRegions,
+      startup.biomes,
     );
     this.renderEffects = new SandboxRenderEffects(
       this.game.canvas,
