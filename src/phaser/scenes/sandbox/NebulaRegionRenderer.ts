@@ -7,7 +7,7 @@ import type { NebulaRegion, NebulaRegionColor, NebulaRegionVisuals } from './neb
 const MAX_REGION_POINTS = 12;
 const NEBULA_CHUNK_SIZE = 960;
 const NEBULA_REGION_DEPTH = 20;
-const SHADER_KEY = 'sandbox-nebula-region-shader-v9';
+const SHADER_KEY = 'sandbox-nebula-region-shader-v10';
 const COPY_OFFSETS = [-1, 0, 1] as const;
 const VISIBLE_ALPHA_THRESHOLD = 0.003;
 const DEFAULT_NEBULA_VISUALS: NebulaRegionVisuals = {
@@ -118,8 +118,8 @@ const float VISIBLE_ALPHA_THRESHOLD = ${VISIBLE_ALPHA_THRESHOLD.toFixed(3)};
 
 float fbmRegion(vec2 p, vec2 period) {
   float value = 0.0;
-  float amplitude = 0.56;
-  for (int i = 0; i < 4; i++) {
+  float amplitude = 0.5;
+  for (int i = 0; i < 6; i++) {
     value += noisePeriodic(p, period) * amplitude;
     p = p * 2.0 + vec2(17.3, 9.7);
     period *= 2.0;
@@ -151,26 +151,46 @@ vec4 sampleRegionNebula(vec2 world01, float alphaScale) {
   vec2 q = p + (warp - 0.5) * 1.05 + curve * 0.45;
   float cloud = fbmRegion(q + warp * 0.85 + vec2(1.0, 2.0), basePeriod);
   float detail = fbmRegion(q * 4.0 + warp * 2.4, basePeriod * 4.0);
+  float colorNoise = fbmRegion(q * 2.0 + warp * 1.15 + 11.0, basePeriod * 2.0);
+  float filamentA = fbmRegion(
+    vec2(q.x * 1.9 + q.y * 0.38, q.y * 4.8 + warp.x * 1.2),
+    vec2(96.0, 192.0)
+  );
+  float filamentB = fbmRegion(
+    vec2(q.x * 4.2 - q.y * 0.52, q.y * 2.3 + warp.y * 1.7),
+    vec2(192.0, 96.0)
+  );
   float ribbon = sin((world01.x * 11.0 + world01.y * 7.0) * TAU + warp.x * 1.4 + detail * 0.55) * 0.5 + 0.5;
   float ridge = 1.0 - abs(detail * 2.0 - 1.0);
+  float fiber = smoothstep(0.54, 0.93, filamentA * 0.58 + filamentB * 0.42);
+  float filamentRidge = 1.0 - abs((filamentA - filamentB) * 2.0);
   float cloudMass = cloud;
-  float thread = smoothstep(0.56, 0.94, ridge * 0.58 + ribbon * 0.24 + detail * 0.18);
-  float nebula = smoothstep(0.28, 0.82, cloudMass * 0.9 + ridge * 0.14 + thread * 0.08);
-  float core = smoothstep(0.62, 0.98, cloudMass * 0.78 + detail * 0.16 + thread * 0.12);
-  float haze = smoothstep(0.16, 0.72, cloudMass * 0.68 + detail * 0.24 + 0.18);
+  float thread = smoothstep(
+    0.54,
+    0.94,
+    ridge * 0.38 + ribbon * 0.2 + detail * 0.12 + fiber * 0.22 + filamentRidge * 0.16
+  );
+  float nebula = smoothstep(0.28, 0.84, cloudMass * 0.78 + ridge * 0.14 + thread * 0.15 + fiber * 0.08);
+  float core = smoothstep(0.62, 1.0, cloudMass * 0.72 + detail * 0.13 + thread * 0.14 + fiber * 0.08);
+  float haze = smoothstep(0.14, 0.74, cloudMass * 0.64 + detail * 0.2 + colorNoise * 0.12 + 0.18);
   float density = max(nebula, haze * u_haze_strength);
 
-  float colorVariance = clamp(cloudMass * 0.22 + detail * 0.42 + ribbon * 0.34 + ridge * 0.28, 0.0, 1.0);
+  float colorVariance = clamp(
+    cloudMass * 0.16 + detail * 0.22 + colorNoise * 0.38 + ribbon * 0.18 + fiber * 0.16 + ridge * 0.16,
+    0.0,
+    1.0
+  );
   float hueSplit = smoothstep(0.04, 0.66, colorVariance);
   float cyanSplit = smoothstep(0.18, 0.72, detail * 0.52 + ridge * 0.48);
   vec3 color = mix(u_color_blue, u_color_violet, hueSplit);
-  color = mix(color, u_color_cyan, cyanSplit * 0.86);
-  color = mix(color, u_color_highlight, clamp(thread * 0.34 + core * 0.16 + ridge * 0.08, 0.0, 0.58));
+  color = mix(color, u_color_cyan, cyanSplit * 0.72 + smoothstep(0.58, 0.94, colorNoise) * 0.18);
+  color = mix(color, u_color_highlight, clamp(thread * 0.32 + core * 0.16 + fiber * 0.18 + ridge * 0.06, 0.0, 0.64));
   color = color * (density * u_density_scale + 0.09);
   color += u_color_highlight * core * u_core_strength;
-  color += mix(color, u_color_highlight, 0.5) * thread * 0.18;
-  color += u_color_cyan * ribbon * density * 0.045;
-  return vec4(color, clamp((density * 0.96 + core * 0.42 + thread * 0.22) * alphaScale, 0.0, 1.0));
+  color += mix(color, u_color_highlight, 0.5) * thread * 0.22;
+  color += u_color_cyan * ribbon * density * 0.04;
+  color += u_color_violet * fiber * density * 0.055;
+  return vec4(color, clamp((density * 0.92 + core * 0.42 + thread * 0.22 + fiber * 0.12) * alphaScale, 0.0, 1.0));
 }
 
 float polygonMask(vec2 worldPosition) {
