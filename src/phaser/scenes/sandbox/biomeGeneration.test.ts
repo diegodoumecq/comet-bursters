@@ -57,6 +57,7 @@ describe('sandbox biome generation', () => {
           ...SANDBOX_WORLD_CONFIG.biomePresets,
           forcedGenerated: {
             asteroidDensity: 0.017,
+            color: { b: 0.56, g: 0.34, r: 0.12 },
             nebulaDensity: 0.013,
             planetDensity: 0.031,
           },
@@ -74,8 +75,20 @@ describe('sandbox biome generation', () => {
 
     expect(generated).not.toHaveLength(0);
     expect(generated.every((biome) => biome.profile.asteroidDensity === 0.017)).toBe(true);
+    expect(generated.every((biome) => biome.profile.color.r === 0.12)).toBe(true);
     expect(generated.every((biome) => biome.profile.nebulaDensity === 0.013)).toBe(true);
     expect(generated.every((biome) => biome.profile.planetDensity === 0.031)).toBe(true);
+  });
+
+  it('defines colors in biome preset config', () => {
+    expect(Object.values(SANDBOX_WORLD_CONFIG.biomePresets).every((preset) => preset.color)).toBe(
+      true,
+    );
+    expect(
+      SANDBOX_WORLD_CONFIG.generatedBiomePresets.every(
+        (entry) => SANDBOX_WORLD_CONFIG.biomePresets[entry.value]?.color,
+      ),
+    ).toBe(true);
   });
 
   it('does not place generated biome vertices inside authored biome polygons', () => {

@@ -1,7 +1,12 @@
 import type { AsteroidTier } from '../../asteroids/types';
 import type { Vector, WorldSize } from '../../core/types';
 import type { PlanetKind } from '../../planets/types';
-import type { NebulaRegion, NebulaRegionEffect, NebulaRegionVisuals } from './nebulaRegions';
+import type {
+  NebulaRegion,
+  NebulaRegionColor,
+  NebulaRegionEffect,
+  NebulaRegionVisuals,
+} from './nebulaRegions';
 import sandboxWorldConfig from './sandboxWorldConfig.json';
 
 export type WeightedValue<T> = {
@@ -16,6 +21,7 @@ export type SandboxNebulaEffectCombo = {
 export type SandboxBiomePreset = {
   asteroidDensity?: number;
   asteroidTiers?: WeightedValue<AsteroidTier>[];
+  color?: NebulaRegionColor;
   nebulaDensity?: number;
   nebulaEffectCombos?: WeightedValue<SandboxNebulaEffectCombo>[];
   nebulaVisuals?: NebulaRegionVisuals;

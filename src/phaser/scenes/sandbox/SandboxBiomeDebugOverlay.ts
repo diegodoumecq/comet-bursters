@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import type { WorldSize } from '../../core/types';
 import type { SandboxBiomeRegion } from './biomeGeneration';
+import type { NebulaRegionColor } from './nebulaRegions';
 
 const BIOME_DEBUG_DEPTH = 29;
 const WRAP_OFFSETS = [-1, 0, 1] as const;
@@ -24,8 +25,8 @@ export class SandboxBiomeDebugOverlay {
     if (!input.enabled) return;
 
     const generatedBiomes = input.biomes.filter((biome) => biome.source === 'generated');
-    this.graphics.lineStyle(2, 0x7dd3fc, 0.82);
     for (const biome of generatedBiomes) {
+      this.graphics.lineStyle(2, rgbToNumber(biome.profile.color), 0.82);
       this.drawWrappedBiome(biome, input.world, input.camera);
     }
   }
@@ -83,4 +84,11 @@ function biomeVisibleInCamera(
     bounds.maxY >= camera.worldView.y &&
     bounds.minY <= camera.worldView.y + camera.worldView.height
   );
+}
+
+function rgbToNumber(color: NebulaRegionColor): number {
+  const r = Phaser.Math.Clamp(Math.round(color.r * 255), 0, 255);
+  const g = Phaser.Math.Clamp(Math.round(color.g * 255), 0, 255);
+  const b = Phaser.Math.Clamp(Math.round(color.b * 255), 0, 255);
+  return (r << 16) | (g << 8) | b;
 }

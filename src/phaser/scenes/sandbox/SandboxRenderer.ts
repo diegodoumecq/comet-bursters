@@ -181,7 +181,12 @@ export class SandboxRenderer {
         this.minimap.render({
           asteroids: input.asteroids,
           biomeRegions: this.perfToggles.biomeDebug
-            ? this.sandboxBiomes.filter((biome) => biome.source === 'generated')
+            ? this.sandboxBiomes
+                .filter((biome) => biome.source === 'generated')
+                .map((biome) => ({
+                  color: biome.profile.color,
+                  points: biome.points,
+                }))
             : undefined,
           camera: this.scene.cameras.main,
           fog: input.fogEnabled

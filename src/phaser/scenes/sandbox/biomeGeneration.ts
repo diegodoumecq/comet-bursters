@@ -42,6 +42,7 @@ const GENERATED_BIOME_OVERLAP_SHRINK_STEPS = [0.82, 0.68, 0.54, 0.42];
 const DEFAULT_PROFILE: Required<SandboxBiomePreset> = {
   asteroidDensity: 0,
   asteroidTiers: [{ value: 'small', weight: 1 }],
+  color: { b: 0.988, g: 0.827, r: 0.49 },
   nebulaDensity: 0,
   nebulaEffectCombos: [{ value: { effects: [] }, weight: 1 }],
   nebulaVisuals: {
@@ -211,6 +212,7 @@ function withoutIdentity(biome: SandboxBiomeConfig): SandboxBiomePreset {
   const {
     asteroidDensity,
     asteroidTiers,
+    color,
     nebulaDensity,
     nebulaEffectCombos,
     nebulaVisuals,
@@ -220,6 +222,7 @@ function withoutIdentity(biome: SandboxBiomeConfig): SandboxBiomePreset {
   return {
     asteroidDensity,
     asteroidTiers,
+    color,
     nebulaDensity,
     nebulaEffectCombos,
     nebulaVisuals,

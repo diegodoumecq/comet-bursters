@@ -26,6 +26,7 @@ export type MinimapNebulaRegion = {
 };
 
 export type MinimapBiomeRegion = {
+  color: NebulaRegionColor;
   points: Vector[];
 };
 
@@ -174,8 +175,8 @@ export class Minimap {
   ): void {
     if (regions.length === 0) return;
 
-    this.graphics.lineStyle(1, 0x7dd3fc, 0.7);
     for (const region of regions) {
+      this.graphics.lineStyle(1, rgbToNumber(region.color), 0.78);
       for (const offsetX of [-world.width, 0, world.width]) {
         for (const offsetY of [-world.height, 0, world.height]) {
           this.drawBiomeRegionCopy(region, offsetX, offsetY, x, y, scaleX, scaleY);
