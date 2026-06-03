@@ -21,10 +21,15 @@ export type SandboxBiomeRegion = {
 };
 
 export type SandboxBiomeSpawnPlan = {
-  asteroids: { position: Vector; tier: AsteroidTier; velocity: Vector }[];
+  asteroids: {
+    position: Vector;
+    source: 'authored' | 'generated';
+    tier: AsteroidTier;
+    velocity: Vector;
+  }[];
   biomes: SandboxBiomeRegion[];
   nebulaRegions: NebulaRegion[];
-  planets: { kind: PlanetKind; position: Vector }[];
+  planets: { kind: PlanetKind; position: Vector; source: 'authored' | 'generated' }[];
 };
 
 const AREA_UNIT = 1_000_000;
@@ -66,39 +71,68 @@ export function createSandboxBiomeSpawnPlan(
   );
   const generated = createGeneratedBiomeRegions(config, authored, random);
   const biomes = [...authored, ...generated];
-  const planets = createPlanetPlans(biomes, reservations, config.world, random);
-  const planetReservations = planets.map((planet) => ({
-    position: planet.position,
-    radius: PLANET_SPECS[planet.kind].radius,
+  const authoredPlanets = config.authoredPlanets.map((planet) => ({
+    ...planet,
+    source: 'authored' as const,
   }));
-  const asteroids = createAsteroidPlans(
-    biomes,
-    [...reservations, ...planetReservations],
-    config.world,
-    random,
-  );
-  const asteroidReservations = asteroids.map((asteroid) => ({
+  const authoredAsteroids = config.authoredAsteroids.map((asteroid) => ({
     position: asteroid.position,
-    radius: ASTEROIDS[asteroid.tier].collisionRadius,
+    source: 'authored' as const,
+    tier: asteroid.tier,
+    velocity: asteroid.velocity ?? createAsteroidVelocity(asteroid.tier, random),
   }));
   const authoredNebulaReservations = config.authoredNebulaRegions.map((region) =>
     createNebulaReservation(region),
   );
+  const authoredReservations = [
+    ...reservations,
+    ...authoredPlanets.map((planet) => ({
+      position: planet.position,
+      radius: PLANET_SPECS[planet.kind].radius,
+    })),
+    ...authoredAsteroids.map((asteroid) => ({
+      position: asteroid.position,
+      radius: ASTEROIDS[asteroid.tier].collisionRadius,
+    })),
+    ...authoredNebulaReservations,
+  ];
+  const proceduralPlanets = createPlanetPlans(biomes, authoredReservations, config.world, random);
+  const planets = [...authoredPlanets, ...proceduralPlanets];
+  const proceduralPlanetReservations = proceduralPlanets.map((planet) => ({
+    position: planet.position,
+    radius: PLANET_SPECS[planet.kind].radius,
+  }));
+  const proceduralAsteroids = createAsteroidPlans(
+    biomes,
+    [...authoredReservations, ...proceduralPlanetReservations],
+    config.world,
+    random,
+  );
+  const asteroids = [...authoredAsteroids, ...proceduralAsteroids];
+  const proceduralAsteroidReservations = proceduralAsteroids.map((asteroid) => ({
+    position: asteroid.position,
+    radius: ASTEROIDS[asteroid.tier].collisionRadius,
+  }));
   const nebulaRegions = [
     ...config.authoredNebulaRegions,
     ...createNebulaPlans(
       biomes,
       [
-        ...reservations,
-        ...planetReservations,
-        ...asteroidReservations,
-        ...authoredNebulaReservations,
+        ...authoredReservations,
+        ...proceduralPlanetReservations,
+        ...proceduralAsteroidReservations,
       ],
       config.world,
       random,
     ),
   ];
   return { asteroids, biomes, nebulaRegions, planets };
+}
+
+function createAsteroidVelocity(tier: AsteroidTier, random: RandomSource): Vector {
+  const angle = random.floatBetween(0, Math.PI * 2);
+  const speed = ASTEROIDS[tier].speed * random.floatBetween(0.35, 0.8);
+  return { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed };
 }
 
 function createNebulaReservation(region: NebulaRegion): SpawnCircle {
@@ -139,6 +173,7 @@ function withoutIdentity(biome: SandboxBiomeConfig): SandboxBiomePreset {
     asteroidTiers,
     nebulaDensity,
     nebulaEffectCombos,
+    nebulaVisuals,
     planetDensity,
     planetKinds,
   } = biome;
@@ -147,6 +182,7 @@ function withoutIdentity(biome: SandboxBiomeConfig): SandboxBiomePreset {
     asteroidTiers,
     nebulaDensity,
     nebulaEffectCombos,
+    nebulaVisuals,
     planetDensity,
     planetKinds,
   };
@@ -261,7 +297,7 @@ function createPlanetPlans(
       const radius = PLANET_SPECS[kind].radius;
       const position = findOpenPointInPolygon(biome.points, radius, occupied, world, random);
       if (position) {
-        planets.push({ kind, position });
+        planets.push({ kind, position, source: 'generated' });
         occupied.push({ position, radius });
       }
     }
@@ -288,6 +324,7 @@ function createAsteroidPlans(
         const speed = ASTEROIDS[tier].speed * random.floatBetween(0.35, 0.8);
         asteroids.push({
           position,
+          source: 'generated',
           tier,
           velocity: { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
         });

@@ -143,6 +143,7 @@
       "presets": ["planetCluster", "nebulaVeil", "dangerousNebula"]
     }
   ],
+  "authoredAsteroids": [],
   "authoredNebulaRegions": [
     {
       "alpha": 0.6,
@@ -218,6 +219,7 @@
       }
     }
   ],
+  "authoredPlanets": [],
   "biomePresets": {
     "asteroidBelt": {
       "asteroidDensity": 0.012,

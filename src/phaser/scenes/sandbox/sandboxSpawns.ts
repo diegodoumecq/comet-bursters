@@ -102,13 +102,19 @@ function createStartupPlanets(
   planetCount: number,
 ): SandboxPlanetEntity[] {
   const plannedPlanets = plan.planets
-    .map((planned) =>
-      withSandboxFuel(
+    .map((planned) => ({
+      planet: withSandboxFuel(
         createPlanet(planned.position.x, planned.position.y, PLANET_SPECS[planned.kind], random),
         random,
       ),
+      source: planned.source,
+    }))
+    .filter(
+      (planned) =>
+        planned.source === 'authored' ||
+        planetPlacementIsValid(planned.planet, reservations, playerSpawn, world),
     )
-    .filter((planet) => planetPlacementIsValid(planet, reservations, playerSpawn, world));
+    .map((planned) => planned.planet);
   if (plannedPlanets.length > 0) return plannedPlanets;
   return createFallbackPlanets(world, playerSpawn, reservations, random, planetCount);
 }

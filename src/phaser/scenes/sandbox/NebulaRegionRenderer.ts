@@ -7,7 +7,7 @@ import type { NebulaRegion, NebulaRegionColor, NebulaRegionVisuals } from './neb
 const MAX_REGION_POINTS = 12;
 const NEBULA_CHUNK_SIZE = 960;
 const NEBULA_REGION_DEPTH = 20;
-const SHADER_KEY = 'sandbox-nebula-region-shader-v10';
+const SHADER_KEY = 'sandbox-nebula-region-shader-v11';
 const COPY_OFFSETS = [-1, 0, 1] as const;
 const VISIBLE_ALPHA_THRESHOLD = 0.003;
 const DEFAULT_NEBULA_VISUALS: NebulaRegionVisuals = {
@@ -128,69 +128,56 @@ float fbmRegion(vec2 p, vec2 period) {
   return value;
 }
 
-vec4 sampleRegionNebula(vec2 world01, float alphaScale) {
+vec4 sampleRegionNebula(vec2 worldPosition, float alphaScale) {
   const float TAU = 6.28318530718;
-  vec2 seedOffset = vec2(u_region_seed * 0.137, u_region_seed * 0.071);
-  vec2 p = world01 * 34.0 + seedOffset;
+  vec2 tileUv = fract(worldPosition / max(u_world, vec2(1.0)));
+  vec2 basePeriod = max(vec2(4.0), floor(u_world / 240.0 + 0.5));
+  vec2 waveCycles = max(vec2(1.0), floor(basePeriod * 0.5));
+  vec2 seedOffset = vec2(u_region_seed * 0.011, u_region_seed * 0.017);
 
   vec2 wave = vec2(
-    sin((p.y * 0.42 + p.x * 0.08) * TAU + u_region_seed * 0.013),
-    cos((p.x * 0.36 - p.y * 0.1) * TAU + u_region_seed * 0.017)
+    sin((tileUv.y * waveCycles.y + tileUv.x) * TAU + sin(tileUv.x * TAU) * 0.7 + seedOffset.x),
+    cos((tileUv.x * waveCycles.x - tileUv.y) * TAU + sin(tileUv.y * TAU) * 0.55 + seedOffset.y)
   );
   vec2 ribbonFlow = vec2(
-    sin((p.x * 0.24 + p.y * 0.4) * TAU),
-    cos((p.x * 0.4 + p.y * 0.22) * TAU)
+    sin((tileUv.x + tileUv.y * waveCycles.y) * TAU + seedOffset.y),
+    cos((tileUv.x * waveCycles.x + tileUv.y) * TAU + seedOffset.x)
   );
-  vec2 curve = wave * 0.18 + ribbonFlow * 0.055;
-  vec2 basePeriod = vec2(48.0);
+  vec2 curve = wave * 0.045 + ribbonFlow * 0.015;
+  vec2 p = tileUv * basePeriod + curve + seedOffset;
 
   vec2 warp = vec2(
-    fbmRegion(p + curve + vec2(2.0, 3.0), basePeriod),
-    fbmRegion(p - curve + vec2(5.0, 1.0), basePeriod)
+    fbmRegion(p + vec2(2.0, 3.0), basePeriod),
+    fbmRegion(p + vec2(5.0, 1.0), basePeriod)
   );
-  vec2 q = p + (warp - 0.5) * 1.05 + curve * 0.45;
-  float cloud = fbmRegion(q + warp * 0.85 + vec2(1.0, 2.0), basePeriod);
-  float detail = fbmRegion(q * 4.0 + warp * 2.4, basePeriod * 4.0);
-  float colorNoise = fbmRegion(q * 2.0 + warp * 1.15 + 11.0, basePeriod * 2.0);
-  float filamentA = fbmRegion(
-    vec2(q.x * 1.9 + q.y * 0.38, q.y * 4.8 + warp.x * 1.2),
-    vec2(96.0, 192.0)
-  );
-  float filamentB = fbmRegion(
-    vec2(q.x * 4.2 - q.y * 0.52, q.y * 2.3 + warp.y * 1.7),
-    vec2(192.0, 96.0)
-  );
-  float ribbon = sin((world01.x * 11.0 + world01.y * 7.0) * TAU + warp.x * 1.4 + detail * 0.55) * 0.5 + 0.5;
+  vec2 q = p + (warp - 0.5) * 0.62 + curve * 0.22;
+  float broad = fbmRegion(q + vec2(1.0, 2.0), basePeriod);
+  float cloud = fbmRegion(q + warp * 0.65 + vec2(6.0, 4.0), basePeriod);
+  float detail = fbmRegion(q * 4.0 + warp * 2.0, basePeriod * 4.0);
+  float filamentA = fbmRegion(q * vec2(4.0, 2.0) + curve * 2.0, basePeriod * vec2(4.0, 2.0));
+  float filamentB = fbmRegion(q * vec2(2.0, 4.0) - curve * 2.0, basePeriod * vec2(2.0, 4.0));
+  float colorNoise = fbmRegion(q * 2.0 + 11.0, basePeriod * 2.0);
+  float ribbon = sin((tileUv.x * waveCycles.x + tileUv.y) * TAU + warp.x * 0.35 + detail * 0.12) * 0.5 + 0.5;
   float ridge = 1.0 - abs(detail * 2.0 - 1.0);
-  float fiber = smoothstep(0.54, 0.93, filamentA * 0.58 + filamentB * 0.42);
-  float filamentRidge = 1.0 - abs((filamentA - filamentB) * 2.0);
-  float cloudMass = cloud;
-  float thread = smoothstep(
-    0.54,
-    0.94,
-    ridge * 0.38 + ribbon * 0.2 + detail * 0.12 + fiber * 0.22 + filamentRidge * 0.16
-  );
-  float nebula = smoothstep(0.28, 0.84, cloudMass * 0.78 + ridge * 0.14 + thread * 0.15 + fiber * 0.08);
-  float core = smoothstep(0.62, 1.0, cloudMass * 0.72 + detail * 0.13 + thread * 0.14 + fiber * 0.08);
-  float haze = smoothstep(0.14, 0.74, cloudMass * 0.64 + detail * 0.2 + colorNoise * 0.12 + 0.18);
+  float cloudMass = broad * 0.62 + cloud * 0.38;
+  float filamentBlend = (filamentA + filamentB) * 0.5;
+  float filaments = filamentBlend * 0.72 + ridge * 0.18 + ribbon * 0.02;
+  float thread = smoothstep(0.68, 0.98, filaments * 0.62 + ridge * 0.18 + ribbon * 0.012);
+  float nebula = smoothstep(0.34, 0.86, cloudMass * 0.92 + ridge * 0.1 + thread * 0.055);
+  float core = smoothstep(0.68, 1.0, cloudMass * 0.82 + detail * 0.1 + thread * 0.06);
+  float haze = smoothstep(0.26, 0.84, cloudMass * 0.72 + cloud * 0.16 + detail * 0.08);
   float density = max(nebula, haze * u_haze_strength);
 
-  float colorVariance = clamp(
-    cloudMass * 0.16 + detail * 0.22 + colorNoise * 0.38 + ribbon * 0.18 + fiber * 0.16 + ridge * 0.16,
-    0.0,
-    1.0
-  );
-  float hueSplit = smoothstep(0.04, 0.66, colorVariance);
-  float cyanSplit = smoothstep(0.18, 0.72, detail * 0.52 + ridge * 0.48);
-  vec3 color = mix(u_color_blue, u_color_violet, hueSplit);
-  color = mix(color, u_color_cyan, cyanSplit * 0.72 + smoothstep(0.58, 0.94, colorNoise) * 0.18);
-  color = mix(color, u_color_highlight, clamp(thread * 0.32 + core * 0.16 + fiber * 0.18 + ridge * 0.06, 0.0, 0.64));
-  color = color * (density * u_density_scale + 0.09);
+  vec3 deep = u_color_blue * 0.08;
+  vec3 nebulaColor = mix(u_color_blue, u_color_violet, smoothstep(0.28, 0.82, colorNoise));
+  nebulaColor = mix(nebulaColor, u_color_cyan, smoothstep(0.62, 0.96, detail) * 0.28);
+
+  vec3 color = deep + nebulaColor * density * u_density_scale * 1.08;
   color += u_color_highlight * core * u_core_strength;
-  color += mix(color, u_color_highlight, 0.5) * thread * 0.22;
-  color += u_color_cyan * ribbon * density * 0.04;
-  color += u_color_violet * fiber * density * 0.055;
-  return vec4(color, clamp((density * 0.92 + core * 0.42 + thread * 0.22 + fiber * 0.12) * alphaScale, 0.0, 1.0));
+  color += mix(nebulaColor, u_color_highlight, 0.45) * thread * 0.12;
+  color += u_color_cyan * ribbon * nebula * 0.018;
+  color = pow(max(color, vec3(0.0)), vec3(1.06));
+  return vec4(color, clamp((density * 0.94 + core * 0.28 + thread * 0.16) * alphaScale, 0.0, 1.0));
 }
 
 float polygonMask(vec2 worldPosition) {
@@ -210,7 +197,6 @@ ${Array.from({ length: MAX_REGION_POINTS }, (_, pointIndex) => createSignedEdgeD
 void main() {
   vec2 localPixel = gl_FragCoord.xy;
   vec2 worldPosition = u_region_origin + localPixel;
-  vec2 world01 = fract(worldPosition / max(u_world, vec2(1.0)));
   float edgeDistance = polygonEdgeDistance(worldPosition);
   float mask = polygonMask(worldPosition);
 
@@ -218,7 +204,7 @@ void main() {
     discard;
   }
 
-  vec4 nebula = sampleRegionNebula(world01, u_alpha_scale);
+  vec4 nebula = sampleRegionNebula(worldPosition, u_alpha_scale);
   if (nebula.a <= VISIBLE_ALPHA_THRESHOLD) {
     discard;
   }

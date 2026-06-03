@@ -36,4 +36,62 @@ describe('sandbox biome generation', () => {
 
     expect(effectCombos.some((effects) => effects.length > 1)).toBe(true);
   });
+
+  it('places authored planets and asteroids before procedural fill', () => {
+    const plan = createSandboxBiomeSpawnPlan(
+      {
+        ...SANDBOX_WORLD_CONFIG,
+        authoredAsteroids: [
+          {
+            position: { x: 1700, y: 1800 },
+            tier: 'mega',
+            velocity: { x: 1, y: -1 },
+          },
+        ],
+        authoredPlanets: [{ kind: 'ice', position: { x: 1200, y: 1400 } }],
+      },
+      [],
+    );
+
+    expect(plan.planets[0]).toEqual({
+      kind: 'ice',
+      position: { x: 1200, y: 1400 },
+      source: 'authored',
+    });
+    expect(plan.asteroids[0]).toEqual({
+      position: { x: 1700, y: 1800 },
+      source: 'authored',
+      tier: 'mega',
+      velocity: { x: 1, y: -1 },
+    });
+  });
+
+  it('keeps direct biome nebula visual overrides', () => {
+    const override = {
+      ...SANDBOX_WORLD_CONFIG.biomePresets.nebulaVeil.nebulaVisuals!,
+      tintStrength: 0.91,
+    };
+    const plan = createSandboxBiomeSpawnPlan(
+      {
+        ...SANDBOX_WORLD_CONFIG,
+        authoredBiomes: [
+          {
+            id: 'direct-visuals',
+            nebulaVisuals: override,
+            points: [
+              { x: 1000, y: 1000 },
+              { x: 4000, y: 1000 },
+              { x: 4000, y: 4000 },
+              { x: 1000, y: 4000 },
+            ],
+            presets: ['nebulaVeil'],
+          },
+        ],
+      },
+      [],
+    );
+
+    expect(plan.biomes.find((biome) => biome.id === 'direct-visuals')?.profile.nebulaVisuals)
+      .toEqual(override);
+  });
 });

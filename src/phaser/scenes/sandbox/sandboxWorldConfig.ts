@@ -29,9 +29,22 @@ export type SandboxBiomeConfig = SandboxBiomePreset & {
   presets: string[];
 };
 
+export type SandboxAuthoredAsteroidConfig = {
+  position: Vector;
+  tier: AsteroidTier;
+  velocity?: Vector;
+};
+
+export type SandboxAuthoredPlanetConfig = {
+  kind: PlanetKind;
+  position: Vector;
+};
+
 export type SandboxWorldConfig = {
   authoredBiomes: SandboxBiomeConfig[];
+  authoredAsteroids: SandboxAuthoredAsteroidConfig[];
   authoredNebulaRegions: NebulaRegion[];
+  authoredPlanets: SandboxAuthoredPlanetConfig[];
   biomePresets: Record<string, SandboxBiomePreset>;
   defaultBiomePresets: string[];
   generatedBiomeSize: number;
