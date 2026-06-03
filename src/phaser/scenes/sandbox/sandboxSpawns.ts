@@ -32,21 +32,22 @@ const PLANET_GRID_STEP = 1800;
 const ASTEROID_MARGIN = 200;
 const ASTEROID_PADDING = 80;
 const PLAYER_GRAVITY_SAFE_PADDING = 240;
+const DEFAULT_PLAYTHROUGH_SEED = 'sandbox-playthrough-v1';
 
 export function createSandboxStartup(
   world: WorldSize = SANDBOX_WORLD_CONFIG.world,
   asteroidCount = 22,
   planetCount = PLANET_COUNT,
   config: SandboxWorldConfig = { ...SANDBOX_WORLD_CONFIG, world },
+  playthroughSeed = DEFAULT_PLAYTHROUGH_SEED,
 ): SandboxStartup {
-  const random = createSeededRandom(`${config.seed}:startup`);
-  const entityRandom = createSeededRandom(`${config.seed}:entities`);
-  const spawnPoint = chooseMothershipSpawn(world, random);
+  const entityRandom = createSeededRandom(`${playthroughSeed}:entities`);
+  const spawnPoint = config.spawnPoint;
   const reservations: SpawnCircle[] = [
     { position: spawnPoint, radius: MOTHERSHIP_RESERVE_RADIUS },
     { position: getCargoBayPosition(spawnPoint), radius: PLAYER_COLLISION_RADIUS + 120 },
   ];
-  const plan = createSandboxBiomeSpawnPlan(config, reservations);
+  const plan = createSandboxBiomeSpawnPlan(config, reservations, `${playthroughSeed}:biomes`);
   const planets = createStartupPlanets(
     world,
     getCargoBayPosition(spawnPoint),
@@ -84,13 +85,6 @@ export function planetInfluencesPlayerAtSpawn(
   const delta = wrappedDelta(playerPosition, planet.position, world);
   const safeDistance = planet.radius * 6 + PLAYER_COLLISION_RADIUS + PLAYER_GRAVITY_SAFE_PADDING;
   return Math.hypot(delta.x, delta.y) <= safeDistance;
-}
-
-function chooseMothershipSpawn(world: WorldSize, random: RandomSource): Vector {
-  return {
-    x: world.width * 0.5 + random.between(-700, 700),
-    y: world.height * 0.5 + random.between(-700, 700),
-  };
 }
 
 function createStartupPlanets(

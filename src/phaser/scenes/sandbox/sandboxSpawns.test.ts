@@ -28,6 +28,7 @@ vi.mock('phaser', () => ({
 }));
 
 const world = SANDBOX_WORLD_CONFIG.world;
+const PLAYTHROUGH_SEED = 'test-playthrough';
 
 describe('sandbox startup spawns', () => {
   it('places startup entities without overlapping reservations', () => {
@@ -71,9 +72,15 @@ describe('sandbox startup spawns', () => {
     ).toBe(true);
   });
 
-  it('creates deterministic startup entities from the sandbox seed', () => {
-    const first = createSandboxStartup(world, 22);
-    const second = createSandboxStartup(world, 22);
+  it('creates deterministic startup entities from the playthrough seed', () => {
+    const first = createSandboxStartup(world, 22, undefined, SANDBOX_WORLD_CONFIG, PLAYTHROUGH_SEED);
+    const second = createSandboxStartup(
+      world,
+      22,
+      undefined,
+      SANDBOX_WORLD_CONFIG,
+      PLAYTHROUGH_SEED,
+    );
 
     expect(first.spawnPoint).toEqual(second.spawnPoint);
     expect(first.planets.map((planet) => [planet.kind, planet.position])).toEqual(
@@ -85,6 +92,25 @@ describe('sandbox startup spawns', () => {
     expect(first.nebulaRegions.map((region) => [region.effects, region.points])).toEqual(
       second.nebulaRegions.map((region) => [region.effects, region.points]),
     );
+  });
+
+  it('changes procedural startup entities when the playthrough seed changes', () => {
+    const first = createSandboxStartup(world, 22, undefined, SANDBOX_WORLD_CONFIG, 'seed-a');
+    const second = createSandboxStartup(world, 22, undefined, SANDBOX_WORLD_CONFIG, 'seed-b');
+
+    expect(first.spawnPoint).toEqual(second.spawnPoint);
+    expect(first.nebulaRegions.map((region) => region.points)).not.toEqual(
+      second.nebulaRegions.map((region) => region.points),
+    );
+  });
+
+  it('uses the configured sandbox spawn point', () => {
+    const startup = createSandboxStartup(world, 22, undefined, {
+      ...SANDBOX_WORLD_CONFIG,
+      spawnPoint: { x: 12345, y: 23456 },
+    });
+
+    expect(startup.spawnPoint).toEqual({ x: 12345, y: 23456 });
   });
 
   it('uses wrapped distance for reservation overlap checks', () => {

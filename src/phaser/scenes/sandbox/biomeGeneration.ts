@@ -8,8 +8,11 @@ import { PLANET_SPECS } from '../../planets/config';
 import type { PlanetKind } from '../../planets/types';
 import type { NebulaRegion } from './nebulaRegions';
 import type {
+  SandboxAuthoredAsteroidConfig,
+  SandboxAuthoredPlanetConfig,
   SandboxBiomeConfig,
   SandboxBiomePreset,
+  SandboxLandmarkConfig,
   SandboxWorldConfig,
 } from './sandboxWorldConfig';
 
@@ -64,18 +67,20 @@ const DEFAULT_PROFILE: Required<SandboxBiomePreset> = {
 export function createSandboxBiomeSpawnPlan(
   config: SandboxWorldConfig,
   reservations: SpawnCircle[],
+  playthroughSeed: string,
 ): SandboxBiomeSpawnPlan {
-  const random = createSeededRandom(config.seed);
+  const random = createSeededRandom(playthroughSeed);
+  const landmarkSpawns = createLandmarkSpawns(config.landmarks, random);
   const authored = config.authoredBiomes.map((biome) =>
     resolveBiomeConfig(config, biome, 'authored'),
   );
   const generated = createGeneratedBiomeRegions(config, authored, random);
   const biomes = [...authored, ...generated];
-  const authoredPlanets = config.authoredPlanets.map((planet) => ({
+  const authoredPlanets = [...config.authoredPlanets, ...landmarkSpawns.planets].map((planet) => ({
     ...planet,
     source: 'authored' as const,
   }));
-  const authoredAsteroids = config.authoredAsteroids.map((asteroid) => ({
+  const authoredAsteroids = [...config.authoredAsteroids, ...landmarkSpawns.asteroids].map((asteroid) => ({
     position: asteroid.position,
     source: 'authored' as const,
     tier: asteroid.tier,
@@ -127,6 +132,45 @@ export function createSandboxBiomeSpawnPlan(
     ),
   ];
   return { asteroids, biomes, nebulaRegions, planets };
+}
+
+function createLandmarkSpawns(
+  landmarks: SandboxLandmarkConfig[],
+  random: RandomSource,
+): { asteroids: SandboxAuthoredAsteroidConfig[]; planets: SandboxAuthoredPlanetConfig[] } {
+  const asteroids: SandboxAuthoredAsteroidConfig[] = [];
+  const planets: SandboxAuthoredPlanetConfig[] = [];
+  for (const landmark of landmarks) {
+    if (landmark.type === 'planetAsteroidBelt') {
+      planets.push(landmark.planet);
+      asteroids.push(...createPlanetAsteroidBelt(landmark, random));
+    }
+  }
+  return { asteroids, planets };
+}
+
+function createPlanetAsteroidBelt(
+  landmark: Extract<SandboxLandmarkConfig, { type: 'planetAsteroidBelt' }>,
+  random: RandomSource,
+): SandboxAuthoredAsteroidConfig[] {
+  const asteroids: SandboxAuthoredAsteroidConfig[] = [];
+  const tier = landmark.asteroidTier ?? 'small';
+  for (let index = 0; index < landmark.asteroidCount; index += 1) {
+    const angle = (Math.PI * 2 * index) / landmark.asteroidCount;
+    const tangentSpeed = ASTEROIDS[tier].speed * random.floatBetween(0.55, 0.85);
+    asteroids.push({
+      position: {
+        x: landmark.planet.position.x + Math.cos(angle) * landmark.orbitRadius,
+        y: landmark.planet.position.y + Math.sin(angle) * landmark.orbitRadius,
+      },
+      tier,
+      velocity: {
+        x: -Math.sin(angle) * tangentSpeed,
+        y: Math.cos(angle) * tangentSpeed,
+      },
+    });
+  }
+  return asteroids;
 }
 
 function createAsteroidVelocity(tier: AsteroidTier, random: RandomSource): Vector {

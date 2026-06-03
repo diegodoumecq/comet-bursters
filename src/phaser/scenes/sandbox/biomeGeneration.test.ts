@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { createSandboxBiomeSpawnPlan, pointInPolygon } from './biomeGeneration';
 import { SANDBOX_WORLD_CONFIG } from './sandboxWorldConfig';
 
+const PLAYTHROUGH_SEED = 'test-playthrough';
+
 describe('sandbox biome generation', () => {
   it('keeps authored biomes and generated filler biomes as polygon regions', () => {
-    const plan = createSandboxBiomeSpawnPlan(SANDBOX_WORLD_CONFIG, []);
+    const plan = createSandboxBiomeSpawnPlan(SANDBOX_WORLD_CONFIG, [], PLAYTHROUGH_SEED);
 
     expect(plan.biomes.filter((biome) => biome.source === 'authored')).toHaveLength(
       SANDBOX_WORLD_CONFIG.authoredBiomes.length,
@@ -15,7 +17,7 @@ describe('sandbox biome generation', () => {
   });
 
   it('does not place generated biome vertices inside authored biome polygons', () => {
-    const plan = createSandboxBiomeSpawnPlan(SANDBOX_WORLD_CONFIG, []);
+    const plan = createSandboxBiomeSpawnPlan(SANDBOX_WORLD_CONFIG, [], PLAYTHROUGH_SEED);
     const authored = plan.biomes.filter((biome) => biome.source === 'authored');
     const generated = plan.biomes.filter((biome) => biome.source === 'generated');
 
@@ -51,6 +53,7 @@ describe('sandbox biome generation', () => {
         authoredPlanets: [{ kind: 'ice', position: { x: 1200, y: 1400 } }],
       },
       [],
+      PLAYTHROUGH_SEED,
     );
 
     expect(plan.planets[0]).toEqual({
@@ -64,6 +67,41 @@ describe('sandbox biome generation', () => {
       tier: 'mega',
       velocity: { x: 1, y: -1 },
     });
+  });
+
+  it('expands planet asteroid belt landmarks into authored spawn entries', () => {
+    const plan = createSandboxBiomeSpawnPlan(
+      {
+        ...SANDBOX_WORLD_CONFIG,
+        landmarks: [
+          {
+            asteroidCount: 4,
+            asteroidTier: 'small',
+            id: 'test-belt',
+            orbitRadius: 600,
+            planet: { kind: 'crystal', position: { x: 6000, y: 6000 } },
+            type: 'planetAsteroidBelt',
+          },
+        ],
+      },
+      [],
+      PLAYTHROUGH_SEED,
+    );
+
+    expect(plan.planets[0]).toEqual({
+      kind: 'crystal',
+      position: { x: 6000, y: 6000 },
+      source: 'authored',
+    });
+    expect(plan.asteroids.slice(0, 4).every((asteroid) => asteroid.source === 'authored')).toBe(
+      true,
+    );
+    expect(plan.asteroids.slice(0, 4).map((asteroid) => asteroid.position)).toEqual([
+      { x: 6600, y: 6000 },
+      { x: 6000, y: 6600 },
+      { x: 5400, y: 6000 },
+      { x: 6000, y: 5400 },
+    ]);
   });
 
   it('keeps direct biome nebula visual overrides', () => {
@@ -89,6 +127,7 @@ describe('sandbox biome generation', () => {
         ],
       },
       [],
+      PLAYTHROUGH_SEED,
     );
 
     expect(plan.biomes.find((biome) => biome.id === 'direct-visuals')?.profile.nebulaVisuals)

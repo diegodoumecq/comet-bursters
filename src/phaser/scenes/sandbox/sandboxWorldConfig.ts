@@ -40,6 +40,17 @@ export type SandboxAuthoredPlanetConfig = {
   position: Vector;
 };
 
+export type SandboxPlanetAsteroidBeltLandmarkConfig = {
+  asteroidCount: number;
+  asteroidTier?: AsteroidTier;
+  id: string;
+  orbitRadius: number;
+  planet: SandboxAuthoredPlanetConfig;
+  type: 'planetAsteroidBelt';
+};
+
+export type SandboxLandmarkConfig = SandboxPlanetAsteroidBeltLandmarkConfig;
+
 export type SandboxWorldConfig = {
   authoredBiomes: SandboxBiomeConfig[];
   authoredAsteroids: SandboxAuthoredAsteroidConfig[];
@@ -48,7 +59,8 @@ export type SandboxWorldConfig = {
   biomePresets: Record<string, SandboxBiomePreset>;
   defaultBiomePresets: string[];
   generatedBiomeSize: number;
-  seed: string;
+  landmarks: SandboxLandmarkConfig[];
+  spawnPoint: Vector;
   world: WorldSize;
 };
 
