@@ -49,6 +49,11 @@ type Vec3Uniform = {
   z: number;
 };
 
+type ShaderRenderTargetState = Omit<Phaser.GameObjects.Shader, 'renderToTexture' | 'texture'> & {
+  renderToTexture: boolean;
+  texture: Phaser.Textures.Texture | null;
+};
+
 function createEdgeShader(pointIndex: number): string {
   const nextIndex = pointIndex === MAX_REGION_POINTS - 1 ? 0 : pointIndex + 1;
   return `
@@ -195,7 +200,7 @@ ${Array.from({ length: MAX_REGION_POINTS }, (_, pointIndex) => createSignedEdgeD
 }
 
 void main() {
-  vec2 localPixel = gl_FragCoord.xy;
+  vec2 localPixel = gl_FragCoord.xy - vec2(0.5);
   vec2 worldPosition = u_region_origin + localPixel;
   float edgeDistance = polygonEdgeDistance(worldPosition);
   float mask = polygonMask(worldPosition);
@@ -352,10 +357,43 @@ export class NebulaRegionRenderer {
     setColorUniform(shader, 'u_color_violet', visuals.violet);
 
     const sourceTextureKey = `${copy.cacheKey}:source`;
+    const renderer = this.scene.sys.renderer;
+    const gl =
+      renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer ? renderer.gl : null;
+    const scissorEnabled = gl?.isEnabled(gl.SCISSOR_TEST) ?? false;
+    if (gl) gl.disable(gl.SCISSOR_TEST);
     shader.setRenderToTexture(sourceTextureKey);
     this.copyShaderTexture(shader, copy.cacheKey, copy.bounds);
+    this.destroyShaderRenderTarget(shader, sourceTextureKey);
+    if (gl && scissorEnabled) gl.enable(gl.SCISSOR_TEST);
     shader.destroy();
     return copy.cacheKey;
+  }
+
+  private destroyShaderRenderTarget(
+    shader: Phaser.GameObjects.Shader,
+    textureKey: string,
+  ): void {
+    const renderer = this.scene.sys.renderer;
+    if (!(renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer)) return;
+    if (!shader.framebuffer) return;
+
+    const gl = renderer.gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, shader.framebuffer.webGLFramebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, null, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.deleteFramebuffer(shader.framebuffer.webGLFramebuffer);
+    const framebufferIndex = renderer.glFramebufferWrappers.indexOf(shader.framebuffer);
+    if (framebufferIndex >= 0) renderer.glFramebufferWrappers.splice(framebufferIndex, 1);
+    const stackIndex = renderer.fboStack.indexOf(shader.framebuffer);
+    if (stackIndex >= 0) renderer.fboStack.splice(stackIndex, 1);
+    if (this.scene.textures.exists(textureKey)) this.scene.textures.remove(textureKey);
+
+    const renderTargetShader = shader as ShaderRenderTargetState;
+    renderTargetShader.renderToTexture = false;
+    renderTargetShader.framebuffer = null;
+    renderTargetShader.glTexture = null;
+    renderTargetShader.texture = null;
   }
 
   private copyShaderTexture(
@@ -378,6 +416,9 @@ export class NebulaRegionRenderer {
       undefined,
       bounds.width,
       bounds.height,
+      false,
+      true,
+      false,
     );
     gl.bindFramebuffer(gl.FRAMEBUFFER, shader.framebuffer.webGLFramebuffer);
     gl.activeTexture(gl.TEXTURE0);
