@@ -143,6 +143,81 @@
       "presets": ["planetCluster", "nebulaVeil", "dangerousNebula"]
     }
   ],
+  "authoredNebulaRegions": [
+    {
+      "alpha": 0.6,
+      "effects": [],
+      "featherPx": 520,
+      "id": "spawn-test-nebula",
+      "points": [
+        {
+          "x": 51176,
+          "y": 47667
+        },
+        {
+          "x": 50396,
+          "y": 49643
+        },
+        {
+          "x": 48836,
+          "y": 50527
+        },
+        {
+          "x": 46600,
+          "y": 49487
+        },
+        {
+          "x": 45976,
+          "y": 47771
+        },
+        {
+          "x": 47172,
+          "y": 45847
+        },
+        {
+          "x": 49148,
+          "y": 45379
+        },
+        {
+          "x": 50712,
+          "y": 46419
+        }
+      ],
+      "seed": 4242,
+      "visuals": {
+        "alphaScale": 1.28,
+        "blue": {
+          "r": 0.04,
+          "g": 0.16,
+          "b": 0.78
+        },
+        "coreStrength": 0.4,
+        "cyan": {
+          "r": 0.2,
+          "g": 0.62,
+          "b": 0.76
+        },
+        "densityScale": 1,
+        "hazeStrength": 0.82,
+        "highlight": {
+          "r": 0.36,
+          "g": 0.64,
+          "b": 0.86
+        },
+        "tint": {
+          "r": 0.72,
+          "g": 0.28,
+          "b": 0.74
+        },
+        "tintStrength": 0.32,
+        "violet": {
+          "r": 0.66,
+          "g": 0.08,
+          "b": 0.82
+        }
+      }
+    }
+  ],
   "biomePresets": {
     "asteroidBelt": {
       "asteroidDensity": 0.012,

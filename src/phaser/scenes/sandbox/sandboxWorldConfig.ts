@@ -1,7 +1,7 @@
 import type { AsteroidTier } from '../../asteroids/types';
 import type { Vector, WorldSize } from '../../core/types';
 import type { PlanetKind } from '../../planets/types';
-import type { NebulaRegionEffect, NebulaRegionVisuals } from './nebulaRegions';
+import type { NebulaRegion, NebulaRegionEffect, NebulaRegionVisuals } from './nebulaRegions';
 import sandboxWorldConfig from './sandboxWorldConfig.json';
 
 export type WeightedValue<T> = {
@@ -31,6 +31,7 @@ export type SandboxBiomeConfig = SandboxBiomePreset & {
 
 export type SandboxWorldConfig = {
   authoredBiomes: SandboxBiomeConfig[];
+  authoredNebulaRegions: NebulaRegion[];
   biomePresets: Record<string, SandboxBiomePreset>;
   defaultBiomePresets: string[];
   generatedBiomeSize: number;

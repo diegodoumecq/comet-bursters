@@ -81,13 +81,39 @@ export function createSandboxBiomeSpawnPlan(
     position: asteroid.position,
     radius: ASTEROIDS[asteroid.tier].collisionRadius,
   }));
-  const nebulaRegions = createNebulaPlans(
-    biomes,
-    [...reservations, ...planetReservations, ...asteroidReservations],
-    config.world,
-    random,
+  const authoredNebulaReservations = config.authoredNebulaRegions.map((region) =>
+    createNebulaReservation(region),
   );
+  const nebulaRegions = [
+    ...config.authoredNebulaRegions,
+    ...createNebulaPlans(
+      biomes,
+      [
+        ...reservations,
+        ...planetReservations,
+        ...asteroidReservations,
+        ...authoredNebulaReservations,
+      ],
+      config.world,
+      random,
+    ),
+  ];
   return { asteroids, biomes, nebulaRegions, planets };
+}
+
+function createNebulaReservation(region: NebulaRegion): SpawnCircle {
+  const center = region.points.reduce(
+    (sum, point) => ({ x: sum.x + point.x, y: sum.y + point.y }),
+    { x: 0, y: 0 },
+  );
+  center.x /= region.points.length;
+  center.y /= region.points.length;
+  const radius = region.points.reduce(
+    (maxDistance, point) =>
+      Math.max(maxDistance, Math.hypot(point.x - center.x, point.y - center.y)),
+    0,
+  );
+  return { position: center, radius };
 }
 
 function resolveBiomeConfig(
