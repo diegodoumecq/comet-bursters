@@ -1,8 +1,8 @@
-const tileAssetModules = import.meta.glob('../../assets/tiles/*.png', {
+const tileAssetModules = import.meta.glob('../assets/tiles/*.png', {
   eager: true,
   import: 'default',
 }) as Record<string, string>;
-const generalAssetModules = import.meta.glob('../../assets/*.png', {
+const generalAssetModules = import.meta.glob('../assets/*.png', {
   eager: true,
   import: 'default',
 }) as Record<string, string>;

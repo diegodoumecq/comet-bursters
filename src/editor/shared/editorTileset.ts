@@ -1,7 +1,7 @@
 import type {
   ShipInteriorTilesetDefinition,
   ShipInteriorTilesetTileDefinition,
-} from '../../scenes/ShipInteriorScene/level';
+} from '../../shipInterior/level';
 import {
   cloneTileTopology,
   normalizeTileTopologyRelation,

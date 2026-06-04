@@ -1,5 +1,5 @@
-import type { RawShipInteriorLevel } from '../../scenes/ShipInteriorScene/level';
-import { getLevelGrid } from '../../scenes/ShipInteriorScene/level';
+import type { RawShipInteriorLevel } from '../../shipInterior/level';
+import { getLevelGrid } from '../../shipInterior/level';
 
 export function getGridCell(level: RawShipInteriorLevel, worldX: number, worldY: number) {
   const levelGrid = getLevelGrid(level);

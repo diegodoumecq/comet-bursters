@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { shipInteriorTileAssets } from '../../scenes/ShipInteriorScene/tileAssets';
+import { shipInteriorTileAssets } from '../../shipInterior/tileAssets';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { editorBundledTilesets, useSpritesheetEditorStore } from '../state/spritesheetEditorStore';
 

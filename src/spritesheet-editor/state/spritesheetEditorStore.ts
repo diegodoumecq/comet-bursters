@@ -9,8 +9,8 @@ import {
   type TileTopologyRelation,
 } from '../../editor/shared/autotile';
 import type { EditorTilesetDefinition as SpritesheetEditorTilesetDefinition } from '../../editor/shared/editorTileset';
-import { shipInteriorTileAssets } from '../../scenes/ShipInteriorScene/tileAssets';
-import { bundledTilesets } from '../../scenes/ShipInteriorScene/tilesetCatalog';
+import { shipInteriorTileAssets } from '../../shipInterior/tileAssets';
+import { bundledTilesets } from '../../shipInterior/tilesetCatalog';
 import type { SpritesheetEditorDocument, SpritesheetEditorHistoryEntry } from './history';
 
 export type TileEntry = {

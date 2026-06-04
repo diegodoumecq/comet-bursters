@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import columnPixelartUrl from '../assets/columnPixelart.png';
-import type { ShipInteriorTileId } from '../scenes/ShipInteriorScene/level';
+import type { ShipInteriorTileId } from '../shipInterior/level';
 import { useEditorStore } from './state/editorStore';
 import {
   buildMaterialOverlayCanvas,

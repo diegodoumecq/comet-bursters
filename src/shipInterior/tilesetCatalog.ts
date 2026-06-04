@@ -1,6 +1,6 @@
 import type { ShipInteriorTilesetDefinition } from './level';
 
-const bundledTilesetModules = import.meta.glob('../../assets/tiles/*.tileset.json', {
+const bundledTilesetModules = import.meta.glob('../assets/tiles/*.tileset.json', {
   eager: true,
   import: 'default',
 }) as Record<string, unknown>;

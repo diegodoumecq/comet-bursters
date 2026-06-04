@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { getLevelGrid } from '../../scenes/ShipInteriorScene/level';
+import { getLevelGrid } from '../../shipInterior/level';
 import { bundledLevels } from '../shared/levelCatalog';
 import { useEditorStore } from '../state/editorStore';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';

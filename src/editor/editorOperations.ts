@@ -1,4 +1,4 @@
-import type { RawShipInteriorLevel } from '../scenes/ShipInteriorScene/level';
+import type { RawShipInteriorLevel } from '../shipInterior/level';
 import type {
   EditorCanvasPreviewMaterialCell,
   EditorCanvasPreviewTile,

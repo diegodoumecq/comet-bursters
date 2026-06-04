@@ -5,7 +5,7 @@ import {
   type EditorCanvasPointerInfo,
   type EditorCanvasRectanglePreview,
 } from './EditorCanvas';
-import { getLevelGrid } from '../scenes/ShipInteriorScene/level';
+import { getLevelGrid } from '../shipInterior/level';
 import type { EditorDocument } from './state/history';
 import { EditorStoreEffects } from './state/EditorStoreEffects';
 import { useEditorStore } from './state/editorStore';

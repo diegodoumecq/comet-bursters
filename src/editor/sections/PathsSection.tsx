@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { useEditorStore } from '../state/editorStore';
-import type { RawShipInteriorLevel } from '../../scenes/ShipInteriorScene/level';
+import type { RawShipInteriorLevel } from '../../shipInterior/level';
 import { PathActionsMenu } from './PathActionsMenu';
 
 function makePathId(level: RawShipInteriorLevel): string {

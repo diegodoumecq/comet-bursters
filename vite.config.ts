@@ -230,9 +230,9 @@ export default defineConfig({
       input: {
         main: path.resolve(__dirname, 'index.html'),
         editor: path.resolve(__dirname, 'editor.html'),
+        phaserGame: path.resolve(__dirname, 'phaser-game.html'),
         spritesheetEditor: path.resolve(__dirname, 'spritesheet-editor.html'),
         spriteEditor: path.resolve(__dirname, 'sprite-editor.html'),
-        game: path.resolve(__dirname, 'game.html'),
       },
     },
   },

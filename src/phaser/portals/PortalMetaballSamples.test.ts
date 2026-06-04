@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import type { PortalEntity } from '../dimensions/types';
-import { buildPortalMetaballData, PORTAL_METABALL_COUNT, CENTER_METABALLS } from './PortalMetaballSamples';
+import {
+  BORDER_METABALLS,
+  buildPortalMetaballData,
+  CENTER_METABALLS,
+  PORTAL_METABALL_COUNT,
+} from './PortalMetaballSamples';
 
 const portal: PortalEntity = {
   activeDurationMs: 1000,
@@ -32,10 +37,13 @@ describe('buildPortalMetaballData', () => {
       expect(distance).toBeLessThan(1.08);
       if (index < CENTER_METABALLS.count) {
         expect(distance).toBeLessThan(0.48);
-        expect(radius).toBeGreaterThan(0.9);
+        expect(radius).toBeGreaterThanOrEqual(CENTER_METABALLS.radiusScaleMin);
+        expect(radius).toBeLessThanOrEqual(CENTER_METABALLS.radiusScaleMax);
+        expect(radius).toBeGreaterThan(BORDER_METABALLS.radiusScaleMax);
       } else {
         expect(distance).toBeGreaterThan(0.65);
-        expect(radius).toBeLessThan(0.45);
+        expect(radius).toBeGreaterThanOrEqual(BORDER_METABALLS.radiusScaleMin);
+        expect(radius).toBeLessThanOrEqual(BORDER_METABALLS.radiusScaleMax);
       }
     }
   });

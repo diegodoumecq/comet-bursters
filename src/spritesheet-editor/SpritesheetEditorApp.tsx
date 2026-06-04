@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { inferSpriteSheetGridSize } from '@/spritesheet';
 import { ConfirmationDialog } from '@/ui/components/ConfirmationDialog';
-import { shipInteriorTileAssets } from '../scenes/ShipInteriorScene/tileAssets';
+import { shipInteriorTileAssets } from '../shipInterior/tileAssets';
 import { SheetPreview } from './components/SheetPreview';
 import { SpritesheetHeaderMenu } from './components/SpritesheetHeaderMenu';
 import { TopologyPreview } from './components/TopologyPreview';

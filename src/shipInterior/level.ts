@@ -1,8 +1,7 @@
-import { computeAlphaMask } from '@/assets';
-import type { AlphaMask } from '@/constants';
 import { loadSpriteSheet } from '@/spritesheet';
 import type { SpriteSheet, SpriteSheetGridConfig, TilemapLayer } from '@/spritesheet';
-import shipInteriorLevelUrl from '../../assets/levels/shipInterior.level.json?url';
+import shipInteriorLevelUrl from '../assets/levels/shipInterior.level.json?url';
+import { computeAlphaMask, type AlphaMask } from '../core/alphaMask';
 import { resolveShipInteriorAssetUrl as resolveShipInteriorSceneAssetUrl } from './tileAssets';
 import { getBundledTilesetDefinitions } from './tilesetCatalog';
 

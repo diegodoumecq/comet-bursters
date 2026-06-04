@@ -3,8 +3,8 @@ import type {
   ShipInteriorEntityDefinition,
   ShipInteriorTileId,
   ShipInteriorTilesetDefinition,
-} from '../../scenes/ShipInteriorScene/level';
-import { resolveShipInteriorAssetUrl } from '../../scenes/ShipInteriorScene/level';
+} from '../../shipInterior/level';
+import { resolveShipInteriorAssetUrl } from '../../shipInterior/level';
 import type { AssetUrlMap } from './editorTypes';
 
 export function cloneLevel(level: RawShipInteriorLevel): RawShipInteriorLevel {

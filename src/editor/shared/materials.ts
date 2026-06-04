@@ -1,7 +1,4 @@
-import type {
-  RawShipInteriorLevel,
-  ShipInteriorTileId,
-} from '../../scenes/ShipInteriorScene/level';
+import type { RawShipInteriorLevel, ShipInteriorTileId } from '../../shipInterior/level';
 import {
   cardinalTopologyDirections,
   getTileTopologyRelation,

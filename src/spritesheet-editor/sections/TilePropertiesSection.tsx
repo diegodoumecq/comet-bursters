@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { getTileTopologySpecificity } from '../../editor/shared/autotile';
-import { shipInteriorTileAssets } from '../../scenes/ShipInteriorScene/tileAssets';
+import { shipInteriorTileAssets } from '../../shipInterior/tileAssets';
 import { readNumber, useSpritesheetEditorStore } from '../state/spritesheetEditorStore';
 
 export function TilePropertiesSection() {
