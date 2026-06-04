@@ -71,7 +71,11 @@ import { SandboxRenderer } from './sandbox/SandboxRenderer';
 import { createSandboxStartup } from './sandbox/sandboxSpawns';
 import { SANDBOX_WORLD_CONFIG } from './sandbox/sandboxWorldConfig';
 import { getWrappedDistance } from './sandbox/screenWrapping';
-import { keepMovingEntitiesNearPlayer, rebaseWorldAroundPlayer } from './sandbox/worldPositioning';
+import {
+  positionSandboxWrappedWorldNearPlayer,
+  rebaseSandboxWorldAtBounds,
+  type SandboxWorldPositioningInput,
+} from './sandbox/worldPositioning';
 
 const WORLD: WorldSize = SANDBOX_WORLD_CONFIG.world;
 const SANDBOX_PLAYER_MAX_SPEED = 50;
@@ -270,7 +274,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       );
       this.playerBody.setVelocity(this.player.velocity);
       this.spawnMaxSpeedTrail(now);
-      rebaseWorldAroundPlayer(this.getWorldPositioningInput());
+      rebaseSandboxWorldAtBounds(this.getWorldPositioningInput());
     }
     const weaponResult = updateWeapons({
       action: {
@@ -360,7 +364,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     for (const particle of updateParticles(this.runtime.world.particles, deltaMs))
       this.removeParticle(particle);
     this.runtime.syncParticles();
-    keepMovingEntitiesNearPlayer(this.getWorldPositioningInput());
+    positionSandboxWrappedWorldNearPlayer(this.getWorldPositioningInput());
   }
 
   private updateFuelBlobs(deltaSeconds: number): void {
@@ -728,7 +732,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.contacts.setShield(this.playerBody.shieldSensor.body);
   }
 
-  private getWorldPositioningInput(): Parameters<typeof rebaseWorldAroundPlayer>[0] {
+  private getWorldPositioningInput(): SandboxWorldPositioningInput {
     return {
       asteroidBodies: this.asteroidBodies,
       fuelBodies: this.fuelBodies,

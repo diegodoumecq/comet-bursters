@@ -1,76 +1,183 @@
-import type { AsteroidBodies } from '../../asteroids/bodies';
+import type { AsteroidEntity } from '../../asteroids/types';
 import type { Vector, WorldSize } from '../../core/types';
-import type { FuelBodies } from '../../fuel/bodies';
-import type { ParticleViews } from '../../particles/views';
-import type { PlanetViews } from '../../planets/views';
-import type { PlayerBody } from '../../player/body';
-import type { PlayerState } from '../../player/state';
-import type { ProjectileBodies } from '../../projectiles/bodies';
+import type { FuelBlobEntity } from '../../fuel/types';
+import type { ParticleEntity } from '../../particles/types';
+import type { ProjectileEntity } from '../../projectiles/types';
 import { nearestWrappedPosition } from '../../world/geometry';
-import type { GameWorldRuntime } from '../../world/runtime';
-import type { Mothership } from './Mothership';
+import type { GameWorld } from '../../world/state';
 import type { SandboxPlanetEntity } from './planetFuel';
 
-type SandboxWorldPositioningInput = {
-  asteroidBodies: AsteroidBodies;
-  fuelBodies: FuelBodies;
-  mothership: Mothership;
+type PositionableBody = {
+  setPosition(x: number, y: number): void;
+};
+
+type AsteroidPositioningBodies = {
+  get(asteroid: AsteroidEntity): PositionableBody;
+};
+
+type FuelPositioningBodies = {
+  setPosition(blob: FuelBlobEntity, position: Vector): void;
+  sync(blob: FuelBlobEntity): void;
+};
+
+type MothershipPositioning = {
+  sync(now: number): void;
+};
+
+type MothershipRebasePositioning = MothershipPositioning & {
+  moveBy(shift: Vector): void;
+};
+
+type MothershipWrappedWorldPositioning = MothershipPositioning & {
+  keepNear(playerPosition: Vector, world: WorldSize): void;
+};
+
+type ParticlePositioningViews = {
+  sync(particle: ParticleEntity): void;
+};
+
+type PlanetPositioningViews = {
+  sync(planet: SandboxPlanetEntity): void;
+};
+
+type PlayerPositioningBody = {
+  setPosition(position: Vector): void;
+  shieldSensor: PositionableBody;
+};
+
+type PlayerPositioningState = {
+  position: Vector;
+};
+
+type ProjectilePositioningBodies = {
+  setPosition(projectile: ProjectileEntity, position: Vector): void;
+};
+
+type SandboxPositioningRuntime = {
+  world: Pick<GameWorld, 'asteroids' | 'fuelBlobs' | 'particles' | 'projectiles'>;
+};
+
+type SandboxWorldPositioningBaseInput = {
+  asteroidBodies: AsteroidPositioningBodies;
+  fuelBodies: FuelPositioningBodies;
   now: number;
-  particleViews: ParticleViews;
-  planetViews: PlanetViews;
+  particleViews: ParticlePositioningViews;
+  planetViews: PlanetPositioningViews;
   planets: SandboxPlanetEntity[];
-  player: PlayerState;
-  playerBody: PlayerBody;
-  projectileBodies: ProjectileBodies;
-  runtime: GameWorldRuntime;
+  player: PlayerPositioningState;
+  projectileBodies: ProjectilePositioningBodies;
+  runtime: SandboxPositioningRuntime;
   world: WorldSize;
 };
 
-export function rebaseWorldAroundPlayer(input: SandboxWorldPositioningInput): void {
+export type SandboxWorldRebaseInput = SandboxWorldPositioningBaseInput & {
+  mothership: MothershipRebasePositioning;
+  playerBody: PlayerPositioningBody;
+};
+
+export type SandboxWrappedWorldPositioningInput = SandboxWorldPositioningBaseInput & {
+  mothership: MothershipWrappedWorldPositioning;
+};
+
+export type SandboxWorldPositioningInput = SandboxWorldPositioningBaseInput & {
+  mothership: MothershipRebasePositioning & MothershipWrappedWorldPositioning;
+  playerBody: PlayerPositioningBody;
+};
+
+export function rebaseSandboxWorldAtBounds(input: SandboxWorldRebaseInput): void {
   const shift = getWorldRebaseShift(input.player.position, input.world);
   if (shift.x === 0 && shift.y === 0) return;
 
-  shiftPlayer(input.playerBody, input.player.position, shift);
+  rebasePlayer(input, shift);
+  rebasePlanets(input, shift);
+  rebaseAsteroids(input, shift);
+  rebaseProjectiles(input, shift);
+  rebaseFuelBlobs(input, shift);
+  rebaseParticles(input, shift);
+  rebaseMothership(input, shift);
+}
+
+export function positionSandboxWrappedWorldNearPlayer(
+  input: SandboxWrappedWorldPositioningInput,
+): void {
+  positionPlanetsNearPlayer(input);
+  positionAsteroidsNearPlayer(input);
+  positionProjectilesNearPlayer(input);
+  positionFuelBlobsNearPlayer(input);
+  positionParticlesNearPlayer(input);
+  positionMothershipNearPlayer(input);
+}
+
+function rebasePlayer(input: SandboxWorldRebaseInput, shift: Vector): void {
+  input.playerBody.setPosition({
+    x: input.player.position.x + shift.x,
+    y: input.player.position.y + shift.y,
+  });
+  input.playerBody.shieldSensor.setPosition(input.player.position.x, input.player.position.y);
+}
+
+function rebasePlanets(input: SandboxWorldPositioningBaseInput, shift: Vector): void {
   for (const planet of input.planets) {
     planet.position.x += shift.x;
     planet.position.y += shift.y;
     input.planetViews.sync(planet);
   }
+}
+
+function rebaseAsteroids(input: SandboxWorldPositioningBaseInput, shift: Vector): void {
   for (const asteroid of input.runtime.world.asteroids) {
     asteroid.position.x += shift.x;
     asteroid.position.y += shift.y;
     input.asteroidBodies.get(asteroid).setPosition(asteroid.position.x, asteroid.position.y);
   }
+}
+
+function rebaseProjectiles(input: SandboxWorldPositioningBaseInput, shift: Vector): void {
   for (const projectile of input.runtime.world.projectiles) {
     projectile.position.x += shift.x;
     projectile.position.y += shift.y;
     input.projectileBodies.setPosition(projectile, projectile.position);
   }
+}
+
+function rebaseFuelBlobs(input: SandboxWorldPositioningBaseInput, shift: Vector): void {
   for (const blob of input.runtime.world.fuelBlobs) {
     input.fuelBodies.sync(blob);
     blob.position.x += shift.x;
     blob.position.y += shift.y;
     input.fuelBodies.setPosition(blob, blob.position);
   }
+}
+
+function rebaseParticles(input: SandboxWorldPositioningBaseInput, shift: Vector): void {
   for (const particle of input.runtime.world.particles) {
     particle.position.x += shift.x;
     particle.position.y += shift.y;
     input.particleViews.sync(particle);
   }
+}
+
+function rebaseMothership(input: SandboxWorldRebaseInput, shift: Vector): void {
   input.mothership.moveBy(shift);
   input.mothership.sync(input.now);
 }
 
-export function keepMovingEntitiesNearPlayer(input: SandboxWorldPositioningInput): void {
+function positionPlanetsNearPlayer(input: SandboxWorldPositioningBaseInput): void {
   for (const planet of input.planets) {
     planet.position = nearestWrappedPosition(input.player.position, planet.position, input.world);
     input.planetViews.sync(planet);
   }
+}
+
+function positionAsteroidsNearPlayer(input: SandboxWorldPositioningBaseInput): void {
   for (const asteroid of input.runtime.world.asteroids) {
     const position = nearestWrappedPosition(input.player.position, asteroid.position, input.world);
     asteroid.position = position;
     input.asteroidBodies.get(asteroid).setPosition(position.x, position.y);
   }
+}
+
+function positionProjectilesNearPlayer(input: SandboxWorldPositioningBaseInput): void {
   for (const projectile of input.runtime.world.projectiles) {
     const position = nearestWrappedPosition(
       input.player.position,
@@ -79,11 +186,17 @@ export function keepMovingEntitiesNearPlayer(input: SandboxWorldPositioningInput
     );
     input.projectileBodies.setPosition(projectile, position);
   }
+}
+
+function positionFuelBlobsNearPlayer(input: SandboxWorldPositioningBaseInput): void {
   for (const blob of input.runtime.world.fuelBlobs) {
     input.fuelBodies.sync(blob);
     blob.position = nearestWrappedPosition(input.player.position, blob.position, input.world);
     input.fuelBodies.setPosition(blob, blob.position);
   }
+}
+
+function positionParticlesNearPlayer(input: SandboxWorldPositioningBaseInput): void {
   for (const particle of input.runtime.world.particles) {
     particle.position = nearestWrappedPosition(
       input.player.position,
@@ -92,21 +205,22 @@ export function keepMovingEntitiesNearPlayer(input: SandboxWorldPositioningInput
     );
     input.particleViews.sync(particle);
   }
+}
+
+function positionMothershipNearPlayer(input: SandboxWrappedWorldPositioningInput): void {
   input.mothership.keepNear(input.player.position, input.world);
   input.mothership.sync(input.now);
 }
 
 function getWorldRebaseShift(position: Vector, world: WorldSize): Vector {
   return {
-    x: position.x < 0 ? world.width : position.x > world.width ? -world.width : 0,
-    y: position.y < 0 ? world.height : position.y > world.height ? -world.height : 0,
+    x: getAxisRebaseShift(position.x, world.width),
+    y: getAxisRebaseShift(position.y, world.height),
   };
 }
 
-function shiftPlayer(playerBody: PlayerBody, playerPosition: Vector, shift: Vector): void {
-  playerBody.setPosition({
-    x: playerPosition.x + shift.x,
-    y: playerPosition.y + shift.y,
-  });
-  playerBody.shieldSensor.setPosition(playerPosition.x, playerPosition.y);
+function getAxisRebaseShift(position: number, worldSize: number): number {
+  if (position < 0) return worldSize;
+  if (position > worldSize) return -worldSize;
+  return 0;
 }
