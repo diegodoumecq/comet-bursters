@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
-import { ASTEROIDS } from './logic';
+import { createCanvasTexture } from '../core/canvasTextures';
+import { ASTEROIDS } from './config';
 import type { AsteroidTier } from './types';
 
 export const ASTEROID_TEXTURES: Record<AsteroidTier, readonly string[]> = {
@@ -17,28 +18,39 @@ const COLORS: Record<AsteroidTier, readonly string[]> = {
   small: ['#4d96ff', '#9b59b6'],
 };
 
+const ASTEROID_TEXTURE_PADDING = 4;
+
 export function createAsteroidTextures(scene: Phaser.Scene): void {
   for (const tier of Object.keys(ASTEROIDS) as AsteroidTier[]) {
     ASTEROID_TEXTURES[tier].forEach((key, index) => {
       if (scene.textures.exists(key)) return;
-      const canvas = drawAsteroidTexture(tier, COLORS[tier][index]);
-      scene.textures.addCanvas(key, canvas);
+      const textureSize = getAsteroidTextureSize(tier);
+      createCanvasTexture(scene, key, textureSize, textureSize, (ctx) =>
+        drawAsteroidTexture(ctx, tier, COLORS[tier][index]),
+      );
     });
   }
 }
 
-function drawAsteroidTexture(tier: AsteroidTier, color: string): HTMLCanvasElement {
+export function getAsteroidTextureDisplaySize(tier: AsteroidTier): number {
+  return ASTEROIDS[tier].radius * 2;
+}
+
+function getAsteroidTextureSize(tier: AsteroidTier): number {
+  return getAsteroidTextureDisplaySize(tier) + ASTEROID_TEXTURE_PADDING * 2;
+}
+
+function drawAsteroidTexture(
+  ctx: CanvasRenderingContext2D,
+  tier: AsteroidTier,
+  color: string,
+): void {
   const radius = ASTEROIDS[tier].radius;
-  const diameter = radius * 2;
-  const canvas = document.createElement('canvas');
-  canvas.width = diameter;
-  canvas.height = diameter;
-  const ctx = canvas.getContext('2d')!;
   const rand = createSeededRandom(hashString(`${tier}:${color}`));
   const pointCount = tier === 'mega' ? 36 : tier === 'big' ? 30 : tier === 'medium' ? 24 : 16;
 
   ctx.save();
-  ctx.translate(radius, radius);
+  ctx.translate(radius + ASTEROID_TEXTURE_PADDING, radius + ASTEROID_TEXTURE_PADDING);
   ctx.rotate(rand() * Math.PI * 2);
   traceRockShape(ctx, rand, radius * 0.94, pointCount);
   const shell = ctx.createRadialGradient(
@@ -66,7 +78,6 @@ function drawAsteroidTexture(tier: AsteroidTier, color: string): HTMLCanvasEleme
   drawHighlight(ctx, radius);
   ctx.restore();
   ctx.restore();
-  return canvas;
 }
 
 function drawBands(

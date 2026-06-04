@@ -6,7 +6,7 @@ import { polarPoint, tintColor } from './planetSurfaces/shared';
 
 const PLANET_CACHE_PADDING = 80;
 const PLANET_TEXTURE_EXTENT_SCALE = 1.7;
-const PLANET_RENDER_VERSION = 'v6-expanded-atmosphere';
+const PLANET_RENDER_VERSION = 'v18-direct-painter-surface';
 const planetSpriteCache = new Map<string, HTMLCanvasElement>();
 
 function withAlpha(color: string, alpha: number): string {
@@ -178,7 +178,13 @@ function drawStyledPlanetToContext(planet: Planet, ctx: CanvasRenderingContext2D
 }
 
 function getPlanetCacheKey(planet: Planet): string {
-  return `${PLANET_RENDER_VERSION}|${planet.kind}|${planet.color}|${planet.getRadius()}`;
+  return [
+    PLANET_RENDER_VERSION,
+    planet.kind,
+    planet.color,
+    planet.getRadius(),
+    planet.altitudeVariations.map((value) => value.toFixed(3)).join(','),
+  ].join('|');
 }
 
 function getPlanetSprite(planet: Planet): HTMLCanvasElement {
@@ -196,12 +202,10 @@ function getPlanetSprite(planet: Planet): HTMLCanvasElement {
   canvas.height = size;
 
   const spriteCtx = canvas.getContext('2d');
-  if (!spriteCtx) {
-    return canvas;
+  if (spriteCtx) {
+    spriteCtx.translate(size / 2, size / 2);
+    drawStyledPlanetToContext({ ...planet, x: 0, y: 0, rotation: 0 }, spriteCtx);
   }
-
-  spriteCtx.translate(size / 2, size / 2);
-  drawStyledPlanetToContext({ ...planet, x: 0, y: 0, rotation: 0 }, spriteCtx);
 
   planetSpriteCache.set(cacheKey, canvas);
   return canvas;

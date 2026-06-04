@@ -1,5 +1,5 @@
 import type { PlanetSpriteSource as Planet } from '../../types';
-import { drawFlatTextureOnSphere, getFlatPlanetTexture } from '../planetTextureEngine';
+import { drawSurfacePainterOnPlanet } from '../planetTextureEngine';
 import { alphaColor } from './shared';
 
 function withWrappedX(width: number, x: number, draw: (wrappedX: number) => void): void {
@@ -200,12 +200,5 @@ export function drawToxicSurface(
   ctx: CanvasRenderingContext2D,
   radius: number,
 ): void {
-  const texture = getFlatPlanetTexture(
-    `toxic-flat|${planet.color}`,
-    768,
-    384,
-    planet,
-    paintFlatToxicTexture,
-  );
-  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation);
+  drawSurfacePainterOnPlanet(ctx, 768, 384, planet, paintFlatToxicTexture, radius, planet.rotation);
 }

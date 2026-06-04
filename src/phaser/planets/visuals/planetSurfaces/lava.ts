@@ -1,5 +1,5 @@
 import type { PlanetSpriteSource as Planet } from '../../types';
-import { drawFlatTextureOnSphere, getFlatPlanetTexture } from '../planetTextureEngine';
+import { drawSurfacePainterOnPlanet } from '../planetTextureEngine';
 import { alphaColor } from './shared';
 
 type LavaPool = {
@@ -191,12 +191,7 @@ export function drawLavaSurface(
   ctx: CanvasRenderingContext2D,
   radius: number,
 ): void {
-  const texture = getLavaTexture(planet);
-  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation);
-}
-
-export function getLavaTexture(planet: Planet): HTMLCanvasElement {
-  return getFlatPlanetTexture(`lava-flat|${planet.color}`, 768, 384, planet, paintFlatLavaTexture);
+  drawSurfacePainterOnPlanet(ctx, 768, 384, planet, paintFlatLavaTexture, radius, planet.rotation);
 }
 
 export function drawLavaCrescent(ctx: CanvasRenderingContext2D, radius: number): void {

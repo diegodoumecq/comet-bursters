@@ -1,5 +1,5 @@
 import type { PlanetSpriteSource as Planet } from '../../types';
-import { drawFlatTextureOnSphere, getFlatPlanetTexture } from '../planetTextureEngine';
+import { drawSurfacePainterOnPlanet } from '../planetTextureEngine';
 import { alphaColor } from './shared';
 
 function paintFlatIceTexture(
@@ -62,12 +62,5 @@ export function drawIceSurface(
   ctx: CanvasRenderingContext2D,
   radius: number,
 ): void {
-  const texture = getFlatPlanetTexture(
-    `ice-flat|${planet.color}`,
-    768,
-    384,
-    planet,
-    paintFlatIceTexture,
-  );
-  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation);
+  drawSurfacePainterOnPlanet(ctx, 768, 384, planet, paintFlatIceTexture, radius, planet.rotation);
 }

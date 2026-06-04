@@ -26,6 +26,7 @@ const DEMO_PLAYER_MAX_SPEED = 42;
 const DEMO_PLAYER_FRICTION_AIR = 0.045;
 const DEMO_PLANET_ROW_START = { x: 520, y: 1180 };
 const DEMO_PLANET_GAP = 110;
+const DEMO_SHOWCASE_ROTATION = 0;
 
 export class PhaserDemoScene extends BaseGameScene {
   private actions!: ActionReader;
@@ -127,7 +128,10 @@ export class PhaserDemoScene extends BaseGameScene {
       }
       const x = nextLeft + spec.radius * 1.5;
       nextLeft = x + spec.radius + DEMO_PLANET_GAP;
-      return createPlanet(x, nextTop, spec);
+      const planet = createPlanet(x, nextTop, spec);
+      planet.rotation = DEMO_SHOWCASE_ROTATION;
+      planet.rotationSpeed = 0;
+      return planet;
     });
     for (const planet of this.planets) {
       this.planetViews.add(planet);
@@ -153,6 +157,8 @@ export class PhaserDemoScene extends BaseGameScene {
     this.asteroids = layouts.map(({ tier, visualVariant, x, y }) => {
       const asteroid = createAsteroid(tier, { x, y }, { x: 0, y: 0 });
       asteroid.visualVariant = visualVariant;
+      asteroid.rotation = DEMO_SHOWCASE_ROTATION;
+      asteroid.angularVelocity = 0;
       this.asteroidBodies.add(asteroid).setStatic(true);
       this.add
         .text(x, y + ASTEROIDS[tier].radius + 18, `${tier} / variant ${visualVariant}`, {

@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
 
+import { createCanvasTexture } from '../core/canvasTextures';
+import { getPlanetDisplaySizeForRadius, getPlanetTextureSizing } from './textureSizing';
 import type { PlanetEntity, PlanetSpriteSource } from './types';
 import { drawStyledPlanet } from './visuals/planetVisuals';
 
-const PLANET_CACHE_PADDING = 80;
-const PLANET_TEXTURE_EXTENT_SCALE = 1.7;
-const PLANET_TEXTURE_VERSION = 'legacy-render-v6';
+const PLANET_TEXTURE_VERSION = 'v18-direct-painter-surface';
 const textureKeys = new Map<string, string>();
 
 export function getPlanetTextureKey(scene: Phaser.Scene, planet: PlanetEntity): string {
@@ -19,35 +19,41 @@ export function getPlanetTextureKey(scene: Phaser.Scene, planet: PlanetEntity): 
   const cached = textureKeys.get(cacheKey);
   if (cached && scene.textures.exists(cached)) return cached;
 
-  const textureKey = `phaser-planet-${textureKeys.size}`;
-  const canvas = createPlanetCanvas(planet);
-  scene.textures.addCanvas(textureKey, canvas);
+  const textureKey = `phaser-planet-${PLANET_TEXTURE_VERSION}-${textureKeys.size}`;
+  createPlanetTexture(scene, textureKey, planet);
   textureKeys.set(cacheKey, textureKey);
   return textureKey;
 }
 
-export function getPlanetTextureSize(planet: PlanetEntity): number {
-  const extent = planet.radius * PLANET_TEXTURE_EXTENT_SCALE + PLANET_CACHE_PADDING;
-  return Math.ceil(extent * 2);
+export function getPlanetDisplaySize(planet: PlanetEntity): number {
+  return getPlanetDisplaySizeForRadius(planet.radius);
 }
 
-function createPlanetCanvas(planet: PlanetEntity): HTMLCanvasElement {
-  const size = getPlanetTextureSize(planet);
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    drawStyledPlanet(toSpriteSource(planet, size), ctx);
+function createPlanetTexture(scene: Phaser.Scene, textureKey: string, planet: PlanetEntity): void {
+  const sizing = getPlanetTextureSizing(planet.radius, getRendererMaxTextureSize(scene));
+  createCanvasTexture(scene, textureKey, sizing.textureSize, sizing.textureSize, (ctx) => {
+    drawStyledPlanet(toSpriteSource(planet, sizing.textureSize, sizing.textureScale), ctx);
+  });
+}
+
+function getRendererMaxTextureSize(scene: Phaser.Scene): number | null {
+  const renderer = scene.sys.renderer;
+  if (renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer) {
+    const maxTextureSize = renderer.gl.getParameter(renderer.gl.MAX_TEXTURE_SIZE);
+    if (typeof maxTextureSize === 'number' && maxTextureSize > 0) return maxTextureSize;
   }
-  return canvas;
+  return null;
 }
 
-function toSpriteSource(planet: PlanetEntity, canvasSize: number): PlanetSpriteSource {
+function toSpriteSource(
+  planet: PlanetEntity,
+  canvasSize: number,
+  textureScale: number,
+): PlanetSpriteSource {
   return {
     altitudeVariations: planet.altitudeVariations,
     color: planet.colorHex,
-    getRadius: () => planet.radius,
+    getRadius: () => planet.radius * textureScale,
     kind: planet.kind,
     rotation: 0,
     x: canvasSize * 0.5,

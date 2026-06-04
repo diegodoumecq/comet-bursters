@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 
-import { getPlanetTextureKey, getPlanetTextureSize } from './textures';
+import { getPlanetDisplaySize, getPlanetTextureKey } from './textures';
 import type { PlanetEntity } from './types';
 
 export class PlanetViews {
@@ -10,7 +10,7 @@ export class PlanetViews {
 
   add(planet: PlanetEntity): Phaser.GameObjects.Image {
     const textureKey = getPlanetTextureKey(this.scene, planet);
-    const size = getPlanetTextureSize(planet);
+    const size = getPlanetDisplaySize(planet);
     const sprite = this.scene.add
       .image(planet.position.x, planet.position.y, textureKey)
       .setDisplaySize(size, size)

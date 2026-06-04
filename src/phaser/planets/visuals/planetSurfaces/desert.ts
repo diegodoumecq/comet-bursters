@@ -1,5 +1,5 @@
 import type { PlanetSpriteSource as Planet } from '../../types';
-import { drawFlatTextureOnSphere, getFlatPlanetTexture } from '../planetTextureEngine';
+import { drawSurfacePainterOnPlanet } from '../planetTextureEngine';
 import { alphaColor } from './shared';
 
 function withWrappedX(width: number, x: number, draw: (wrappedX: number) => void): void {
@@ -255,12 +255,13 @@ export function drawDesertSurface(
   ctx: CanvasRenderingContext2D,
   radius: number,
 ): void {
-  const texture = getFlatPlanetTexture(
-    `desert-flat|${planet.color}`,
+  drawSurfacePainterOnPlanet(
+    ctx,
     768,
     384,
     planet,
     paintFlatDesertTexture,
+    radius,
+    planet.rotation,
   );
-  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation);
 }

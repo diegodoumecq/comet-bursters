@@ -2,8 +2,8 @@ import Phaser from 'phaser';
 
 import { ASTEROID_COLLISION_CATEGORY } from '../combat/collisionCategories';
 import type { MatterImage, Vector, WorldSize } from '../core/types';
-import { ASTEROIDS } from './logic';
-import { ASTEROID_TEXTURES } from './textures';
+import { ASTEROIDS } from './config';
+import { ASTEROID_TEXTURES, getAsteroidTextureDisplaySize } from './textures';
 import { getToroidalOffsets, wrapCoordinate } from './toroidal';
 import type { AsteroidEntity } from './types';
 
@@ -50,20 +50,7 @@ export class AsteroidBodies {
       return existing;
     }
 
-    const config = ASTEROIDS[asteroid.tier];
-    const body = this.scene.matter.add.image(
-      asteroid.position.x,
-      asteroid.position.y,
-      ASTEROID_TEXTURES[asteroid.tier][asteroid.visualVariant],
-    ) as MatterImage;
-    body.setCircle(config.collisionRadius);
-    body.setMass(config.mass);
-    body.setFrictionAir(0);
-    body.setBounce(1);
-    body.body.collisionFilter.category = ASTEROID_COLLISION_CATEGORY;
-    body.setVelocity(asteroid.velocity.x, asteroid.velocity.y);
-    body.setRotation(asteroid.rotation);
-    body.setAngularVelocity(asteroid.angularVelocity);
+    const body = this.createBody(asteroid);
     this.bodies.set(asteroid.id, body);
     this.attached.add(asteroid.id);
     this.syncCollisionFilter(asteroid);
@@ -249,6 +236,8 @@ export class AsteroidBodies {
       asteroid.position.y,
       ASTEROID_TEXTURES[asteroid.tier][asteroid.visualVariant],
     ) as MatterImage;
+    const displaySize = getAsteroidTextureDisplaySize(asteroid.tier);
+    body.setDisplaySize(displaySize, displaySize);
     body.setCircle(config.collisionRadius);
     body.setMass(config.mass);
     body.setFrictionAir(0);

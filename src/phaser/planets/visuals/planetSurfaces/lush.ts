@@ -1,5 +1,5 @@
 import type { PlanetSpriteSource as Planet } from '../../types';
-import { drawFlatTextureOnSphere, getFlatPlanetTexture } from '../planetTextureEngine';
+import { drawSurfacePainterOnPlanet } from '../planetTextureEngine';
 import { alphaColor } from './shared';
 
 function seededNoise(seed: number): number {
@@ -290,12 +290,5 @@ export function drawLushSurface(
   ctx: CanvasRenderingContext2D,
   radius: number,
 ): void {
-  const texture = getFlatPlanetTexture(
-    `lush-flat-v4|${planet.color}`,
-    768,
-    384,
-    planet,
-    paintFlatLushTexture,
-  );
-  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation);
+  drawSurfacePainterOnPlanet(ctx, 768, 384, planet, paintFlatLushTexture, radius, planet.rotation);
 }

@@ -1,5 +1,5 @@
 import type { PlanetSpriteSource as Planet } from '../../types';
-import { drawFlatTextureOnSphere, getFlatPlanetTexture } from '../planetTextureEngine';
+import { drawSurfacePainterOnPlanet } from '../planetTextureEngine';
 import { alphaColor } from './shared';
 
 type CrystalFacet = {
@@ -388,14 +388,15 @@ export function drawCrystalSurface(
   ctx: CanvasRenderingContext2D,
   radius: number,
 ): void {
-  const texture = getFlatPlanetTexture(
-    `crystal-flat|${planet.color}`,
+  drawSurfacePainterOnPlanet(
+    ctx,
     768,
     384,
     planet,
     paintFlatCrystalTexture,
+    radius,
+    planet.rotation,
   );
-  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation);
 }
 
 export function drawCrystalCrescent(ctx: CanvasRenderingContext2D, radius: number): void {

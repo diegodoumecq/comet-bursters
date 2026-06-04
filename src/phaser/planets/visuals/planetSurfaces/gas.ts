@@ -1,5 +1,5 @@
 import type { PlanetSpriteSource as Planet } from '../../types';
-import { drawFlatTextureOnSphere, getFlatPlanetTexture } from '../planetTextureEngine';
+import { drawSurfacePainterOnPlanet } from '../planetTextureEngine';
 import { alphaColor } from './shared';
 
 function paintFlatGasTexture(
@@ -53,12 +53,5 @@ export function drawGasSurface(
   ctx: CanvasRenderingContext2D,
   radius: number,
 ): void {
-  const texture = getFlatPlanetTexture(
-    `gas-flat|${planet.color}`,
-    768,
-    384,
-    planet,
-    paintFlatGasTexture,
-  );
-  drawFlatTextureOnSphere(ctx, texture, radius, planet.rotation);
+  drawSurfacePainterOnPlanet(ctx, 768, 384, planet, paintFlatGasTexture, radius, planet.rotation);
 }
