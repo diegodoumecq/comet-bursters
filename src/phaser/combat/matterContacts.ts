@@ -3,6 +3,8 @@ import type Phaser from 'phaser';
 import type { AsteroidBodies } from '../asteroids/bodies';
 import type { AsteroidEntity } from '../asteroids/types';
 import type { Vector } from '../core/types';
+import type { FuelBodies } from '../fuel/bodies';
+import type { FuelBlobEntity } from '../fuel/types';
 import type { ProjectileBodies } from '../projectiles/bodies';
 import type { ProjectileEntity } from '../projectiles/types';
 
@@ -14,8 +16,13 @@ export type PlayerAsteroidContact = {
 export class MatterContacts {
   private readonly playerAsteroids: PlayerAsteroidContact[] = [];
   private readonly shieldAsteroids = new Set<AsteroidEntity>();
+  private readonly playerFuelBlobs = new Set<FuelBlobEntity>();
   private readonly projectileAsteroids: Array<{
     asteroid: AsteroidEntity;
+    projectile: ProjectileEntity;
+  }> = [];
+  private readonly projectileFuelBlobs: Array<{
+    blob: FuelBlobEntity;
     projectile: ProjectileEntity;
   }> = [];
   private playerBody: MatterJS.BodyType | null = null;
@@ -23,6 +30,8 @@ export class MatterContacts {
   private readonly asteroidsByBodyId = new Map<number, AsteroidEntity>();
   private readonly asteroidBodyIds = new WeakMap<AsteroidEntity, Set<number>>();
   private readonly asteroidVelocitiesBeforeStep = new Map<number, Vector>();
+  private readonly fuelBlobsByBodyId = new Map<number, FuelBlobEntity>();
+  private readonly fuelBlobBodyIds = new WeakMap<FuelBlobEntity, number>();
   private readonly projectilesByBodyId = new Map<number, ProjectileEntity>();
   private readonly projectileBodyIds = new WeakMap<ProjectileEntity, number>();
 
@@ -42,10 +51,23 @@ export class MatterContacts {
         for (const pair of event.pairs) {
           this.capturePlayerAsteroid(pair.bodyA, pair.bodyB);
           this.capturePlayerAsteroid(pair.bodyB, pair.bodyA);
+          this.capturePlayerFuelBlob(pair.bodyA, pair.bodyB);
+          this.capturePlayerFuelBlob(pair.bodyB, pair.bodyA);
           this.captureProjectileAsteroid(pair.bodyA, pair.bodyB);
           this.captureProjectileAsteroid(pair.bodyB, pair.bodyA);
+          this.captureProjectileFuelBlob(pair.bodyA, pair.bodyB);
+          this.captureProjectileFuelBlob(pair.bodyB, pair.bodyA);
           this.captureShieldAsteroid(pair.bodyA, pair.bodyB);
           this.captureShieldAsteroid(pair.bodyB, pair.bodyA);
+        }
+      },
+    );
+    scene.matter.world.on(
+      'collisionactive',
+      (event: { pairs: Array<{ bodyA: MatterJS.BodyType; bodyB: MatterJS.BodyType }> }) => {
+        for (const pair of event.pairs) {
+          this.capturePlayerFuelBlob(pair.bodyA, pair.bodyB);
+          this.capturePlayerFuelBlob(pair.bodyB, pair.bodyA);
         }
       },
     );
@@ -88,6 +110,22 @@ export class MatterContacts {
     this.removeQueuedProjectileAsteroidContacts((contact) => contact.asteroid === asteroid);
   }
 
+  addFuelBlob(blob: FuelBlobEntity, runtime: FuelBodies): void {
+    const bodyId = runtime.getBodyId(blob);
+    this.fuelBlobsByBodyId.set(bodyId, blob);
+    this.fuelBlobBodyIds.set(blob, bodyId);
+  }
+
+  removeFuelBlob(blob: FuelBlobEntity): void {
+    const bodyId = this.fuelBlobBodyIds.get(blob);
+    if (bodyId !== undefined) {
+      this.fuelBlobsByBodyId.delete(bodyId);
+      this.fuelBlobBodyIds.delete(blob);
+    }
+    this.playerFuelBlobs.delete(blob);
+    this.removeQueuedProjectileFuelBlobContacts((contact) => contact.blob === blob);
+  }
+
   addProjectile(projectile: ProjectileEntity, runtime: ProjectileBodies): void {
     const bodyId = runtime.get(projectile).body.id;
     this.projectilesByBodyId.set(bodyId, projectile);
@@ -101,6 +139,7 @@ export class MatterContacts {
       this.projectileBodyIds.delete(projectile);
     }
     this.removeQueuedProjectileAsteroidContacts((contact) => contact.projectile === projectile);
+    this.removeQueuedProjectileFuelBlobContacts((contact) => contact.projectile === projectile);
   }
 
   consumePlayerAsteroids(): AsteroidEntity[] {
@@ -117,6 +156,18 @@ export class MatterContacts {
   consumeProjectileAsteroids(): Array<{ asteroid: AsteroidEntity; projectile: ProjectileEntity }> {
     const contacts = [...this.projectileAsteroids];
     this.projectileAsteroids.length = 0;
+    return contacts;
+  }
+
+  consumePlayerFuelBlobs(): FuelBlobEntity[] {
+    const contacts = [...this.playerFuelBlobs];
+    this.playerFuelBlobs.clear();
+    return contacts;
+  }
+
+  consumeProjectileFuelBlobs(): Array<{ blob: FuelBlobEntity; projectile: ProjectileEntity }> {
+    const contacts = [...this.projectileFuelBlobs];
+    this.projectileFuelBlobs.length = 0;
     return contacts;
   }
 
@@ -150,6 +201,20 @@ export class MatterContacts {
       this.projectileAsteroids.push({ asteroid, projectile });
   }
 
+  private capturePlayerFuelBlob(left: MatterJS.BodyType, right: MatterJS.BodyType): void {
+    if (this.playerBody && left.id === this.playerBody.id) {
+      const blob = this.fuelBlobsByBodyId.get(right.id);
+      if (blob) this.playerFuelBlobs.add(blob);
+    }
+  }
+
+  private captureProjectileFuelBlob(left: MatterJS.BodyType, right: MatterJS.BodyType): void {
+    const projectile = this.projectilesByBodyId.get(left.id);
+    const blob = this.fuelBlobsByBodyId.get(right.id);
+    if (projectile && blob && !this.hasProjectileFuelBlobContact(projectile, blob))
+      this.projectileFuelBlobs.push({ blob, projectile });
+  }
+
   private captureShieldAsteroid(left: MatterJS.BodyType, right: MatterJS.BodyType): void {
     if (this.shieldBody && left.id === this.shieldBody.id) {
       const asteroid = this.asteroidsByBodyId.get(right.id);
@@ -163,6 +228,16 @@ export class MatterContacts {
     for (let index = this.projectileAsteroids.length - 1; index >= 0; index -= 1) {
       if (shouldRemove(this.projectileAsteroids[index])) {
         this.projectileAsteroids.splice(index, 1);
+      }
+    }
+  }
+
+  private removeQueuedProjectileFuelBlobContacts(
+    shouldRemove: (contact: { blob: FuelBlobEntity; projectile: ProjectileEntity }) => boolean,
+  ): void {
+    for (let index = this.projectileFuelBlobs.length - 1; index >= 0; index -= 1) {
+      if (shouldRemove(this.projectileFuelBlobs[index])) {
+        this.projectileFuelBlobs.splice(index, 1);
       }
     }
   }
@@ -183,6 +258,15 @@ export class MatterContacts {
   ): boolean {
     return this.projectileAsteroids.some(
       (contact) => contact.projectile === projectile && contact.asteroid === asteroid,
+    );
+  }
+
+  private hasProjectileFuelBlobContact(
+    projectile: ProjectileEntity,
+    blob: FuelBlobEntity,
+  ): boolean {
+    return this.projectileFuelBlobs.some(
+      (contact) => contact.projectile === projectile && contact.blob === blob,
     );
   }
 

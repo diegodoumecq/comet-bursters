@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { updateFuelBlob, updateFuelBlobs } from './blobLogic';
+import {
+  getFuelBlobExplosionChain,
+  spawnAsteroidFuelDrops,
+  spawnFuelBlobs,
+  updateFuelBlob,
+  updateFuelBlobs,
+} from './blobLogic';
+import { FUEL_BLOB_SPAWN_DRIFT_MAX_SPEED } from './rules';
 
 vi.mock('phaser', () => ({
   default: {
@@ -27,7 +34,7 @@ describe('fuel blob movement', () => {
 
     updateFuelBlob(blob, { x: 0, y: 0 }, true, 1 / 60, world);
 
-    expect(blob.velocity.x).toBeLessThan(-2);
+    expect(blob.velocity.x).toBeLessThan(-0.015);
   });
 
   it('does not pull toward the player when collection is disabled', () => {
@@ -70,4 +77,49 @@ describe('fuel blob movement', () => {
     expect(normal.collected).toHaveLength(0);
     expect(scaled.collected).toHaveLength(1);
   });
+
+  it('spawns settled fuel drops without inheriting source explosion velocity', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+
+    const blobs = spawnFuelBlobs({ x: 100, y: 200 }, 1);
+
+    expect(Math.hypot(blobs[0].velocity.x, blobs[0].velocity.y)).toBe(
+      FUEL_BLOB_SPAWN_DRIFT_MAX_SPEED,
+    );
+  });
+
+  it('does not launch asteroid fuel drops with asteroid velocity', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+
+    const blobs = spawnAsteroidFuelDrops({
+      angularVelocity: 0,
+      id: 1,
+      position: { x: 100, y: 200 },
+      rotation: 0,
+      tier: 'mega',
+      velocity: { x: 500, y: 0 },
+      visualVariant: 0,
+    });
+
+    expect(blobs[0].velocity.x).toBe(FUEL_BLOB_SPAWN_DRIFT_MAX_SPEED);
+  });
 });
+
+describe('fuel blob chain reactions', () => {
+  it('walks nearby fuel blobs through the reaction radius', () => {
+    const blobs = [fuelBlob(1, 0), fuelBlob(2, 90), fuelBlob(3, 180), fuelBlob(4, 300)];
+
+    const exploded = getFuelBlobExplosionChain({ blobs, origin: blobs[0], radius: 92 });
+
+    expect(exploded.map((blob) => blob.id)).toEqual([1, 2, 3]);
+  });
+});
+
+function fuelBlob(id: number, x: number) {
+  return {
+    id,
+    position: { x, y: 0 },
+    velocity: { x: 0, y: 0 },
+    wobbleSeed: 0,
+  };
+}

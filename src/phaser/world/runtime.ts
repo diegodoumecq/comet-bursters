@@ -1,7 +1,7 @@
 import type { AsteroidBodies } from '../asteroids/bodies';
 import type { AsteroidEntity } from '../asteroids/types';
 import type { MatterContacts } from '../combat/matterContacts';
-import type { FuelBlobViews } from '../fuel/blobViews';
+import type { FuelBodies } from '../fuel/bodies';
 import type { FuelBlobEntity } from '../fuel/types';
 import type { ParticleEntity } from '../particles/types';
 import type { ParticleViews } from '../particles/views';
@@ -15,7 +15,7 @@ export class GameWorldRuntime {
   constructor(
     private readonly asteroidBodies: AsteroidBodies,
     private readonly projectileBodies: ProjectileBodies,
-    private readonly fuelBlobViews: FuelBlobViews,
+    private readonly fuelBodies: FuelBodies,
     private readonly particleViews: ParticleViews,
     private readonly contacts: MatterContacts,
     world = new GameWorld(),
@@ -39,7 +39,10 @@ export class GameWorldRuntime {
 
   addFuelBlobs(blobs: FuelBlobEntity[]): void {
     this.world.addFuelBlobs(blobs);
-    for (const blob of blobs) this.fuelBlobViews.add(blob);
+    for (const blob of blobs) {
+      this.fuelBodies.add(blob);
+      this.contacts.addFuelBlob(blob, this.fuelBodies);
+    }
   }
 
   addParticles(particles: ParticleEntity[]): void {
@@ -60,7 +63,8 @@ export class GameWorldRuntime {
   }
 
   removeFuelBlob(blob: FuelBlobEntity): void {
-    this.fuelBlobViews.remove(blob);
+    this.contacts.removeFuelBlob(blob);
+    this.fuelBodies.remove(blob);
     this.world.removeFuelBlob(blob);
   }
 
@@ -70,7 +74,11 @@ export class GameWorldRuntime {
   }
 
   syncFuelBlobs(): void {
-    for (const blob of this.world.fuelBlobs) this.fuelBlobViews.sync(blob);
+    for (const blob of this.world.fuelBlobs) this.fuelBodies.sync(blob);
+  }
+
+  getFuelBodies(): FuelBodies {
+    return this.fuelBodies;
   }
 
   syncParticles(): void {

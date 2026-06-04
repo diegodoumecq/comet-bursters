@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
-import { getWeaponIconSprite } from '../../constants';
 import type { Vector } from '../core/types';
+import { getWeaponIconSprite } from '../weapons/icons';
 import type { WeaponKind } from '../weapons/types';
 
 const RADIAL_MENU_INNER_RADIUS = 34;

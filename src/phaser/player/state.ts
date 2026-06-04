@@ -1,6 +1,6 @@
 import type { Vector } from '../core/types';
 import type { SpaceMembership } from '../dimensions/types';
-import type { ProjectileKind } from '../weapons/types';
+import type { DischargedWeaponKind } from '../weapons/types';
 
 export class PlayerState {
   position: Vector = { x: 0, y: 0 };
@@ -11,8 +11,9 @@ export class PlayerState {
   lastAim: Vector = { x: 0, y: -1 };
   lastThrustMove: Vector = { x: 0, y: -1 };
   membership: SpaceMembership = { space: 'arcade' };
-  lastShotAt: Record<ProjectileKind, number> = {
+  lastShotAt: Record<DischargedWeaponKind, number> = {
     blackHole: 0,
+    fuelGun: 0,
     inspectionProbe: 0,
     pusher: 0,
     shotgun: 0,

@@ -1,6 +1,6 @@
 import type { AsteroidBodies } from '../../asteroids/bodies';
 import type { Vector, WorldSize } from '../../core/types';
-import type { FuelBlobViews } from '../../fuel/blobViews';
+import type { FuelBodies } from '../../fuel/bodies';
 import type { ParticleViews } from '../../particles/views';
 import type { PlanetViews } from '../../planets/views';
 import type { PlayerBody } from '../../player/body';
@@ -13,7 +13,7 @@ import type { SandboxPlanetEntity } from './planetFuel';
 
 type SandboxWorldPositioningInput = {
   asteroidBodies: AsteroidBodies;
-  fuelBlobViews: FuelBlobViews;
+  fuelBodies: FuelBodies;
   mothership: Mothership;
   now: number;
   particleViews: ParticleViews;
@@ -49,7 +49,7 @@ export function rebaseWorldAroundPlayer(input: SandboxWorldPositioningInput): vo
   for (const blob of input.runtime.world.fuelBlobs) {
     blob.position.x += shift.x;
     blob.position.y += shift.y;
-    input.fuelBlobViews.sync(blob);
+    input.fuelBodies.setPosition(blob, blob.position);
   }
   for (const particle of input.runtime.world.particles) {
     particle.position.x += shift.x;
@@ -80,7 +80,7 @@ export function keepMovingEntitiesNearPlayer(input: SandboxWorldPositioningInput
   }
   for (const blob of input.runtime.world.fuelBlobs) {
     blob.position = nearestWrappedPosition(input.player.position, blob.position, input.world);
-    input.fuelBlobViews.sync(blob);
+    input.fuelBodies.setPosition(blob, blob.position);
   }
   for (const particle of input.runtime.world.particles) {
     particle.position = nearestWrappedPosition(

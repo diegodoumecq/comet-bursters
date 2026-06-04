@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
 
 import { AsteroidBodies } from '../asteroids/bodies';
-import { getGameAudio } from '../audio/AudioManager';
-import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
 import { ASTEROIDS } from '../asteroids/logic';
 import { updateAsteroidSplitCollisions } from '../asteroids/splitCollisions';
 import type { AsteroidEntity } from '../asteroids/types';
+import { getGameAudio } from '../audio/AudioManager';
+import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
 import { destroyAsteroidWithWeapon } from '../combat/asteroidDestruction';
 import {
   applyProjectileImpulse,
@@ -23,6 +23,8 @@ import {
   createThrusterParticles,
   type EffectResult,
 } from '../combat/effects';
+import { updateFuelBlobCollection } from '../combat/fuelCollection';
+import { resolveProjectileFuelBlobCombatEvents } from '../combat/fuel';
 import { MatterContacts, type PlayerAsteroidContact } from '../combat/matterContacts';
 import {
   getPortalBridgeProjectileAsteroidContacts,
@@ -38,8 +40,8 @@ import { PortalDirector } from '../dimensions/PortalDirector';
 import { portalApertureContainsCenter } from '../dimensions/portalGeometry';
 import { resetDimensionCoordinator } from '../dimensions/runtime';
 import type { DimensionCommand, PortalViewPolicy, SpaceId } from '../dimensions/types';
-import { spawnFuelBlobs, updateFuelBlobs } from '../fuel/blobLogic';
-import { FuelBlobViews } from '../fuel/blobViews';
+import { isFuelBlobCollectable, spawnFuelBlobs } from '../fuel/blobLogic';
+import { FuelBodies } from '../fuel/bodies';
 import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS, MAX_FUEL, SHIELD_RADIUS } from '../fuel/rules';
 import type { FuelBlobEntity } from '../fuel/types';
 import { ActionReader } from '../input/actions';
@@ -96,7 +98,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   private contacts!: MatterContacts;
   private asteroidBodies!: AsteroidBodies;
   private projectileBodies!: ProjectileBodies;
-  private fuelBlobViews!: FuelBlobViews;
+  private fuelBodies!: FuelBodies;
   private particleViews!: ParticleViews;
   private runtime!: SpaceWorldRuntime;
   private renderEffects!: ArcadeRenderEffects;
@@ -139,7 +141,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.contacts = new MatterContacts(this);
     this.asteroidBodies = new AsteroidBodies(this);
     this.projectileBodies = new ProjectileBodies(this);
-    this.fuelBlobViews = new FuelBlobViews();
+    this.fuelBodies = new FuelBodies(this);
     this.particleViews = new ParticleViews(this);
     this.dimensionCoordinator = resetDimensionCoordinator();
     this.runtime = new SpaceWorldRuntime(
@@ -147,7 +149,7 @@ export class PhaserArcadeScene extends BaseGameScene {
       {
         asteroidBodies: this.asteroidBodies,
         contacts: this.contacts,
-        fuelBlobViews: this.fuelBlobViews,
+        fuelBodies: this.fuelBodies,
         particleViews: this.particleViews,
         persistentPlayerBody: true,
         projectileBodies: this.projectileBodies,
@@ -273,14 +275,26 @@ export class PhaserArcadeScene extends BaseGameScene {
     for (const projectile of weaponResult.projectiles) {
       this.audioDirector.emit({
         position: projectile.position,
-        projectile: projectile.kind,
         type: 'weaponFired',
+        weapon: projectile.kind,
       });
       if (playerInRift) {
         this.dimensionCoordinator.requireWorld('rift').addProjectile(projectile);
       } else {
         this.addProjectile(projectile);
       }
+    }
+    for (const blob of weaponResult.fuelBlobs) {
+      this.audioDirector.emit({
+        position: blob.position,
+        type: 'weaponFired',
+        weapon: 'fuelGun',
+      });
+    }
+    if (playerInRift) {
+      this.dimensionCoordinator.requireWorld('rift').addFuelBlobs(weaponResult.fuelBlobs);
+    } else {
+      this.addFuelBlobs(weaponResult.fuelBlobs);
     }
     const tractorActive = weaponResult.tractorActive;
     if (!playerInRift) {
@@ -551,6 +565,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private applyRuntimeProjectileCombat(runtime: SpaceWorldRuntime): void {
+    this.applyRuntimeProjectileFuelBlobCombat(runtime);
     const activeProjectiles = new Set(runtime.world.projectiles);
     for (const event of resolveProjectileContactCombat(
       runtime
@@ -573,6 +588,28 @@ export class PhaserArcadeScene extends BaseGameScene {
         runtime.addAsteroids(destruction.children);
         runtime.removeAsteroid(event.asteroid);
       }
+    }
+  }
+
+  private applyRuntimeProjectileFuelBlobCombat(runtime: SpaceWorldRuntime): void {
+    for (const event of resolveProjectileFuelBlobCombatEvents({
+      contacts: runtime.getContacts().consumeProjectileFuelBlobs(),
+      fuelBlobs: runtime.world.fuelBlobs,
+      getDistance: (from, to) => this.getWrappedDistance(from, to),
+      projectiles: runtime.world.projectiles,
+    })) {
+      runtime.removeProjectile(event.projectile);
+      this.explodeFuelBlobs(runtime, event.blobs);
+    }
+  }
+
+  private explodeFuelBlobs(runtime: SpaceWorldRuntime, blobs: FuelBlobEntity[]): void {
+    for (const blob of blobs) {
+      const effect = createExplosionBurst(blob.position, blob.velocity, 0.45);
+      runtime.addParticles(effect.particles);
+      if (effect.shakeDurationMs > 0)
+        this.startShake(effect.shakeIntensity, effect.shakeDurationMs);
+      runtime.removeFuelBlob(blob);
     }
   }
 
@@ -602,9 +639,7 @@ export class PhaserArcadeScene extends BaseGameScene {
       onBlackHoleRemoved: (projectile) => runtime.removeProjectile(projectile),
       onFuelBurst: (projectile) => {
         if (projectile.absorbedFuel > 0) {
-          runtime.addFuelBlobs(
-            spawnFuelBlobs(projectile.position, projectile.velocity, projectile.absorbedFuel),
-          );
+          runtime.addFuelBlobs(spawnFuelBlobs(projectile.position, projectile.absorbedFuel));
         }
         const effect = createExplosionBurst(
           projectile.position,
@@ -630,6 +665,7 @@ export class PhaserArcadeScene extends BaseGameScene {
       projectiles: runtime.world.projectiles,
       timeScale: deltaSeconds * 60,
     });
+    this.syncRuntimeFuelBodyVelocities(runtime);
   }
 
   private resolvePortalBridgeCollisions(): void {
@@ -851,17 +887,21 @@ export class PhaserArcadeScene extends BaseGameScene {
     for (const blob of targetRuntime.world.fuelBlobs.filter((candidate) =>
       portalApertureContainsCenter(portal, candidate.position),
     )) {
-      applyBlackHoleGravityToVelocity(
-        blob.velocity,
-        blob.position,
-        blackHole.position,
-        radius * BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
-        radius,
-        (fromX, fromY, toX, toY) =>
-          wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize),
-        timeScale,
-        BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
-      );
+      if (
+        applyBlackHoleGravityToVelocity(
+          blob.velocity,
+          blob.position,
+          blackHole.position,
+          radius * BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
+          radius,
+          (fromX, fromY, toX, toY) =>
+            wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize),
+          timeScale,
+          BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
+        )
+      ) {
+        targetRuntime.getFuelBodies().setVelocity(blob, blob.velocity);
+      }
     }
   }
 
@@ -1014,29 +1054,31 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private collectFuelBlobs(deltaSeconds: number): void {
-    if (this.session.player.membership.space === 'rift') {
-      const riftRuntime = this.dimensionCoordinator.requireWorld('rift');
-      const result = updateFuelBlobs(
-        riftRuntime.world.fuelBlobs,
-        this.session.player.position,
-        this.playerIsAlive() && this.session.ship.fuel < MAX_FUEL,
-        deltaSeconds,
-        this.worldSize,
-      );
-      this.session.ship.collectFuel(result.fuelGain);
-      for (const blob of result.collected) riftRuntime.removeFuelBlob(blob);
-      return;
-    }
-    const result = updateFuelBlobs(
-      this.session.world.fuelBlobs,
-      this.session.player.position,
-      this.playerIsAlive() && this.session.ship.fuel < MAX_FUEL,
+    this.updateFuelRuntime(this.runtime, deltaSeconds);
+    const riftRuntime = this.dimensionCoordinator.getWorld('rift');
+    if (riftRuntime) this.updateFuelRuntime(riftRuntime, deltaSeconds);
+  }
+
+  private updateFuelRuntime(runtime: SpaceWorldRuntime, deltaSeconds: number): void {
+    const playerInRuntime = this.session.player.membership.space === runtime.space;
+    const canCollect = playerInRuntime && this.playerIsAlive() && this.session.ship.fuel < MAX_FUEL;
+    const fuel = updateFuelBlobCollection({
+      blobs: runtime.world.fuelBlobs,
+      canCollect,
+      contacts: runtime.getContacts(),
       deltaSeconds,
-      this.worldSize,
-    );
-    for (const blob of this.session.world.fuelBlobs) this.fuelBlobViews.sync(blob);
-    this.session.ship.collectFuel(result.fuelGain);
-    for (const blob of result.collected) this.removeFuelBlob(blob);
+      fuelBodies: runtime.getFuelBodies(),
+      now: this.time.now,
+      player: this.session.player.position,
+      world: this.worldSize,
+    });
+    this.session.ship.collectFuel(fuel.fuelGain);
+    for (const blob of fuel.collected) runtime.removeFuelBlob(blob);
+  }
+
+  private syncRuntimeFuelBodyVelocities(runtime: SpaceWorldRuntime): void {
+    const fuelBodies = runtime.getFuelBodies();
+    for (const blob of runtime.world.fuelBlobs) fuelBodies.setVelocity(blob, blob.velocity);
   }
 
   private collectPortalBridgeFuelBlobs(): void {
@@ -1051,6 +1093,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     const collected = oppositeRuntime.world.fuelBlobs.filter(
       (blob) =>
         portalApertureContainsCenter(portal, blob.position) &&
+        isFuelBlobCollectable(blob, this.time.now) &&
         circlesOverlap(
           Phaser.Math.Distance.Between(
             this.session.player.position.x,
@@ -1149,8 +1192,8 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.runtime.addProjectile(projectile);
   }
 
-  private removeFuelBlob(blob: FuelBlobEntity): void {
-    this.runtime.removeFuelBlob(blob);
+  private addFuelBlobs(blobs: FuelBlobEntity[]): void {
+    this.runtime.addFuelBlobs(blobs);
   }
 
   private removeParticle(particle: ParticleEntity): void {

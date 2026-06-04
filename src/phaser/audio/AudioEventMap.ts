@@ -1,6 +1,6 @@
 import { AUDIO_KEYS } from './audioKeys';
 import { SFX_CUE_CONFIG } from './audioConfig';
-import type { ProjectileKind } from '../weapons/types';
+import type { DischargedWeaponKind } from '../weapons/types';
 import type { AudioEvent, SfxKey } from './types';
 
 export type ResolvedAudioEvent = {
@@ -18,7 +18,7 @@ export function resolveAudioEvent(event: AudioEvent): ResolvedAudioEvent[] {
 }
 
 function getEventSfxKey(event: AudioEvent): SfxKey | null {
-  if (event.type === 'weaponFired') return getWeaponSfxKey(event.projectile);
+  if (event.type === 'weaponFired') return getWeaponSfxKey(event.weapon);
   if (event.type === 'asteroidDestroyed') return AUDIO_KEYS.sfx.asteroidDestroyed;
   if (event.type === 'asteroidImpact') return AUDIO_KEYS.sfx.asteroidImpact;
   if (event.type === 'fuelCollected') return AUDIO_KEYS.sfx.fuelCollected;
@@ -30,10 +30,11 @@ function getEventSfxKey(event: AudioEvent): SfxKey | null {
   return null;
 }
 
-function getWeaponSfxKey(projectile: ProjectileKind): SfxKey {
-  if (projectile === 'blackHole') return AUDIO_KEYS.sfx.weaponBlackHole;
-  if (projectile === 'inspectionProbe') return AUDIO_KEYS.sfx.weaponInspectionProbe;
-  if (projectile === 'pusher') return AUDIO_KEYS.sfx.weaponPusher;
-  if (projectile === 'shotgun') return AUDIO_KEYS.sfx.weaponShotgun;
+function getWeaponSfxKey(weapon: DischargedWeaponKind): SfxKey {
+  if (weapon === 'blackHole') return AUDIO_KEYS.sfx.weaponBlackHole;
+  if (weapon === 'fuelGun') return AUDIO_KEYS.sfx.weaponFuelGun;
+  if (weapon === 'inspectionProbe') return AUDIO_KEYS.sfx.weaponInspectionProbe;
+  if (weapon === 'pusher') return AUDIO_KEYS.sfx.weaponPusher;
+  if (weapon === 'shotgun') return AUDIO_KEYS.sfx.weaponShotgun;
   return AUDIO_KEYS.sfx.weaponSmall;
 }

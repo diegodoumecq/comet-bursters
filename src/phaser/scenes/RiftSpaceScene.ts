@@ -8,7 +8,7 @@ import type { Vector, WorldSize } from '../core/types';
 import { DimensionDebugOverlay } from '../dimensions/DimensionDebugOverlay';
 import { getDimensionCoordinator } from '../dimensions/runtime';
 import type { PortalEntity } from '../dimensions/types';
-import { FuelBlobViews } from '../fuel/blobViews';
+import { FuelBodies } from '../fuel/bodies';
 import type { ActionState } from '../input/actions';
 import { ParticleViews } from '../particles/views';
 import { PlayerBody } from '../player/body';
@@ -67,7 +67,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
       asteroidBodies: new AsteroidBodies(this),
       contacts: new MatterContacts(this),
       createPlayerBody: (player) => this.createPlayerBody(player),
-      fuelBlobViews: new FuelBlobViews(),
+      fuelBodies: new FuelBodies(this),
       particleViews: new ParticleViews(this),
       projectileBodies: new ProjectileBodies(this),
     });

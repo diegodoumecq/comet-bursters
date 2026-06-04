@@ -5,38 +5,32 @@ import { circlesOverlap } from '../core/collision';
 import type { Vector, WorldSize } from '../core/types';
 import { PLAYER_COLLISION_RADIUS } from '../player/config';
 import { wrapPoint } from '../world/geometry';
+import { createFuelBlob } from './factory';
 import {
   FUEL_BLOB_AMOUNT,
   FUEL_BLOB_ATTRACTION_ACCELERATION,
   FUEL_BLOB_ATTRACTION_RADIUS,
+  FUEL_BLOB_CHAIN_REACTION_RADIUS,
   FUEL_BLOB_DRAG_PER_FRAME,
   FUEL_BLOB_MAX_SPEED,
   FUEL_BLOB_RADIUS,
+  FUEL_BLOB_SPAWN_DRIFT_MAX_SPEED,
   getFuelDropCount,
 } from './rules';
 import type { FuelBlobEntity } from './types';
 
-let nextFuelBlobId = 1;
+export { createFuelBlob };
 
-export function createFuelBlob(position: Vector, velocity: Vector): FuelBlobEntity {
-  return {
-    id: nextFuelBlobId++,
-    position: { ...position },
-    velocity: { ...velocity },
-    wobbleSeed: Math.random(),
-  };
+export function isFuelBlobCollectable(blob: FuelBlobEntity, now: number): boolean {
+  return blob.collectableAtMs === undefined || now >= blob.collectableAtMs;
 }
 
-export function spawnFuelBlobs(
-  position: Vector,
-  baseVelocity: Vector,
-  count: number,
-): FuelBlobEntity[] {
+export function spawnFuelBlobs(position: Vector, count: number): FuelBlobEntity[] {
   const blobs: FuelBlobEntity[] = [];
   for (let index = 0; index < count; index += 1) {
     const angle = Math.random() * Math.PI * 2;
     const distance = Phaser.Math.FloatBetween(8, 28);
-    const speed = Phaser.Math.FloatBetween(21, 66);
+    const speed = Phaser.Math.FloatBetween(0, FUEL_BLOB_SPAWN_DRIFT_MAX_SPEED);
     blobs.push(
       createFuelBlob(
         {
@@ -44,8 +38,8 @@ export function spawnFuelBlobs(
           y: position.y + Math.sin(angle) * distance,
         },
         {
-          x: baseVelocity.x * 0.12 + Math.cos(angle) * speed,
-          y: baseVelocity.y * 0.12 + Math.sin(angle) * speed,
+          x: Math.cos(angle) * speed,
+          y: Math.sin(angle) * speed,
         },
       ),
     );
@@ -55,7 +49,7 @@ export function spawnFuelBlobs(
 
 export function spawnAsteroidFuelDrops(asteroid: AsteroidEntity): FuelBlobEntity[] {
   const count = getFuelDropCount(asteroid.tier);
-  return count === 0 ? [] : spawnFuelBlobs(asteroid.position, asteroid.velocity, count);
+  return count === 0 ? [] : spawnFuelBlobs(asteroid.position, count);
 }
 
 export function updateFuelBlob(
@@ -65,6 +59,19 @@ export function updateFuelBlob(
   deltaSeconds: number,
   world: WorldSize,
   wrap = true,
+): void {
+  applyFuelBlobMotion(blob, player, attractsToPlayer, deltaSeconds);
+  const frameScale = deltaSeconds * 60;
+  blob.position.x += blob.velocity.x * frameScale;
+  blob.position.y += blob.velocity.y * frameScale;
+  if (wrap) wrapPoint(blob.position, world);
+}
+
+export function applyFuelBlobMotion(
+  blob: FuelBlobEntity,
+  player: Vector,
+  attractsToPlayer: boolean,
+  deltaSeconds: number,
 ): void {
   if (attractsToPlayer) {
     const dx = player.x - blob.position.x;
@@ -79,18 +86,68 @@ export function updateFuelBlob(
     }
   }
 
+  limitFuelBlobSpeed(applyFuelBlobDrag(blob.velocity, deltaSeconds));
+}
+
+export function syncFuelBlobFromBody(
+  blob: FuelBlobEntity,
+  body: { body: MatterJS.BodyType; x: number; y: number },
+): void {
+  blob.position = { x: body.x, y: body.y };
+  blob.velocity = { x: body.body.velocity.x, y: body.body.velocity.y };
+}
+
+export function syncFuelBlobVelocityToBody(
+  blob: FuelBlobEntity,
+  body: { setVelocity: (x: number, y: number) => void },
+): void {
+  body.setVelocity(blob.velocity.x, blob.velocity.y);
+}
+
+export function getFuelBlobExplosionChain(input: {
+  blobs: FuelBlobEntity[];
+  getDistance?: (from: Vector, to: Vector) => number;
+  origin: FuelBlobEntity;
+  radius?: number;
+}): FuelBlobEntity[] {
+  const getDistance =
+    input.getDistance ?? ((from: Vector, to: Vector) => Math.hypot(to.x - from.x, to.y - from.y));
+  const radius = input.radius ?? FUEL_BLOB_CHAIN_REACTION_RADIUS;
+  const exploded: FuelBlobEntity[] = [];
+  const explodedIds = new Set<number>();
+  const pending = [input.origin];
+  for (let pendingIndex = 0; pendingIndex < pending.length; pendingIndex += 1) {
+    const current = pending[pendingIndex];
+    if (!explodedIds.has(current.id)) {
+      explodedIds.add(current.id);
+      exploded.push(current);
+      for (const candidate of input.blobs) {
+        if (
+          !explodedIds.has(candidate.id) &&
+          getDistance(current.position, candidate.position) <= radius
+        ) {
+          pending.push(candidate);
+        }
+      }
+    }
+  }
+  return exploded;
+}
+
+function applyFuelBlobDrag(velocity: Vector, deltaSeconds: number): Vector {
   const frameScale = deltaSeconds * 60;
   const drag = Math.pow(FUEL_BLOB_DRAG_PER_FRAME, frameScale);
-  blob.velocity.x *= drag;
-  blob.velocity.y *= drag;
-  const speed = Math.hypot(blob.velocity.x, blob.velocity.y);
+  velocity.x *= drag;
+  velocity.y *= drag;
+  return velocity;
+}
+
+function limitFuelBlobSpeed(velocity: Vector): void {
+  const speed = Math.hypot(velocity.x, velocity.y);
   if (speed > FUEL_BLOB_MAX_SPEED) {
-    blob.velocity.x = (blob.velocity.x / speed) * FUEL_BLOB_MAX_SPEED;
-    blob.velocity.y = (blob.velocity.y / speed) * FUEL_BLOB_MAX_SPEED;
+    velocity.x = (velocity.x / speed) * FUEL_BLOB_MAX_SPEED;
+    velocity.y = (velocity.y / speed) * FUEL_BLOB_MAX_SPEED;
   }
-  blob.position.x += blob.velocity.x * deltaSeconds;
-  blob.position.y += blob.velocity.y * deltaSeconds;
-  if (wrap) wrapPoint(blob.position, world);
 }
 
 export function updateFuelBlobs(

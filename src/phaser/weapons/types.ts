@@ -3,9 +3,11 @@ export type WeaponKind =
   | 'pusher'
   | 'shotgun'
   | 'blackHole'
+  | 'fuelGun'
   | 'tractor'
   | 'inspectionProbe';
-export type ProjectileKind = Exclude<WeaponKind, 'tractor'>;
+export type ProjectileKind = Exclude<WeaponKind, 'fuelGun' | 'tractor'>;
+export type DischargedWeaponKind = Exclude<WeaponKind, 'tractor'>;
 
 export type ProjectileSpec = {
   count: number;
@@ -18,5 +20,14 @@ export type ProjectileSpec = {
   recoil: number;
   speed: number;
   speedVariance: number;
+  spread: number;
+};
+
+export type FuelGunSpec = {
+  count: number;
+  fireIntervalMs: number;
+  fuelCost: number;
+  recoil: number;
+  speed: number;
   spread: number;
 };

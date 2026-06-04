@@ -1,5 +1,9 @@
 import { QueryModule } from 'joymap';
 
+/**
+ * @deprecated Legacy canvas-scene constants. New Phaser code must use modules under src/phaser.
+ */
+
 import type { SceneEntity } from './scenes/entities';
 import { gameState } from './state';
 import { createWeaponIconSprites } from './weaponIconSprites';
@@ -97,7 +101,7 @@ export interface FuelExtractor {
   blobs: FuelBlob[];
 }
 
-export type WeaponType = 'small' | 'blackHole' | 'pusher' | 'shotgun' | 'tractor';
+export type WeaponType = 'small' | 'blackHole' | 'pusher' | 'shotgun' | 'fuelGun' | 'tractor';
 export type SelectableWeaponType = WeaponType | 'inspectionProbe';
 
 export interface Bullet extends Partial<SceneEntity> {
@@ -200,6 +204,7 @@ export const FUEL_WEAPON_COSTS = {
   pusher: 0.2,
   shotgun: 3,
   blackHole: 12,
+  fuelGun: 5,
   tractor: 0.08,
 } as const;
 
@@ -308,6 +313,18 @@ export const BULLET_CONFIGS = {
     bulletCount: 12,
     spreadAngle: Math.PI / 4,
     speedVariance: 0.3,
+  },
+  fuelGun: {
+    iconSprites: createWeaponIconSprites('fuelGun'),
+    speed: 16,
+    lifetime: 0,
+    damage: 0,
+    impact: 0,
+    recoil: 0.45,
+    fireRate: 360,
+    bulletCount: 1,
+    spreadAngle: 0,
+    speedVariance: 0,
   },
   tractor: {
     iconSprites: createWeaponIconSprites('tractor'),

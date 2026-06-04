@@ -137,7 +137,7 @@ function createRuntime(
       setPlayer: vi.fn(),
       setShield: vi.fn(),
     } as never,
-    fuelBlobViews: {} as never,
+    fuelBodies: {} as never,
     particleViews: {} as never,
     persistentPlayerBody: true,
     projectileBodies: {} as never,

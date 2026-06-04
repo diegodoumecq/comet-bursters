@@ -1,6 +1,6 @@
 import type { AsteroidTier } from '../asteroids/types';
-import { PROJECTILES, TRACTOR_FUEL_COST_PER_FRAME } from '../weapons/config';
-import type { ProjectileKind, WeaponKind } from '../weapons/types';
+import { FUEL_GUN, PROJECTILES, TRACTOR_FUEL_COST_PER_FRAME } from '../weapons/config';
+import type { WeaponKind } from '../weapons/types';
 
 export const MAX_FUEL = 100;
 export const LOW_FUEL_THRESHOLD = MAX_FUEL * 0.1;
@@ -8,10 +8,14 @@ export const THRUST_FUEL_PER_SECOND = 5;
 export const FUELLESS_THRUST_SCALE = 1 / 3;
 export const FUEL_BLOB_AMOUNT = 5;
 export const FUEL_BLOB_RADIUS = 10;
+export const FUEL_BLOB_MASS = 0.06;
 export const FUEL_BLOB_ATTRACTION_RADIUS = 260;
-export const FUEL_BLOB_ATTRACTION_ACCELERATION = 0.07 * 60 * 60;
-export const FUEL_BLOB_MAX_SPEED = 5.5 * 60;
+export const FUEL_BLOB_ATTRACTION_ACCELERATION = 0.035 * 60;
+export const FUEL_BLOB_MAX_SPEED = 5.5;
 export const FUEL_BLOB_DRAG_PER_FRAME = 0.985;
+export const FUEL_BLOB_CHAIN_REACTION_RADIUS = 92;
+export const FUEL_BLOB_SPAWN_DRIFT_MAX_SPEED = 8 / 60;
+export const FUEL_GUN_BLOB_COLLECTION_ARM_MS = 550;
 export const SHIELD_RADIUS = 24;
 export const SHIELD_HIT_COOLDOWN_MS = 50;
 export const SHIELD_FUEL_COST: Record<AsteroidTier, number> = {
@@ -33,13 +37,19 @@ export function consumeTractorFuel(fuel: number, deltaSeconds: number, active: b
 
 export function getFireMode(fuel: number, weapon: WeaponKind): FireMode | null {
   if (weapon === 'tractor') return null;
+  if (weapon === 'fuelGun') return fuel >= FUEL_GUN.fuelCost ? 'normal' : null;
   if (weapon === 'inspectionProbe') return 'normal';
   if (weapon === 'small') return fuel <= LOW_FUEL_THRESHOLD ? 'degraded' : 'normal';
   return fuel <= LOW_FUEL_THRESHOLD || fuel < PROJECTILES[weapon].fuelCost ? null : 'normal';
 }
 
-export function spendWeaponFuel(fuel: number, weapon: ProjectileKind, mode: FireMode): number {
+export function spendWeaponFuel(
+  fuel: number,
+  weapon: Exclude<WeaponKind, 'tractor'>,
+  mode: FireMode,
+): number {
   if (weapon === 'small' && mode === 'degraded') return fuel;
+  if (weapon === 'fuelGun') return Math.max(0, fuel - FUEL_GUN.fuelCost);
   return Math.max(0, fuel - PROJECTILES[weapon].fuelCost);
 }
 

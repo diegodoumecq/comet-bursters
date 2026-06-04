@@ -4,7 +4,7 @@ import type { AsteroidEntity } from '../asteroids/types';
 import type { MatterContacts } from '../combat/matterContacts';
 import type { Vector, WorldSize } from '../core/types';
 import type { SpaceId, TransferableEntitySnapshot } from '../dimensions/types';
-import type { FuelBlobViews } from '../fuel/blobViews';
+import type { FuelBodies } from '../fuel/bodies';
 import type { FuelBlobEntity } from '../fuel/types';
 import { updateParticles } from '../particles/logic';
 import type { ParticleEntity } from '../particles/types';
@@ -20,7 +20,7 @@ type RuntimeAttachments = {
   asteroidBodies: AsteroidBodies;
   contacts: MatterContacts;
   createPlayerBody?: (player: PlayerState) => PlayerBody;
-  fuelBlobViews: FuelBlobViews;
+  fuelBodies: FuelBodies;
   particleViews: ParticleViews;
   persistentPlayerBody?: boolean;
   projectileBodies: ProjectileBodies;
@@ -115,13 +115,15 @@ export class SpaceWorldRuntime {
     this.world.addFuelBlobs(blobs);
     for (const blob of blobs) {
       blob.membership = { space: this.space };
-      this.attachments.fuelBlobViews.add(blob);
+      this.attachments.fuelBodies.add(blob);
+      this.attachments.contacts.addFuelBlob(blob, this.attachments.fuelBodies);
       this.rememberPreviousPosition(`fuelBlob:${blob.id}`, blob.position);
     }
   }
 
   removeFuelBlob(blob: FuelBlobEntity): void {
-    this.attachments.fuelBlobViews.remove(blob);
+    this.attachments.contacts.removeFuelBlob(blob);
+    this.attachments.fuelBodies.remove(blob);
     this.world.removeFuelBlob(blob);
     this.previousPositions.delete(`fuelBlob:${blob.id}`);
   }
@@ -224,6 +226,10 @@ export class SpaceWorldRuntime {
 
   getContacts(): MatterContacts {
     return this.attachments.contacts;
+  }
+
+  getFuelBodies(): FuelBodies {
+    return this.attachments.fuelBodies;
   }
 
   getPlayerBody(): PlayerBody | null {

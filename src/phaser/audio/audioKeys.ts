@@ -23,6 +23,7 @@ export const AUDIO_KEYS = {
     shieldHit: 'sfx:shieldHit',
     uiSelect: 'sfx:uiSelect',
     weaponBlackHole: 'sfx:weaponBlackHole',
+    weaponFuelGun: 'sfx:weaponFuelGun',
     weaponInspectionProbe: 'sfx:weaponInspectionProbe',
     weaponPusher: 'sfx:weaponPusher',
     weaponShotgun: 'sfx:weaponShotgun',

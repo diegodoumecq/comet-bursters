@@ -22,11 +22,13 @@ import {
   createThrusterParticles,
   type EffectResult,
 } from '../combat/effects';
+import { updateFuelBlobCollection } from '../combat/fuelCollection';
+import { resolveProjectileFuelBlobCombatEvents } from '../combat/fuel';
 import { MatterContacts, type PlayerAsteroidContact } from '../combat/matterContacts';
 import { getTimeScale } from '../core/time';
 import type { Vector, WorldSize } from '../core/types';
-import { spawnAsteroidFuelDrops, spawnFuelBlobs, updateFuelBlobs } from '../fuel/blobLogic';
-import { FuelBlobViews } from '../fuel/blobViews';
+import { spawnAsteroidFuelDrops, spawnFuelBlobs } from '../fuel/blobLogic';
+import { FuelBodies } from '../fuel/bodies';
 import { MAX_FUEL, SHIELD_RADIUS } from '../fuel/rules';
 import type { FuelBlobEntity } from '../fuel/types';
 import { ActionReader } from '../input/actions';
@@ -96,7 +98,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private playerBody!: PlayerBody;
   private asteroidBodies!: AsteroidBodies;
   private projectileBodies!: ProjectileBodies;
-  private fuelBlobViews!: FuelBlobViews;
+  private fuelBodies!: FuelBodies;
   private particleViews!: ParticleViews;
   private planetViews!: PlanetViews;
   private contacts!: MatterContacts;
@@ -135,14 +137,14 @@ export class PhaserSandboxScene extends BaseGameScene {
     createAsteroidTextures(this);
     this.asteroidBodies = new AsteroidBodies(this);
     this.projectileBodies = new ProjectileBodies(this);
-    this.fuelBlobViews = new FuelBlobViews();
+    this.fuelBodies = new FuelBodies(this);
     this.particleViews = new ParticleViews(this);
     this.planetViews = new PlanetViews(this);
     this.contacts = new MatterContacts(this);
     this.runtime = new GameWorldRuntime(
       this.asteroidBodies,
       this.projectileBodies,
-      this.fuelBlobViews,
+      this.fuelBodies,
       this.particleViews,
       this.contacts,
     );
@@ -302,11 +304,19 @@ export class PhaserSandboxScene extends BaseGameScene {
     for (const projectile of weaponResult.projectiles) {
       this.audioDirector.emit({
         position: projectile.position,
-        projectile: projectile.kind,
         type: 'weaponFired',
+        weapon: projectile.kind,
       });
       this.addProjectile(projectile);
     }
+    for (const blob of weaponResult.fuelBlobs) {
+      this.audioDirector.emit({
+        position: blob.position,
+        type: 'weaponFired',
+        weapon: 'fuelGun',
+      });
+    }
+    this.addFuelBlobs(weaponResult.fuelBlobs);
     applyTractorBeam(
       this.player.position,
       this.player.lastAim,
@@ -355,26 +365,29 @@ export class PhaserSandboxScene extends BaseGameScene {
 
   private updateFuelBlobs(deltaSeconds: number): void {
     applyPlanetGravityToFuelBlobs(this.runtime.world.fuelBlobs, this.planets, WORLD, deltaSeconds);
-    const fuel = updateFuelBlobs(
-      this.runtime.world.fuelBlobs,
-      this.player.position,
-      this.player.visible && this.ship.fuel < MAX_FUEL,
+    this.syncFuelBodyVelocities();
+    const canCollectFuel = this.player.visible && this.ship.fuel < MAX_FUEL;
+    const fuel = updateFuelBlobCollection({
+      blobs: this.runtime.world.fuelBlobs,
+      canCollect: canCollectFuel,
+      contacts: this.contacts,
       deltaSeconds,
-      WORLD,
-      false,
-      this.getPlayerCollisionRadius(),
-    );
+      fuelBodies: this.fuelBodies,
+      now: this.time.now,
+      player: this.player.position,
+      world: WORLD,
+      wrap: false,
+    });
     this.ship.collectFuel(fuel.fuelGain);
     this.ship.collectFuel(
       collectExtractorFuel(
         this.planets,
         this.player.position,
-        this.player.visible && this.ship.fuel < MAX_FUEL,
+        canCollectFuel,
         this.time.now,
         this.getPlayerCollisionRadius(),
       ),
     );
-    this.runtime.syncFuelBlobs();
     for (const blob of fuel.collected) this.removeFuelBlob(blob);
     for (const blob of absorbFuelIntoPlanets(this.runtime.world.fuelBlobs, this.planets, WORLD))
       this.removeFuelBlob(blob);
@@ -401,9 +414,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       onBlackHoleRemoved: (projectile) => this.removeProjectile(projectile),
       onFuelBurst: (projectile) => {
         if (projectile.absorbedFuel > 0)
-          this.addFuelBlobs(
-            spawnFuelBlobs(projectile.position, projectile.velocity, projectile.absorbedFuel),
-          );
+          this.addFuelBlobs(spawnFuelBlobs(projectile.position, projectile.absorbedFuel));
         this.applyEffect(
           createExplosionBurst(
             projectile.position,
@@ -425,12 +436,17 @@ export class PhaserSandboxScene extends BaseGameScene {
       projectiles: this.runtime.world.projectiles,
       timeScale: deltaSeconds * 60,
     });
+    this.syncFuelBodyVelocities();
     this.resolvePlayerAsteroidCombat(now, shieldActive);
   }
 
   private resolveProjectileCombat(): void {
+    this.resolveProjectileFuelBlobCombat();
+    const activeProjectiles = new Set(this.runtime.world.projectiles);
     for (const event of resolveProjectileContactCombat(
-      this.contacts.consumeProjectileAsteroids(),
+      this.contacts
+        .consumeProjectileAsteroids()
+        .filter((contact) => activeProjectiles.has(contact.projectile)),
       this.asteroidBodies,
     )) {
       if (event.type === 'projectileHitAsteroid') {
@@ -438,6 +454,25 @@ export class PhaserSandboxScene extends BaseGameScene {
       } else {
         this.destroyAsteroid(event.asteroid, true);
       }
+    }
+  }
+
+  private resolveProjectileFuelBlobCombat(): void {
+    for (const event of resolveProjectileFuelBlobCombatEvents({
+      contacts: this.contacts.consumeProjectileFuelBlobs(),
+      fuelBlobs: this.runtime.world.fuelBlobs,
+      getDistance: (from, to) => getWrappedDistance(from, to, WORLD),
+      projectiles: this.runtime.world.projectiles,
+    })) {
+      this.removeProjectile(event.projectile);
+      this.explodeFuelBlobs(event.blobs);
+    }
+  }
+
+  private explodeFuelBlobs(blobs: FuelBlobEntity[]): void {
+    for (const blob of blobs) {
+      this.applyEffect(createExplosionBurst(blob.position, blob.velocity, 0.45));
+      this.removeFuelBlob(blob);
     }
   }
 
@@ -696,7 +731,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private getWorldPositioningInput(): Parameters<typeof rebaseWorldAroundPlayer>[0] {
     return {
       asteroidBodies: this.asteroidBodies,
-      fuelBlobViews: this.fuelBlobViews,
+      fuelBodies: this.fuelBodies,
       mothership: this.mothership,
       now: this.time.now,
       particleViews: this.particleViews,
@@ -803,6 +838,12 @@ export class PhaserSandboxScene extends BaseGameScene {
 
   private removeFuelBlob(blob: FuelBlobEntity): void {
     this.runtime.removeFuelBlob(blob);
+  }
+
+  private syncFuelBodyVelocities(): void {
+    for (const blob of this.runtime.world.fuelBlobs) {
+      this.fuelBodies.setVelocity(blob, blob.velocity);
+    }
   }
 
   private removeParticle(particle: ParticleEntity): void {

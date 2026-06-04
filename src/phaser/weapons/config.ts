@@ -1,8 +1,17 @@
-import type { ProjectileSpec, WeaponKind } from './types';
+import type { FuelGunSpec, ProjectileSpec, WeaponKind } from './types';
 
 export const TRACTOR_FUEL_COST_PER_FRAME = 0.08;
 
-export const PROJECTILES: Record<Exclude<WeaponKind, 'tractor'>, ProjectileSpec> = {
+export const FUEL_GUN: FuelGunSpec = {
+  count: 1,
+  fireIntervalMs: 360,
+  fuelCost: 5,
+  recoil: 0.45,
+  speed: 24,
+  spread: 0,
+};
+
+export const PROJECTILES: Record<Exclude<WeaponKind, 'fuelGun' | 'tractor'>, ProjectileSpec> = {
   small: {
     count: 1,
     damage: 1,

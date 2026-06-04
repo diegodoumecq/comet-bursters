@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import type { AsteroidBodies } from '../asteroids/bodies';
 import type { AsteroidEntity } from '../asteroids/types';
+import type { FuelBodies } from '../fuel/bodies';
+import type { FuelBlobEntity } from '../fuel/types';
+import type { ProjectileBodies } from '../projectiles/bodies';
+import type { ProjectileEntity } from '../projectiles/types';
 import { MatterContacts } from './matterContacts';
 
 type CollisionHandler = (event: {
@@ -24,18 +28,57 @@ function asteroid(): AsteroidEntity {
   };
 }
 
+function fuelBlob(): FuelBlobEntity {
+  return {
+    id: 1,
+    position: { x: 0, y: 0 },
+    velocity: { x: 0, y: 0 },
+    wobbleSeed: 0,
+  };
+}
+
+function projectile(): ProjectileEntity {
+  return {
+    absorbedFuel: 0,
+    ageMs: 0,
+    angle: 0,
+    blackHoleMass: 0,
+    collapseStartedAt: null,
+    createdAt: 0,
+    id: 1,
+    kind: 'small',
+    lifetimeMs: 1000,
+    position: { x: 0, y: 0 },
+    velocity: { x: 0, y: 0 },
+  };
+}
+
 function runtimeWithBodyIds(bodyIds: number[]): AsteroidBodies {
   return {
     getBodyIds: () => bodyIds,
   } as unknown as AsteroidBodies;
 }
 
+function fuelRuntimeWithBodyId(bodyId: number): FuelBodies {
+  return {
+    getBodyId: () => bodyId,
+  } as unknown as FuelBodies;
+}
+
+function projectileRuntimeWithBodyId(bodyId: number): ProjectileBodies {
+  return {
+    get: () => ({ body: body(bodyId) }),
+  } as unknown as ProjectileBodies;
+}
+
 function createContacts(): {
   contacts: MatterContacts;
+  emitActiveCollision: CollisionHandler;
   emitBeforeUpdate: () => void;
   emitCollision: CollisionHandler;
 } {
   let beforeUpdateHandler: (() => void) | null = null;
+  let activeCollisionHandler: CollisionHandler | null = null;
   let collisionHandler: CollisionHandler | null = null;
   const scene = {
     matter: {
@@ -47,6 +90,9 @@ function createContacts(): {
           if (event === 'collisionstart') {
             collisionHandler = handler as CollisionHandler;
           }
+          if (event === 'collisionactive') {
+            activeCollisionHandler = handler as CollisionHandler;
+          }
         },
       },
     },
@@ -54,7 +100,13 @@ function createContacts(): {
   const contacts = new MatterContacts(scene as Phaser.Scene);
   if (!beforeUpdateHandler) throw new Error('Matter beforeupdate handler was not registered');
   if (!collisionHandler) throw new Error('Matter collision handler was not registered');
-  return { contacts, emitBeforeUpdate: beforeUpdateHandler, emitCollision: collisionHandler };
+  if (!activeCollisionHandler) throw new Error('Matter collisionactive handler was not registered');
+  return {
+    contacts,
+    emitActiveCollision: activeCollisionHandler,
+    emitBeforeUpdate: beforeUpdateHandler,
+    emitCollision: collisionHandler,
+  };
 }
 
 describe('MatterContacts', () => {
@@ -102,5 +154,28 @@ describe('MatterContacts', () => {
 
     emitCollision({ pairs: [{ bodyA: body(20), bodyB: body(30) }] });
     expect(contacts.consumeShieldAsteroids()).toEqual([target]);
+  });
+
+  it('captures active player fuel blob contacts for absorption', () => {
+    const { contacts, emitActiveCollision } = createContacts();
+    const target = fuelBlob();
+    contacts.addFuelBlob(target, fuelRuntimeWithBodyId(30));
+    contacts.setPlayer(body(10));
+
+    emitActiveCollision({ pairs: [{ bodyA: body(10), bodyB: body(30) }] });
+
+    expect(contacts.consumePlayerFuelBlobs()).toEqual([target]);
+  });
+
+  it('captures projectile fuel blob contacts for detonation', () => {
+    const { contacts, emitCollision } = createContacts();
+    const target = fuelBlob();
+    const shot = projectile();
+    contacts.addFuelBlob(target, fuelRuntimeWithBodyId(30));
+    contacts.addProjectile(shot, projectileRuntimeWithBodyId(40));
+
+    emitCollision({ pairs: [{ bodyA: body(40), bodyB: body(30) }] });
+
+    expect(contacts.consumeProjectileFuelBlobs()).toEqual([{ blob: target, projectile: shot }]);
   });
 });

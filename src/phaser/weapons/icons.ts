@@ -1,23 +1,30 @@
-import type { SelectableWeaponType } from './constants';
+import type { WeaponKind } from './types';
 
-export interface WeaponIconSprites {
+type WeaponIconSprites = {
   normal: HTMLCanvasElement;
   selected: HTMLCanvasElement;
-}
+};
 
 const WEAPON_ICON_SIZE = 48;
+const weaponIconSprites = new Map<WeaponKind, WeaponIconSprites>();
 
-export function createWeaponIconSprites(weapon: SelectableWeaponType): WeaponIconSprites {
-  return {
+export function getWeaponIconSprite(weapon: WeaponKind, selected: boolean): HTMLCanvasElement {
+  const iconSprites = getWeaponIconSprites(weapon);
+  return selected ? iconSprites.selected : iconSprites.normal;
+}
+
+function getWeaponIconSprites(weapon: WeaponKind): WeaponIconSprites {
+  const existing = weaponIconSprites.get(weapon);
+  if (existing) return existing;
+  const created = {
     normal: renderWeaponIconSprite(weapon, false),
     selected: renderWeaponIconSprite(weapon, true),
   };
+  weaponIconSprites.set(weapon, created);
+  return created;
 }
 
-function renderWeaponIconSprite(
-  weapon: SelectableWeaponType,
-  selected: boolean,
-): HTMLCanvasElement {
+function renderWeaponIconSprite(weapon: WeaponKind, selected: boolean): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = WEAPON_ICON_SIZE;
   canvas.height = WEAPON_ICON_SIZE;
@@ -103,8 +110,8 @@ function drawBlasterIcon(ctx: CanvasRenderingContext2D, stroke: string, accent: 
 function drawPusherIcon(ctx: CanvasRenderingContext2D, stroke: string, accent: string): void {
   ctx.strokeStyle = accent;
   ctx.lineWidth = 3;
-  for (let i = 0; i < 3; i++) {
-    const offset = i * 8 - 10;
+  for (let index = 0; index < 3; index += 1) {
+    const offset = index * 8 - 10;
     ctx.beginPath();
     ctx.moveTo(offset - 8, -11);
     ctx.lineTo(offset + 4, 0);
@@ -121,9 +128,9 @@ function drawPusherIcon(ctx: CanvasRenderingContext2D, stroke: string, accent: s
 function drawShotgunIcon(ctx: CanvasRenderingContext2D, stroke: string, accent: string): void {
   ctx.strokeStyle = stroke;
   ctx.lineWidth = 3;
-  for (let i = -2; i <= 2; i++) {
+  for (let index = -2; index <= 2; index += 1) {
     ctx.save();
-    ctx.rotate(i * 0.18);
+    ctx.rotate(index * 0.18);
     ctx.beginPath();
     ctx.moveTo(-14, 0);
     ctx.lineTo(14, 0);

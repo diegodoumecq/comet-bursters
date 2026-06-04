@@ -9,6 +9,7 @@ export const ALL_WEAPONS: readonly WeaponKind[] = [
   'pusher',
   'shotgun',
   'blackHole',
+  'fuelGun',
   'tractor',
 ];
 export const SANDBOX_WEAPONS: readonly WeaponKind[] = [...ALL_WEAPONS, 'inspectionProbe'];

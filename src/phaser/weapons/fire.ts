@@ -1,8 +1,8 @@
 import type { Vector } from '../core/types';
 import type { FireMode } from '../fuel/rules';
 import { getFireMode, spendWeaponFuel } from '../fuel/rules';
-import { PROJECTILES } from './config';
-import type { ProjectileKind, WeaponKind } from './types';
+import { FUEL_GUN, PROJECTILES } from './config';
+import type { DischargedWeaponKind, ProjectileKind, WeaponKind } from './types';
 
 export type ProjectileShot = {
   angle: number;
@@ -11,20 +11,28 @@ export type ProjectileShot = {
   velocity: Vector;
 };
 
+export type FuelBlobShot = {
+  angle: number;
+  velocity: Vector;
+};
+
 export function fireWeapon(
   kind: WeaponKind,
   direction: Vector,
   now: number,
   fuel: number,
-  lastShotAt: Record<ProjectileKind, number>,
+  lastShotAt: Record<DischargedWeaponKind, number>,
   shooterVelocity: Vector,
 ): {
+  fuelBlobShots: FuelBlobShot[];
   fuel: number;
-  lastShotAt: Record<ProjectileKind, number>;
+  lastShotAt: Record<DischargedWeaponKind, number>;
   recoil: Vector;
   shots: ProjectileShot[];
 } {
   if (kind === 'tractor') return noShot(fuel, lastShotAt);
+  if (kind === 'fuelGun')
+    return fireFuelGun(kind, direction, now, fuel, lastShotAt, shooterVelocity);
   const spec = PROJECTILES[kind];
   if (now - lastShotAt[kind] < spec.fireIntervalMs) return noShot(fuel, lastShotAt);
   const mode = getFireMode(fuel, kind);
@@ -35,10 +43,50 @@ export function fireWeapon(
   const shots = createShots(kind, baseAngle, shooterVelocity, degradedSmall);
   return {
     fuel: spendWeaponFuel(fuel, kind, mode),
+    fuelBlobShots: [],
     lastShotAt: { ...lastShotAt, [kind]: now },
     recoil: { x: -direction.x * spec.recoil, y: -direction.y * spec.recoil },
     shots,
   };
+}
+
+function fireFuelGun(
+  kind: Extract<WeaponKind, 'fuelGun'>,
+  direction: Vector,
+  now: number,
+  fuel: number,
+  lastShotAt: Record<DischargedWeaponKind, number>,
+  shooterVelocity: Vector,
+): ReturnType<typeof fireWeapon> {
+  if (now - lastShotAt[kind] < FUEL_GUN.fireIntervalMs) return noShot(fuel, lastShotAt);
+  const mode = getFireMode(fuel, kind);
+  if (!mode) return noShot(fuel, lastShotAt);
+  const baseAngle = Math.atan2(direction.y, direction.x);
+  return {
+    fuel: spendWeaponFuel(fuel, kind, mode),
+    fuelBlobShots: createFuelBlobShots(baseAngle, shooterVelocity),
+    lastShotAt: { ...lastShotAt, [kind]: now },
+    recoil: { x: -direction.x * FUEL_GUN.recoil, y: -direction.y * FUEL_GUN.recoil },
+    shots: [],
+  };
+}
+
+function createFuelBlobShots(baseAngle: number, shooterVelocity: Vector): FuelBlobShot[] {
+  const shots: FuelBlobShot[] = [];
+  for (let index = 0; index < FUEL_GUN.count; index += 1) {
+    const offset =
+      FUEL_GUN.count === 1 ? 0 : (index / (FUEL_GUN.count - 1) - 0.5) * FUEL_GUN.spread;
+    const angle = baseAngle + offset;
+    const direction = { x: Math.cos(angle), y: Math.sin(angle) };
+    shots.push({
+      angle,
+      velocity: {
+        x: shooterVelocity.x + direction.x * FUEL_GUN.speed,
+        y: shooterVelocity.y + direction.y * FUEL_GUN.speed,
+      },
+    });
+  }
+  return shots;
 }
 
 function createShots(
@@ -96,6 +144,6 @@ function isDegradedSmall(kind: ProjectileKind, mode: FireMode): boolean {
   return kind === 'small' && mode === 'degraded';
 }
 
-function noShot(fuel: number, lastShotAt: Record<ProjectileKind, number>) {
-  return { fuel, lastShotAt, recoil: { x: 0, y: 0 }, shots: [] };
+function noShot(fuel: number, lastShotAt: Record<DischargedWeaponKind, number>) {
+  return { fuel, fuelBlobShots: [], lastShotAt, recoil: { x: 0, y: 0 }, shots: [] };
 }

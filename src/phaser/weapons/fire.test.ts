@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MAX_FUEL } from '../fuel/rules';
-import { PROJECTILES } from './config';
+import { FUEL_GUN, PROJECTILES } from './config';
 import { fireWeapon } from './fire';
-import type { ProjectileKind } from './types';
+import type { DischargedWeaponKind } from './types';
 
-function lastShotAt(): Record<ProjectileKind, number> {
-  return { blackHole: 0, inspectionProbe: 0, pusher: 0, shotgun: 0, small: 0 };
+function lastShotAt(): Record<DischargedWeaponKind, number> {
+  return { blackHole: 0, fuelGun: 0, inspectionProbe: 0, pusher: 0, shotgun: 0, small: 0 };
 }
 
 describe('fireWeapon', () => {
@@ -61,5 +61,17 @@ describe('fireWeapon', () => {
 
     expect(result.shots).toHaveLength(0);
     expect(result.fuel).toBe(5);
+  });
+
+  it('fires fuel blob shots without projectile shots', () => {
+    const result = fireWeapon('fuelGun', { x: 1, y: 0 }, 1000, MAX_FUEL, lastShotAt(), {
+      x: 2,
+      y: 0,
+    });
+
+    expect(result.shots).toHaveLength(0);
+    expect(result.fuelBlobShots).toHaveLength(FUEL_GUN.count);
+    expect(result.fuel).toBe(MAX_FUEL - FUEL_GUN.fuelCost);
+    expect(result.fuelBlobShots[0].velocity).toEqual({ x: FUEL_GUN.speed + 2, y: 0 });
   });
 });

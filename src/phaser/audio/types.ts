@@ -1,7 +1,7 @@
 import type Phaser from 'phaser';
 
 import type { Vector } from '../core/types';
-import type { ProjectileKind, WeaponKind } from '../weapons/types';
+import type { DischargedWeaponKind } from '../weapons/types';
 
 export type AudioBus = 'ambience' | 'master' | 'music' | 'sfx' | 'ui';
 
@@ -29,6 +29,7 @@ export type SfxKey =
   | 'sfx:shieldHit'
   | 'sfx:uiSelect'
   | 'sfx:weaponBlackHole'
+  | 'sfx:weaponFuelGun'
   | 'sfx:weaponInspectionProbe'
   | 'sfx:weaponPusher'
   | 'sfx:weaponShotgun'
@@ -79,7 +80,7 @@ export type AudioEvent =
   | { position?: Vector; type: 'portalOpened' }
   | { position?: Vector; type: 'shieldHit' }
   | { type: 'uiSelect' }
-  | { position?: Vector; projectile: ProjectileKind; type: 'weaponFired'; weapon?: WeaponKind };
+  | { position?: Vector; type: 'weaponFired'; weapon: DischargedWeaponKind };
 
 export type SceneAudioSnapshot = {
   playerSpeed?: number;
