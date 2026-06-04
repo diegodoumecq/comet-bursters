@@ -5,7 +5,6 @@ import { circlesOverlap } from '../core/collision';
 import type { Vector, WorldSize } from '../core/types';
 import { PLAYER_COLLISION_RADIUS } from '../player/config';
 import { wrapPoint } from '../world/geometry';
-import { createFuelBlob } from './factory';
 import {
   FUEL_BLOB_AMOUNT,
   FUEL_BLOB_ATTRACTION_ACCELERATION,
@@ -13,8 +12,9 @@ import {
   FUEL_BLOB_CHAIN_REACTION_RADIUS,
   FUEL_BLOB_RADIUS,
   FUEL_BLOB_SPAWN_DRIFT_SPEED,
-  getFuelDropCount,
-} from './rules';
+} from './definition';
+import { createFuelBlob } from './factory';
+import { getFuelDropCount } from './rules';
 import type { FuelBlobEntity } from './types';
 
 export { createFuelBlob };

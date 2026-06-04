@@ -5,7 +5,7 @@ import type { Vector, WorldSize } from '../../core/types';
 import type { FuelMetaball } from '../../fuel/metaballs';
 import { FuelMetaballRenderer } from '../../fuel/metaballs';
 import { addProjectedMetaballs, buildFuelBlobMetaballSamples } from '../../fuel/metaballSamples';
-import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../../fuel/rules';
+import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../../fuel/definition';
 import type { FuelBlobEntity } from '../../fuel/types';
 import { buildBlackHoleScreenSamples } from '../../projectiles/blackHoleSamples';
 import { BlackHoleShaderRenderer } from '../../projectiles/blackHoleShader';

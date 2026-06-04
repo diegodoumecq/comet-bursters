@@ -5,7 +5,7 @@ import {
   BLACK_HOLE_MATURE_RADIUS,
   BLACK_HOLE_RADIUS,
   MAX_BLACK_HOLES,
-} from '../../projectiles/blackHoles';
+} from '../../projectiles/definition';
 import type { ProjectileEntity } from '../../projectiles/types';
 import { buildArcadeBlackHoleScreenSamples } from './arcadeBlackHoles';
 

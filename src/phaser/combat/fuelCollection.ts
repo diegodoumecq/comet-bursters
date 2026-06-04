@@ -1,7 +1,7 @@
 import type { Vector, WorldSize } from '../core/types';
 import type { FuelBodies } from '../fuel/bodies';
 import { isFuelBlobCollectable } from '../fuel/blobLogic';
-import { FUEL_BLOB_AMOUNT } from '../fuel/rules';
+import { FUEL_BLOB_AMOUNT } from '../fuel/definition';
 import type { FuelBlobEntity } from '../fuel/types';
 import type { MatterContacts } from './matterContacts';
 

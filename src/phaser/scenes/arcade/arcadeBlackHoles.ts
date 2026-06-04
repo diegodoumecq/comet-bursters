@@ -1,7 +1,6 @@
 import type { WorldSize } from '../../core/types';
+import { BLACK_HOLE_RADIUS, DISTORTION_RADIUS } from '../../projectiles/definition';
 import {
-  BLACK_HOLE_RADIUS,
-  DISTORTION_RADIUS,
   getBlackHoleRenderRadius,
 } from '../../projectiles/blackHoles';
 import type { BlackHoleScreenSample } from '../../projectiles/blackHoleShader';

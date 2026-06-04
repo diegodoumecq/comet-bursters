@@ -1,6 +1,6 @@
 import { circlesOverlap } from '../../core/collision';
 import type { Vector } from '../../core/types';
-import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../../fuel/rules';
+import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../../fuel/definition';
 import type { FuelBlobEntity } from '../../fuel/types';
 import type { PlanetEntity } from '../../planets/types';
 import { PLAYER_COLLISION_RADIUS } from '../../player/config';

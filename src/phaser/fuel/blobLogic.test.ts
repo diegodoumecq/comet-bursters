@@ -7,7 +7,7 @@ import {
   updateFuelBlob,
   updateFuelBlobs,
 } from './blobLogic';
-import { FUEL_BLOB_SPAWN_DRIFT_SPEED } from './rules';
+import { FUEL_BLOB_SPAWN_DRIFT_SPEED } from './definition';
 
 vi.mock('phaser', () => ({
   default: {

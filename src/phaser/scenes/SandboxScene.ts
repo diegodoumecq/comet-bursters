@@ -25,6 +25,7 @@ import {
 import { updateFuelBlobCollection } from '../combat/fuelCollection';
 import { resolveProjectileFuelBlobCombatEvents } from '../combat/fuel';
 import { MatterContacts, type PlayerAsteroidContact } from '../combat/matterContacts';
+import { applyMatterBodySpec } from '../core/matterBodySpec';
 import { getTimeScale } from '../core/time';
 import type { Vector, WorldSize } from '../core/types';
 import { spawnAsteroidFuelDrops, spawnFuelBlobs } from '../fuel/blobLogic';
@@ -39,7 +40,8 @@ import { ParticleViews } from '../particles/views';
 import { applyPlanetGravity, applyPlanetGravityToFuelBlobs } from '../planets/gravity';
 import { PlanetViews } from '../planets/views';
 import { PlayerBody } from '../player/body';
-import { PLAYER_ACCELERATION, PLAYER_COLLISION_RADIUS, PLAYER_MASS } from '../player/config';
+import { PLAYER_ACCELERATION, PLAYER_COLLISION_RADIUS } from '../player/config';
+import { PLAYER_DEFINITIONS } from '../player/definition';
 import { updatePlayerMotion } from '../player/motion';
 import { PlayerState } from '../player/state';
 import { createPlayerTexture } from '../player/textures';
@@ -159,8 +161,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.mothership = new Mothership(this, spawnPoint);
     this.playerBody = new PlayerBody(this, spawnPoint, this.player);
     this.playerBody.setRotation(MOTHERSHIP_SPAWN_PLAYER_ROTATION);
-    this.playerBody.body.setMass(PLAYER_MASS);
-    this.playerBody.body.setFrictionAir(0);
+    applyMatterBodySpec(this.playerBody.body, PLAYER_DEFINITIONS.sandbox.body);
     this.syncPlayerContactBodies();
     this.sceneRenderer = new SandboxRenderer(
       this,

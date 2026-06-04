@@ -2,9 +2,10 @@ import Phaser from 'phaser';
 
 import { getGameAudio } from '../audio/AudioManager';
 import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
+import { applyMatterBodySpec } from '../core/matterBodySpec';
 import { ActionReader, type ActionState } from '../input/actions';
 import { PlayerBody } from '../player/body';
-import { PLAYER_MASS } from '../player/config';
+import { PLAYER_DEFINITIONS } from '../player/definition';
 import { PlayerState } from '../player/state';
 import { createPlayerTexture } from '../player/textures';
 import { normalize } from '../world/geometry';
@@ -73,9 +74,7 @@ export class PhaserShipInteriorScene extends BaseGameScene {
       renderShipInteriorLayers(this, level, false, 0);
       this.playerBody = new PlayerBody(this, level.playerSpawn ?? FALLBACK_SPAWN, this.player);
       this.playerBody.body.setDepth(10);
-      this.playerBody.body.setMass(PLAYER_MASS);
-      this.playerBody.body.setFrictionAir(0.22);
-      this.playerBody.body.setFixedRotation();
+      applyMatterBodySpec(this.playerBody.body, PLAYER_DEFINITIONS.shipInterior.body);
       buildShipInteriorCollision(this, level);
       renderShipInteriorLayers(this, level, true, 20);
       this.cameras.main.setBounds(0, 0, level.width, level.height);

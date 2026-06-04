@@ -4,10 +4,11 @@ import {
   ALL_COLLISION_CATEGORIES,
   FUEL_BLOB_COLLISION_CATEGORY,
 } from '../combat/collisionCategories';
+import { applyMatterBodySpec } from '../core/matterBodySpec';
 import type { MatterArc, Vector, WorldSize } from '../core/types';
 import { wrapPoint } from '../world/geometry';
 import { applyFuelBlobMotion, syncFuelBlobFromBody, syncFuelBlobVelocityToBody } from './blobLogic';
-import { FUEL_BLOB_MASS, FUEL_BLOB_RADIUS } from './rules';
+import { FUEL_BLOB_DEFINITION, FUEL_BLOB_RADIUS } from './definition';
 import type { FuelBlobEntity } from './types';
 
 type FuelMatterArc = MatterArc & {
@@ -28,9 +29,7 @@ export class FuelBodies {
       circleRadius: FUEL_BLOB_RADIUS,
     });
     const matterBody = body as FuelMatterArc;
-    matterBody.setMass(FUEL_BLOB_MASS);
-    matterBody.setFrictionAir(0);
-    matterBody.setBounce(0.92);
+    applyMatterBodySpec(matterBody, FUEL_BLOB_DEFINITION.body);
     matterBody.body.collisionFilter.category = FUEL_BLOB_COLLISION_CATEGORY;
     matterBody.body.collisionFilter.mask = ALL_COLLISION_CATEGORIES;
     matterBody.setVelocity(blob.velocity.x, blob.velocity.y);

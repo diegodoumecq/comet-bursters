@@ -4,6 +4,7 @@ import { AsteroidBodies } from '../asteroids/bodies';
 import { getGameAudio } from '../audio/AudioManager';
 import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
 import { MatterContacts } from '../combat/matterContacts';
+import { applyMatterBodySpec } from '../core/matterBodySpec';
 import type { Vector, WorldSize } from '../core/types';
 import { DimensionDebugOverlay } from '../dimensions/DimensionDebugOverlay';
 import { getDimensionCoordinator } from '../dimensions/runtime';
@@ -12,7 +13,7 @@ import { FuelBodies } from '../fuel/bodies';
 import type { ActionState } from '../input/actions';
 import { ParticleViews } from '../particles/views';
 import { PlayerBody } from '../player/body';
-import { PLAYER_MASS } from '../player/config';
+import { PLAYER_DEFINITIONS } from '../player/definition';
 import {
   getPlayerVisible,
   renderPlayerFuel,
@@ -109,9 +110,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
 
   private createPlayerBody(player: PlayerState): PlayerBody {
     const body = new PlayerBody(this, player.position, player);
-    body.body.setMass(PLAYER_MASS);
-    body.body.setFrictionAir(0);
-    body.body.setBounce(0.8);
+    applyMatterBodySpec(body.body, PLAYER_DEFINITIONS.arcade.body);
     return body;
   }
 

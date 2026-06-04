@@ -1,5 +1,5 @@
 import type { Vector } from '../core/types';
-import { FUEL_BLOB_CHAIN_REACTION_RADIUS } from '../fuel/rules';
+import { FUEL_BLOB_CHAIN_REACTION_RADIUS } from '../fuel/definition';
 import type { FuelBlobEntity } from '../fuel/types';
 import type { ProjectileEntity } from '../projectiles/types';
 

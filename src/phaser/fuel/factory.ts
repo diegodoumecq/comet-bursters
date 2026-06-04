@@ -1,8 +1,8 @@
 import type { Vector } from '../core/types';
+import { FUEL_BLOB_DEFINITION } from './definition';
 import type { FuelBlobEntity } from './types';
 
 let nextFuelBlobId = 1;
-const DEFAULT_FUEL_BLOB_AIR_RESISTANCE = 0.015;
 
 export function createFuelBlob(
   position: Vector,
@@ -13,7 +13,7 @@ export function createFuelBlob(
 ): FuelBlobEntity {
   const blob: FuelBlobEntity = {
     affectedByPlanetGravity: properties.affectedByPlanetGravity ?? true,
-    airResistance: properties.airResistance ?? DEFAULT_FUEL_BLOB_AIR_RESISTANCE,
+    airResistance: properties.airResistance ?? FUEL_BLOB_DEFINITION.spawn.defaultAirResistance,
     id: nextFuelBlobId++,
     position: { ...position },
     velocity: { ...velocity },

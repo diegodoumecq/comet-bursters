@@ -5,7 +5,7 @@ import {
   DISTORTION_RADIUS,
   DISTORTION_STRENGTH,
   MAX_BLACK_HOLE_RENDER_SAMPLES,
-} from './blackHoles';
+} from './definition';
 
 export type BlackHoleScreenSample = {
   radius: number;

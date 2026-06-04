@@ -31,6 +31,7 @@ import {
   resolvePortalBridgeAsteroidCollisions,
 } from '../combat/portalBridge';
 import { circlesOverlap } from '../core/collision';
+import { applyMatterBodySpec } from '../core/matterBodySpec';
 import { getTimeScale } from '../core/time';
 import type { Vector, WorldSize } from '../core/types';
 import type { DimensionCoordinator } from '../dimensions/DimensionCoordinator';
@@ -42,21 +43,25 @@ import { resetDimensionCoordinator } from '../dimensions/runtime';
 import type { DimensionCommand, PortalViewPolicy, SpaceId } from '../dimensions/types';
 import { isFuelBlobCollectable, spawnFuelBlobs } from '../fuel/blobLogic';
 import { FuelBodies } from '../fuel/bodies';
-import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS, MAX_FUEL, SHIELD_RADIUS } from '../fuel/rules';
+import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../fuel/definition';
+import { MAX_FUEL, SHIELD_RADIUS } from '../fuel/rules';
 import type { FuelBlobEntity } from '../fuel/types';
 import { ActionReader } from '../input/actions';
 import { updateParticles } from '../particles/logic';
 import type { ParticleEntity } from '../particles/types';
 import { ParticleViews } from '../particles/views';
 import { PlayerBody } from '../player/body';
-import { PLAYER_COLLISION_RADIUS, PLAYER_MASS } from '../player/config';
+import { PLAYER_COLLISION_RADIUS } from '../player/config';
+import { PLAYER_DEFINITIONS } from '../player/definition';
 import { updatePlayerMotion } from '../player/motion';
 import {
-  applyBlackHoleGravityToVelocity,
   BLACK_HOLE_ABSORBED_FUEL_BLOBS,
   BLACK_HOLE_FUEL_BLOB_MASS_SCALE,
   BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
   BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
+} from '../projectiles/definition';
+import {
+  applyBlackHoleGravityToVelocity,
   getBlackHoleMass,
   getBlackHoleRenderRadius,
   getMatureBlackHoleRadius,
@@ -135,9 +140,7 @@ export class PhaserArcadeScene extends BaseGameScene {
       { x: this.worldSize.width / 2, y: this.worldSize.height / 2 },
       this.session.player,
     );
-    this.playerBody.body.setMass(PLAYER_MASS);
-    this.playerBody.body.setFrictionAir(0);
-    this.playerBody.body.setBounce(0.8);
+    applyMatterBodySpec(this.playerBody.body, PLAYER_DEFINITIONS.arcade.body);
     this.contacts = new MatterContacts(this);
     this.asteroidBodies = new AsteroidBodies(this);
     this.projectileBodies = new ProjectileBodies(this);

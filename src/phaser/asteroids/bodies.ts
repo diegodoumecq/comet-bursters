@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 
 import { ASTEROID_COLLISION_CATEGORY } from '../combat/collisionCategories';
+import { applyMatterBodySpec } from '../core/matterBodySpec';
 import type { MatterImage, Vector, WorldSize } from '../core/types';
-import { ASTEROIDS } from './config';
+import { ASTEROID_DEFINITIONS, ASTEROIDS } from './config';
 import { ASTEROID_TEXTURES, getAsteroidTextureDisplaySize } from './textures';
 import { getToroidalOffsets, wrapCoordinate } from './toroidal';
 import type { AsteroidEntity } from './types';
@@ -230,7 +231,7 @@ export class AsteroidBodies {
   }
 
   private createBody(asteroid: AsteroidEntity): MatterImage {
-    const config = ASTEROIDS[asteroid.tier];
+    const config = ASTEROID_DEFINITIONS[asteroid.tier];
     const body = this.scene.matter.add.image(
       asteroid.position.x,
       asteroid.position.y,
@@ -238,10 +239,8 @@ export class AsteroidBodies {
     ) as MatterImage;
     const displaySize = getAsteroidTextureDisplaySize(asteroid.tier);
     body.setDisplaySize(displaySize, displaySize);
-    body.setCircle(config.collisionRadius);
-    body.setMass(config.mass);
-    body.setFrictionAir(0);
-    body.setBounce(1);
+    body.setCircle(config.body.collisionRadius);
+    applyMatterBodySpec(body, config.body);
     body.body.collisionFilter.category = ASTEROID_COLLISION_CATEGORY;
     body.setVelocity(asteroid.velocity.x, asteroid.velocity.y);
     body.setRotation(asteroid.rotation);

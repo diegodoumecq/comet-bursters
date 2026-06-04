@@ -10,6 +10,8 @@ import {
   BLACK_HOLE_GROWTH_DURATION_MS,
   BLACK_HOLE_MATURE_AFTER_MS,
   BLACK_HOLE_MATURE_RADIUS,
+} from './definition';
+import {
   getBlackHoleRenderRadius,
   updateBlackHoles,
 } from './blackHoles';

@@ -7,29 +7,19 @@ import type { FuelBlobEntity } from '../fuel/types';
 import type { PlanetEntity } from '../planets/types';
 import { PLAYER_COLLISION_RADIUS } from '../player/config';
 import type { ProjectileBodies } from './bodies';
+import {
+  BLACK_HOLE_ABSORBED_FUEL_BLOBS,
+  BLACK_HOLE_COLLAPSE_DURATION_MS,
+  BLACK_HOLE_FUEL_BLOB_MASS_SCALE,
+  BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
+  BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
+  BLACK_HOLE_GRAVITY_STRENGTH,
+  BLACK_HOLE_GROWTH_DURATION_MS,
+  BLACK_HOLE_MATURE_AFTER_MS,
+  BLACK_HOLE_MATURE_RADIUS,
+  BLACK_HOLE_RADIUS,
+} from './definition';
 import type { ProjectileEntity } from './types';
-
-export const BLACK_HOLE_RADIUS = 6;
-export const BLACK_HOLE_MATURE_AFTER_MS = 3000;
-export const BLACK_HOLE_MATURE_RADIUS = 25;
-export const BLACK_HOLE_GRAVITY_STRENGTH = 1.5;
-export const BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER = 12;
-export const BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER = 24;
-export const BLACK_HOLE_GROWTH_DURATION_MS = 1000;
-export const BLACK_HOLE_COLLAPSE_DURATION_MS = 700;
-export const DISTORTION_RADIUS = 200;
-export const DISTORTION_STRENGTH = 0.8;
-export const MAX_BLACK_HOLES = 10;
-export const MAX_BLACK_HOLE_RENDER_SAMPLES = MAX_BLACK_HOLES * 9;
-export const BLACK_HOLE_ASTEROID_MASS_SCALE = 0.25;
-export const BLACK_HOLE_FUEL_BLOB_MASS_SCALE = BLACK_HOLE_ASTEROID_MASS_SCALE;
-
-export const BLACK_HOLE_ABSORBED_FUEL_BLOBS: Record<AsteroidEntity['tier'], number> = {
-  small: 1,
-  medium: 2,
-  big: 4,
-  mega: 8,
-};
 
 export type BlackHoleLifecycleOptions = {
   asteroids: AsteroidEntity[];

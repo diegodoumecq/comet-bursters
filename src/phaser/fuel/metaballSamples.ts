@@ -1,6 +1,6 @@
 import type { Vector } from '../core/types';
+import { FUEL_BLOB_RADIUS } from './definition';
 import type { FuelMetaball } from './metaballs';
-import { FUEL_BLOB_RADIUS } from './rules';
 import type { FuelBlobEntity } from './types';
 
 export type ScreenProjector = (position: Vector, radius: number) => Vector[];
