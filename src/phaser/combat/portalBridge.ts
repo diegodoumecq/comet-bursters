@@ -5,7 +5,6 @@ import type { Vector } from '../core/types';
 import { portalApertureContainsCenter } from '../dimensions/portalGeometry';
 import type { PortalEntity } from '../dimensions/types';
 import type { ProjectileEntity } from '../projectiles/types';
-import { PROJECTILES } from '../weapons/config';
 
 export type PortalBridgeAsteroidMutation = {
   asteroid: AsteroidEntity;
@@ -160,7 +159,7 @@ function getProjectileAsteroidContacts(input: {
       if (
         circlesOverlap(
           distance,
-          PROJECTILES[projectile.kind].radius,
+          projectile.radius,
           ASTEROIDS[asteroid.tier].collisionRadius,
         )
       ) {

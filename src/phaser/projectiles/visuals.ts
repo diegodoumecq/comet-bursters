@@ -1,7 +1,6 @@
 import type Phaser from 'phaser';
 
 import type { MatterArc, Vector } from '../core/types';
-import { PROJECTILES } from '../weapons/config';
 import type { ProjectileKind } from '../weapons/types';
 import type { ProjectileEntity } from './types';
 
@@ -25,19 +24,23 @@ const PROJECTILE_BASE_VISUAL_SCALE: Record<BodyRenderedProjectileKind, Vector> =
 
 export function createProjectileShape(
   scene: Phaser.Scene,
-  origin: Vector,
-  kind: ProjectileKind,
+  projectile: ProjectileEntity,
 ): MatterArc {
-  const spec = PROJECTILES[kind];
-  const shape = scene.add.circle(origin.x, origin.y, spec.radius, PROJECTILE_SHAPE_FILL[kind]);
+  const shape = scene.add.circle(
+    projectile.position.x,
+    projectile.position.y,
+    projectile.radius,
+    PROJECTILE_SHAPE_FILL[projectile.kind],
+  );
   scene.matter.add.gameObject(shape, {
-    circleRadius: spec.radius,
+    circleRadius: projectile.radius,
+    frictionAir: projectile.airResistance,
     isSensor: true,
   });
   const matterShape = shape as MatterArc;
-  if (kind === 'blackHole') {
+  if (projectile.kind === 'blackHole') {
     matterShape.setVisible(false);
-  } else if (kind === 'inspectionProbe') {
+  } else if (projectile.kind === 'inspectionProbe') {
     matterShape.setStrokeStyle(1.5, 0xecfeff);
   }
   return matterShape;
@@ -61,6 +64,7 @@ export class ProjectileVisuals {
       bodyRenderedKind,
       projectile.velocity,
       projectile.angle,
+      projectile.baseSpeed,
     );
   }
 
@@ -128,6 +132,7 @@ export class ProjectileVisuals {
         ? projectile.velocity
         : visualVelocity,
       projectile.angle,
+      projectile.baseSpeed,
     );
   }
 
@@ -143,16 +148,20 @@ export function syncProjectileVisual(
   kind: BodyRenderedProjectileKind,
   velocity: Vector | undefined,
   fallbackAngle: number,
+  baseSpeed: number,
 ): void {
   const speed = velocity ? Math.hypot(velocity.x, velocity.y) : 0;
   const angle = velocity && speed > 0 ? Math.atan2(velocity.y, velocity.x) : fallbackAngle;
-  const scale = getProjectileVisualScale(kind, speed);
+  const scale = getProjectileVisualScale(kind, speed, baseSpeed);
   shape.setScale(scale.x, scale.y).setRotation(angle);
 }
 
-export function getProjectileVisualScale(kind: BodyRenderedProjectileKind, speed: number): Vector {
+export function getProjectileVisualScale(
+  kind: BodyRenderedProjectileKind,
+  speed: number,
+  baseSpeed: number,
+): Vector {
   const baseScale = PROJECTILE_BASE_VISUAL_SCALE[kind];
-  const baseSpeed = PROJECTILES[kind].speed;
   const speedScale = baseSpeed > 0 ? clamp(speed / baseSpeed, 0.35, 2.25) : 1;
   return {
     x: baseScale.x * speedScale,

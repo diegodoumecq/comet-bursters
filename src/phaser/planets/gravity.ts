@@ -57,6 +57,8 @@ export function applyPlanetGravityToFuelBlobs(
   deltaSeconds: number,
 ): void {
   for (const blob of blobs) {
-    applyPlanetGravity(blob.velocity, blob.position, planets, world, deltaSeconds);
+    if (blob.affectedByPlanetGravity) {
+      applyPlanetGravity(blob.velocity, blob.position, planets, world, deltaSeconds);
+    }
   }
 }

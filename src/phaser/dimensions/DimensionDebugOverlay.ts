@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 
 import { ASTEROIDS } from '../asteroids/logic';
 import { PLAYER_COLLISION_RADIUS } from '../player/config';
-import { PROJECTILES } from '../weapons/config';
 import type { SpaceWorldRuntime } from '../world/SpaceWorldRuntime';
 
 const DEBUG_DEPTH = 10000;
@@ -37,7 +36,7 @@ export class DimensionDebugOverlay {
       this.entityRings.strokeCircle(
         projectile.position.x,
         projectile.position.y,
-        PROJECTILES[projectile.kind].radius + DEBUG_RING_PADDING,
+        projectile.radius + DEBUG_RING_PADDING,
       );
     }
 

@@ -48,6 +48,8 @@ describe('planet gravity', () => {
   it('applies gravity to fuel blobs', () => {
     const blob: FuelBlobEntity = {
       id: 1,
+      affectedByPlanetGravity: true,
+      airResistance: 0.015,
       position: { x: 100, y: 100 },
       velocity: { x: 0, y: 0 },
       wobbleSeed: 0,
@@ -57,5 +59,20 @@ describe('planet gravity', () => {
 
     expect(blob.velocity.x).toBeGreaterThan(0);
     expect(blob.velocity.y).toBe(0);
+  });
+
+  it('skips planet gravity for fuel blobs that ignore planet gravity', () => {
+    const blob: FuelBlobEntity = {
+      id: 1,
+      affectedByPlanetGravity: false,
+      airResistance: 0.015,
+      position: { x: 100, y: 100 },
+      velocity: { x: 24, y: 0 },
+      wobbleSeed: 0,
+    };
+
+    applyPlanetGravityToFuelBlobs([blob], [planet], world, 1 / 60);
+
+    expect(blob.velocity).toEqual({ x: 24, y: 0 });
   });
 });

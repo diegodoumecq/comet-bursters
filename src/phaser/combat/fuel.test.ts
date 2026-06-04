@@ -66,6 +66,8 @@ function distance(from: { x: number; y: number }, to: { x: number; y: number }):
 function createFuelBlob(id: number, x: number): FuelBlobEntity {
   return {
     id,
+    affectedByPlanetGravity: true,
+    airResistance: 0.015,
     position: { x, y: 0 },
     velocity: { x: 0, y: 0 },
     wobbleSeed: 0,
@@ -80,13 +82,18 @@ function createProjectile(
     absorbedFuel: 0,
     ageMs: 0,
     angle: 0,
+    airResistance: 0.01,
+    baseSpeed: kind === 'blackHole' ? 1 : 20,
     blackHoleMass: 0,
     collapseStartedAt: null,
     createdAt: 0,
+    damage: kind === 'small' ? 1 : 0,
     id,
+    impact: kind === 'small' ? 0.2 : 0,
     kind,
     lifetimeMs: 1000,
     position: { x: 0, y: 0 },
+    radius: kind === 'blackHole' ? 6 : 2,
     velocity: { x: 0, y: 0 },
   };
 }

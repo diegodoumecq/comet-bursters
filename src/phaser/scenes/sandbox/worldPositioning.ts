@@ -47,6 +47,7 @@ export function rebaseWorldAroundPlayer(input: SandboxWorldPositioningInput): vo
     input.projectileBodies.setPosition(projectile, projectile.position);
   }
   for (const blob of input.runtime.world.fuelBlobs) {
+    input.fuelBodies.sync(blob);
     blob.position.x += shift.x;
     blob.position.y += shift.y;
     input.fuelBodies.setPosition(blob, blob.position);
@@ -79,6 +80,7 @@ export function keepMovingEntitiesNearPlayer(input: SandboxWorldPositioningInput
     input.projectileBodies.setPosition(projectile, position);
   }
   for (const blob of input.runtime.world.fuelBlobs) {
+    input.fuelBodies.sync(blob);
     blob.position = nearestWrappedPosition(input.player.position, blob.position, input.world);
     input.fuelBodies.setPosition(blob, blob.position);
   }

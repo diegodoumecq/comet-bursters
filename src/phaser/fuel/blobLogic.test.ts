@@ -7,7 +7,7 @@ import {
   updateFuelBlob,
   updateFuelBlobs,
 } from './blobLogic';
-import { FUEL_BLOB_SPAWN_DRIFT_MAX_SPEED } from './rules';
+import { FUEL_BLOB_SPAWN_DRIFT_SPEED } from './rules';
 
 vi.mock('phaser', () => ({
   default: {
@@ -27,6 +27,8 @@ describe('fuel blob movement', () => {
   it('pulls strongly toward the player ship when collectable', () => {
     const blob = {
       id: 1,
+      affectedByPlanetGravity: true,
+      airResistance: 0.015,
       position: { x: 100, y: 0 },
       velocity: { x: 0, y: 0 },
       wobbleSeed: 0,
@@ -40,6 +42,8 @@ describe('fuel blob movement', () => {
   it('does not pull toward the player when collection is disabled', () => {
     const blob = {
       id: 1,
+      affectedByPlanetGravity: true,
+      airResistance: 0.015,
       position: { x: 100, y: 0 },
       velocity: { x: 0, y: 0 },
       wobbleSeed: 0,
@@ -50,10 +54,27 @@ describe('fuel blob movement', () => {
     expect(blob.velocity.x).toBe(0);
   });
 
+  it('does not cap fired fuel blob speed', () => {
+    const blob = {
+      id: 1,
+      affectedByPlanetGravity: false,
+      airResistance: 0,
+      position: { x: 0, y: 0 },
+      velocity: { x: 24, y: 0 },
+      wobbleSeed: 0,
+    };
+
+    updateFuelBlob(blob, { x: 0, y: 0 }, false, 1 / 60, world, false);
+
+    expect(Math.hypot(blob.velocity.x, blob.velocity.y)).toBeCloseTo(24);
+  });
+
   it('uses scaled player collision radius for collection', () => {
     const blobs = [
       {
         id: 1,
+        affectedByPlanetGravity: true,
+        airResistance: 0.015,
         position: { x: 35, y: 0 },
         velocity: { x: 0, y: 0 },
         wobbleSeed: 0,
@@ -84,7 +105,7 @@ describe('fuel blob movement', () => {
     const blobs = spawnFuelBlobs({ x: 100, y: 200 }, 1);
 
     expect(Math.hypot(blobs[0].velocity.x, blobs[0].velocity.y)).toBe(
-      FUEL_BLOB_SPAWN_DRIFT_MAX_SPEED,
+      FUEL_BLOB_SPAWN_DRIFT_SPEED,
     );
   });
 
@@ -101,7 +122,7 @@ describe('fuel blob movement', () => {
       visualVariant: 0,
     });
 
-    expect(blobs[0].velocity.x).toBe(FUEL_BLOB_SPAWN_DRIFT_MAX_SPEED);
+    expect(blobs[0].velocity.x).toBe(FUEL_BLOB_SPAWN_DRIFT_SPEED);
   });
 });
 
@@ -118,6 +139,8 @@ describe('fuel blob chain reactions', () => {
 function fuelBlob(id: number, x: number) {
   return {
     id,
+    affectedByPlanetGravity: true,
+    airResistance: 0.015,
     position: { x, y: 0 },
     velocity: { x: 0, y: 0 },
     wobbleSeed: 0,

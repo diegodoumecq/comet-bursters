@@ -5,7 +5,6 @@ import { circlesOverlap } from '../core/collision';
 import type { Vector } from '../core/types';
 import { SHIELD_HIT_COOLDOWN_MS, spendShieldFuel } from '../fuel/rules';
 import type { ProjectileEntity } from '../projectiles/types';
-import { PROJECTILES } from '../weapons/config';
 
 export const SHIP_ASTEROID_IMPACT_DAMAGE = 20;
 
@@ -20,7 +19,7 @@ export function applyProjectileImpulse(
   if (projectileSpeed === 0) return;
   const normalX = projectile.velocity.x / projectileSpeed;
   const normalY = projectile.velocity.y / projectileSpeed;
-  const impulse = PROJECTILES[projectile.kind].impact * 1.5 * (1 / config.mass);
+  const impulse = projectile.impact * 1.5 * (1 / config.mass);
   asteroidVelocity.x += normalX * impulse;
   asteroidVelocity.y += normalY * impulse;
   asteroid.velocity = asteroidVelocity;
@@ -28,7 +27,7 @@ export function applyProjectileImpulse(
 }
 
 export function damageAsteroid(projectile: ProjectileEntity, asteroid: AsteroidEntity): boolean {
-  return damageAsteroidByAmount(asteroid, PROJECTILES[projectile.kind].damage);
+  return damageAsteroidByAmount(asteroid, projectile.damage);
 }
 
 export function damageAsteroidByAmount(asteroid: AsteroidEntity, damage: number): boolean {

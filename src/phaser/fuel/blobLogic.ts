@@ -11,10 +11,8 @@ import {
   FUEL_BLOB_ATTRACTION_ACCELERATION,
   FUEL_BLOB_ATTRACTION_RADIUS,
   FUEL_BLOB_CHAIN_REACTION_RADIUS,
-  FUEL_BLOB_DRAG_PER_FRAME,
-  FUEL_BLOB_MAX_SPEED,
   FUEL_BLOB_RADIUS,
-  FUEL_BLOB_SPAWN_DRIFT_MAX_SPEED,
+  FUEL_BLOB_SPAWN_DRIFT_SPEED,
   getFuelDropCount,
 } from './rules';
 import type { FuelBlobEntity } from './types';
@@ -30,7 +28,7 @@ export function spawnFuelBlobs(position: Vector, count: number): FuelBlobEntity[
   for (let index = 0; index < count; index += 1) {
     const angle = Math.random() * Math.PI * 2;
     const distance = Phaser.Math.FloatBetween(8, 28);
-    const speed = Phaser.Math.FloatBetween(0, FUEL_BLOB_SPAWN_DRIFT_MAX_SPEED);
+    const speed = Phaser.Math.FloatBetween(0, FUEL_BLOB_SPAWN_DRIFT_SPEED);
     blobs.push(
       createFuelBlob(
         {
@@ -86,7 +84,7 @@ export function applyFuelBlobMotion(
     }
   }
 
-  limitFuelBlobSpeed(applyFuelBlobDrag(blob.velocity, deltaSeconds));
+  applyFuelBlobDrag(blob.velocity, deltaSeconds, blob.airResistance);
 }
 
 export function syncFuelBlobFromBody(
@@ -134,20 +132,16 @@ export function getFuelBlobExplosionChain(input: {
   return exploded;
 }
 
-function applyFuelBlobDrag(velocity: Vector, deltaSeconds: number): Vector {
+function applyFuelBlobDrag(
+  velocity: Vector,
+  deltaSeconds: number,
+  airResistance: number,
+): Vector {
   const frameScale = deltaSeconds * 60;
-  const drag = Math.pow(FUEL_BLOB_DRAG_PER_FRAME, frameScale);
+  const drag = Math.pow(1 - airResistance, frameScale);
   velocity.x *= drag;
   velocity.y *= drag;
   return velocity;
-}
-
-function limitFuelBlobSpeed(velocity: Vector): void {
-  const speed = Math.hypot(velocity.x, velocity.y);
-  if (speed > FUEL_BLOB_MAX_SPEED) {
-    velocity.x = (velocity.x / speed) * FUEL_BLOB_MAX_SPEED;
-    velocity.y = (velocity.y / speed) * FUEL_BLOB_MAX_SPEED;
-  }
 }
 
 export function updateFuelBlobs(

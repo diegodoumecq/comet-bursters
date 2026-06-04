@@ -12,7 +12,7 @@ export class ProjectileBodies {
   constructor(private readonly scene: Phaser.Scene) {}
 
   add(projectile: ProjectileEntity): MatterArc {
-    const shape = createProjectileShape(this.scene, projectile.position, projectile.kind);
+    const shape = createProjectileShape(this.scene, projectile);
     shape.setVelocity(projectile.velocity.x, projectile.velocity.y);
     this.shapes.set(projectile.id, shape);
     this.visuals.syncWorld(projectile);

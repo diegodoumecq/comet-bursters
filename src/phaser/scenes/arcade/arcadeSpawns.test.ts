@@ -60,12 +60,17 @@ describe('arcade spawns', () => {
       absorbedFuel: 0,
       ageMs: 5000,
       angle: 0,
+      airResistance: 0.01,
+      baseSpeed: 1,
       collapseStartedAt: null,
       createdAt: 0,
+      damage: 0,
       id: 1,
+      impact: 0,
       kind: 'blackHole' as const,
       lifetimeMs: 10000,
       position: { x: world.width * 0.5, y: world.height * 0.5 },
+      radius: 6,
       velocity: { x: 0, y: 0 },
     };
     const exclusions = getBlackHoleSpawnExclusions([blackHole]);

@@ -1,14 +1,8 @@
 import type { Vector } from '../core/types';
-import { createFuelBlob } from '../fuel/factory';
-import {
-  consumeTractorFuel,
-  FUEL_BLOB_RADIUS,
-  FUEL_GUN_BLOB_COLLECTION_ARM_MS,
-} from '../fuel/rules';
+import { consumeTractorFuel } from '../fuel/rules';
 import type { FuelBlobEntity } from '../fuel/types';
 import type { ShipState } from '../player/shipState';
 import type { PlayerState } from '../player/state';
-import { PLAYER_TURRET_MUZZLE_OFFSET } from '../player/textures';
 import type { ProjectileEntity } from '../projectiles/types';
 import { fireWeapon } from './fire';
 import { allowsWeapon, type SceneWeaponPolicy } from './scenePolicy';
@@ -121,54 +115,26 @@ function fireSelectedWeapon(
   if (!allowsWeapon(input.policy, weapon)) return noWeaponFire(nextProjectileId, inspectionProbes);
   if (weapon === 'inspectionProbe' && inspectionProbes <= 0)
     return noWeaponFire(nextProjectileId, inspectionProbes);
-  const result = fireWeapon(
-    weapon,
-    input.player.lastAim,
-    input.now,
-    input.ship.fuel,
-    input.player.lastShotAt,
-    input.shooterVelocity,
-  );
-  input.player.lastShotAt = result.lastShotAt;
-  const projectileOrigin = getProjectileSpawnPosition(input.origin, input.player.lastAim);
-  const fuelBlobOrigin = getFuelBlobSpawnPosition(input.origin, input.player.lastAim);
-  const projectiles = result.shots.map((shot, index) => ({
-    absorbedFuel: 0,
-    ageMs: 0,
-    angle: shot.angle,
-    blackHoleMass: shot.kind === 'blackHole' ? 1 : undefined,
-    collapseStartedAt: null,
-    createdAt: input.now,
-    id: nextProjectileId + index,
-    kind: shot.kind,
-    lifetimeMs: shot.lifetimeMs,
-    membership: { space: 'arcade' as const },
-    position: { ...projectileOrigin },
-    velocity: shot.velocity,
-  }));
-  const fuelBlobs = result.fuelBlobShots.map((shot) => {
-    const blob = createFuelBlob(fuelBlobOrigin, shot.velocity);
-    blob.collectableAtMs = input.now + FUEL_GUN_BLOB_COLLECTION_ARM_MS;
-    return blob;
+  const result = fireWeapon({
+    direction: input.player.lastAim,
+    fuel: input.ship.fuel,
+    kind: weapon,
+    lastShotAt: input.player.lastShotAt,
+    nextProjectileId,
+    now: input.now,
+    origin: input.origin,
+    shooterVelocity: input.shooterVelocity,
   });
+  input.player.lastShotAt = result.lastShotAt;
   input.ship.setFuel(result.fuel);
   return {
-    fuelBlobs,
+    fuelBlobs: result.fuelBlobs,
     fuel: result.fuel,
-    nextProjectileId: nextProjectileId + projectiles.length,
-    projectiles,
+    nextProjectileId: result.nextProjectileId,
+    projectiles: result.projectiles,
     recoil: result.recoil,
     inspectionProbes:
-      weapon === 'inspectionProbe' ? inspectionProbes - projectiles.length : inspectionProbes,
-  };
-}
-
-export function getProjectileSpawnPosition(origin: Vector, direction: Vector): Vector {
-  const magnitude = Math.hypot(direction.x, direction.y);
-  if (magnitude <= 0) return { ...origin };
-  return {
-    x: origin.x + (direction.x / magnitude) * PLAYER_TURRET_MUZZLE_OFFSET,
-    y: origin.y + (direction.y / magnitude) * PLAYER_TURRET_MUZZLE_OFFSET,
+      weapon === 'inspectionProbe' ? inspectionProbes - result.projectiles.length : inspectionProbes,
   };
 }
 
@@ -193,15 +159,5 @@ function noWeaponFire(nextProjectileId: number, inspectionProbes: number) {
     projectiles: [],
     recoil: { x: 0, y: 0 },
     inspectionProbes,
-  };
-}
-
-export function getFuelBlobSpawnPosition(origin: Vector, direction: Vector): Vector {
-  const magnitude = Math.hypot(direction.x, direction.y);
-  if (magnitude <= 0) return { ...origin };
-  const distance = PLAYER_TURRET_MUZZLE_OFFSET + FUEL_BLOB_RADIUS + 18;
-  return {
-    x: origin.x + (direction.x / magnitude) * distance,
-    y: origin.y + (direction.y / magnitude) * distance,
   };
 }

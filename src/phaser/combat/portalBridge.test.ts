@@ -102,13 +102,18 @@ function createProjectile(
     absorbedFuel: 0,
     ageMs: 0,
     angle: 0,
+    airResistance: 0.01,
+    baseSpeed: 20,
     collapseStartedAt: null,
     createdAt: 0,
+    damage: 1,
     id,
+    impact: 0.2,
     kind: 'small',
     lifetimeMs: 1000,
     membership: { space },
     position,
+    radius: 2,
     velocity: { x: 0, y: 0 },
   };
 }

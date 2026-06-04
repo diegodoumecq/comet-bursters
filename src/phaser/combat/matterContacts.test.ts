@@ -31,6 +31,8 @@ function asteroid(): AsteroidEntity {
 function fuelBlob(): FuelBlobEntity {
   return {
     id: 1,
+    affectedByPlanetGravity: true,
+    airResistance: 0.015,
     position: { x: 0, y: 0 },
     velocity: { x: 0, y: 0 },
     wobbleSeed: 0,
@@ -42,13 +44,18 @@ function projectile(): ProjectileEntity {
     absorbedFuel: 0,
     ageMs: 0,
     angle: 0,
+    airResistance: 0.01,
+    baseSpeed: 20,
     blackHoleMass: 0,
     collapseStartedAt: null,
     createdAt: 0,
+    damage: 1,
     id: 1,
+    impact: 0.2,
     kind: 'small',
     lifetimeMs: 1000,
     position: { x: 0, y: 0 },
+    radius: 2,
     velocity: { x: 0, y: 0 },
   };
 }

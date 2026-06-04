@@ -26,19 +26,24 @@ vi.mock('phaser', () => ({
 }));
 
 function createBlackHole(input: Partial<ProjectileEntity> = {}): ProjectileEntity {
-  return {
+  const blackHole: ProjectileEntity = {
     absorbedFuel: 0,
     ageMs: BLACK_HOLE_MATURE_AFTER_MS,
     angle: 0,
+    airResistance: 0.01,
+    baseSpeed: 1,
     collapseStartedAt: null,
     createdAt: 0,
+    damage: 0,
     id: 1,
+    impact: 0,
     kind: 'blackHole',
     lifetimeMs: 10000,
     position: { x: 100, y: 0 },
+    radius: 6,
     velocity: { x: 0, y: 0 },
-    ...input,
   };
+  return { ...blackHole, ...input };
 }
 
 function createAsteroid(): AsteroidEntity {
@@ -135,6 +140,8 @@ describe('black-hole gravity', () => {
     const playerVelocity = { x: 0, y: 0 };
     const fuelBlob = {
       id: 1,
+      affectedByPlanetGravity: true,
+      airResistance: 0.015,
       position: { x: 80, y: 0 },
       velocity: { x: 0, y: 0 },
       wobbleSeed: 0,
@@ -157,6 +164,8 @@ describe('black-hole gravity', () => {
   it('pulls fuel blobs from beyond the asteroid gravity range', () => {
     const fuelBlob = {
       id: 1,
+      affectedByPlanetGravity: true,
+      airResistance: 0.015,
       position: { x: -100, y: 0 },
       velocity: { x: 0, y: 0 },
       wobbleSeed: 0,
@@ -198,6 +207,8 @@ describe('black-hole gravity', () => {
   it('does not pull targets before the black hole matures', () => {
     const fuelBlob = {
       id: 1,
+      affectedByPlanetGravity: true,
+      airResistance: 0.015,
       position: { x: 80, y: 0 },
       velocity: { x: 0, y: 0 },
       wobbleSeed: 0,
@@ -256,6 +267,8 @@ describe('black-hole fuel absorption', () => {
     const blackHole = createBlackHole();
     const fuelBlob = {
       id: 1,
+      affectedByPlanetGravity: true,
+      airResistance: 0.015,
       position: { x: 100, y: 0 },
       velocity: { x: 0, y: 0 },
       wobbleSeed: 0,
@@ -274,6 +287,8 @@ describe('black-hole fuel absorption', () => {
     const blackHole = createBlackHole({ ageMs });
     const fuelBlob = {
       id: 1,
+      affectedByPlanetGravity: true,
+      airResistance: 0.015,
       position: { x: 100, y: 0 },
       velocity: { x: 0, y: 0 },
       wobbleSeed: 0,
@@ -293,6 +308,8 @@ describe('black-hole fuel absorption', () => {
     asteroid.position = { x: 100, y: 0 };
     const fuelBlobs = Array.from({ length: 4 }, (_, index) => ({
       id: index + 1,
+      affectedByPlanetGravity: true,
+      airResistance: 0.015,
       position: { x: 100, y: 0 },
       velocity: { x: 0, y: 0 },
       wobbleSeed: 0,
@@ -313,6 +330,8 @@ describe('black-hole fuel absorption', () => {
     const blackHole = createBlackHole();
     const fuelBlob = {
       id: 1,
+      affectedByPlanetGravity: true,
+      airResistance: 0.015,
       position: { x: 140, y: 0 },
       velocity: { x: 0, y: 0 },
       wobbleSeed: 0,
@@ -330,6 +349,8 @@ describe('black-hole fuel absorption', () => {
     const collapsingBlackHole = createBlackHole({ collapseStartedAt: BLACK_HOLE_MATURE_AFTER_MS });
     const fuelBlob = {
       id: 1,
+      affectedByPlanetGravity: true,
+      airResistance: 0.015,
       position: { x: 100, y: 0 },
       velocity: { x: 0, y: 0 },
       wobbleSeed: 0,

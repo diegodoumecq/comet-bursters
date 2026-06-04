@@ -94,17 +94,22 @@ describe('arcade black hole rendering', () => {
 });
 
 function createBlackHole(input: Partial<ProjectileEntity> = {}): ProjectileEntity {
-  return {
+  const blackHole: ProjectileEntity = {
     absorbedFuel: 0,
     ageMs: BLACK_HOLE_MATURE_AFTER_MS + 1000,
     angle: 0,
+    airResistance: 0.01,
+    baseSpeed: 1,
     collapseStartedAt: null,
     createdAt: 0,
+    damage: 0,
     id: 1,
+    impact: 0,
     kind: 'blackHole',
     lifetimeMs: 10000,
     position: { x: 450, y: 350 },
+    radius: 6,
     velocity: { x: 0, y: 0 },
-    ...input,
   };
+  return { ...blackHole, ...input };
 }

@@ -9,13 +9,18 @@ function createProjectile(input: Partial<ProjectileEntity> = {}): ProjectileEnti
     absorbedFuel: 0,
     ageMs: 0,
     angle: 0,
+    airResistance: input.airResistance ?? 0.01,
+    baseSpeed: input.baseSpeed ?? 20,
     collapseStartedAt: null,
     createdAt: 0,
+    damage: input.damage ?? 1,
     id: input.id ?? 1,
+    impact: input.impact ?? 0.2,
     kind: input.kind ?? 'small',
     lifetimeMs: input.lifetimeMs ?? 1000,
     membership: input.membership ?? { space: 'arcade' },
     position: input.position ?? { x: 10, y: 20 },
+    radius: input.radius ?? 2,
     velocity: input.velocity ?? { x: 2, y: 3 },
   };
 }

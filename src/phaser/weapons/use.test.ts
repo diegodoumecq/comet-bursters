@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { FUEL_GUN_BLOB_COLLECTION_ARM_MS } from '../fuel/rules';
 import { ShipState } from '../player/shipState';
 import { PlayerState } from '../player/state';
-import { PLAYER_TURRET_MUZZLE_OFFSET } from '../player/textures';
+import { WEAPON_FIRE_CONFIGS } from './config';
 import { SANDBOX_WEAPONS } from './scenePolicy';
-import { getFuelBlobSpawnPosition, getProjectileSpawnPosition, updateWeapons } from './use';
+import { updateWeapons } from './use';
 
 describe('weapon projectile spawning', () => {
   it('spawns projectiles at the turret muzzle instead of the ship center', () => {
@@ -34,15 +33,38 @@ describe('weapon projectile spawning', () => {
 
     expect(result.projectiles).toHaveLength(1);
     expect(result.projectiles[0].position).toEqual({
-      x: 100 + PLAYER_TURRET_MUZZLE_OFFSET,
+      x: 100 + getFirstEmission('small').spawnOffset,
       y: 200,
     });
   });
 
   it('normalizes aim before applying the muzzle offset', () => {
-    expect(getProjectileSpawnPosition({ x: 10, y: 20 }, { x: 3, y: 4 })).toEqual({
-      x: 10 + PLAYER_TURRET_MUZZLE_OFFSET * 0.6,
-      y: 20 + PLAYER_TURRET_MUZZLE_OFFSET * 0.8,
+    const player = new PlayerState();
+    const ship = new ShipState();
+    player.updateAim({ x: 3, y: 4 });
+
+    const result = updateWeapons({
+      action: {
+        firePrimary: true,
+        fireSecondary: false,
+        playerActive: true,
+        timeDilation: false,
+      },
+      deltaSeconds: 1 / 60,
+      inspectionProbes: 0,
+      nextProjectileId: 10,
+      now: 1000,
+      origin: { x: 10, y: 20 },
+      player,
+      policy: { allowedWeapons: SANDBOX_WEAPONS },
+      selectedWeapon: 'small',
+      ship,
+      shooterVelocity: { x: 0, y: 0 },
+    });
+
+    expect(result.projectiles[0].position).toEqual({
+      x: 10 + getFirstEmission('small').spawnOffset * 0.6,
+      y: 20 + getFirstEmission('small').spawnOffset * 0.8,
     });
   });
 
@@ -73,9 +95,22 @@ describe('weapon projectile spawning', () => {
 
     expect(result.projectiles).toHaveLength(0);
     expect(result.fuelBlobs).toHaveLength(1);
-    expect(result.fuelBlobs[0].position).toEqual(
-      getFuelBlobSpawnPosition({ x: 100, y: 200 }, { x: 1, y: 0 }),
-    );
-    expect(result.fuelBlobs[0].collectableAtMs).toBe(1000 + FUEL_GUN_BLOB_COLLECTION_ARM_MS);
+    expect(result.fuelBlobs[0].position).toEqual({
+      x: 100 + getFirstEmission('fuelGun').spawnOffset,
+      y: 200,
+    });
+    expect(result.fuelBlobs[0].collectableAtMs).toBe(1000 + getFuelGunCollectableDelayMs());
   });
 });
+
+function getFirstEmission(weapon: 'fuelGun' | 'small') {
+  return WEAPON_FIRE_CONFIGS[weapon].emissions[0];
+}
+
+function getFuelGunCollectableDelayMs(): number {
+  const emission = getFirstEmission('fuelGun');
+  if (emission.type !== 'fuelBlob' || emission.entity?.collectableDelayMs === undefined) {
+    throw new Error('Expected fuel gun collectable delay config');
+  }
+  return emission.entity.collectableDelayMs;
+}
