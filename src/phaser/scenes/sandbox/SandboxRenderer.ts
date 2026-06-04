@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import type { AsteroidEntity } from '../../asteroids/types';
 import { withPerformanceMeasure } from '../../core/performance';
 import type { Vector, WorldSize } from '../../core/types';
+import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import {
   getPlayerVisible,
   renderPlayerFuel,
@@ -13,22 +14,27 @@ import {
 import type { ShipState } from '../../player/shipState';
 import type { PlayerState } from '../../player/state';
 import { PLAYER_TURRET_TEXTURE_KEY } from '../../player/textures';
+import { buildPlayerTrajectoryPreview } from '../../player/trajectory';
 import { getSandboxPerfToggles } from '../../runtime/startup';
 import { Minimap } from '../../ui/Minimap';
 import { WeaponMenu } from '../../ui/WeaponMenu';
 import type { SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { drawTractorBeam } from '../../weapons/tractorBeam';
 import type { WeaponKind } from '../../weapons/types';
+import type { SandboxBiomeRegion } from './biomeGeneration';
 import { MINIMAP_COLUMNS, MINIMAP_ROWS, type SandboxDiscovery } from './discovery';
 import { NebulaRegionRenderer } from './NebulaRegionRenderer';
 import type { NebulaRegion } from './nebulaRegions';
 import type { SandboxPlanetEntity } from './planetFuel';
 import { SandboxBackground } from './SandboxBackground';
 import { SandboxBiomeDebugOverlay } from './SandboxBiomeDebugOverlay';
-import type { SandboxBiomeRegion } from './biomeGeneration';
 import { SandboxPlanetOverlay } from './SandboxPlanetOverlay';
 
 const PLAYER_FUEL_HUD_DEPTH = 30;
+const PLAYER_TRAJECTORY_PREVIEW_DEPTH = 4;
+const PLAYER_TRAJECTORY_PREVIEW_COLOR = 0x7dd3fc;
+const PLAYER_TRAJECTORY_PREVIEW_MIN_ALPHA = 0.1;
+const PLAYER_TRAJECTORY_PREVIEW_MAX_ALPHA = 0.82;
 
 export class SandboxRenderer {
   private readonly background: SandboxBackground;
@@ -41,6 +47,7 @@ export class SandboxRenderer {
   private readonly playerFuelFill: Phaser.GameObjects.Graphics;
   private readonly playerFuelMask: Phaser.GameObjects.Graphics;
   private readonly playerThruster: Phaser.GameObjects.Graphics;
+  private readonly playerTrajectoryPreview: Phaser.GameObjects.Graphics;
   private readonly weaponMenu: WeaponMenu;
   private readonly minimap: Minimap;
   private readonly planetOverlay: SandboxPlanetOverlay;
@@ -65,6 +72,7 @@ export class SandboxRenderer {
     this.playerFuelMask = scene.make.graphics({ x: 0, y: 0 }, false);
     this.playerFuelFill.setMask(this.playerFuelMask.createGeometryMask());
     this.playerThruster = scene.add.graphics().setDepth(0);
+    this.playerTrajectoryPreview = scene.add.graphics().setDepth(PLAYER_TRAJECTORY_PREVIEW_DEPTH);
     this.weaponMenu = new WeaponMenu(scene, weaponPolicy.allowedWeapons);
     this.minimap = new Minimap(scene);
     this.planetOverlay = new SandboxPlanetOverlay(scene);
@@ -87,6 +95,7 @@ export class SandboxRenderer {
       this.playerFuelFill.setDepth(PLAYER_FUEL_HUD_DEPTH);
       this.playerTurret.setDepth(-2.5);
       this.playerShield.setDepth(-2.5);
+      this.playerTrajectoryPreview.clear();
       return;
     }
     this.player.setDepth(6);
@@ -106,6 +115,7 @@ export class SandboxRenderer {
     shieldActive: boolean;
     ship: ShipState;
     timeDilation: boolean;
+    trajectoryPreviewActive: boolean;
     tractorActive: boolean;
     inspectionProbes: number;
     discovery: SandboxDiscovery;
@@ -143,6 +153,7 @@ export class SandboxRenderer {
       input.player.invulnerableUntil,
       input.now,
     );
+    this.renderPlayerTrajectoryPreview(input, visible && input.trajectoryPreviewActive);
     renderPlayerThruster(
       this.playerThruster,
       this.player,
@@ -214,5 +225,44 @@ export class SandboxRenderer {
       enabled: this.perfToggles.biomeDebug,
       world: input.world,
     });
+  }
+
+  private renderPlayerTrajectoryPreview(
+    input: {
+      planets: SandboxPlanetEntity[];
+      player: PlayerState;
+      world: WorldSize;
+    },
+    active: boolean,
+  ): void {
+    this.playerTrajectoryPreview.clear();
+    if (!active) return;
+
+    const preview = buildPlayerTrajectoryPreview({
+      planets: input.planets,
+      playerRadius: PLAYER_COLLISION_RADIUS * input.player.scale,
+      position: input.player.position,
+      velocity: input.player.velocity,
+      world: input.world,
+    });
+    if (!preview) return;
+
+    let previous = input.player.position;
+    for (let i = 0; i < preview.points.length; i += 1) {
+      const fade = 1 - i / preview.points.length;
+      const alpha =
+        (PLAYER_TRAJECTORY_PREVIEW_MIN_ALPHA +
+          (PLAYER_TRAJECTORY_PREVIEW_MAX_ALPHA - PLAYER_TRAJECTORY_PREVIEW_MIN_ALPHA) *
+            fade *
+            fade) *
+        preview.alphaScale;
+      const point = preview.points[i];
+      this.playerTrajectoryPreview.lineStyle(2, PLAYER_TRAJECTORY_PREVIEW_COLOR, alpha);
+      this.playerTrajectoryPreview.beginPath();
+      this.playerTrajectoryPreview.moveTo(previous.x, previous.y);
+      this.playerTrajectoryPreview.lineTo(point.x, point.y);
+      this.playerTrajectoryPreview.strokePath();
+      previous = point;
+    }
   }
 }

@@ -22,8 +22,8 @@ import {
   createThrusterParticles,
   type EffectResult,
 } from '../combat/effects';
-import { updateFuelBlobCollection } from '../combat/fuelCollection';
 import { resolveProjectileFuelBlobCombatEvents } from '../combat/fuel';
+import { updateFuelBlobCollection } from '../combat/fuelCollection';
 import { MatterContacts, type PlayerAsteroidContact } from '../combat/matterContacts';
 import { applyMatterBodySpec } from '../core/matterBodySpec';
 import { getTimeScale } from '../core/time';
@@ -223,6 +223,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       shieldActive: this.isShieldActive(action),
       ship: this.ship,
       timeDilation: action.timeDilation,
+      trajectoryPreviewActive: this.controlsEnabled,
       tractorActive: this.getTractorActive(action),
       inspectionProbes: this.inspectionProbes,
       discovery: this.discovery,
