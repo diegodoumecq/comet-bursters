@@ -11,7 +11,11 @@ export class SandboxBiomeDebugOverlay {
   private readonly graphics: Phaser.GameObjects.Graphics;
 
   constructor(scene: Phaser.Scene) {
-    this.graphics = scene.add.graphics().setDepth(BIOME_DEBUG_DEPTH).setScrollFactor(1);
+    this.graphics = scene.add
+      .graphics()
+      .setName('sandbox-biome-debug-overlay')
+      .setDepth(BIOME_DEBUG_DEPTH)
+      .setScrollFactor(1);
   }
 
   render(input: {

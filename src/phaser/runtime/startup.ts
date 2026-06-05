@@ -24,8 +24,10 @@ export type SandboxPerfToggles = {
   markers: boolean;
   minimap: boolean;
   nebulaRegions: boolean;
+  playerHud: boolean;
   starfield: boolean;
   threeBackground: boolean;
+  trajectoryPreview: boolean;
 };
 
 export function getSandboxPerfToggles(): SandboxPerfToggles {
@@ -37,8 +39,10 @@ export function getSandboxPerfToggles(): SandboxPerfToggles {
     markers: getBooleanStartupFlag('sandboxPerfMarkers', false),
     minimap: getBooleanStartupFlag('sandboxMinimap', true),
     nebulaRegions: getBooleanStartupFlag('sandboxNebulaRegions', true),
+    playerHud: getBooleanStartupFlag('sandboxPlayerHud', true),
     starfield: getBooleanStartupFlag('sandboxStarfield', true),
     threeBackground: getBooleanStartupFlag('sandboxThreeBackground', true),
+    trajectoryPreview: getBooleanStartupFlag('sandboxTrajectoryPreview', true),
   };
 }
 

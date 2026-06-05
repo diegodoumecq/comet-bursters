@@ -26,7 +26,7 @@ import { resolveProjectileFuelBlobCombatEvents } from '../../combat/fuel';
 import { updateFuelBlobCollection } from '../../combat/fuelCollection';
 import { MatterContacts, type PlayerAsteroidContact } from '../../combat/matterContacts';
 import { applyMatterBodySpec } from '../../core/matterBodySpec';
-import { withPerformanceMeasure } from '../../core/performance';
+import { startPerformanceFrame, withPerformanceMeasure } from '../../core/performance';
 import { getTimeScale } from '../../core/time';
 import type { Vector, WorldSize } from '../../core/types';
 import { spawnAsteroidFuelDrops, spawnFuelBlobs } from '../../fuel/blobLogic';
@@ -118,6 +118,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: SANDBOX_WEAPONS };
   private readonly discovery = new SandboxDiscovery();
   private readonly fogEnabled = getSandboxFogEnabled();
+  private readonly perfToggles = getSandboxPerfToggles();
   private planets: SandboxPlanetEntity[] = [];
   private mothership!: Mothership;
   private launchStartedAt = 0;
@@ -138,7 +139,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   create(): void {
-    const perfMarkers = getSandboxPerfToggles().markers;
+    const perfMarkers = this.perfToggles.markers;
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'sandbox');
     this.audioDirector.enter();
     this.actions = new ActionReader(this);
@@ -211,16 +212,35 @@ export class PhaserSandboxScene extends BaseGameScene {
     time: number,
     delta: number,
   ): void {
-    const timeScale = getTimeScale(action.timeDilation);
-    this.matter.world.engine.timing.timeScale = timeScale;
-    const deltaSeconds = (delta / 1000) * timeScale;
-    this.updatePlayer(action, time, deltaSeconds);
-    this.updateWorld(delta, deltaSeconds);
-    this.resolveCombat(time, this.isShieldActive(action), deltaSeconds);
-    this.updateFuelBlobs(deltaSeconds);
-    this.updateRespawn(time);
-    this.updateMothership(time);
-    if (this.fogEnabled) this.discovery.update(this.player.position, this.planets, WORLD);
+    const perf = startPerformanceFrame('sandbox.update.total', this.perfToggles.markers);
+    try {
+      const timeScale = getTimeScale(action.timeDilation);
+      this.matter.world.engine.timing.timeScale = timeScale;
+      const deltaSeconds = (delta / 1000) * timeScale;
+
+      perf.startSection('sandbox.update.player');
+      this.updatePlayer(action, time, deltaSeconds);
+
+      perf.startSection('sandbox.update.world');
+      this.updateWorld(delta, deltaSeconds);
+
+      perf.startSection('sandbox.update.combat');
+      this.resolveCombat(time, this.isShieldActive(action), deltaSeconds);
+
+      perf.startSection('sandbox.update.fuelBlobs');
+      this.updateFuelBlobs(deltaSeconds);
+
+      perf.startSection('sandbox.update.sceneState');
+      this.updateRespawn(time);
+      this.updateMothership(time);
+
+      if (this.fogEnabled) {
+        perf.startSection('sandbox.update.discovery');
+        this.discovery.update(this.player.position, this.planets, WORLD);
+      }
+    } finally {
+      perf.end();
+    }
   }
 
   protected renderState(action: ReturnType<ActionReader['read']>, time: number): void {
@@ -247,15 +267,17 @@ export class PhaserSandboxScene extends BaseGameScene {
       planets: this.planets,
       world: WORLD,
     });
-    this.renderEffects.render({
-      camera: this.cameras.main,
-      fuelBlobs: this.runtime.world.fuelBlobs,
-      now: time,
-      planets: this.planets,
-      playerPosition: this.player.position,
-      projectiles: this.runtime.world.projectiles,
-      screen: { width: this.scale.width, height: this.scale.height },
-      world: WORLD,
+    withPerformanceMeasure('sandbox.render.effects', this.perfToggles.markers, () => {
+      this.renderEffects.render({
+        camera: this.cameras.main,
+        fuelBlobs: this.runtime.world.fuelBlobs,
+        now: time,
+        planets: this.planets,
+        playerPosition: this.player.position,
+        projectiles: this.runtime.world.projectiles,
+        screen: { width: this.scale.width, height: this.scale.height },
+        world: WORLD,
+      });
     });
   }
 

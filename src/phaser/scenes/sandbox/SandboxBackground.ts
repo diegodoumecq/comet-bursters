@@ -35,7 +35,7 @@ export class SandboxBackground {
       SANDBOX_STAR_DEPTH_SHIFT,
     );
     this.scene.events.once('shutdown', this.dispose, this);
-    this.graphics = scene.add.graphics().setDepth(GRID_DEPTH);
+    this.graphics = scene.add.graphics().setName('sandbox-grid').setDepth(GRID_DEPTH);
     this.drawGrid(world);
   }
 

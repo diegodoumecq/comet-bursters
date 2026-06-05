@@ -75,6 +75,8 @@ export class FuelMetaballRenderer {
   constructor(private readonly parent: HTMLElement) {}
 
   render(metaballs: FuelMetaball[], now: number, width: number, height: number): void {
+    if (metaballs.length === 0 && !this.renderer) return;
+
     this.ensureInitialized(width, height);
     if (
       !this.renderer ||
@@ -90,9 +92,11 @@ export class FuelMetaballRenderer {
     const count = Math.min(metaballs.length, MAX_METABALLS);
     this.material.uniforms.u_metaballCount.value = count;
     if (count === 0) {
+      this.canvas.style.display = 'none';
       this.renderer.clear();
       return;
     }
+    this.canvas.style.display = 'block';
 
     const data = this.dataTexture.image.data as Float32Array;
     let minX = Number.POSITIVE_INFINITY;

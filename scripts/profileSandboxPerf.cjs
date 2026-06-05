@@ -40,9 +40,41 @@ async function main() {
     () => window.__cometBurstersPerf?.snapshot?.() ?? null,
   );
   await page.evaluate(() => window.__cometBurstersPerf?.clear());
+  await page.evaluate(() => {
+    window.__cometBurstersFrameSample = {
+      frames: [],
+      start: performance.now(),
+    };
+    const sample = () => {
+      const state = window.__cometBurstersFrameSample;
+      if (!state) return;
+      state.frames.push(performance.now());
+      window.requestAnimationFrame(sample);
+    };
+    window.requestAnimationFrame(sample);
+  });
   await page.waitForTimeout(durationMs);
 
   const frameSnapshot = await page.evaluate(() => window.__cometBurstersPerf?.snapshot?.() ?? null);
+  const frameStats = await page.evaluate(() => {
+    const sample = window.__cometBurstersFrameSample;
+    if (!sample || sample.frames.length < 2) return null;
+    const frames = sample.frames;
+    const deltas = [];
+    for (let index = 1; index < frames.length; index += 1) {
+      deltas.push(frames[index] - frames[index - 1]);
+    }
+    const totalMs = frames[frames.length - 1] - frames[0];
+    const averageDeltaMs = deltas.reduce((sum, delta) => sum + delta, 0) / deltas.length;
+    return {
+      averageDeltaMs,
+      averageFps: 1000 / averageDeltaMs,
+      durationMs: totalMs,
+      frameCount: frames.length,
+      maxDeltaMs: Math.max(...deltas),
+      minDeltaMs: Math.min(...deltas),
+    };
+  });
   await browser.close();
 
   console.log(
@@ -50,6 +82,7 @@ async function main() {
       {
         consoleMessages: consoleMessages.slice(-20),
         durationMs,
+        frameStats,
         frameSnapshot,
         startupSnapshot,
         url,
