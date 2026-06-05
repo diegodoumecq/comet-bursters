@@ -26,6 +26,7 @@ import { resolveProjectileFuelBlobCombatEvents } from '../../combat/fuel';
 import { updateFuelBlobCollection } from '../../combat/fuelCollection';
 import { MatterContacts, type PlayerAsteroidContact } from '../../combat/matterContacts';
 import { applyMatterBodySpec } from '../../core/matterBodySpec';
+import { withPerformanceMeasure } from '../../core/performance';
 import { getTimeScale } from '../../core/time';
 import type { Vector, WorldSize } from '../../core/types';
 import { spawnAsteroidFuelDrops, spawnFuelBlobs } from '../../fuel/blobLogic';
@@ -49,7 +50,7 @@ import { updateBlackHoles } from '../../projectiles/blackHoles';
 import { ProjectileBodies } from '../../projectiles/bodies';
 import { updateProjectiles } from '../../projectiles/logic';
 import type { ProjectileEntity } from '../../projectiles/types';
-import { getSandboxFogEnabled } from '../../runtime/startup';
+import { getSandboxFogEnabled, getSandboxPerfToggles } from '../../runtime/startup';
 import { SANDBOX_WEAPONS, type SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { applyTractorBeam } from '../../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../../weapons/use';
@@ -136,11 +137,16 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   create(): void {
+    const perfMarkers = getSandboxPerfToggles().markers;
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'sandbox');
     this.audioDirector.enter();
     this.actions = new ActionReader(this);
-    createPlayerTexture(this);
-    createAsteroidTextures(this);
+    withPerformanceMeasure('sandbox.startup.textures.player', perfMarkers, () => {
+      createPlayerTexture(this);
+    });
+    withPerformanceMeasure('sandbox.startup.textures.asteroids', perfMarkers, () => {
+      createAsteroidTextures(this);
+    });
     this.asteroidBodies = new AsteroidBodies(this);
     this.projectileBodies = new ProjectileBodies(this);
     this.fuelBodies = new FuelBodies(this);
@@ -154,22 +160,31 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.particleViews,
       this.contacts,
     );
-    const startup = createSandboxStartup(WORLD, INITIAL_ASTEROIDS);
+    const startup = withPerformanceMeasure('sandbox.startup.world', perfMarkers, () =>
+      createSandboxStartup(WORLD, INITIAL_ASTEROIDS),
+    );
     this.planets = startup.planets;
-    for (const planet of this.planets) this.planetViews.add(planet);
+    withPerformanceMeasure('sandbox.startup.planetViews', perfMarkers, () => {
+      for (const planet of this.planets) this.planetViews.add(planet);
+    });
     const spawnPoint = startup.spawnPoint;
     this.mothership = new Mothership(this, spawnPoint);
     this.playerBody = new PlayerBody(this, spawnPoint, this.player);
     this.playerBody.setRotation(MOTHERSHIP_SPAWN_PLAYER_ROTATION);
     applyMatterBodySpec(this.playerBody.body, PLAYER_DEFINITIONS.sandbox.body);
     this.syncPlayerContactBodies();
-    this.sceneRenderer = new SandboxRenderer(
-      this,
-      this.playerBody.body,
-      this.weaponPolicy,
-      WORLD,
-      startup.nebulaRegions,
-      startup.biomes,
+    this.sceneRenderer = withPerformanceMeasure(
+      'sandbox.startup.renderer',
+      perfMarkers,
+      () =>
+        new SandboxRenderer(
+          this,
+          this.playerBody.body,
+          this.weaponPolicy,
+          WORLD,
+          startup.nebulaRegions,
+          startup.biomes,
+        ),
     );
     this.renderEffects = new SandboxRenderEffects(
       this.game.canvas,

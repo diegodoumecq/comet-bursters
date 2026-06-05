@@ -1,0 +1,66 @@
+const { chromium } = require('playwright');
+
+const DEFAULT_URL = 'http://127.0.0.1:5173/phaser-game.html';
+const DEFAULT_DURATION_MS = 5000;
+
+async function main() {
+  const url = process.argv[2] ?? DEFAULT_URL;
+  const durationMs = Number.parseInt(process.argv[3] ?? '', 10) || DEFAULT_DURATION_MS;
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({
+    deviceScaleFactor: 1,
+    viewport: { height: 720, width: 1280 },
+  });
+  const consoleMessages = [];
+
+  page.on('console', (message) => {
+    consoleMessages.push(`${message.type()}: ${message.text()}`);
+  });
+  page.on('pageerror', (error) => {
+    consoleMessages.push(`pageerror: ${error.message}`);
+  });
+
+  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.evaluate(() => {
+    sessionStorage.setItem('comet-bursters-sandboxPerfMarkers', 'true');
+    sessionStorage.setItem('comet-bursters-sandboxBiomeDebug', 'false');
+    sessionStorage.setItem('comet-bursters-sandboxBlackHoles', 'true');
+    sessionStorage.setItem('comet-bursters-sandboxFuelMetaballs', 'true');
+    sessionStorage.setItem('comet-bursters-sandboxMinimap', 'true');
+    sessionStorage.setItem('comet-bursters-sandboxNebulaRegions', 'true');
+    sessionStorage.setItem('comet-bursters-sandboxStarfield', 'true');
+    sessionStorage.setItem('comet-bursters-sandboxThreeBackground', 'true');
+  });
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('canvas').waitFor({ state: 'visible' });
+  await page.mouse.click(640, 484);
+  await page.waitForTimeout(1000);
+  const startupSnapshot = await page.evaluate(
+    () => window.__cometBurstersPerf?.snapshot?.() ?? null,
+  );
+  await page.evaluate(() => window.__cometBurstersPerf?.clear());
+  await page.waitForTimeout(durationMs);
+
+  const frameSnapshot = await page.evaluate(() => window.__cometBurstersPerf?.snapshot?.() ?? null);
+  await browser.close();
+
+  console.log(
+    JSON.stringify(
+      {
+        consoleMessages: consoleMessages.slice(-20),
+        durationMs,
+        frameSnapshot,
+        startupSnapshot,
+        url,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

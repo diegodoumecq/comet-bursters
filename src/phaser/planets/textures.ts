@@ -5,17 +5,11 @@ import { getPlanetDisplaySizeForRadius, getPlanetTextureSizing } from './texture
 import type { PlanetEntity, PlanetSpriteSource } from './types';
 import { drawStyledPlanet } from './visuals/planetVisuals';
 
-const PLANET_TEXTURE_VERSION = 'v18-direct-painter-surface';
+const PLANET_TEXTURE_VERSION = 'v20-shared-capped-direct-painter-surface';
 const textureKeys = new Map<string, string>();
 
 export function getPlanetTextureKey(scene: Phaser.Scene, planet: PlanetEntity): string {
-  const cacheKey = [
-    PLANET_TEXTURE_VERSION,
-    planet.kind,
-    planet.colorHex,
-    planet.radius,
-    planet.altitudeVariations.map((value) => value.toFixed(3)).join(','),
-  ].join('|');
+  const cacheKey = [PLANET_TEXTURE_VERSION, planet.kind, planet.colorHex, planet.radius].join('|');
   const cached = textureKeys.get(cacheKey);
   if (cached && scene.textures.exists(cached)) return cached;
 

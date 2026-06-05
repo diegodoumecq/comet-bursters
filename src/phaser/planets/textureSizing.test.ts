@@ -4,7 +4,7 @@ import { PLANET_SPECS } from './config';
 import { getPlanetDisplaySizeForRadius, getPlanetTextureSizing } from './textureSizing';
 
 describe('planet texture sizing', () => {
-  it('keeps large planets full-detail when the renderer can upload them', () => {
+  it('caps large planets below the renderer upload limit', () => {
     const radius = PLANET_SPECS.gas.radius;
     const displaySize = getPlanetDisplaySizeForRadius(radius);
     const sizing = getPlanetTextureSizing(radius, 4096);
@@ -12,32 +12,45 @@ describe('planet texture sizing', () => {
     expect(displaySize).toBeGreaterThan(2048);
     expect(sizing).toEqual({
       displaySize,
-      textureScale: 1,
-      textureSize: displaySize,
+      textureScale: 1024 / displaySize,
+      textureSize: 1024,
     });
   });
 
-  it('keeps large planets full-detail when there is no renderer texture cap', () => {
+  it('caps large planets when there is no renderer texture cap', () => {
     const radius = PLANET_SPECS.gas.radius;
     const displaySize = getPlanetDisplaySizeForRadius(radius);
     const sizing = getPlanetTextureSizing(radius, null);
 
     expect(sizing).toEqual({
       displaySize,
-      textureScale: 1,
-      textureSize: displaySize,
+      textureScale: 1024 / displaySize,
+      textureSize: 1024,
     });
   });
 
-  it('downscales only when the renderer texture cap requires it', () => {
+  it('uses the smaller renderer cap when required', () => {
     const radius = PLANET_SPECS.gas.radius;
     const displaySize = getPlanetDisplaySizeForRadius(radius);
-    const sizing = getPlanetTextureSizing(radius, 2048);
+    const sizing = getPlanetTextureSizing(radius, 768);
 
     expect(sizing).toEqual({
       displaySize,
-      textureScale: 2048 / displaySize,
-      textureSize: 2048,
+      textureScale: 768 / displaySize,
+      textureSize: 768,
+    });
+  });
+
+  it('keeps smaller planets at display resolution', () => {
+    const radius = PLANET_SPECS.lush.radius;
+    const displaySize = getPlanetDisplaySizeForRadius(radius);
+    const sizing = getPlanetTextureSizing(radius, 4096);
+
+    expect(displaySize).toBeLessThan(1024);
+    expect(sizing).toEqual({
+      displaySize,
+      textureScale: 1,
+      textureSize: displaySize,
     });
   });
 });
