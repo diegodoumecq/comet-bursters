@@ -1,5 +1,5 @@
-import type { RawShipInteriorLevel } from '../../scenes/ShipInteriorScene/level';
-import { bundledTilesets } from '../../scenes/ShipInteriorScene/tilesetCatalog';
+import type { RawShipInteriorLevel } from '../../shipInterior/level';
+import { bundledTilesets } from '../../shipInterior/tilesetCatalog';
 import type { EditorTilesetDefinition } from './editorTileset';
 import { cloneMaterialPlacementMap, type MaterialPlacementMap } from './materials';
 

@@ -2,7 +2,7 @@ import {
   getLevelGrid,
   getTilesetTilePositionMap,
   type RawShipInteriorLevel,
-} from '../scenes/ShipInteriorScene/level';
+} from '../shipInterior/level';
 import type { EditorCanvasRectanglePreview } from './EditorCanvas';
 import type { ImageMap } from './shared/editorTypes';
 import { getMaterialColor, type MaterialPlacementMap } from './shared/materials';

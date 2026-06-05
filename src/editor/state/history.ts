@@ -5,7 +5,7 @@ import type {
   ShipInteriorLayerTileDefinition,
   ShipInteriorPathDefinition,
   ShipInteriorTileId,
-} from '../../scenes/ShipInteriorScene/level';
+} from '../../shipInterior/level';
 import { cloneLevel } from '../shared/levelEditing';
 import type { MaterialPlacementMap } from '../shared/materials';
 import { cloneMaterialPlacementMap } from '../shared/materials';

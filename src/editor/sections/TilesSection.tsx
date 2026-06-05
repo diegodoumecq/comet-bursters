@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 
-import { getTilesetTilePositionMap } from '../../scenes/ShipInteriorScene/level';
-import { bundledTilesets } from '../../scenes/ShipInteriorScene/tilesetCatalog';
+import { getTilesetTilePositionMap } from '../../shipInterior/level';
+import { bundledTilesets } from '../../shipInterior/tilesetCatalog';
 import type { EditorTilesetDefinition } from '../shared/editorTileset';
 import { getTilesetForLayer } from '../shared/levelEditing';
 import { useEditorStore } from '../state/editorStore';

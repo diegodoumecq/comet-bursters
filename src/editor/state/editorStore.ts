@@ -2,12 +2,12 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import defaultLevel from '../../assets/levels/shipInterior.level.json';
-import { getTilesetTilePositionMap } from '../../scenes/ShipInteriorScene/level';
+import { getTilesetTilePositionMap } from '../../shipInterior/level';
 import type {
   RawShipInteriorLevel,
   ShipInteriorEntityDefinition,
   ShipInteriorTileId,
-} from '../../scenes/ShipInteriorScene/level';
+} from '../../shipInterior/level';
 import type { AssetUrlMap, EditorTool, ImageMap, PlaceableEntityType } from '../shared/editorTypes';
 import {
   bundledLevels,
