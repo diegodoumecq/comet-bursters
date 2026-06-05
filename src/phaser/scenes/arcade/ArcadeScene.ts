@@ -1,12 +1,12 @@
 import Phaser from 'phaser';
 
-import { AsteroidBodies } from '../asteroids/bodies';
-import { ASTEROIDS } from '../asteroids/logic';
-import { updateAsteroidSplitCollisions } from '../asteroids/splitCollisions';
-import type { AsteroidEntity } from '../asteroids/types';
-import { getGameAudio } from '../audio/AudioManager';
-import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
-import { destroyAsteroidWithWeapon } from '../combat/asteroidDestruction';
+import { AsteroidBodies } from '../../asteroids/bodies';
+import { ASTEROIDS } from '../../asteroids/logic';
+import { updateAsteroidSplitCollisions } from '../../asteroids/splitCollisions';
+import type { AsteroidEntity } from '../../asteroids/types';
+import { getGameAudio } from '../../audio/AudioManager';
+import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
+import { destroyAsteroidWithWeapon } from '../../combat/asteroidDestruction';
 import {
   applyProjectileImpulse,
   damageAsteroid,
@@ -14,7 +14,7 @@ import {
   resolvePlayerCombat,
   resolveProjectileContactCombat,
   SHIP_ASTEROID_IMPACT_DAMAGE,
-} from '../combat/asteroids';
+} from '../../combat/asteroids';
 import {
   createAsteroidExplosion,
   createAsteroidImpactDebris,
@@ -22,44 +22,44 @@ import {
   createShipExplosion,
   createThrusterParticles,
   type EffectResult,
-} from '../combat/effects';
-import { updateFuelBlobCollection } from '../combat/fuelCollection';
-import { resolveProjectileFuelBlobCombatEvents } from '../combat/fuel';
-import { MatterContacts, type PlayerAsteroidContact } from '../combat/matterContacts';
+} from '../../combat/effects';
+import { updateFuelBlobCollection } from '../../combat/fuelCollection';
+import { resolveProjectileFuelBlobCombatEvents } from '../../combat/fuel';
+import { MatterContacts, type PlayerAsteroidContact } from '../../combat/matterContacts';
 import {
   getPortalBridgeProjectileAsteroidContacts,
   resolvePortalBridgeAsteroidCollisions,
-} from '../combat/portalBridge';
-import { circlesOverlap } from '../core/collision';
-import { applyMatterBodySpec } from '../core/matterBodySpec';
-import { getTimeScale } from '../core/time';
-import type { Vector, WorldSize } from '../core/types';
-import type { DimensionCoordinator } from '../dimensions/DimensionCoordinator';
-import { DimensionDebugOverlay } from '../dimensions/DimensionDebugOverlay';
-import { createPortalAsteroidSpawn } from '../dimensions/PortalAsteroidSpawner';
-import { PortalDirector } from '../dimensions/PortalDirector';
-import { portalApertureContainsCenter } from '../dimensions/portalGeometry';
-import { resetDimensionCoordinator } from '../dimensions/runtime';
-import type { DimensionCommand, PortalViewPolicy, SpaceId } from '../dimensions/types';
-import { isFuelBlobCollectable, spawnFuelBlobs } from '../fuel/blobLogic';
-import { FuelBodies } from '../fuel/bodies';
-import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../fuel/definition';
-import { MAX_FUEL, SHIELD_RADIUS } from '../fuel/rules';
-import type { FuelBlobEntity } from '../fuel/types';
-import { ActionReader } from '../input/actions';
-import { updateParticles } from '../particles/logic';
-import type { ParticleEntity } from '../particles/types';
-import { ParticleViews } from '../particles/views';
-import { PlayerBody } from '../player/body';
-import { PLAYER_COLLISION_RADIUS } from '../player/config';
-import { PLAYER_DEFINITIONS } from '../player/definition';
-import { updatePlayerMotion } from '../player/motion';
+} from '../../combat/portalBridge';
+import { circlesOverlap } from '../../core/collision';
+import { applyMatterBodySpec } from '../../core/matterBodySpec';
+import { getTimeScale } from '../../core/time';
+import type { Vector, WorldSize } from '../../core/types';
+import type { DimensionCoordinator } from '../../dimensions/DimensionCoordinator';
+import { DimensionDebugOverlay } from '../../dimensions/DimensionDebugOverlay';
+import { createPortalAsteroidSpawn } from '../../dimensions/PortalAsteroidSpawner';
+import { PortalDirector } from '../../dimensions/PortalDirector';
+import { portalApertureContainsCenter } from '../../dimensions/portalGeometry';
+import { resetDimensionCoordinator } from '../../dimensions/runtime';
+import type { DimensionCommand, PortalViewPolicy, SpaceId } from '../../dimensions/types';
+import { isFuelBlobCollectable, spawnFuelBlobs } from '../../fuel/blobLogic';
+import { FuelBodies } from '../../fuel/bodies';
+import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../../fuel/definition';
+import { MAX_FUEL, SHIELD_RADIUS } from '../../fuel/rules';
+import type { FuelBlobEntity } from '../../fuel/types';
+import { ActionReader } from '../../input/actions';
+import { updateParticles } from '../../particles/logic';
+import type { ParticleEntity } from '../../particles/types';
+import { ParticleViews } from '../../particles/views';
+import { PlayerBody } from '../../player/body';
+import { PLAYER_COLLISION_RADIUS } from '../../player/config';
+import { PLAYER_DEFINITIONS } from '../../player/definition';
+import { updatePlayerMotion } from '../../player/motion';
 import {
   BLACK_HOLE_ABSORBED_FUEL_BLOBS,
   BLACK_HOLE_FUEL_BLOB_MASS_SCALE,
   BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
   BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
-} from '../projectiles/definition';
+} from '../../projectiles/definition';
 import {
   applyBlackHoleGravityToVelocity,
   getBlackHoleMass,
@@ -67,30 +67,30 @@ import {
   getMatureBlackHoleRadius,
   isMatureBlackHole,
   updateBlackHoles,
-} from '../projectiles/blackHoles';
-import { ProjectileBodies } from '../projectiles/bodies';
-import { updateProjectiles } from '../projectiles/logic';
-import type { ProjectileEntity } from '../projectiles/types';
+} from '../../projectiles/blackHoles';
+import { ProjectileBodies } from '../../projectiles/bodies';
+import { updateProjectiles } from '../../projectiles/logic';
+import type { ProjectileEntity } from '../../projectiles/types';
 import {
   getArcadeDimensionDebugEnabled,
   getArcadeRiftDebugEnabled,
   getStartingWave,
-} from '../runtime/startup';
-import { ALL_WEAPONS, type SceneWeaponPolicy } from '../weapons/scenePolicy';
-import { applyTractorBeam } from '../weapons/tractorBeam';
-import { isTractorActive, updateWeapons } from '../weapons/use';
-import { normalize, wrappedDelta } from '../world/geometry';
-import { SpaceWorldRuntime } from '../world/SpaceWorldRuntime';
-import { ArcadeRenderEffects } from './arcade/ArcadeRenderEffects';
-import { ArcadeRenderer } from './arcade/ArcadeRenderer';
-import { ArcadeRunState } from './arcade/arcadeRunState';
+} from '../../runtime/startup';
+import { ALL_WEAPONS, type SceneWeaponPolicy } from '../../weapons/scenePolicy';
+import { applyTractorBeam } from '../../weapons/tractorBeam';
+import { isTractorActive, updateWeapons } from '../../weapons/use';
+import { normalize, wrappedDelta } from '../../world/geometry';
+import { SpaceWorldRuntime } from '../../world/SpaceWorldRuntime';
+import { ArcadeRenderEffects } from './ArcadeRenderEffects';
+import { ArcadeRenderer } from './ArcadeRenderer';
+import { ArcadeRunState } from './arcadeRunState';
 import {
   chooseSafePlayerPositionWithExclusions,
   getBlackHoleSpawnExclusions,
-} from './arcade/arcadeSpawns';
-import { createArcadeTextures } from './arcade/arcadeVisuals';
-import { BaseGameScene } from './BaseGameScene';
-import type { PhaserRiftSpaceScene } from './RiftSpaceScene';
+} from './arcadeSpawns';
+import { createArcadeTextures } from './arcadeVisuals';
+import { BaseGameScene } from '../BaseGameScene';
+import type { PhaserRiftSpaceScene } from './rift/RiftSpaceScene';
 
 const GAME_OVER_RESTART_DELAY_MS = 3000;
 

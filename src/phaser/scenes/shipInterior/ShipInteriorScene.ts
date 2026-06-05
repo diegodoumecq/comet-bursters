@@ -1,20 +1,20 @@
 import Phaser from 'phaser';
 
-import { getGameAudio } from '../audio/AudioManager';
-import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
-import { applyMatterBodySpec } from '../core/matterBodySpec';
-import { ActionReader, type ActionState } from '../input/actions';
-import { PlayerBody } from '../player/body';
-import { PLAYER_DEFINITIONS } from '../player/definition';
-import { PlayerState } from '../player/state';
-import { createPlayerTexture } from '../player/textures';
-import { normalize } from '../world/geometry';
-import { BaseGameScene } from './BaseGameScene';
+import { getGameAudio } from '../../audio/AudioManager';
+import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
+import { applyMatterBodySpec } from '../../core/matterBodySpec';
+import { ActionReader, type ActionState } from '../../input/actions';
+import { PlayerBody } from '../../player/body';
+import { PLAYER_DEFINITIONS } from '../../player/definition';
+import { PlayerState } from '../../player/state';
+import { createPlayerTexture } from '../../player/textures';
+import { normalize } from '../../world/geometry';
+import { BaseGameScene } from '../BaseGameScene';
 import {
   buildShipInteriorCollision,
   renderShipInteriorLayers,
-} from './shipInterior/interiorLevelView';
-import { loadShipInteriorLevel } from './shipInterior/levelAdapter';
+} from './interiorLevelView';
+import { loadShipInteriorLevel } from './levelAdapter';
 
 const PLAYER_SPEED = 4.5;
 const FALLBACK_SPAWN = { x: 210, y: 210 };

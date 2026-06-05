@@ -1,37 +1,37 @@
 import Phaser from 'phaser';
 
-import { AsteroidBodies } from '../asteroids/bodies';
-import { getGameAudio } from '../audio/AudioManager';
-import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
-import { MatterContacts } from '../combat/matterContacts';
-import { applyMatterBodySpec } from '../core/matterBodySpec';
-import type { Vector, WorldSize } from '../core/types';
-import { DimensionDebugOverlay } from '../dimensions/DimensionDebugOverlay';
-import { getDimensionCoordinator } from '../dimensions/runtime';
-import type { PortalEntity } from '../dimensions/types';
-import { FuelBodies } from '../fuel/bodies';
-import type { ActionState } from '../input/actions';
-import { ParticleViews } from '../particles/views';
-import { PlayerBody } from '../player/body';
-import { PLAYER_DEFINITIONS } from '../player/definition';
+import { AsteroidBodies } from '../../../asteroids/bodies';
+import { getGameAudio } from '../../../audio/AudioManager';
+import type { SceneAudioDirector } from '../../../audio/SceneAudioDirector';
+import { MatterContacts } from '../../../combat/matterContacts';
+import { applyMatterBodySpec } from '../../../core/matterBodySpec';
+import type { Vector, WorldSize } from '../../../core/types';
+import { DimensionDebugOverlay } from '../../../dimensions/DimensionDebugOverlay';
+import { getDimensionCoordinator } from '../../../dimensions/runtime';
+import type { PortalEntity } from '../../../dimensions/types';
+import { FuelBodies } from '../../../fuel/bodies';
+import type { ActionState } from '../../../input/actions';
+import { ParticleViews } from '../../../particles/views';
+import { PlayerBody } from '../../../player/body';
+import { PLAYER_DEFINITIONS } from '../../../player/definition';
 import {
   getPlayerVisible,
   renderPlayerFuel,
   renderPlayerShield,
   renderPlayerThruster,
   renderPlayerTurret,
-} from '../player/rendering';
-import type { ShipState } from '../player/shipState';
-import type { PlayerState } from '../player/state';
-import { fillPlayerHull, PLAYER_TURRET_TEXTURE_KEY, strokePlayerHull } from '../player/textures';
-import { PortalSceneCapture } from '../portals/PortalSceneCapture';
-import { PortalWindowRenderer } from '../portals/PortalWindowRenderer';
-import { ProjectileBodies } from '../projectiles/bodies';
-import { getSandboxPerfToggles } from '../runtime/startup';
-import { DimensionBackground } from '../world/DimensionBackground';
-import { SpaceRenderEffects } from '../world/SpaceRenderEffects';
-import { SpaceWorldRuntime } from '../world/SpaceWorldRuntime';
-import { createArcadeGameOverText, createArcadeTextures } from './arcade/arcadeVisuals';
+} from '../../../player/rendering';
+import type { ShipState } from '../../../player/shipState';
+import type { PlayerState } from '../../../player/state';
+import { fillPlayerHull, PLAYER_TURRET_TEXTURE_KEY, strokePlayerHull } from '../../../player/textures';
+import { PortalSceneCapture } from '../../../portals/PortalSceneCapture';
+import { PortalWindowRenderer } from '../../../portals/PortalWindowRenderer';
+import { ProjectileBodies } from '../../../projectiles/bodies';
+import { getSandboxPerfToggles } from '../../../runtime/startup';
+import { DimensionBackground } from '../../../world/DimensionBackground';
+import { SpaceRenderEffects } from '../../../world/SpaceRenderEffects';
+import { SpaceWorldRuntime } from '../../../world/SpaceWorldRuntime';
+import { createArcadeGameOverText, createArcadeTextures } from '../arcadeVisuals';
 
 export class PhaserRiftSpaceScene extends Phaser.Scene {
   private background!: DimensionBackground;

@@ -1,19 +1,19 @@
 import Phaser from 'phaser';
 
-import { AsteroidBodies } from '../asteroids/bodies';
-import { ASTEROIDS } from '../asteroids/logic';
-import { updateAsteroidSplitCollisions } from '../asteroids/splitCollisions';
-import { createAsteroidTextures } from '../asteroids/textures';
-import type { AsteroidEntity } from '../asteroids/types';
-import { getGameAudio } from '../audio/AudioManager';
-import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
-import { destroyAsteroidWithWeapon } from '../combat/asteroidDestruction';
+import { AsteroidBodies } from '../../asteroids/bodies';
+import { ASTEROIDS } from '../../asteroids/logic';
+import { updateAsteroidSplitCollisions } from '../../asteroids/splitCollisions';
+import { createAsteroidTextures } from '../../asteroids/textures';
+import type { AsteroidEntity } from '../../asteroids/types';
+import { getGameAudio } from '../../audio/AudioManager';
+import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
+import { destroyAsteroidWithWeapon } from '../../combat/asteroidDestruction';
 import {
   damageAsteroidByAmount,
   resolvePlayerCombat,
   resolveProjectileContactCombat,
   SHIP_ASTEROID_IMPACT_DAMAGE,
-} from '../combat/asteroids';
+} from '../../combat/asteroids';
 import {
   createAsteroidExplosion,
   createAsteroidImpactDebris,
@@ -21,63 +21,63 @@ import {
   createShipExplosion,
   createThrusterParticles,
   type EffectResult,
-} from '../combat/effects';
-import { resolveProjectileFuelBlobCombatEvents } from '../combat/fuel';
-import { updateFuelBlobCollection } from '../combat/fuelCollection';
-import { MatterContacts, type PlayerAsteroidContact } from '../combat/matterContacts';
-import { applyMatterBodySpec } from '../core/matterBodySpec';
-import { getTimeScale } from '../core/time';
-import type { Vector, WorldSize } from '../core/types';
-import { spawnAsteroidFuelDrops, spawnFuelBlobs } from '../fuel/blobLogic';
-import { FuelBodies } from '../fuel/bodies';
-import { MAX_FUEL, SHIELD_RADIUS } from '../fuel/rules';
-import type { FuelBlobEntity } from '../fuel/types';
-import { ActionReader } from '../input/actions';
-import { mainGameState } from '../mainGame/state';
-import { updateParticles } from '../particles/logic';
-import type { ParticleEntity } from '../particles/types';
-import { ParticleViews } from '../particles/views';
-import { applyPlanetGravity, applyPlanetGravityToFuelBlobs } from '../planets/gravity';
-import { PlanetViews } from '../planets/views';
-import { PlayerBody } from '../player/body';
-import { PLAYER_ACCELERATION, PLAYER_COLLISION_RADIUS } from '../player/config';
-import { PLAYER_DEFINITIONS } from '../player/definition';
-import { updatePlayerMotion } from '../player/motion';
-import { PlayerState } from '../player/state';
-import { createPlayerTexture } from '../player/textures';
-import { updateBlackHoles } from '../projectiles/blackHoles';
-import { ProjectileBodies } from '../projectiles/bodies';
-import { updateProjectiles } from '../projectiles/logic';
-import type { ProjectileEntity } from '../projectiles/types';
-import { getSandboxFogEnabled } from '../runtime/startup';
-import { SANDBOX_WEAPONS, type SceneWeaponPolicy } from '../weapons/scenePolicy';
-import { applyTractorBeam } from '../weapons/tractorBeam';
-import { isTractorActive, updateWeapons } from '../weapons/use';
-import { normalize, wrappedDelta } from '../world/geometry';
-import { GameWorldRuntime } from '../world/runtime';
-import { BaseGameScene } from './BaseGameScene';
-import { SandboxDiscovery } from './sandbox/discovery';
+} from '../../combat/effects';
+import { resolveProjectileFuelBlobCombatEvents } from '../../combat/fuel';
+import { updateFuelBlobCollection } from '../../combat/fuelCollection';
+import { MatterContacts, type PlayerAsteroidContact } from '../../combat/matterContacts';
+import { applyMatterBodySpec } from '../../core/matterBodySpec';
+import { getTimeScale } from '../../core/time';
+import type { Vector, WorldSize } from '../../core/types';
+import { spawnAsteroidFuelDrops, spawnFuelBlobs } from '../../fuel/blobLogic';
+import { FuelBodies } from '../../fuel/bodies';
+import { MAX_FUEL, SHIELD_RADIUS } from '../../fuel/rules';
+import type { FuelBlobEntity } from '../../fuel/types';
+import { ActionReader } from '../../input/actions';
+import { mainGameState } from '../../mainGame/state';
+import { updateParticles } from '../../particles/logic';
+import type { ParticleEntity } from '../../particles/types';
+import { ParticleViews } from '../../particles/views';
+import { applyPlanetGravity, applyPlanetGravityToFuelBlobs } from '../../planets/gravity';
+import { PlanetViews } from '../../planets/views';
+import { PlayerBody } from '../../player/body';
+import { PLAYER_ACCELERATION, PLAYER_COLLISION_RADIUS } from '../../player/config';
+import { PLAYER_DEFINITIONS } from '../../player/definition';
+import { updatePlayerMotion } from '../../player/motion';
+import { PlayerState } from '../../player/state';
+import { createPlayerTexture } from '../../player/textures';
+import { updateBlackHoles } from '../../projectiles/blackHoles';
+import { ProjectileBodies } from '../../projectiles/bodies';
+import { updateProjectiles } from '../../projectiles/logic';
+import type { ProjectileEntity } from '../../projectiles/types';
+import { getSandboxFogEnabled } from '../../runtime/startup';
+import { SANDBOX_WEAPONS, type SceneWeaponPolicy } from '../../weapons/scenePolicy';
+import { applyTractorBeam } from '../../weapons/tractorBeam';
+import { isTractorActive, updateWeapons } from '../../weapons/use';
+import { normalize, wrappedDelta } from '../../world/geometry';
+import { GameWorldRuntime } from '../../world/runtime';
+import { BaseGameScene } from '../BaseGameScene';
+import { SandboxDiscovery } from './discovery';
 import {
   Mothership,
   MOTHERSHIP_DOOR_SLIDE_DISTANCE,
   preloadMothershipTextures,
-} from './sandbox/Mothership';
+} from './Mothership';
 import {
   absorbFuelIntoPlanets,
   collectExtractorFuel,
   updatePlanetFuel,
   type SandboxPlanetEntity,
-} from './sandbox/planetFuel';
-import { SandboxRenderEffects } from './sandbox/SandboxRenderEffects';
-import { SandboxRenderer } from './sandbox/SandboxRenderer';
-import { createSandboxStartup } from './sandbox/sandboxSpawns';
-import { SANDBOX_WORLD_CONFIG } from './sandbox/sandboxWorldConfig';
-import { getWrappedDistance } from './sandbox/screenWrapping';
+} from './planetFuel';
+import { SandboxRenderEffects } from './SandboxRenderEffects';
+import { SandboxRenderer } from './SandboxRenderer';
+import { createSandboxStartup } from './sandboxSpawns';
+import { SANDBOX_WORLD_CONFIG } from './sandboxWorldConfig';
+import { getWrappedDistance } from './screenWrapping';
 import {
   positionSandboxWrappedWorldNearPlayer,
   rebaseSandboxWorldAtBounds,
   type SandboxWorldPositioningInput,
-} from './sandbox/worldPositioning';
+} from './worldPositioning';
 
 const WORLD: WorldSize = SANDBOX_WORLD_CONFIG.world;
 const SANDBOX_PLAYER_MAX_SPEED = 50;

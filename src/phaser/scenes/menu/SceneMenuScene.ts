@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
-import { getGameAudio } from '../audio/AudioManager';
-import type { SceneAudioDirector } from '../audio/SceneAudioDirector';
+import { getGameAudio } from '../../audio/AudioManager';
+import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
 
 const MENU_ITEMS = [
   { key: 'demo', label: 'Demo Scene' },

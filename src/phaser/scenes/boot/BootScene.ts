@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
-import { initializeGameAudio } from '../audio/AudioManager';
-import { preloadAudioAssets } from '../audio/audioLoader';
+import { initializeGameAudio } from '../../audio/AudioManager';
+import { preloadAudioAssets } from '../../audio/audioLoader';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
