@@ -232,6 +232,7 @@ export class NebulaRegionRenderer {
   private readonly chunkCache = new Map<string, CachedChunk>();
   private readonly pointDataCache = new Map<string, Float32Array>();
   private readonly regionBoundsCache = new Map<string, RegionBounds>();
+  private lastRenderKey: string | null = null;
 
   constructor(private readonly scene: Phaser.Scene) {
     this.scene.events.once('shutdown', this.destroy, this);
@@ -247,6 +248,10 @@ export class NebulaRegionRenderer {
       x: camera.worldView.x,
       y: camera.worldView.y,
     };
+    const renderKey = getNebulaRenderKey(input.regions, input.world, viewport);
+    if (renderKey === this.lastRenderKey) return;
+    this.lastRenderKey = renderKey;
+
     const copies = getVisibleRegionCopies(input.regions, input.world, viewport, {
       getPointData: (region, offset) => this.getPointData(region, offset),
       getRegionBounds: (region) => this.getRegionBounds(region),
@@ -264,6 +269,7 @@ export class NebulaRegionRenderer {
     this.chunkCache.clear();
     this.pointDataCache.clear();
     this.regionBoundsCache.clear();
+    this.lastRenderKey = null;
   }
 
   private ensureShaderCached(): void {
@@ -358,8 +364,7 @@ export class NebulaRegionRenderer {
 
     const sourceTextureKey = `${copy.cacheKey}:source`;
     const renderer = this.scene.sys.renderer;
-    const gl =
-      renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer ? renderer.gl : null;
+    const gl = renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer ? renderer.gl : null;
     const scissorEnabled = gl?.isEnabled(gl.SCISSOR_TEST) ?? false;
     if (gl) gl.disable(gl.SCISSOR_TEST);
     shader.setRenderToTexture(sourceTextureKey);
@@ -370,10 +375,7 @@ export class NebulaRegionRenderer {
     return copy.cacheKey;
   }
 
-  private destroyShaderRenderTarget(
-    shader: Phaser.GameObjects.Shader,
-    textureKey: string,
-  ): void {
+  private destroyShaderRenderTarget(shader: Phaser.GameObjects.Shader, textureKey: string): void {
     const renderer = this.scene.sys.renderer;
     if (!(renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer)) return;
     if (!shader.framebuffer) return;
@@ -507,6 +509,26 @@ function getVisibleRegionCopies(
   return copies;
 }
 
+function getNebulaRenderKey(
+  regions: NebulaRegion[],
+  world: WorldSize,
+  viewport: RegionBounds,
+): string {
+  return [
+    world.width,
+    world.height,
+    getChunkIndex(viewport.x),
+    getChunkIndex(viewport.y),
+    getChunkIndex(viewport.x + viewport.width),
+    getChunkIndex(viewport.y + viewport.height),
+    regions.map((region) => `${region.id}:${region.seed}:${region.alpha}`).join('|'),
+  ].join(':');
+}
+
+function getChunkIndex(position: number): number {
+  return Math.floor(position / NEBULA_CHUNK_SIZE);
+}
+
 function getVisibleChunkCopies(input: {
   copiedPoints: Vector[];
   copyBounds: RegionBounds;
@@ -532,10 +554,7 @@ function getVisibleChunkCopies(input: {
         y: chunkY,
       };
       const visibleChunkBounds = getBoundsIntersection(chunkBounds, visibleBounds);
-      if (
-        visibleChunkBounds &&
-        polygonIntersectsBounds(input.copiedPoints, visibleChunkBounds)
-      ) {
+      if (visibleChunkBounds && polygonIntersectsBounds(input.copiedPoints, visibleChunkBounds)) {
         const bounds = normalizeBounds(chunkBounds);
         chunks.push({
           bounds,

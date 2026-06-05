@@ -11,6 +11,11 @@ type SandboxPerformanceProfiler = {
   snapshot: () => Record<string, PerformanceSample & { average: number }>;
 };
 
+type PerformanceFrame = {
+  end: () => void;
+  startSection: (name: string) => void;
+};
+
 declare global {
   interface Window {
     __cometBurstersPerf?: SandboxPerformanceProfiler;
@@ -20,19 +25,46 @@ declare global {
 export function withPerformanceMeasure<T>(name: string, enabled: boolean, callback: () => T): T {
   if (!enabled || typeof performance === 'undefined') return callback();
 
-  const start = `${name}:start`;
-  const end = `${name}:end`;
-  performance.mark(start);
+  const start = performance.now();
   try {
     return callback();
   } finally {
-    performance.mark(end);
-    const measure = performance.measure(name, start, end);
-    getSandboxPerformanceProfiler().record(name, measure.duration);
-    performance.clearMarks(start);
-    performance.clearMarks(end);
-    performance.clearMeasures(name);
+    getSandboxPerformanceProfiler().record(name, performance.now() - start);
   }
+}
+
+export function startPerformanceFrame(totalName: string, enabled: boolean): PerformanceFrame {
+  if (!enabled || typeof performance === 'undefined') return noopPerformanceFrame;
+
+  const profiler = getSandboxPerformanceProfiler();
+  const totalStart = performance.now();
+  let sectionName: string | null = null;
+  let sectionStart = totalStart;
+  let ended = false;
+
+  const finishSection = (now: number) => {
+    if (sectionName) profiler.record(sectionName, now - sectionStart);
+    sectionName = null;
+  };
+
+  return {
+    end: () => {
+      if (!ended) {
+        const now = performance.now();
+        finishSection(now);
+        profiler.record(totalName, now - totalStart);
+        ended = true;
+      }
+    },
+    startSection: (name: string) => {
+      if (!ended) {
+        const now = performance.now();
+        finishSection(now);
+        sectionName = name;
+        sectionStart = now;
+      }
+    },
+  };
 }
 
 function getSandboxPerformanceProfiler(): SandboxPerformanceProfiler {
@@ -79,3 +111,8 @@ function createSandboxPerformanceProfiler(): SandboxPerformanceProfiler {
       ),
   };
 }
+
+const noopPerformanceFrame: PerformanceFrame = {
+  end: () => undefined,
+  startSection: () => undefined,
+};

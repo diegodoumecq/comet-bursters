@@ -98,6 +98,7 @@ const MOTHERSHIP_LAUNCH_START_SCALE = 0.18;
 const MOTHERSHIP_LAUNCH_START_OFFSET: Vector = { x: MOTHERSHIP_DOOR_SLIDE_DISTANCE * 0.55, y: 0 };
 const MOTHERSHIP_SPAWN_PLAYER_ROTATION = -Math.PI * 0.5;
 const MOTHERSHIP_SPAWN_PLAYER_AIM: Vector = { x: -1, y: 0 };
+const PLANET_VIEW_PRELOAD_RADIUS = 3600;
 
 export class PhaserSandboxScene extends BaseGameScene {
   private actions!: ActionReader;
@@ -164,12 +165,12 @@ export class PhaserSandboxScene extends BaseGameScene {
       createSandboxStartup(WORLD, INITIAL_ASTEROIDS),
     );
     this.planets = startup.planets;
-    withPerformanceMeasure('sandbox.startup.planetViews', perfMarkers, () => {
-      for (const planet of this.planets) this.planetViews.add(planet);
-    });
     const spawnPoint = startup.spawnPoint;
     this.mothership = new Mothership(this, spawnPoint);
     this.playerBody = new PlayerBody(this, spawnPoint, this.player);
+    withPerformanceMeasure('sandbox.startup.planetViews', perfMarkers, () => {
+      this.planetViews.ensureNear(this.planets, spawnPoint, PLANET_VIEW_PRELOAD_RADIUS);
+    });
     this.playerBody.setRotation(MOTHERSHIP_SPAWN_PLAYER_ROTATION);
     applyMatterBodySpec(this.playerBody.body, PLAYER_DEFINITIONS.sandbox.body);
     this.syncPlayerContactBodies();
@@ -382,6 +383,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.removeParticle(particle);
     this.runtime.syncParticles();
     positionSandboxWrappedWorldNearPlayer(this.getWorldPositioningInput());
+    this.planetViews.ensureNear(this.planets, this.player.position, PLANET_VIEW_PRELOAD_RADIUS);
   }
 
   private updateFuelBlobs(deltaSeconds: number): void {

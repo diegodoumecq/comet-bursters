@@ -1,7 +1,5 @@
 import type { Vector, WorldSize } from '../core/types';
-import { applyPlanetGravity } from '../planets/gravity';
 import type { PlanetEntity } from '../planets/types';
-import { wrappedDelta, wrapPoint } from '../world/geometry';
 
 export type PlayerTrajectoryPreview = {
   alphaScale: number;
@@ -36,47 +34,57 @@ export function buildPlayerTrajectoryPreview(
   const minGravity = input.minGravity ?? DEFAULT_MIN_GRAVITY;
   const fullAlphaGravity = input.fullAlphaGravity ?? DEFAULT_FULL_ALPHA_GRAVITY;
   const frameCount = Math.max(0, Math.floor(seconds / stepSeconds));
-  const projection = {
-    position: { ...input.position },
-    velocity: { ...input.velocity },
-  };
-  let visualPosition = { ...input.position };
+  let positionX = input.position.x;
+  let positionY = input.position.y;
+  let velocityX = input.velocity.x;
+  let velocityY = input.velocity.y;
+  let visualX = input.position.x;
+  let visualY = input.position.y;
   const points: Vector[] = [];
   let strongestGravity = 0;
 
   for (let frame = 0; frame < frameCount; frame += 1) {
-    const previousPosition = { ...projection.position };
-    const previousVelocity = { ...projection.velocity };
-    applyPlanetGravity(
-      projection.velocity,
-      projection.position,
-      input.planets,
-      input.world,
-      stepSeconds,
-    );
-    const frameGravity = Math.hypot(
-      projection.velocity.x - previousVelocity.x,
-      projection.velocity.y - previousVelocity.y,
-    );
+    const previousX = positionX;
+    const previousY = positionY;
+    let gravityX = 0;
+    let gravityY = 0;
+    for (const planet of input.planets) {
+      const deltaX = getWrappedDeltaAxis(positionX, planet.position.x, input.world.width);
+      const deltaY = getWrappedDeltaAxis(positionY, planet.position.y, input.world.height);
+      const distanceSq = deltaX * deltaX + deltaY * deltaY;
+      const distance = Math.sqrt(distanceSq);
+      const range = planet.radius * 6;
+      if (distance > 0 && distance < range) {
+        const force = (planet.gravityStrength * 0.5 * planet.radius * planet.radius) / distanceSq;
+        gravityX += (deltaX / distance) * force * stepSeconds * 60;
+        gravityY += (deltaY / distance) * force * stepSeconds * 60;
+      }
+    }
+    velocityX += gravityX;
+    velocityY += gravityY;
+    const frameGravity = Math.hypot(gravityX, gravityY);
     strongestGravity = Math.max(strongestGravity, frameGravity);
 
     const frameScale = stepSeconds * 60;
-    projection.position.x += projection.velocity.x * frameScale;
-    projection.position.y += projection.velocity.y * frameScale;
-    wrapPoint(projection.position, input.world);
+    positionX += velocityX * frameScale;
+    positionY += velocityY * frameScale;
+    if (positionX < 0) positionX += input.world.width;
+    if (positionX > input.world.width) positionX -= input.world.width;
+    if (positionY < 0) positionY += input.world.height;
+    if (positionY > input.world.height) positionY -= input.world.height;
 
-    const visualDelta = wrappedDelta(previousPosition, projection.position, input.world);
-    visualPosition = {
-      x: visualPosition.x + visualDelta.x,
-      y: visualPosition.y + visualDelta.y,
-    };
+    visualX += getWrappedDeltaAxis(previousX, positionX, input.world.width);
+    visualY += getWrappedDeltaAxis(previousY, positionY, input.world.height);
 
-    const collidesWithPlanet = input.planets.some((planet) => {
-      const planetDelta = wrappedDelta(projection.position, planet.position, input.world);
-      return Math.hypot(planetDelta.x, planetDelta.y) <= input.playerRadius + planet.radius;
-    });
+    const collidesWithPlanet = collidesWithAnyPlanet(
+      positionX,
+      positionY,
+      input.playerRadius,
+      input.planets,
+      input.world,
+    );
     if (collidesWithPlanet || frame % sampleEvery === 0) {
-      points.push({ ...visualPosition });
+      points.push({ x: visualX, y: visualY });
     }
     if (collidesWithPlanet) {
       break;
@@ -88,4 +96,30 @@ export function buildPlayerTrajectoryPreview(
   const alphaRange = Math.max(0.000001, fullAlphaGravity - minGravity);
   const alphaScale = Math.min(1, Math.max(0, (strongestGravity - minGravity) / alphaRange));
   return { alphaScale, points };
+}
+
+function collidesWithAnyPlanet(
+  positionX: number,
+  positionY: number,
+  playerRadius: number,
+  planets: PlanetEntity[],
+  world: WorldSize,
+): boolean {
+  let collides = false;
+  for (const planet of planets) {
+    if (!collides) {
+      const deltaX = getWrappedDeltaAxis(positionX, planet.position.x, world.width);
+      const deltaY = getWrappedDeltaAxis(positionY, planet.position.y, world.height);
+      const collisionRadius = playerRadius + planet.radius;
+      collides = deltaX * deltaX + deltaY * deltaY <= collisionRadius * collisionRadius;
+    }
+  }
+  return collides;
+}
+
+function getWrappedDeltaAxis(from: number, to: number, worldSize: number): number {
+  let delta = to - from;
+  if (delta > worldSize * 0.5) delta -= worldSize;
+  if (delta < -worldSize * 0.5) delta += worldSize;
+  return delta;
 }

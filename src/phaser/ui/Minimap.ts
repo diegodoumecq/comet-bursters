@@ -35,9 +35,16 @@ type MinimapNebulaCoverageCell = {
   color: number;
 };
 
+type MinimapNebulaDrawableCell = MinimapNebulaCoverageCell & {
+  col: number;
+  fogIndex: number;
+  row: number;
+};
+
 type MinimapNebulaCoverage = {
   cells: Array<MinimapNebulaCoverageCell | null>;
   columns: number;
+  drawableCells: MinimapNebulaDrawableCell[];
   key: string;
   rows: number;
 };
@@ -229,30 +236,19 @@ export class Minimap {
     const sampleRows = rows * NEBULA_SAMPLE_SCALE;
     const cellWidth = WIDTH / sampleColumns;
     const cellHeight = HEIGHT / sampleRows;
-    const coverage = this.getNebulaCoverage(regions, world, sampleColumns, sampleRows);
+    const coverage = this.getNebulaCoverage(regions, world, columns, rows);
 
-    for (let row = 0; row < sampleRows; row += 1) {
-      for (let col = 0; col < sampleColumns; col += 1) {
-        const fogCol = Math.floor(col / NEBULA_SAMPLE_SCALE);
-        const fogRow = Math.floor(row / NEBULA_SAMPLE_SCALE);
-        const index = fogRow * columns + fogCol;
-        const discovered = !fog || fog.exploredCells[index];
-        if (discovered) {
-          const coverageCell = coverage.cells[row * sampleColumns + col];
-          if (coverageCell) {
-            const visible = !fog || fog.visibleCells[index];
-            this.graphics.fillStyle(
-              coverageCell.color,
-              (visible ? 0.46 : 0.26) * coverageCell.alpha,
-            );
-            this.graphics.fillRect(
-              x + col * cellWidth,
-              y + row * cellHeight,
-              cellWidth + 0.5,
-              cellHeight + 0.5,
-            );
-          }
-        }
+    for (const coverageCell of coverage.drawableCells) {
+      const discovered = !fog || fog.exploredCells[coverageCell.fogIndex];
+      if (discovered) {
+        const visible = !fog || fog.visibleCells[coverageCell.fogIndex];
+        this.graphics.fillStyle(coverageCell.color, (visible ? 0.46 : 0.26) * coverageCell.alpha);
+        this.graphics.fillRect(
+          x + coverageCell.col * cellWidth,
+          y + coverageCell.row * cellHeight,
+          cellWidth + 0.5,
+          cellHeight + 0.5,
+        );
       }
     }
   }
@@ -263,29 +259,42 @@ export class Minimap {
     columns: number,
     rows: number,
   ): MinimapNebulaCoverage {
+    const sampleColumns = columns * NEBULA_SAMPLE_SCALE;
+    const sampleRows = rows * NEBULA_SAMPLE_SCALE;
     const key = `${world.width}:${world.height}:${columns}:${rows}:${regions.map((region) => region.alpha).join(',')}`;
     if (this.nebulaCoverage?.key === key) return this.nebulaCoverage;
 
     const cells: Array<MinimapNebulaCoverageCell | null> = Array.from(
-      { length: columns * rows },
+      { length: sampleColumns * sampleRows },
       () => null,
     );
-    for (let row = 0; row < rows; row += 1) {
-      for (let col = 0; col < columns; col += 1) {
+    const drawableCells: MinimapNebulaDrawableCell[] = [];
+    for (let row = 0; row < sampleRows; row += 1) {
+      for (let col = 0; col < sampleColumns; col += 1) {
         const worldPosition = {
-          x: ((col + 0.5) / columns) * world.width,
-          y: ((row + 0.5) / rows) * world.height,
+          x: ((col + 0.5) / sampleColumns) * world.width,
+          y: ((row + 0.5) / sampleRows) * world.height,
         };
         const region = getNebulaRegionAt(worldPosition, regions);
         if (region) {
-          cells[row * columns + col] = {
+          const fogCol = Math.floor(col / NEBULA_SAMPLE_SCALE);
+          const fogRow = Math.floor(row / NEBULA_SAMPLE_SCALE);
+          const fogIndex = fogRow * columns + fogCol;
+          const coverageCell = {
             alpha: region.alpha,
             color: getNebulaMinimapColor(region),
           };
+          cells[row * sampleColumns + col] = coverageCell;
+          drawableCells.push({
+            ...coverageCell,
+            col,
+            fogIndex,
+            row,
+          });
         }
       }
     }
-    this.nebulaCoverage = { cells, columns, key, rows };
+    this.nebulaCoverage = { cells, columns: sampleColumns, drawableCells, key, rows: sampleRows };
     return this.nebulaCoverage;
   }
 
