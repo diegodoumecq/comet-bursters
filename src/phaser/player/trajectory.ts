@@ -19,6 +19,13 @@ type PlayerTrajectoryPreviewInput = {
   world: WorldSize;
 };
 
+type TrajectoryPlanetInfluence = {
+  collisionRadiusSq: number;
+  gravityStrength: number;
+  position: Vector;
+  rangeSq: number;
+};
+
 const DEFAULT_SECONDS = 4;
 const DEFAULT_STEP_SECONDS = 1 / 60;
 const DEFAULT_SAMPLE_EVERY = 3;
@@ -41,6 +48,17 @@ export function buildPlayerTrajectoryPreview(
   let visualX = input.position.x;
   let visualY = input.position.y;
   const points: Vector[] = [];
+  const planets: TrajectoryPlanetInfluence[] = input.planets.map((planet) => {
+    const collisionRadius = input.playerRadius + planet.radius;
+    const gravityStrength = planet.gravityStrength * 0.5 * planet.radius * planet.radius;
+    const range = planet.radius * 6;
+    return {
+      collisionRadiusSq: collisionRadius * collisionRadius,
+      gravityStrength,
+      position: planet.position,
+      rangeSq: range * range,
+    };
+  });
   let strongestGravity = 0;
 
   for (let frame = 0; frame < frameCount; frame += 1) {
@@ -48,14 +66,17 @@ export function buildPlayerTrajectoryPreview(
     const previousY = positionY;
     let gravityX = 0;
     let gravityY = 0;
-    for (const planet of input.planets) {
+    let collidesWithPlanet = false;
+    for (const planet of planets) {
       const deltaX = getWrappedDeltaAxis(positionX, planet.position.x, input.world.width);
       const deltaY = getWrappedDeltaAxis(positionY, planet.position.y, input.world.height);
       const distanceSq = deltaX * deltaX + deltaY * deltaY;
-      const distance = Math.sqrt(distanceSq);
-      const range = planet.radius * 6;
-      if (distance > 0 && distance < range) {
-        const force = (planet.gravityStrength * 0.5 * planet.radius * planet.radius) / distanceSq;
+      if (distanceSq <= planet.collisionRadiusSq) {
+        collidesWithPlanet = true;
+      }
+      if (distanceSq > 0 && distanceSq < planet.rangeSq) {
+        const distance = Math.sqrt(distanceSq);
+        const force = planet.gravityStrength / distanceSq;
         gravityX += (deltaX / distance) * force * stepSeconds * 60;
         gravityY += (deltaY / distance) * force * stepSeconds * 60;
       }
@@ -76,13 +97,6 @@ export function buildPlayerTrajectoryPreview(
     visualX += getWrappedDeltaAxis(previousX, positionX, input.world.width);
     visualY += getWrappedDeltaAxis(previousY, positionY, input.world.height);
 
-    const collidesWithPlanet = collidesWithAnyPlanet(
-      positionX,
-      positionY,
-      input.playerRadius,
-      input.planets,
-      input.world,
-    );
     if (collidesWithPlanet || frame % sampleEvery === 0) {
       points.push({ x: visualX, y: visualY });
     }
@@ -96,25 +110,6 @@ export function buildPlayerTrajectoryPreview(
   const alphaRange = Math.max(0.000001, fullAlphaGravity - minGravity);
   const alphaScale = Math.min(1, Math.max(0, (strongestGravity - minGravity) / alphaRange));
   return { alphaScale, points };
-}
-
-function collidesWithAnyPlanet(
-  positionX: number,
-  positionY: number,
-  playerRadius: number,
-  planets: PlanetEntity[],
-  world: WorldSize,
-): boolean {
-  let collides = false;
-  for (const planet of planets) {
-    if (!collides) {
-      const deltaX = getWrappedDeltaAxis(positionX, planet.position.x, world.width);
-      const deltaY = getWrappedDeltaAxis(positionY, planet.position.y, world.height);
-      const collisionRadius = playerRadius + planet.radius;
-      collides = deltaX * deltaX + deltaY * deltaY <= collisionRadius * collisionRadius;
-    }
-  }
-  return collides;
 }
 
 function getWrappedDeltaAxis(from: number, to: number, worldSize: number): number {
