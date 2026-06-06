@@ -232,7 +232,6 @@ export class NebulaRegionRenderer {
   private readonly chunkCache = new Map<string, CachedChunk>();
   private readonly pointDataCache = new Map<string, Float32Array>();
   private readonly regionBoundsCache = new Map<string, RegionBounds>();
-  private lastRenderKey: string | null = null;
 
   constructor(private readonly scene: Phaser.Scene) {
     this.scene.events.once('shutdown', this.destroy, this);
@@ -248,9 +247,6 @@ export class NebulaRegionRenderer {
       x: camera.worldView.x,
       y: camera.worldView.y,
     };
-    const renderKey = getNebulaRenderKey(input.regions, input.world, viewport);
-    if (renderKey === this.lastRenderKey) return;
-    this.lastRenderKey = renderKey;
 
     const copies = getVisibleRegionCopies(input.regions, input.world, viewport, {
       getPointData: (region, offset) => this.getPointData(region, offset),
@@ -269,7 +265,6 @@ export class NebulaRegionRenderer {
     this.chunkCache.clear();
     this.pointDataCache.clear();
     this.regionBoundsCache.clear();
-    this.lastRenderKey = null;
   }
 
   private ensureShaderCached(): void {
@@ -507,26 +502,6 @@ function getVisibleRegionCopies(
     }
   }
   return copies;
-}
-
-function getNebulaRenderKey(
-  regions: NebulaRegion[],
-  world: WorldSize,
-  viewport: RegionBounds,
-): string {
-  return [
-    world.width,
-    world.height,
-    getChunkIndex(viewport.x),
-    getChunkIndex(viewport.y),
-    getChunkIndex(viewport.x + viewport.width),
-    getChunkIndex(viewport.y + viewport.height),
-    regions.map((region) => `${region.id}:${region.seed}:${region.alpha}`).join('|'),
-  ].join(':');
-}
-
-function getChunkIndex(position: number): number {
-  return Math.floor(position / NEBULA_CHUNK_SIZE);
 }
 
 function getVisibleChunkCopies(input: {
