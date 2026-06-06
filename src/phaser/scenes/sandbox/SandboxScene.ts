@@ -183,7 +183,6 @@ export class PhaserSandboxScene extends BaseGameScene {
           this,
           this.playerBody.body,
           this.weaponPolicy,
-          WORLD,
           startup.nebulaRegions,
           startup.biomes,
         ),

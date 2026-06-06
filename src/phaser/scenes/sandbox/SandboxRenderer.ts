@@ -57,11 +57,10 @@ export class SandboxRenderer {
     private readonly scene: Phaser.Scene,
     private readonly player: Phaser.Physics.Matter.Image,
     weaponPolicy: SceneWeaponPolicy,
-    world: WorldSize,
     private readonly sandboxNebulaRegions: NebulaRegion[],
     private readonly sandboxBiomes: SandboxBiomeRegion[],
   ) {
-    this.background = new SandboxBackground(scene, world);
+    this.background = new SandboxBackground(scene);
     this.biomeDebug = new SandboxBiomeDebugOverlay(scene);
     this.nebulaRegions = new NebulaRegionRenderer(scene);
     this.beam = scene.add.graphics().setName('sandbox-tractor-beam');

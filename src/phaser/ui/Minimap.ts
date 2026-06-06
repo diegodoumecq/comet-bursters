@@ -116,13 +116,25 @@ export class Minimap {
   private drawFog(fog: MinimapFog): void {
     const cellWidth = WIDTH / fog.columns;
     const cellHeight = HEIGHT / fog.rows;
+    setFillStyle(this.context, 0x0a1322, 0.42);
     for (let row = 0; row < fog.rows; row += 1) {
       for (let col = 0; col < fog.columns; col += 1) {
         const index = row * fog.columns + col;
-        if (fog.exploredCells[index]) {
-          const visible = fog.visibleCells[index];
-          const alpha = visible ? 0.9 : 0.42;
-          setFillStyle(this.context, visible ? 0x102338 : 0x0a1322, alpha);
+        if (fog.exploredCells[index] && !fog.visibleCells[index]) {
+          this.context.fillRect(
+            col * cellWidth,
+            row * cellHeight,
+            cellWidth + 0.5,
+            cellHeight + 0.5,
+          );
+        }
+      }
+    }
+    setFillStyle(this.context, 0x102338, 0.9);
+    for (let row = 0; row < fog.rows; row += 1) {
+      for (let col = 0; col < fog.columns; col += 1) {
+        const index = row * fog.columns + col;
+        if (fog.exploredCells[index] && fog.visibleCells[index]) {
           this.context.fillRect(
             col * cellWidth,
             row * cellHeight,

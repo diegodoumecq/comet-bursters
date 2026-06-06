@@ -41,6 +41,9 @@ export function buildPlayerTrajectoryPreview(
   const minGravity = input.minGravity ?? DEFAULT_MIN_GRAVITY;
   const fullAlphaGravity = input.fullAlphaGravity ?? DEFAULT_FULL_ALPHA_GRAVITY;
   const frameCount = Math.max(0, Math.floor(seconds / stepSeconds));
+  const frameScale = stepSeconds * 60;
+  const worldHalfHeight = input.world.height * 0.5;
+  const worldHalfWidth = input.world.width * 0.5;
   let positionX = input.position.x;
   let positionY = input.position.y;
   let velocityX = input.velocity.x;
@@ -68,8 +71,12 @@ export function buildPlayerTrajectoryPreview(
     let gravityY = 0;
     let collidesWithPlanet = false;
     for (const planet of planets) {
-      const deltaX = getWrappedDeltaAxis(positionX, planet.position.x, input.world.width);
-      const deltaY = getWrappedDeltaAxis(positionY, planet.position.y, input.world.height);
+      let deltaX = planet.position.x - positionX;
+      if (deltaX > worldHalfWidth) deltaX -= input.world.width;
+      if (deltaX < -worldHalfWidth) deltaX += input.world.width;
+      let deltaY = planet.position.y - positionY;
+      if (deltaY > worldHalfHeight) deltaY -= input.world.height;
+      if (deltaY < -worldHalfHeight) deltaY += input.world.height;
       const distanceSq = deltaX * deltaX + deltaY * deltaY;
       if (distanceSq <= planet.collisionRadiusSq) {
         collidesWithPlanet = true;
@@ -83,10 +90,9 @@ export function buildPlayerTrajectoryPreview(
     }
     velocityX += gravityX;
     velocityY += gravityY;
-    const frameGravity = Math.hypot(gravityX, gravityY);
-    strongestGravity = Math.max(strongestGravity, frameGravity);
+    const frameGravitySq = gravityX * gravityX + gravityY * gravityY;
+    strongestGravity = Math.max(strongestGravity, frameGravitySq);
 
-    const frameScale = stepSeconds * 60;
     positionX += velocityX * frameScale;
     positionY += velocityY * frameScale;
     if (positionX < 0) positionX += input.world.width;
@@ -105,10 +111,14 @@ export function buildPlayerTrajectoryPreview(
     }
   }
 
-  if (points.length < 2 || strongestGravity < minGravity) return null;
+  const strongestGravityMagnitude = Math.sqrt(strongestGravity);
+  if (points.length < 2 || strongestGravityMagnitude < minGravity) return null;
 
   const alphaRange = Math.max(0.000001, fullAlphaGravity - minGravity);
-  const alphaScale = Math.min(1, Math.max(0, (strongestGravity - minGravity) / alphaRange));
+  const alphaScale = Math.min(
+    1,
+    Math.max(0, (strongestGravityMagnitude - minGravity) / alphaRange),
+  );
   return { alphaScale, points };
 }
 

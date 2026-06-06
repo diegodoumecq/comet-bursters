@@ -1,6 +1,5 @@
 import type { MatterImage, Vector, WorldSize } from '../core/types';
 import type { FuelBlobEntity } from '../fuel/types';
-import { wrappedDelta } from '../world/geometry';
 import type { PlanetEntity } from './types';
 
 export function gravityAcceleration(
@@ -26,15 +25,23 @@ export function applyPlanetGravity(
   world: WorldSize,
   deltaSeconds: number,
 ): void {
+  const worldHalfHeight = world.height * 0.5;
+  const worldHalfWidth = world.width * 0.5;
+  const timeScale = deltaSeconds * 60;
   for (const planet of planets) {
-    const delta = wrappedDelta(position, planet.position, world);
-    const distanceSq = delta.x * delta.x + delta.y * delta.y;
-    const distance = Math.sqrt(distanceSq);
+    let deltaX = planet.position.x - position.x;
+    if (deltaX > worldHalfWidth) deltaX -= world.width;
+    if (deltaX < -worldHalfWidth) deltaX += world.width;
+    let deltaY = planet.position.y - position.y;
+    if (deltaY > worldHalfHeight) deltaY -= world.height;
+    if (deltaY < -worldHalfHeight) deltaY += world.height;
+    const distanceSq = deltaX * deltaX + deltaY * deltaY;
     const range = planet.radius * 6;
-    if (distance > 0 && distance < range) {
+    if (distanceSq > 0 && distanceSq < range * range) {
+      const distance = Math.sqrt(distanceSq);
       const force = (planet.gravityStrength * 0.5 * planet.radius * planet.radius) / distanceSq;
-      velocity.x += (delta.x / distance) * force * deltaSeconds * 60;
-      velocity.y += (delta.y / distance) * force * deltaSeconds * 60;
+      velocity.x += (deltaX / distance) * force * timeScale;
+      velocity.y += (deltaY / distance) * force * timeScale;
     }
   }
 }
