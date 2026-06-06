@@ -204,6 +204,7 @@ export class SandboxRenderer {
                 exploredCells: input.discovery.exploredCells,
                 rows: MINIMAP_ROWS,
                 visibleCells: input.discovery.visibleCells,
+                version: input.discovery.version,
               }
             : undefined,
           nebulaRegions: this.sandboxNebulaRegions,

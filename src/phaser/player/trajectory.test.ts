@@ -38,6 +38,25 @@ describe('player trajectory preview', () => {
     expect(preview?.points.at(-1)?.y).toBeLessThan(100);
   });
 
+  it('returns the same preview across repeated calls with the same planet array', () => {
+    const planets = [createPlanet({ x: 300, y: 100 })];
+    const input = {
+      minGravity: 0,
+      planets,
+      playerRadius: 14,
+      position: { x: 100, y: 100 },
+      sampleEvery: 1,
+      seconds: 4 / 60,
+      velocity: { x: 0, y: -4 },
+      world,
+    };
+
+    const first = buildPlayerTrajectoryPreview(input);
+    const second = buildPlayerTrajectoryPreview(input);
+
+    expect(second).toEqual(first);
+  });
+
   it('keeps the rendered path continuous when the simulated position wraps', () => {
     const preview = buildPlayerTrajectoryPreview({
       fullAlphaGravity: 1,

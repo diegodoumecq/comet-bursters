@@ -598,11 +598,15 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   private resolvePlanetCollisions(): void {
-    for (const asteroid of [...this.runtime.world.asteroids]) {
+    const asteroidCount = this.runtime.world.asteroids.length;
+    for (let index = asteroidCount - 1; index >= 0; index -= 1) {
+      const asteroid = this.runtime.world.asteroids[index];
       if (this.collidesWithPlanet(asteroid.position, ASTEROIDS[asteroid.tier].collisionRadius))
         this.destroyAsteroid(asteroid, false);
     }
-    for (const projectile of [...this.runtime.world.projectiles]) {
+    const projectileCount = this.runtime.world.projectiles.length;
+    for (let index = projectileCount - 1; index >= 0; index -= 1) {
+      const projectile = this.runtime.world.projectiles[index];
       if (
         projectile.kind !== 'blackHole' &&
         projectile.kind !== 'inspectionProbe' &&
@@ -619,11 +623,16 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   private resolveInspectionProbeHits(now: number): void {
-    for (const projectile of [...this.runtime.world.projectiles]) {
+    const projectileCount = this.runtime.world.projectiles.length;
+    for (let index = projectileCount - 1; index >= 0; index -= 1) {
+      const projectile = this.runtime.world.projectiles[index];
       if (projectile.kind === 'inspectionProbe') {
         const planet = this.planets.find((candidate) => {
-          const delta = wrappedDelta(projectile.position, candidate.position, WORLD);
-          return Math.hypot(delta.x, delta.y) <= candidate.radius + 5;
+          const radius = candidate.radius + 5;
+          return (
+            getWrappedDistanceSquared(projectile.position, candidate.position, WORLD) <=
+            radius * radius
+          );
         });
         if (planet) {
           planet.inspectedUntil = now + INSPECTION_DURATION_MS;
@@ -635,8 +644,11 @@ export class PhaserSandboxScene extends BaseGameScene {
 
   private collidesWithPlanet(position: Vector, radius: number): boolean {
     return this.planets.some((planet) => {
-      const delta = wrappedDelta(position, planet.position, WORLD);
-      return Math.hypot(delta.x, delta.y) <= radius + planet.radius;
+      const collisionRadius = radius + planet.radius;
+      return (
+        getWrappedDistanceSquared(position, planet.position, WORLD) <=
+        collisionRadius * collisionRadius
+      );
     });
   }
 
@@ -898,4 +910,14 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.audioDirector.exit();
     this.renderEffects.dispose();
   }
+}
+
+function getWrappedDistanceSquared(from: Vector, to: Vector, world: WorldSize): number {
+  let x = to.x - from.x;
+  if (x > world.width * 0.5) x -= world.width;
+  if (x < -world.width * 0.5) x += world.width;
+  let y = to.y - from.y;
+  if (y > world.height * 0.5) y -= world.height;
+  if (y < -world.height * 0.5) y += world.height;
+  return x * x + y * y;
 }

@@ -11,21 +11,29 @@ export class SandboxDiscovery {
   readonly discoveredPlanetIds = new Set<number>();
   private cellCenters: { height: number; width: number; x: Float32Array; y: Float32Array } | null =
     null;
+  private readonly nextVisibleCells = new Uint8Array(MINIMAP_COLUMNS * MINIMAP_ROWS);
+  version = 0;
 
   update(player: Vector, planets: PlanetEntity[], world: WorldSize): void {
-    this.visibleCells.fill(0);
+    this.nextVisibleCells.fill(0);
     const cellCenters = this.getCellCenters(world);
     const radiusSq = DISCOVERY_RADIUS * DISCOVERY_RADIUS;
+    let changed = false;
     for (let row = 0; row < MINIMAP_ROWS; row += 1) {
       for (let col = 0; col < MINIMAP_COLUMNS; col += 1) {
         const index = row * MINIMAP_COLUMNS + col;
         const deltaX = getWrappedDeltaAxis(player.x, cellCenters.x[index], world.width);
         const deltaY = getWrappedDeltaAxis(player.y, cellCenters.y[index], world.height);
         if (deltaX * deltaX + deltaY * deltaY <= radiusSq) {
-          this.visibleCells[index] = 1;
+          this.nextVisibleCells[index] = 1;
+          if (!this.exploredCells[index]) changed = true;
           this.exploredCells[index] = 1;
         }
       }
+    }
+    for (let index = 0; index < this.visibleCells.length; index += 1) {
+      if (this.visibleCells[index] !== this.nextVisibleCells[index]) changed = true;
+      this.visibleCells[index] = this.nextVisibleCells[index];
     }
 
     for (const planet of planets) {
@@ -33,9 +41,13 @@ export class SandboxDiscovery {
       const deltaY = getWrappedDeltaAxis(player.y, planet.position.y, world.height);
       const discoveryRadius = DISCOVERY_RADIUS + planet.radius;
       if (deltaX * deltaX + deltaY * deltaY <= discoveryRadius * discoveryRadius) {
+        const previousSize = this.discoveredPlanetIds.size;
         this.discoveredPlanetIds.add(planet.id);
+        if (this.discoveredPlanetIds.size !== previousSize) changed = true;
       }
     }
+
+    if (changed) this.version += 1;
   }
 
   private getCellCenters(world: WorldSize): { height: number; width: number; x: Float32Array; y: Float32Array } {

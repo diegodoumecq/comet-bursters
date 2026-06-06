@@ -17,6 +17,7 @@ export type MinimapFog = {
   exploredCells: Uint8Array;
   rows: number;
   visibleCells: Uint8Array;
+  version: number;
 };
 
 export type MinimapNebulaRegion = {
@@ -50,13 +51,22 @@ type MinimapNebulaCoverage = {
 };
 
 export class Minimap {
+  private readonly baseCanvas: HTMLCanvasElement;
+  private readonly baseContext: CanvasRenderingContext2D;
   private readonly canvas: HTMLCanvasElement;
   private readonly context: CanvasRenderingContext2D;
   private readonly image: Phaser.GameObjects.Image;
   private readonly texture: Phaser.Textures.CanvasTexture;
+  private baseCacheKey = '';
   private nebulaCoverage: MinimapNebulaCoverage | null = null;
 
   constructor(private readonly scene: Phaser.Scene) {
+    this.baseCanvas = document.createElement('canvas');
+    this.baseCanvas.width = WIDTH;
+    this.baseCanvas.height = HEIGHT;
+    const baseContext = this.baseCanvas.getContext('2d');
+    if (!baseContext) throw new Error('Unable to create minimap base canvas context');
+    this.baseContext = baseContext;
     this.canvas = document.createElement('canvas');
     this.canvas.width = WIDTH;
     this.canvas.height = HEIGHT;
@@ -93,16 +103,8 @@ export class Minimap {
 
     this.image.setPosition(x, y);
     this.context.clearRect(0, 0, WIDTH, HEIGHT);
-    setFillStyle(this.context, 0x020617, 0.96);
-    this.context.fillRect(0, 0, WIDTH, HEIGHT);
-    setStrokeStyle(this.context, 0xffffff, 0.18, 2);
-    this.context.strokeRect(0, 0, WIDTH, HEIGHT);
-
-    if (input.fog) this.drawFog(input.fog);
-    this.drawNebulaRegions(input.nebulaRegions ?? [], input.fog, input.world);
-    this.drawBiomeRegions(input.biomeRegions ?? [], input.world, scaleX, scaleY);
-    this.drawGrid();
-    this.drawPlanets(input.planets, input.fog, input.world, scaleX, scaleY);
+    this.drawBaseLayer(input, scaleX, scaleY);
+    this.context.drawImage(this.baseCanvas, 0, 0);
     this.drawAsteroids(input.asteroids ?? [], input.fog, input.world, scaleX, scaleY);
     if (input.viewportMode === 'wrapped') {
       this.drawWrappedViewport(input.camera, input.world, scaleX, scaleY);
@@ -113,15 +115,80 @@ export class Minimap {
     this.texture.refresh();
   }
 
-  private drawFog(fog: MinimapFog): void {
+  private drawBaseLayer(
+    input: {
+      biomeRegions?: MinimapBiomeRegion[];
+      fog?: MinimapFog;
+      nebulaRegions?: MinimapNebulaRegion[];
+      planets: PlanetEntity[];
+      world: WorldSize;
+    },
+    scaleX: number,
+    scaleY: number,
+  ): void {
+    const cacheKey = this.getBaseCacheKey(input);
+    if (this.baseCacheKey === cacheKey) return;
+
+    this.baseContext.clearRect(0, 0, WIDTH, HEIGHT);
+    setFillStyle(this.baseContext, 0x020617, 0.96);
+    this.baseContext.fillRect(0, 0, WIDTH, HEIGHT);
+    setStrokeStyle(this.baseContext, 0xffffff, 0.18, 2);
+    this.baseContext.strokeRect(0, 0, WIDTH, HEIGHT);
+
+    if (input.fog) this.drawFog(this.baseContext, input.fog);
+    this.drawNebulaRegions(
+      this.baseContext,
+      input.nebulaRegions ?? [],
+      input.fog,
+      input.world,
+    );
+    this.drawBiomeRegions(this.baseContext, input.biomeRegions ?? [], input.world, scaleX, scaleY);
+    this.drawGrid(this.baseContext);
+    this.drawPlanets(this.baseContext, input.planets, input.fog, input.world, scaleX, scaleY);
+    this.baseCacheKey = cacheKey;
+  }
+
+  private getBaseCacheKey(input: {
+    biomeRegions?: MinimapBiomeRegion[];
+    fog?: MinimapFog;
+    nebulaRegions?: MinimapNebulaRegion[];
+    planets: PlanetEntity[];
+    world: WorldSize;
+  }): string {
+    const biomeKey =
+      input.biomeRegions
+        ?.map((region) => `${rgbToNumber(region.color)}:${region.points.length}`)
+        .join('|') ?? 'none';
+    const fogKey = input.fog ? input.fog.version : 'none';
+    const nebulaKey =
+      input.nebulaRegions
+        ?.map((region) => `${region.alpha}:${region.points.length}:${getNebulaMinimapColor(region)}`)
+        .join('|') ?? 'none';
+    const planetKey = input.planets
+      .map(
+        (planet) =>
+          `${planet.id}:${planet.position.x}:${planet.position.y}:${planet.radius}:${planet.color}`,
+      )
+      .join('|');
+    return [
+      input.world.width,
+      input.world.height,
+      biomeKey,
+      fogKey,
+      nebulaKey,
+      planetKey,
+    ].join(':');
+  }
+
+  private drawFog(context: CanvasRenderingContext2D, fog: MinimapFog): void {
     const cellWidth = WIDTH / fog.columns;
     const cellHeight = HEIGHT / fog.rows;
-    setFillStyle(this.context, 0x0a1322, 0.42);
+    setFillStyle(context, 0x0a1322, 0.42);
     for (let row = 0; row < fog.rows; row += 1) {
       for (let col = 0; col < fog.columns; col += 1) {
         const index = row * fog.columns + col;
         if (fog.exploredCells[index] && !fog.visibleCells[index]) {
-          this.context.fillRect(
+          context.fillRect(
             col * cellWidth,
             row * cellHeight,
             cellWidth + 0.5,
@@ -130,12 +197,12 @@ export class Minimap {
         }
       }
     }
-    setFillStyle(this.context, 0x102338, 0.9);
+    setFillStyle(context, 0x102338, 0.9);
     for (let row = 0; row < fog.rows; row += 1) {
       for (let col = 0; col < fog.columns; col += 1) {
         const index = row * fog.columns + col;
         if (fog.exploredCells[index] && fog.visibleCells[index]) {
-          this.context.fillRect(
+          context.fillRect(
             col * cellWidth,
             row * cellHeight,
             cellWidth + 0.5,
@@ -146,17 +213,18 @@ export class Minimap {
     }
   }
 
-  private drawGrid(): void {
-    setStrokeStyle(this.context, 0xffffff, 0.08, 1);
+  private drawGrid(context: CanvasRenderingContext2D): void {
+    setStrokeStyle(context, 0xffffff, 0.08, 1);
     for (let index = 1; index < 4; index += 1) {
       const gridX = (WIDTH / 4) * index;
       const gridY = (HEIGHT / 4) * index;
-      strokeLine(this.context, gridX, 0, gridX, HEIGHT);
-      strokeLine(this.context, 0, gridY, WIDTH, gridY);
+      strokeLine(context, gridX, 0, gridX, HEIGHT);
+      strokeLine(context, 0, gridY, WIDTH, gridY);
     }
   }
 
   private drawPlanets(
+    context: CanvasRenderingContext2D,
     planets: PlanetEntity[],
     fog: MinimapFog | undefined,
     world: WorldSize,
@@ -166,9 +234,9 @@ export class Minimap {
     for (const planet of planets) {
       const discovered = !fog || fog.discoveredPlanetIds.has(planet.id);
       if (discovered) {
-        setFillStyle(this.context, planet.color, 0.9);
+        setFillStyle(context, planet.color, 0.9);
         fillCircle(
-          this.context,
+          context,
           positiveModulo(planet.position.x, world.width) * scaleX,
           positiveModulo(planet.position.y, world.height) * scaleY,
           Math.max(3, planet.radius * scaleX),
@@ -198,6 +266,7 @@ export class Minimap {
   }
 
   private drawBiomeRegions(
+    context: CanvasRenderingContext2D,
     regions: MinimapBiomeRegion[],
     world: WorldSize,
     scaleX: number,
@@ -206,16 +275,17 @@ export class Minimap {
     if (regions.length === 0) return;
 
     for (const region of regions) {
-      setStrokeStyle(this.context, rgbToNumber(region.color), 0.78, 1);
+      setStrokeStyle(context, rgbToNumber(region.color), 0.78, 1);
       for (const offsetX of [-world.width, 0, world.width]) {
         for (const offsetY of [-world.height, 0, world.height]) {
-          this.drawBiomeRegionCopy(region, offsetX, offsetY, scaleX, scaleY);
+          this.drawBiomeRegionCopy(context, region, offsetX, offsetY, scaleX, scaleY);
         }
       }
     }
   }
 
   private drawBiomeRegionCopy(
+    context: CanvasRenderingContext2D,
     region: MinimapBiomeRegion,
     offsetX: number,
     offsetY: number,
@@ -237,12 +307,13 @@ export class Minimap {
         { bottom: HEIGHT, left: 0, right: WIDTH, top: 0 },
       );
       if (clipped) {
-        strokeLine(this.context, clipped.start.x, clipped.start.y, clipped.end.x, clipped.end.y);
+        strokeLine(context, clipped.start.x, clipped.start.y, clipped.end.x, clipped.end.y);
       }
     }
   }
 
   private drawNebulaRegions(
+    context: CanvasRenderingContext2D,
     regions: MinimapNebulaRegion[],
     fog: MinimapFog | undefined,
     world: WorldSize,
@@ -262,11 +333,11 @@ export class Minimap {
       if (discovered) {
         const visible = !fog || fog.visibleCells[coverageCell.fogIndex];
         setFillStyle(
-          this.context,
+          context,
           coverageCell.color,
           (visible ? 0.46 : 0.26) * coverageCell.alpha,
         );
-        this.context.fillRect(
+        context.fillRect(
           coverageCell.col * cellWidth,
           coverageCell.row * cellHeight,
           cellWidth + 0.5,
