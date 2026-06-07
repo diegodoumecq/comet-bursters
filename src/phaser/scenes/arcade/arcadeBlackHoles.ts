@@ -1,6 +1,6 @@
 import type { WorldSize } from '../../core/types';
-import { BLACK_HOLE_RADIUS, DISTORTION_RADIUS } from '../../projectiles/definition';
 import {
+  getBlackHoleInfluenceRadius,
   getBlackHoleRenderRadius,
 } from '../../projectiles/blackHoles';
 import type { BlackHoleScreenSample } from '../../projectiles/blackHoleShader';
@@ -31,10 +31,6 @@ export function buildArcadeBlackHoleScreenSamples(
     }
   }
   return samples;
-}
-
-function getBlackHoleInfluenceRadius(radius: number): number {
-  return Math.max(radius + 1, DISTORTION_RADIUS * (radius / BLACK_HOLE_RADIUS));
 }
 
 function getWrapOffsets(

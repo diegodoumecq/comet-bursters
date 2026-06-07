@@ -44,13 +44,16 @@ vec4 sampleSource(vec2 uv) {
 void main() {
   vec2 pixelPos = vUv * u_resolution;
   vec4 color = sampleSource(vUv);
-  bool affected = false;
 
   if (!u_sourceReady) {
     color = vec4(0.0, 0.0, 0.0, 0.0);
   }
 
   vec2 currentPos = pixelPos;
+  float replacementAlpha = 0.0;
+  float tintAmount = 0.0;
+  bool core = false;
+  bool rim = false;
 
   for (int i = 0; i < ${MAX_BLACK_HOLE_RENDER_SAMPLES}; i++) {
     if (i >= u_blackHoleCount) break;
@@ -63,72 +66,55 @@ void main() {
     float dist = length(currentPos - bhPos);
 
     if (dist >= blackHoleRadius && dist < distortionRadius) {
-      affected = true;
       vec2 diff = currentPos - bhPos;
       float t = 1.0 - (dist - blackHoleRadius) / (distortionRadius - blackHoleRadius);
-      float bendStrength = pow(t, 2.0) * u_distortionStrength;
+      float bendStrength = t * t * u_distortionStrength;
+      vec2 direction = dist > 0.0001 ? diff / dist : vec2(0.0);
+      vec2 offset = direction * bendStrength * 30.0;
 
-      currentPos = currentPos + normalize(diff) * bendStrength * 30.0;
-      vec2 distortedUV = currentPos / u_resolution;
-      color = sampleSource(distortedUV);
-      if (!u_sourceReady) {
-        color = vec4(0.0, 0.0, 0.0, 0.0);
-      }
+      currentPos = currentPos + offset;
+      replacementAlpha = max(replacementAlpha, clamp(length(offset), 0.0, 1.0));
+    }
+
+    float originalDist = length(pixelPos - bhPos);
+
+    if (originalDist < blackHoleRadius) {
+      core = true;
+    }
+    if (originalDist >= blackHoleRadius && originalDist < blackHoleRadius + 1.0) {
+      rim = true;
+    }
+    if (originalDist >= blackHoleRadius && originalDist < blackHoleRadius * 2.5) {
+      float tintStrength = 1.0 - (originalDist - blackHoleRadius) / (blackHoleRadius * 1.5);
+      tintAmount = max(tintAmount, tintStrength * 0.5);
     }
   }
 
-  for (int i = 0; i < ${MAX_BLACK_HOLE_RENDER_SAMPLES}; i++) {
-    if (i >= u_blackHoleCount) break;
-
-    vec2 bhUV = vec2((float(i) + 0.5) / float(${MAX_BLACK_HOLE_RENDER_SAMPLES}), 0.5);
-    vec4 bhData = texture2D(u_bhPositions, bhUV);
-    vec2 bhPos = bhData.xy;
-    float blackHoleRadius = bhData.z;
-    float dist = length(pixelPos - bhPos);
-
-    if (dist < blackHoleRadius) {
-      gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-      return;
-    }
+  if (core) {
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    return;
   }
 
-  for (int i = 0; i < ${MAX_BLACK_HOLE_RENDER_SAMPLES}; i++) {
-    if (i >= u_blackHoleCount) break;
-
-    vec2 bhUV = vec2((float(i) + 0.5) / float(${MAX_BLACK_HOLE_RENDER_SAMPLES}), 0.5);
-    vec4 bhData = texture2D(u_bhPositions, bhUV);
-    vec2 bhPos = bhData.xy;
-    float blackHoleRadius = bhData.z;
-    float dist = length(pixelPos - bhPos);
-
-    if (dist >= blackHoleRadius && dist < blackHoleRadius + 1.0) {
-      gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-      return;
-    }
+  if (rim) {
+    gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+    return;
   }
 
-  for (int i = 0; i < ${MAX_BLACK_HOLE_RENDER_SAMPLES}; i++) {
-    if (i >= u_blackHoleCount) break;
+  replacementAlpha = max(replacementAlpha, tintAmount);
 
-    vec2 bhUV = vec2((float(i) + 0.5) / float(${MAX_BLACK_HOLE_RENDER_SAMPLES}), 0.5);
-    vec4 bhData = texture2D(u_bhPositions, bhUV);
-    vec2 bhPos = bhData.xy;
-    float blackHoleRadius = bhData.z;
-    float dist = length(pixelPos - bhPos);
-
-    if (dist >= blackHoleRadius && dist < blackHoleRadius * 2.5) {
-      affected = true;
-      float tintStrength = 1.0 - (dist - blackHoleRadius) / (blackHoleRadius * 1.5);
-      color.rgb = mix(color.rgb, vec3(0.6, 0.3, 1.0), tintStrength * 0.5);
-    }
-  }
-
-  if (!affected) {
+  if (replacementAlpha <= 0.0) {
     gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
     return;
   }
 
-  gl_FragColor = color;
+  vec2 distortedUV = currentPos / u_resolution;
+  color = sampleSource(distortedUV);
+  if (!u_sourceReady) {
+    color = vec4(0.0, 0.0, 0.0, 0.0);
+  }
+  color.rgb = mix(color.rgb, vec3(0.6, 0.3, 1.0), tintAmount);
+
+  gl_FragColor = vec4(color.rgb, color.a * replacementAlpha);
 }
 `;
 

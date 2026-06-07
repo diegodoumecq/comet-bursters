@@ -12,6 +12,7 @@ import {
   BLACK_HOLE_MATURE_RADIUS,
 } from './definition';
 import {
+  getBlackHoleInfluenceRadius,
   getBlackHoleRenderRadius,
   updateBlackHoles,
 } from './blackHoles';
@@ -137,6 +138,11 @@ function update(input: {
 }
 
 describe('black-hole gravity', () => {
+  it('scales render influence with the distortion radius', () => {
+    expect(getBlackHoleInfluenceRadius(6)).toBe(200);
+    expect(getBlackHoleInfluenceRadius(25)).toBeCloseTo(833.333, 3);
+  });
+
   it('pulls asteroids, player ships, and fuel blobs when mature', () => {
     const playerBody = createBody();
     const playerVelocity = { x: 0, y: 0 };
