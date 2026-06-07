@@ -48,8 +48,10 @@ import { PlayerState } from '../../player/state';
 import { createPlayerTexture } from '../../player/textures';
 import { updateBlackHoles } from '../../projectiles/blackHoles';
 import { ProjectileBodies } from '../../projectiles/bodies';
+import { BLACK_HOLE_SOURCE_OVERSCAN } from '../../projectiles/definition';
 import { updateProjectiles } from '../../projectiles/logic';
 import type { ProjectileEntity } from '../../projectiles/types';
+import { enableCanvasOverscan } from '../../runtime/canvasOverscan';
 import { getSandboxFogEnabled, getSandboxPerfToggles } from '../../runtime/startup';
 import { SANDBOX_WEAPONS, type SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { applyTractorBeam } from '../../weapons/tractorBeam';
@@ -129,6 +131,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private inspectionProbes = STARTING_INSPECTION_PROBES;
   private lastThrusterAt = 0;
   private lastMaxSpeedTrailAt = 0;
+  private disposeCanvasOverscan: (() => void) | null = null;
 
   constructor() {
     super('sandbox');
@@ -139,6 +142,10 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   create(): void {
+    // Apply this to scenes with moving cameras so screen-space distortions can sample
+    // real offscreen pixels from the enlarged source canvas.
+    this.disposeCanvasOverscan = enableCanvasOverscan(this.game, BLACK_HOLE_SOURCE_OVERSCAN);
+    this.events.once('shutdown', this.disposeCanvasOverscan);
     const perfMarkers = this.perfToggles.markers;
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'sandbox');
     this.audioDirector.enter();
@@ -909,6 +916,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private disposeRenderEffects(): void {
     this.audioDirector.exit();
     this.renderEffects.dispose();
+    this.disposeCanvasOverscan = null;
   }
 }
 

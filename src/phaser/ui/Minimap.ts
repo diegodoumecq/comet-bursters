@@ -4,6 +4,7 @@ import { ASTEROIDS } from '../asteroids/config';
 import type { AsteroidEntity } from '../asteroids/types';
 import type { Vector, WorldSize } from '../core/types';
 import type { PlanetEntity } from '../planets/types';
+import { getActiveCanvasOverscan } from '../runtime/canvasOverscan';
 import type { NebulaRegionColor, NebulaRegionVisuals } from '../scenes/sandbox/nebulaRegions';
 
 const WIDTH = 220;
@@ -96,8 +97,9 @@ export class Minimap {
     viewportMode: 'bounded' | 'wrapped';
     world: WorldSize;
   }): void {
-    const x = this.scene.scale.width - WIDTH - PADDING;
-    const y = PADDING;
+    const overscan = getActiveCanvasOverscan();
+    const x = this.scene.scale.width - overscan - WIDTH - PADDING;
+    const y = overscan + PADDING;
     const scaleX = WIDTH / input.world.width;
     const scaleY = HEIGHT / input.world.height;
 

@@ -47,6 +47,7 @@ export const DISTORTION_RADIUS = BLACK_HOLE_DEFINITION.render.distortionRadius;
 export const DISTORTION_STRENGTH = BLACK_HOLE_DEFINITION.render.distortionStrength;
 export const MAX_BLACK_HOLES = BLACK_HOLE_DEFINITION.runtime.maxBlackHoles;
 export const MAX_BLACK_HOLE_RENDER_SAMPLES = MAX_BLACK_HOLES * 9;
+export const BLACK_HOLE_SOURCE_OVERSCAN = 64;
 export const BLACK_HOLE_ASTEROID_MASS_SCALE =
   BLACK_HOLE_DEFINITION.absorption.asteroidMassScale;
 export const BLACK_HOLE_FUEL_BLOB_MASS_SCALE =
