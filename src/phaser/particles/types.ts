@@ -13,6 +13,7 @@ export type ParticleKind =
   | 'wing';
 
 export type ParticleEntity = {
+  affectedByPlanetGravity?: boolean;
   alphaDecayPerSecond: number;
   color: number;
   color2?: number;

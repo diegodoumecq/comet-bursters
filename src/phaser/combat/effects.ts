@@ -203,6 +203,70 @@ export function createAsteroidImpactDebris(
   };
 }
 
+export function createAsteroidPlanetImpactDebris(input: {
+  asteroid: AsteroidEntity;
+  normal: Vector;
+  position: Vector;
+}): EffectResult {
+  const config = ASTEROIDS[input.asteroid.tier];
+  const normal = normalizeOr(input.normal, { x: 1, y: 0 });
+  const reflectedVelocity = reflectVelocity(input.asteroid.velocity, normal);
+  const speed = Math.max(1, Math.hypot(input.asteroid.velocity.x, input.asteroid.velocity.y));
+  const particles = [
+    ...spawnDirectedBurst(input.position, {
+      color: config.color,
+      color2: 0x7f1d1d,
+      count: Math.max(10, Math.round(config.radius * 0.28)),
+      direction: normal,
+      glowColor: 0xffc878,
+      inheritedVelocity: reflectedVelocity,
+      inheritedVelocityScale: 0.24,
+      kind: 'shard',
+      lifetimeMs: 680,
+      radius: { min: 3, max: Math.max(5, config.radius * 0.07) },
+      rotationSpeed: { min: -0.24, max: 0.24 },
+      speed: { min: 2.2 + speed * 0.08, max: 5.8 + speed * 0.24 },
+      spreadRadians: Math.PI * 0.72,
+    }),
+    ...spawnDirectedBurst(input.position, {
+      color: 0xfbbf24,
+      color2: 0xf97316,
+      count: Math.max(8, Math.round(config.radius * 0.2)),
+      direction: normal,
+      glowColor: 0xffdc82,
+      inheritedVelocity: reflectedVelocity,
+      inheritedVelocityScale: 0.18,
+      kind: 'spark',
+      lifetimeMs: 440,
+      radius: { min: 2, max: Math.max(4, config.radius * 0.045) },
+      rotationSpeed: { min: -0.3, max: 0.3 },
+      speed: { min: 3.2 + speed * 0.12, max: 8 + speed * 0.28 },
+      spreadRadians: Math.PI * 0.54,
+    }),
+    ...spawnDirectedBurst(input.position, {
+      color: 0x54403a,
+      color2: 0x271a19,
+      count: Math.max(3, Math.round(config.radius * 0.08)),
+      direction: normal,
+      dragPerSecond: 1,
+      glowColor: 0xff965a,
+      inheritedVelocity: reflectedVelocity,
+      inheritedVelocityScale: 0.1,
+      kind: 'smoke',
+      lifetimeMs: 760,
+      radius: { min: 9, max: Math.max(14, config.radius * 0.12) },
+      speed: { min: 0.8, max: 2.4 + speed * 0.08 },
+      spreadRadians: Math.PI * 0.5,
+      velocityBias: { x: normal.x * 0.25, y: normal.y * 0.25 },
+    }),
+  ];
+  return {
+    particles,
+    shakeDurationMs: 120,
+    shakeIntensity: Math.max(1.5, config.radius * 0.025),
+  };
+}
+
 export function createShipExplosion(position: Vector, velocity: Vector): EffectResult[] {
   return [
     {
@@ -262,4 +326,19 @@ export function createThrusterParticles(
   const particle = spawnThrusterParticle(emitter, direction, thrustScale);
   if (!particle) return [];
   return [particle];
+}
+
+function normalizeOr(vector: Vector, fallback: Vector): Vector {
+  const length = Math.hypot(vector.x, vector.y);
+  if (length <= 0) return fallback;
+  return { x: vector.x / length, y: vector.y / length };
+}
+
+function reflectVelocity(velocity: Vector, normal: Vector): Vector {
+  const dot = velocity.x * normal.x + velocity.y * normal.y;
+  if (dot >= 0) return { ...velocity };
+  return {
+    x: velocity.x - 2 * dot * normal.x,
+    y: velocity.y - 2 * dot * normal.y,
+  };
 }

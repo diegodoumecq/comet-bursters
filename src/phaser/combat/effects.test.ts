@@ -4,6 +4,7 @@ import type { AsteroidEntity } from '../asteroids/types';
 import {
   createAsteroidExplosion,
   createAsteroidImpactDebris,
+  createAsteroidPlanetImpactDebris,
   createShipExplosion,
 } from './effects';
 
@@ -24,6 +25,23 @@ describe('combat particle effects', () => {
     expect(new Set(effect.particles.map((particle) => particle.kind))).toEqual(
       new Set(['shard', 'smoke', 'spark']),
     );
+  });
+
+  it('creates planet impact debris that bounces outward from the surface normal', () => {
+    const effect = createAsteroidPlanetImpactDebris({
+      asteroid: { ...createAsteroid('medium'), velocity: { x: -8, y: 0 } },
+      normal: { x: 1, y: 0 },
+      position: { x: 200, y: 100 },
+    });
+    const averageVelocityX =
+      effect.particles.reduce((sum, particle) => sum + particle.velocity.x, 0) /
+      effect.particles.length;
+
+    expect(effect.particles.length).toBeGreaterThan(20);
+    expect(new Set(effect.particles.map((particle) => particle.kind))).toEqual(
+      new Set(['shard', 'smoke', 'spark']),
+    );
+    expect(averageVelocityX).toBeGreaterThan(0);
   });
 
   it('includes ship debris and a full explosion burst on player death', () => {

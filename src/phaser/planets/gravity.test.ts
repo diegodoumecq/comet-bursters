@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { MatterImage } from '../core/types';
 import type { FuelBlobEntity } from '../fuel/types';
-import { applyPlanetGravityToBody, applyPlanetGravityToFuelBlobs } from './gravity';
+import type { ParticleEntity } from '../particles/types';
+import {
+  applyPlanetGravityToBody,
+  applyPlanetGravityToFuelBlobs,
+  applyPlanetGravityToParticles,
+} from './gravity';
 import type { PlanetEntity } from './types';
 
 const world = { width: 1000, height: 1000 };
@@ -75,4 +80,38 @@ describe('planet gravity', () => {
 
     expect(blob.velocity).toEqual({ x: 24, y: 0 });
   });
+
+  it('applies gravity to particles by default', () => {
+    const particle = createParticle({ x: 100, y: 100 });
+
+    applyPlanetGravityToParticles([particle], [planet], world, 1 / 60);
+
+    expect(particle.velocity.x).toBeGreaterThan(0);
+    expect(particle.velocity.y).toBe(0);
+  });
+
+  it('skips planet gravity for particles that opt out', () => {
+    const particle = createParticle({ x: 100, y: 100 });
+    particle.affectedByPlanetGravity = false;
+    particle.velocity = { x: 4, y: 0 };
+
+    applyPlanetGravityToParticles([particle], [planet], world, 1 / 60);
+
+    expect(particle.velocity).toEqual({ x: 4, y: 0 });
+  });
 });
+
+function createParticle(position: { x: number; y: number }): ParticleEntity {
+  return {
+    alphaDecayPerSecond: 1,
+    color: 0xffffff,
+    dragPerSecond: 1,
+    id: 1,
+    kind: 'spark',
+    lifetimeMs: 100,
+    maxLifetimeMs: 100,
+    position,
+    rotation: 0,
+    velocity: { x: 0, y: 0 },
+  };
+}

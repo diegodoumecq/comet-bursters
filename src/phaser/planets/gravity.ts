@@ -1,5 +1,6 @@
 import type { MatterImage, Vector, WorldSize } from '../core/types';
 import type { FuelBlobEntity } from '../fuel/types';
+import type { ParticleEntity } from '../particles/types';
 import type { PlanetEntity } from './types';
 
 export function gravityAcceleration(
@@ -66,6 +67,19 @@ export function applyPlanetGravityToFuelBlobs(
   for (const blob of blobs) {
     if (blob.affectedByPlanetGravity) {
       applyPlanetGravity(blob.velocity, blob.position, planets, world, deltaSeconds);
+    }
+  }
+}
+
+export function applyPlanetGravityToParticles(
+  particles: ParticleEntity[],
+  planets: PlanetEntity[],
+  world: WorldSize,
+  deltaSeconds: number,
+): void {
+  for (const particle of particles) {
+    if (particle.affectedByPlanetGravity ?? true) {
+      applyPlanetGravity(particle.velocity, particle.position, planets, world, deltaSeconds);
     }
   }
 }
