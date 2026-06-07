@@ -5,6 +5,7 @@ import type { AudioEvent, AudioSceneKey, SceneAudioSnapshot } from './types';
 
 export class SceneAudioDirector {
   private active = false;
+  private listenerPosition: SceneAudioSnapshot['listenerPosition'];
 
   constructor(
     private readonly audio: AudioManager,
@@ -18,11 +19,12 @@ export class SceneAudioDirector {
   }
 
   update(snapshot: SceneAudioSnapshot): void {
+    this.listenerPosition = snapshot.listenerPosition;
     if (this.active) this.audio.updateScene(this.sceneKey, snapshot);
   }
 
   emit(event: AudioEvent): void {
-    if (this.active) this.audio.emit(event, this.scene);
+    if (this.active) this.audio.emit(event, this.scene, this.listenerPosition);
   }
 
   exit(): void {

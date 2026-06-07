@@ -67,6 +67,7 @@ export type AudioPlayOptions = {
 
 export type WorldAudioOptions = AudioPlayOptions & {
   camera: Phaser.Cameras.Scene2D.Camera;
+  listenerPosition?: Vector;
   maxDistance?: number;
   position: Vector;
 };
@@ -83,6 +84,7 @@ export type AudioEvent =
   | { position?: Vector; type: 'weaponFired'; weapon: DischargedWeaponKind };
 
 export type SceneAudioSnapshot = {
+  listenerPosition?: Vector;
   playerSpeed?: number;
   riftVisible?: boolean;
   threatLevel?: number;
