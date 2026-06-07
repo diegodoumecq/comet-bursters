@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
 import type { AsteroidEntity } from '../../asteroids/types';
-import { withPerformanceMeasure } from '../../core/performance';
+import { startPerformanceFrame } from '../../core/performance';
 import type { Vector, WorldSize } from '../../core/types';
 import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import {
@@ -57,22 +57,31 @@ export class SandboxRenderer {
     private readonly scene: Phaser.Scene,
     private readonly player: Phaser.Physics.Matter.Image,
     weaponPolicy: SceneWeaponPolicy,
-    world: WorldSize,
     private readonly sandboxNebulaRegions: NebulaRegion[],
     private readonly sandboxBiomes: SandboxBiomeRegion[],
   ) {
-    this.background = new SandboxBackground(scene, world);
+    this.background = new SandboxBackground(scene);
     this.biomeDebug = new SandboxBiomeDebugOverlay(scene);
     this.nebulaRegions = new NebulaRegionRenderer(scene);
-    this.beam = scene.add.graphics();
+    this.beam = scene.add.graphics().setName('sandbox-tractor-beam');
     this.playerTurret = scene.add.image(player.x, player.y, PLAYER_TURRET_TEXTURE_KEY).setDepth(3);
-    this.playerShield = scene.add.graphics();
-    this.playerFuelBase = scene.add.graphics().setDepth(PLAYER_FUEL_HUD_DEPTH);
-    this.playerFuelFill = scene.add.graphics().setDepth(PLAYER_FUEL_HUD_DEPTH);
+    this.playerShield = scene.add.graphics().setName('sandbox-player-shield');
+    this.playerFuelBase = scene.add
+      .graphics()
+      .setName('sandbox-player-fuel-base')
+      .setDepth(PLAYER_FUEL_HUD_DEPTH);
+    this.playerFuelFill = scene.add
+      .graphics()
+      .setName('sandbox-player-fuel-fill')
+      .setDepth(PLAYER_FUEL_HUD_DEPTH);
     this.playerFuelMask = scene.make.graphics({ x: 0, y: 0 }, false);
+    this.playerFuelMask.setName('sandbox-player-fuel-mask');
     this.playerFuelFill.setMask(this.playerFuelMask.createGeometryMask());
-    this.playerThruster = scene.add.graphics().setDepth(0);
-    this.playerTrajectoryPreview = scene.add.graphics().setDepth(PLAYER_TRAJECTORY_PREVIEW_DEPTH);
+    this.playerThruster = scene.add.graphics().setName('sandbox-player-thruster').setDepth(0);
+    this.playerTrajectoryPreview = scene.add
+      .graphics()
+      .setName('sandbox-player-trajectory-preview')
+      .setDepth(PLAYER_TRAJECTORY_PREVIEW_DEPTH);
     this.weaponMenu = new WeaponMenu(scene, weaponPolicy.allowedWeapons);
     this.minimap = new Minimap(scene);
     this.planetOverlay = new SandboxPlanetOverlay(scene);
@@ -123,72 +132,60 @@ export class SandboxRenderer {
     planets: SandboxPlanetEntity[];
     world: WorldSize;
   }): void {
-    withPerformanceMeasure('sandbox.render.background', this.perfToggles.markers, () => {
+    const perf = startPerformanceFrame('sandbox.render.total', this.perfToggles.markers);
+    try {
+      perf.startSection('sandbox.render.background');
       this.background.render(input.player.position, input.world, {
         grid: this.perfToggles.grid,
         markers: this.perfToggles.markers,
         starfield: this.perfToggles.starfield,
         threeBackground: this.perfToggles.threeBackground,
       });
-    });
-    if (this.perfToggles.nebulaRegions) {
-      withPerformanceMeasure('sandbox.render.nebulaRegions', this.perfToggles.markers, () => {
+
+      perf.startSection('sandbox.render.nebulaRegions');
+      if (this.perfToggles.nebulaRegions) {
         this.nebulaRegions.render({
           camera: this.scene.cameras.main,
           regions: this.sandboxNebulaRegions,
           screen: { width: this.scene.scale.width, height: this.scene.scale.height },
           world: input.world,
         });
-      });
-    } else {
-      this.nebulaRegions.render({
-        camera: this.scene.cameras.main,
-        regions: [],
-        screen: { width: this.scene.scale.width, height: this.scene.scale.height },
-        world: input.world,
-      });
-    }
-    const visible = getPlayerVisible(
-      input.player.visible,
-      input.player.invulnerableUntil,
-      input.now,
-    );
-    this.renderPlayerTrajectoryPreview(input, visible && input.trajectoryPreviewActive);
-    renderPlayerThruster(
-      this.playerThruster,
-      this.player,
-      input.player.lastThrustMove,
-      input.ship.fuel > 0,
-      visible && input.player.thrusting,
-    );
-    renderPlayerTurret(this.player, this.playerTurret, input.player.lastAim, visible);
-    renderPlayerFuel(
-      this.playerFuelBase,
-      this.playerFuelFill,
-      this.playerFuelMask,
-      this.player,
-      input.ship.fuel,
-      input.now,
-      visible,
-    );
-    renderPlayerShield(
-      this.playerShield,
-      this.player,
-      input.shieldActive,
-      input.ship.fuel,
-      visible,
-    );
-    drawTractorBeam(this.beam, this.player, input.player.lastAim, input.tractorActive);
-    this.weaponMenu.draw(
-      this.player,
-      input.player.lastAim,
-      input.ship.primaryWeapon,
-      input.ship.secondaryWeapon,
-      input.timeDilation,
-    );
-    this.minimap.setVisible(this.perfToggles.minimap);
-    if (this.perfToggles.minimap) {
-      withPerformanceMeasure('sandbox.render.minimap', this.perfToggles.markers, () => {
+      } else {
+        this.nebulaRegions.render({
+          camera: this.scene.cameras.main,
+          regions: [],
+          screen: { width: this.scene.scale.width, height: this.scene.scale.height },
+          world: input.world,
+        });
+      }
+
+      const visible = getPlayerVisible(
+        input.player.visible,
+        input.player.invulnerableUntil,
+        input.now,
+      );
+
+      perf.startSection('sandbox.render.trajectoryPreview');
+      this.renderPlayerTrajectoryPreview(
+        input,
+        this.perfToggles.trajectoryPreview && visible && input.trajectoryPreviewActive,
+      );
+
+      perf.startSection('sandbox.render.playerHud');
+      this.renderPlayerHud(input, visible);
+
+      perf.startSection('sandbox.render.weaponMenu');
+      this.weaponMenu.draw(
+        this.player,
+        input.player.lastAim,
+        input.ship.primaryWeapon,
+        input.ship.secondaryWeapon,
+        input.timeDilation,
+      );
+
+      this.minimap.setVisible(this.perfToggles.minimap);
+      if (this.perfToggles.minimap) {
+        perf.startSection('sandbox.render.minimap');
         this.minimap.render({
           asteroids: input.asteroids,
           biomeRegions: this.perfToggles.biomeDebug
@@ -207,6 +204,7 @@ export class SandboxRenderer {
                 exploredCells: input.discovery.exploredCells,
                 rows: MINIMAP_ROWS,
                 visibleCells: input.discovery.visibleCells,
+                version: input.discovery.version,
               }
             : undefined,
           nebulaRegions: this.sandboxNebulaRegions,
@@ -216,15 +214,19 @@ export class SandboxRenderer {
           viewportMode: 'wrapped',
           world: input.world,
         });
+      }
+
+      perf.startSection('sandbox.render.overlays');
+      this.planetOverlay.render(input.planets, input.now);
+      this.biomeDebug.render({
+        biomes: this.sandboxBiomes,
+        camera: this.scene.cameras.main,
+        enabled: this.perfToggles.biomeDebug,
+        world: input.world,
       });
+    } finally {
+      perf.end();
     }
-    this.planetOverlay.render(input.planets, input.now);
-    this.biomeDebug.render({
-      biomes: this.sandboxBiomes,
-      camera: this.scene.cameras.main,
-      enabled: this.perfToggles.biomeDebug,
-      world: input.world,
-    });
   }
 
   private renderPlayerTrajectoryPreview(
@@ -264,5 +266,54 @@ export class SandboxRenderer {
       this.playerTrajectoryPreview.strokePath();
       previous = point;
     }
+  }
+
+  private renderPlayerHud(
+    input: {
+      now: number;
+      player: PlayerState;
+      shieldActive: boolean;
+      ship: ShipState;
+      tractorActive: boolean;
+    },
+    visible: boolean,
+  ): void {
+    if (this.perfToggles.playerHud) {
+      renderPlayerThruster(
+        this.playerThruster,
+        this.player,
+        input.player.lastThrustMove,
+        input.ship.fuel > 0,
+        visible && input.player.thrusting,
+      );
+      renderPlayerTurret(this.player, this.playerTurret, input.player.lastAim, visible);
+      renderPlayerFuel(
+        this.playerFuelBase,
+        this.playerFuelFill,
+        this.playerFuelMask,
+        this.player,
+        input.ship.fuel,
+        input.now,
+        visible,
+      );
+      renderPlayerShield(
+        this.playerShield,
+        this.player,
+        input.shieldActive,
+        input.ship.fuel,
+        visible,
+      );
+      drawTractorBeam(this.beam, this.player, input.player.lastAim, input.tractorActive);
+      return;
+    }
+
+    this.player.setVisible(visible);
+    this.playerTurret.setVisible(visible);
+    this.playerFuelBase.setVisible(false);
+    this.playerFuelFill.setVisible(false);
+    this.playerFuelMask.setVisible(false);
+    this.playerShield.clear();
+    this.playerThruster.clear();
+    this.beam.clear();
   }
 }

@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 
+import { withPerformanceMeasure } from '../core/performance';
 import type { Vector, WorldSize } from '../core/types';
+import { getSandboxPerfToggles } from '../runtime/startup';
 
 type Star = {
   alpha: number;
@@ -93,36 +95,39 @@ export class Starfield {
     const textureKey = this.getTextureKey(layerIndex);
     if (this.scene.textures.exists(textureKey)) return textureKey;
 
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.ceil(this.screen.width));
-    canvas.height = Math.max(1, Math.ceil(this.screen.height));
-    const context = canvas.getContext('2d');
-    if (!context) {
-      this.scene.textures.addCanvas(textureKey, canvas);
-      return textureKey;
-    }
-
-    for (const star of createStars(this.screen, config, layerIndex, this.seedOffset)) {
-      context.globalAlpha = star.alpha;
-      context.fillStyle = toCanvasColor(star.tint);
-      context.beginPath();
-      context.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
-      context.fill();
-      if (star.glint) {
-        context.globalAlpha = star.alpha * 0.28;
-        context.strokeStyle = toCanvasColor(star.tint);
-        context.lineWidth = 1;
-        const length = star.radius * 4.8;
-        context.beginPath();
-        context.moveTo(star.x - length, star.y);
-        context.lineTo(star.x + length, star.y);
-        context.moveTo(star.x, star.y - length);
-        context.lineTo(star.x, star.y + length);
-        context.stroke();
-      }
-    }
-    context.globalAlpha = 1;
-    this.scene.textures.addCanvas(textureKey, canvas);
+    withPerformanceMeasure(
+      `texture.starfield.${layerIndex}`,
+      getSandboxPerfToggles().markers,
+      () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.ceil(this.screen.width));
+        canvas.height = Math.max(1, Math.ceil(this.screen.height));
+        const context = canvas.getContext('2d');
+        if (context) {
+          for (const star of createStars(this.screen, config, layerIndex, this.seedOffset)) {
+            context.globalAlpha = star.alpha;
+            context.fillStyle = toCanvasColor(star.tint);
+            context.beginPath();
+            context.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+            context.fill();
+            if (star.glint) {
+              context.globalAlpha = star.alpha * 0.28;
+              context.strokeStyle = toCanvasColor(star.tint);
+              context.lineWidth = 1;
+              const length = star.radius * 4.8;
+              context.beginPath();
+              context.moveTo(star.x - length, star.y);
+              context.lineTo(star.x + length, star.y);
+              context.moveTo(star.x, star.y - length);
+              context.lineTo(star.x, star.y + length);
+              context.stroke();
+            }
+          }
+          context.globalAlpha = 1;
+        }
+        this.scene.textures.addCanvas(textureKey, canvas);
+      },
+    );
     return textureKey;
   }
 

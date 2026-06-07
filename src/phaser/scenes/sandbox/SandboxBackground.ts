@@ -7,6 +7,7 @@ import { SpaceBackgroundRenderer } from '../../world/SpaceBackgroundRenderer';
 import { Starfield } from '../../world/Starfield';
 
 const GRID_DEPTH = -100;
+const GRID_TILE_SIZE = 240;
 const STAR_PARALLAX = 0.018;
 const SANDBOX_STAR_DEPTH_SHIFT = -70;
 
@@ -18,16 +19,14 @@ type SandboxBackgroundRenderOptions = {
 };
 
 export class SandboxBackground {
-  private readonly graphics: Phaser.GameObjects.Graphics;
+  private readonly grid: Phaser.GameObjects.TileSprite;
+  private readonly gridTextureKey = `sandbox-grid-${Phaser.Math.RND.uuid()}`;
   private readonly shader: SpaceBackgroundRenderer;
   private readonly starfield: Starfield;
   private lastCameraScroll: Vector | null = null;
   private lastRenderAt = 0;
 
-  constructor(
-    private readonly scene: Phaser.Scene,
-    world: WorldSize,
-  ) {
+  constructor(private readonly scene: Phaser.Scene) {
     this.shader = new SpaceBackgroundRenderer(scene.game.canvas, scene.game.canvas.parentElement);
     this.starfield = new Starfield(
       scene,
@@ -35,8 +34,13 @@ export class SandboxBackground {
       SANDBOX_STAR_DEPTH_SHIFT,
     );
     this.scene.events.once('shutdown', this.dispose, this);
-    this.graphics = scene.add.graphics().setDepth(GRID_DEPTH);
-    this.drawGrid(world);
+    this.createGridTexture();
+    this.grid = scene.add
+      .tileSprite(0, 0, scene.scale.width, scene.scale.height, this.gridTextureKey)
+      .setName('sandbox-grid')
+      .setOrigin(0)
+      .setScrollFactor(0)
+      .setDepth(GRID_DEPTH);
   }
 
   render(playerPosition: Vector, world: WorldSize, options: SandboxBackgroundRenderOptions): void {
@@ -69,7 +73,7 @@ export class SandboxBackground {
         this.starfield.render(now, this.getStarParallax(camera, world), deltaMs);
       });
     }
-    this.graphics.setVisible(options.grid);
+    this.renderGrid(camera, options.grid);
   }
 
   getCanvas(): HTMLCanvasElement | null {
@@ -87,14 +91,43 @@ export class SandboxBackground {
     return { x: -delta.x * STAR_PARALLAX, y: -delta.y * STAR_PARALLAX };
   }
 
-  private drawGrid(world: WorldSize): void {
-    this.graphics.lineStyle(1, 0x152033, 0.9);
-    for (let x = 0; x <= world.width; x += 240) this.graphics.lineBetween(x, 0, x, world.height);
-    for (let y = 0; y <= world.height; y += 240) this.graphics.lineBetween(0, y, world.width, y);
+  private createGridTexture(): void {
+    const canvas = document.createElement('canvas');
+    canvas.width = GRID_TILE_SIZE;
+    canvas.height = GRID_TILE_SIZE;
+    const context = canvas.getContext('2d');
+    if (context) {
+      context.globalAlpha = 0.9;
+      context.strokeStyle = '#152033';
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(0.5, 0);
+      context.lineTo(0.5, GRID_TILE_SIZE);
+      context.moveTo(0, 0.5);
+      context.lineTo(GRID_TILE_SIZE, 0.5);
+      context.stroke();
+      context.globalAlpha = 1;
+    }
+    this.scene.textures.addCanvas(this.gridTextureKey, canvas);
+  }
+
+  private renderGrid(camera: Phaser.Cameras.Scene2D.Camera, visible: boolean): void {
+    this.grid.setVisible(visible);
+    if (visible) {
+      this.grid.setSize(this.scene.scale.width, this.scene.scale.height);
+      this.grid.tilePositionX = positiveModulo(camera.worldView.x, GRID_TILE_SIZE);
+      this.grid.tilePositionY = positiveModulo(camera.worldView.y, GRID_TILE_SIZE);
+    }
   }
 
   private dispose(): void {
+    this.grid.destroy();
+    if (this.scene.textures.exists(this.gridTextureKey)) this.scene.textures.remove(this.gridTextureKey);
     this.shader.dispose();
     this.starfield.destroy();
   }
+}
+
+function positiveModulo(value: number, divisor: number): number {
+  return ((value % divisor) + divisor) % divisor;
 }

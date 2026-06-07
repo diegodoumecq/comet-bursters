@@ -19,7 +19,7 @@ export class WeaponMenu {
     scene: Phaser.Scene,
     private readonly weapons: readonly WeaponKind[],
   ) {
-    this.graphics = scene.add.graphics().setDepth(90);
+    this.graphics = scene.add.graphics().setName('weapon-menu').setDepth(90);
     this.icons = weapons.map((weapon) =>
       scene.add.image(0, 0, getWeaponIconTexture(scene, weapon, false)).setDepth(91),
     );

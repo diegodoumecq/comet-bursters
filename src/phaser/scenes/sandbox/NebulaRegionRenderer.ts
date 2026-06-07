@@ -229,6 +229,7 @@ type NebulaRegionRenderInput = {
 };
 
 export class NebulaRegionRenderer {
+  private readonly copiedPointsCache = new Map<string, Vector[]>();
   private readonly chunkCache = new Map<string, CachedChunk>();
   private readonly pointDataCache = new Map<string, Float32Array>();
   private readonly regionBoundsCache = new Map<string, RegionBounds>();
@@ -247,7 +248,9 @@ export class NebulaRegionRenderer {
       x: camera.worldView.x,
       y: camera.worldView.y,
     };
+
     const copies = getVisibleRegionCopies(input.regions, input.world, viewport, {
+      getCopiedPoints: (region, offset) => this.getCopiedPoints(region, offset),
       getPointData: (region, offset) => this.getPointData(region, offset),
       getRegionBounds: (region) => this.getRegionBounds(region),
     });
@@ -261,6 +264,7 @@ export class NebulaRegionRenderer {
         this.scene.textures.remove(cachedChunk.textureKey);
       }
     }
+    this.copiedPointsCache.clear();
     this.chunkCache.clear();
     this.pointDataCache.clear();
     this.regionBoundsCache.clear();
@@ -358,8 +362,7 @@ export class NebulaRegionRenderer {
 
     const sourceTextureKey = `${copy.cacheKey}:source`;
     const renderer = this.scene.sys.renderer;
-    const gl =
-      renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer ? renderer.gl : null;
+    const gl = renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer ? renderer.gl : null;
     const scissorEnabled = gl?.isEnabled(gl.SCISSOR_TEST) ?? false;
     if (gl) gl.disable(gl.SCISSOR_TEST);
     shader.setRenderToTexture(sourceTextureKey);
@@ -370,10 +373,7 @@ export class NebulaRegionRenderer {
     return copy.cacheKey;
   }
 
-  private destroyShaderRenderTarget(
-    shader: Phaser.GameObjects.Shader,
-    textureKey: string,
-  ): void {
+  private destroyShaderRenderTarget(shader: Phaser.GameObjects.Shader, textureKey: string): void {
     const renderer = this.scene.sys.renderer;
     if (!(renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer)) return;
     if (!shader.framebuffer) return;
@@ -440,6 +440,19 @@ export class NebulaRegionRenderer {
     return data;
   }
 
+  private getCopiedPoints(region: NebulaRegion, offset: Vector): Vector[] {
+    const key = `${region.id}:${offset.x}:${offset.y}`;
+    const cached = this.copiedPointsCache.get(key);
+    if (cached) return cached;
+
+    const copiedPoints = region.points.map((point) => ({
+      x: point.x + offset.x,
+      y: point.y + offset.y,
+    }));
+    this.copiedPointsCache.set(key, copiedPoints);
+    return copiedPoints;
+  }
+
   private getRegionBounds(region: NebulaRegion): RegionBounds {
     const cached = this.regionBoundsCache.get(region.id);
     if (cached) return cached;
@@ -470,6 +483,7 @@ function getVisibleRegionCopies(
   world: WorldSize,
   viewport: RegionBounds,
   cache: {
+    getCopiedPoints: (region: NebulaRegion, offset: Vector) => Vector[];
     getPointData: (region: NebulaRegion, offset: Vector) => Float32Array;
     getRegionBounds: (region: NebulaRegion) => RegionBounds;
   },
@@ -486,21 +500,19 @@ function getVisibleRegionCopies(
           x: baseBounds.x + offset.x,
           y: baseBounds.y + offset.y,
         };
-        const copiedPoints = region.points.map((point) => ({
-          x: point.x + offset.x,
-          y: point.y + offset.y,
-        }));
+        const visibleBounds = getBoundsIntersection(copyBounds, viewport);
         const offsetKey = `${offset.x}:${offset.y}`;
-        copies.push(
-          ...getVisibleChunkCopies({
-            copyBounds,
-            copiedPoints,
-            region,
-            viewport,
-            offsetKey,
-            pointData: cache.getPointData(region, offset),
-          }),
-        );
+        if (visibleBounds) {
+          copies.push(
+            ...getVisibleChunkCopies({
+              copiedPoints: cache.getCopiedPoints(region, offset),
+              offsetKey,
+              pointData: cache.getPointData(region, offset),
+              region,
+              visibleBounds,
+            }),
+          );
+        }
       }
     }
   }
@@ -509,20 +521,16 @@ function getVisibleRegionCopies(
 
 function getVisibleChunkCopies(input: {
   copiedPoints: Vector[];
-  copyBounds: RegionBounds;
   offsetKey: string;
   pointData: Float32Array;
   region: NebulaRegion;
-  viewport: RegionBounds;
+  visibleBounds: RegionBounds;
 }): RegionCopy[] {
-  const visibleBounds = getBoundsIntersection(input.copyBounds, input.viewport);
-  if (!visibleBounds) return [];
-
   const chunks: RegionCopy[] = [];
-  const startX = Math.floor(visibleBounds.x / NEBULA_CHUNK_SIZE) * NEBULA_CHUNK_SIZE;
-  const endX = visibleBounds.x + visibleBounds.width;
-  const startY = Math.floor(visibleBounds.y / NEBULA_CHUNK_SIZE) * NEBULA_CHUNK_SIZE;
-  const endY = visibleBounds.y + visibleBounds.height;
+  const startX = Math.floor(input.visibleBounds.x / NEBULA_CHUNK_SIZE) * NEBULA_CHUNK_SIZE;
+  const endX = input.visibleBounds.x + input.visibleBounds.width;
+  const startY = Math.floor(input.visibleBounds.y / NEBULA_CHUNK_SIZE) * NEBULA_CHUNK_SIZE;
+  const endY = input.visibleBounds.y + input.visibleBounds.height;
   for (let chunkY = startY; chunkY < endY; chunkY += NEBULA_CHUNK_SIZE) {
     for (let chunkX = startX; chunkX < endX; chunkX += NEBULA_CHUNK_SIZE) {
       const chunkBounds = {
@@ -531,11 +539,8 @@ function getVisibleChunkCopies(input: {
         x: chunkX,
         y: chunkY,
       };
-      const visibleChunkBounds = getBoundsIntersection(chunkBounds, visibleBounds);
-      if (
-        visibleChunkBounds &&
-        polygonIntersectsBounds(input.copiedPoints, visibleChunkBounds)
-      ) {
+      const visibleChunkBounds = getBoundsIntersection(chunkBounds, input.visibleBounds);
+      if (visibleChunkBounds && polygonIntersectsBounds(input.copiedPoints, visibleChunkBounds)) {
         const bounds = normalizeBounds(chunkBounds);
         chunks.push({
           bounds,

@@ -4,4 +4,5 @@ import { createPhaserConfig } from './runtime/config';
 import { createFpsOverlay } from './runtime/fpsOverlay';
 
 const game = new Phaser.Game(createPhaserConfig('app'));
+(window as typeof window & { __cometBurstersGame?: Phaser.Game }).__cometBurstersGame = game;
 createFpsOverlay(game);

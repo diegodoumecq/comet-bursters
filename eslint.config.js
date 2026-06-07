@@ -7,7 +7,7 @@ import globals from 'globals';
 
 export default defineConfig([
   {
-    ignores: ['bin/**', 'devBundle/**', 'docs/**', 'node_modules/**'],
+    ignores: ['bin/**', 'devBundle/**', 'docs/**', 'node_modules/**', 'scripts/**'],
   },
   {
     files: ['**/*.config.{js,ts}', 'vite.config.*.ts'],

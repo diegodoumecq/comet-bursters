@@ -26,6 +26,7 @@ import { resolveProjectileFuelBlobCombatEvents } from '../../combat/fuel';
 import { updateFuelBlobCollection } from '../../combat/fuelCollection';
 import { MatterContacts, type PlayerAsteroidContact } from '../../combat/matterContacts';
 import { applyMatterBodySpec } from '../../core/matterBodySpec';
+import { startPerformanceFrame, withPerformanceMeasure } from '../../core/performance';
 import { getTimeScale } from '../../core/time';
 import type { Vector, WorldSize } from '../../core/types';
 import { spawnAsteroidFuelDrops, spawnFuelBlobs } from '../../fuel/blobLogic';
@@ -47,9 +48,11 @@ import { PlayerState } from '../../player/state';
 import { createPlayerTexture } from '../../player/textures';
 import { updateBlackHoles } from '../../projectiles/blackHoles';
 import { ProjectileBodies } from '../../projectiles/bodies';
+import { BLACK_HOLE_SOURCE_OVERSCAN } from '../../projectiles/definition';
 import { updateProjectiles } from '../../projectiles/logic';
 import type { ProjectileEntity } from '../../projectiles/types';
-import { getSandboxFogEnabled } from '../../runtime/startup';
+import { enableCanvasOverscan } from '../../runtime/canvasOverscan';
+import { getSandboxFogEnabled, getSandboxPerfToggles } from '../../runtime/startup';
 import { SANDBOX_WEAPONS, type SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { applyTractorBeam } from '../../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../../weapons/use';
@@ -97,6 +100,7 @@ const MOTHERSHIP_LAUNCH_START_SCALE = 0.18;
 const MOTHERSHIP_LAUNCH_START_OFFSET: Vector = { x: MOTHERSHIP_DOOR_SLIDE_DISTANCE * 0.55, y: 0 };
 const MOTHERSHIP_SPAWN_PLAYER_ROTATION = -Math.PI * 0.5;
 const MOTHERSHIP_SPAWN_PLAYER_AIM: Vector = { x: -1, y: 0 };
+const PLANET_VIEW_PRELOAD_RADIUS = 3600;
 
 export class PhaserSandboxScene extends BaseGameScene {
   private actions!: ActionReader;
@@ -116,6 +120,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: SANDBOX_WEAPONS };
   private readonly discovery = new SandboxDiscovery();
   private readonly fogEnabled = getSandboxFogEnabled();
+  private readonly perfToggles = getSandboxPerfToggles();
   private planets: SandboxPlanetEntity[] = [];
   private mothership!: Mothership;
   private launchStartedAt = 0;
@@ -126,6 +131,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private inspectionProbes = STARTING_INSPECTION_PROBES;
   private lastThrusterAt = 0;
   private lastMaxSpeedTrailAt = 0;
+  private disposeCanvasOverscan: (() => void) | null = null;
 
   constructor() {
     super('sandbox');
@@ -136,11 +142,20 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   create(): void {
+    // Apply this to scenes with moving cameras so screen-space distortions can sample
+    // real offscreen pixels from the enlarged source canvas.
+    this.disposeCanvasOverscan = enableCanvasOverscan(this.game, BLACK_HOLE_SOURCE_OVERSCAN);
+    this.events.once('shutdown', this.disposeCanvasOverscan);
+    const perfMarkers = this.perfToggles.markers;
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'sandbox');
     this.audioDirector.enter();
     this.actions = new ActionReader(this);
-    createPlayerTexture(this);
-    createAsteroidTextures(this);
+    withPerformanceMeasure('sandbox.startup.textures.player', perfMarkers, () => {
+      createPlayerTexture(this);
+    });
+    withPerformanceMeasure('sandbox.startup.textures.asteroids', perfMarkers, () => {
+      createAsteroidTextures(this);
+    });
     this.asteroidBodies = new AsteroidBodies(this);
     this.projectileBodies = new ProjectileBodies(this);
     this.fuelBodies = new FuelBodies(this);
@@ -154,22 +169,30 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.particleViews,
       this.contacts,
     );
-    const startup = createSandboxStartup(WORLD, INITIAL_ASTEROIDS);
+    const startup = withPerformanceMeasure('sandbox.startup.world', perfMarkers, () =>
+      createSandboxStartup(WORLD, INITIAL_ASTEROIDS),
+    );
     this.planets = startup.planets;
-    for (const planet of this.planets) this.planetViews.add(planet);
     const spawnPoint = startup.spawnPoint;
     this.mothership = new Mothership(this, spawnPoint);
     this.playerBody = new PlayerBody(this, spawnPoint, this.player);
+    withPerformanceMeasure('sandbox.startup.planetViews', perfMarkers, () => {
+      this.planetViews.ensureNear(this.planets, spawnPoint, PLANET_VIEW_PRELOAD_RADIUS);
+    });
     this.playerBody.setRotation(MOTHERSHIP_SPAWN_PLAYER_ROTATION);
     applyMatterBodySpec(this.playerBody.body, PLAYER_DEFINITIONS.sandbox.body);
     this.syncPlayerContactBodies();
-    this.sceneRenderer = new SandboxRenderer(
-      this,
-      this.playerBody.body,
-      this.weaponPolicy,
-      WORLD,
-      startup.nebulaRegions,
-      startup.biomes,
+    this.sceneRenderer = withPerformanceMeasure(
+      'sandbox.startup.renderer',
+      perfMarkers,
+      () =>
+        new SandboxRenderer(
+          this,
+          this.playerBody.body,
+          this.weaponPolicy,
+          startup.nebulaRegions,
+          startup.biomes,
+        ),
     );
     this.renderEffects = new SandboxRenderEffects(
       this.game.canvas,
@@ -195,16 +218,35 @@ export class PhaserSandboxScene extends BaseGameScene {
     time: number,
     delta: number,
   ): void {
-    const timeScale = getTimeScale(action.timeDilation);
-    this.matter.world.engine.timing.timeScale = timeScale;
-    const deltaSeconds = (delta / 1000) * timeScale;
-    this.updatePlayer(action, time, deltaSeconds);
-    this.updateWorld(delta, deltaSeconds);
-    this.resolveCombat(time, this.isShieldActive(action), deltaSeconds);
-    this.updateFuelBlobs(deltaSeconds);
-    this.updateRespawn(time);
-    this.updateMothership(time);
-    if (this.fogEnabled) this.discovery.update(this.player.position, this.planets, WORLD);
+    const perf = startPerformanceFrame('sandbox.update.total', this.perfToggles.markers);
+    try {
+      const timeScale = getTimeScale(action.timeDilation);
+      this.matter.world.engine.timing.timeScale = timeScale;
+      const deltaSeconds = (delta / 1000) * timeScale;
+
+      perf.startSection('sandbox.update.player');
+      this.updatePlayer(action, time, deltaSeconds);
+
+      perf.startSection('sandbox.update.world');
+      this.updateWorld(delta, deltaSeconds);
+
+      perf.startSection('sandbox.update.combat');
+      this.resolveCombat(time, this.isShieldActive(action), deltaSeconds);
+
+      perf.startSection('sandbox.update.fuelBlobs');
+      this.updateFuelBlobs(deltaSeconds);
+
+      perf.startSection('sandbox.update.sceneState');
+      this.updateRespawn(time);
+      this.updateMothership(time);
+
+      if (this.fogEnabled) {
+        perf.startSection('sandbox.update.discovery');
+        this.discovery.update(this.player.position, this.planets, WORLD);
+      }
+    } finally {
+      perf.end();
+    }
   }
 
   protected renderState(action: ReturnType<ActionReader['read']>, time: number): void {
@@ -231,15 +273,17 @@ export class PhaserSandboxScene extends BaseGameScene {
       planets: this.planets,
       world: WORLD,
     });
-    this.renderEffects.render({
-      camera: this.cameras.main,
-      fuelBlobs: this.runtime.world.fuelBlobs,
-      now: time,
-      planets: this.planets,
-      playerPosition: this.player.position,
-      projectiles: this.runtime.world.projectiles,
-      screen: { width: this.scale.width, height: this.scale.height },
-      world: WORLD,
+    withPerformanceMeasure('sandbox.render.effects', this.perfToggles.markers, () => {
+      this.renderEffects.render({
+        camera: this.cameras.main,
+        fuelBlobs: this.runtime.world.fuelBlobs,
+        now: time,
+        planets: this.planets,
+        playerPosition: this.player.position,
+        projectiles: this.runtime.world.projectiles,
+        screen: { width: this.scale.width, height: this.scale.height },
+        world: WORLD,
+      });
     });
   }
 
@@ -367,6 +411,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.removeParticle(particle);
     this.runtime.syncParticles();
     positionSandboxWrappedWorldNearPlayer(this.getWorldPositioningInput());
+    this.planetViews.ensureNear(this.planets, this.player.position, PLANET_VIEW_PRELOAD_RADIUS);
   }
 
   private updateFuelBlobs(deltaSeconds: number): void {
@@ -560,11 +605,15 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   private resolvePlanetCollisions(): void {
-    for (const asteroid of [...this.runtime.world.asteroids]) {
+    const asteroidCount = this.runtime.world.asteroids.length;
+    for (let index = asteroidCount - 1; index >= 0; index -= 1) {
+      const asteroid = this.runtime.world.asteroids[index];
       if (this.collidesWithPlanet(asteroid.position, ASTEROIDS[asteroid.tier].collisionRadius))
         this.destroyAsteroid(asteroid, false);
     }
-    for (const projectile of [...this.runtime.world.projectiles]) {
+    const projectileCount = this.runtime.world.projectiles.length;
+    for (let index = projectileCount - 1; index >= 0; index -= 1) {
+      const projectile = this.runtime.world.projectiles[index];
       if (
         projectile.kind !== 'blackHole' &&
         projectile.kind !== 'inspectionProbe' &&
@@ -581,11 +630,16 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   private resolveInspectionProbeHits(now: number): void {
-    for (const projectile of [...this.runtime.world.projectiles]) {
+    const projectileCount = this.runtime.world.projectiles.length;
+    for (let index = projectileCount - 1; index >= 0; index -= 1) {
+      const projectile = this.runtime.world.projectiles[index];
       if (projectile.kind === 'inspectionProbe') {
         const planet = this.planets.find((candidate) => {
-          const delta = wrappedDelta(projectile.position, candidate.position, WORLD);
-          return Math.hypot(delta.x, delta.y) <= candidate.radius + 5;
+          const radius = candidate.radius + 5;
+          return (
+            getWrappedDistanceSquared(projectile.position, candidate.position, WORLD) <=
+            radius * radius
+          );
         });
         if (planet) {
           planet.inspectedUntil = now + INSPECTION_DURATION_MS;
@@ -597,8 +651,11 @@ export class PhaserSandboxScene extends BaseGameScene {
 
   private collidesWithPlanet(position: Vector, radius: number): boolean {
     return this.planets.some((planet) => {
-      const delta = wrappedDelta(position, planet.position, WORLD);
-      return Math.hypot(delta.x, delta.y) <= radius + planet.radius;
+      const collisionRadius = radius + planet.radius;
+      return (
+        getWrappedDistanceSquared(position, planet.position, WORLD) <=
+        collisionRadius * collisionRadius
+      );
     });
   }
 
@@ -859,5 +916,16 @@ export class PhaserSandboxScene extends BaseGameScene {
   private disposeRenderEffects(): void {
     this.audioDirector.exit();
     this.renderEffects.dispose();
+    this.disposeCanvasOverscan = null;
   }
+}
+
+function getWrappedDistanceSquared(from: Vector, to: Vector, world: WorldSize): number {
+  let x = to.x - from.x;
+  if (x > world.width * 0.5) x -= world.width;
+  if (x < -world.width * 0.5) x += world.width;
+  let y = to.y - from.y;
+  if (y > world.height * 0.5) y -= world.height;
+  if (y < -world.height * 0.5) y += world.height;
+  return x * x + y * y;
 }

@@ -18,6 +18,7 @@ import {
   BLACK_HOLE_MATURE_AFTER_MS,
   BLACK_HOLE_MATURE_RADIUS,
   BLACK_HOLE_RADIUS,
+  DISTORTION_RADIUS,
 } from './definition';
 import type { ProjectileEntity } from './types';
 
@@ -74,6 +75,10 @@ export function getBlackHoleRenderRadius(
     Math.max(0, (now - blackHole.collapseStartedAt) / BLACK_HOLE_COLLAPSE_DURATION_MS),
   );
   return matureRadius * (1 - collapseProgress);
+}
+
+export function getBlackHoleInfluenceRadius(radius: number): number {
+  return Math.max(radius + 1, DISTORTION_RADIUS * (radius / BLACK_HOLE_RADIUS));
 }
 
 export function updateBlackHoles(input: BlackHoleLifecycleOptions): void {

@@ -1,5 +1,5 @@
 import type { Vector } from '../core/types';
-import { getBlackHoleRenderRadius } from './blackHoles';
+import { getBlackHoleInfluenceRadius, getBlackHoleRenderRadius } from './blackHoles';
 import type { BlackHoleScreenSample } from './blackHoleShader';
 import type { ProjectileEntity } from './types';
 
@@ -16,7 +16,8 @@ export function buildBlackHoleScreenSamples({
   for (const projectile of projectiles) {
     if (projectile.kind === 'blackHole') {
       const radius = getBlackHoleRenderRadius(projectile);
-      for (const screenPosition of project(projectile.position, radius)) {
+      const influenceRadius = getBlackHoleInfluenceRadius(radius);
+      for (const screenPosition of project(projectile.position, influenceRadius)) {
         samples.push({
           x: screenPosition.x,
           y: screenPosition.y,

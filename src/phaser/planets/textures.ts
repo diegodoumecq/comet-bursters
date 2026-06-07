@@ -5,7 +5,7 @@ import { getPlanetDisplaySizeForRadius, getPlanetTextureSizing } from './texture
 import type { PlanetEntity, PlanetSpriteSource } from './types';
 import { drawStyledPlanet } from './visuals/planetVisuals';
 
-const PLANET_TEXTURE_VERSION = 'v18-direct-painter-surface';
+const PLANET_TEXTURE_VERSION = 'v21-lazy-direct-painter-surface';
 const textureKeys = new Map<string, string>();
 
 export function getPlanetTextureKey(scene: Phaser.Scene, planet: PlanetEntity): string {

@@ -68,7 +68,9 @@ export class ParticleViews {
   }
 
   private createParticleGraphics(particle: ParticleEntity): Phaser.GameObjects.Graphics {
-    const shape = this.scene.add.graphics({ x: particle.position.x, y: particle.position.y });
+    const shape = this.scene.add
+      .graphics({ x: particle.position.x, y: particle.position.y })
+      .setName(`particle-${particle.kind}`);
     drawParticleGraphics(shape, particle);
     return shape;
   }
