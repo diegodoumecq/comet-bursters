@@ -9,6 +9,8 @@ import {
 } from '../particles/logic';
 import type { ParticleEntity } from '../particles/types';
 
+const EXPLOSION_PARTICLE_GRAVITY = false;
+
 export type EffectResult = {
   particles: ParticleEntity[];
   shakeDurationMs: number;
@@ -20,6 +22,7 @@ export function createAsteroidExplosion(asteroid: AsteroidEntity, scale: number)
   const intensity = Math.max(0.45, scale);
   const particles = [
     spawnShockwave(asteroid.position, {
+      affectedByPlanetGravity: EXPLOSION_PARTICLE_GRAVITY,
       color: 0xffffff,
       color2: config.color,
       inheritedVelocity: asteroid.velocity,
@@ -27,6 +30,7 @@ export function createAsteroidExplosion(asteroid: AsteroidEntity, scale: number)
       radius: 12 + config.radius * 0.24 * intensity,
     }),
     ...spawnBurst(asteroid.position, {
+      affectedByPlanetGravity: EXPLOSION_PARTICLE_GRAVITY,
       color: 0xffd36b,
       color2: 0xdc2626,
       count: Math.max(7, Math.round(config.radius * 0.2 * intensity)),
@@ -39,6 +43,7 @@ export function createAsteroidExplosion(asteroid: AsteroidEntity, scale: number)
       speed: { min: 1.8, max: 5.2 * intensity },
     }),
     ...spawnBurst(asteroid.position, {
+      affectedByPlanetGravity: EXPLOSION_PARTICLE_GRAVITY,
       color: config.color,
       color2: 0x7f1d1d,
       count: Math.max(12, Math.round(config.radius * 0.34 * intensity)),
@@ -51,6 +56,7 @@ export function createAsteroidExplosion(asteroid: AsteroidEntity, scale: number)
       speed: { min: 1.8, max: 5.8 * intensity },
     }),
     ...spawnBurst(asteroid.position, {
+      affectedByPlanetGravity: EXPLOSION_PARTICLE_GRAVITY,
       color: 0xfbbf24,
       color2: 0xf97316,
       count: Math.max(10, Math.round(config.radius * 0.24 * intensity)),
@@ -63,6 +69,7 @@ export function createAsteroidExplosion(asteroid: AsteroidEntity, scale: number)
       speed: { min: 3.2, max: 8.2 * intensity },
     }),
     ...spawnBurst(asteroid.position, {
+      affectedByPlanetGravity: EXPLOSION_PARTICLE_GRAVITY,
       color: 0x6a4631,
       color2: 0x271a19,
       count: Math.max(5, Math.round(config.radius * 0.12 * intensity)),
@@ -93,6 +100,7 @@ export function createExplosionBurst(
   const intensity = Math.max(0.25, scale);
   const particles = [
     spawnShockwave(position, {
+      affectedByPlanetGravity: EXPLOSION_PARTICLE_GRAVITY,
       color: 0xffffff,
       color2: 0xffd36b,
       inheritedVelocity,
@@ -100,6 +108,7 @@ export function createExplosionBurst(
       radius: 14 + intensity * 8,
     }),
     ...spawnBurst(position, {
+      affectedByPlanetGravity: EXPLOSION_PARTICLE_GRAVITY,
       color: 0xffd36b,
       color2: 0xdc2626,
       count: Math.max(8, Math.round(18 * intensity)),
@@ -111,6 +120,7 @@ export function createExplosionBurst(
       speed: { min: 2.4, max: 5.2 * intensity },
     }),
     ...spawnBurst(position, {
+      affectedByPlanetGravity: EXPLOSION_PARTICLE_GRAVITY,
       color: 0xfbbf24,
       color2: 0xf97316,
       count: Math.max(8, Math.round(14 * intensity)),
@@ -122,6 +132,7 @@ export function createExplosionBurst(
       speed: { min: 3, max: 7.5 * intensity },
     }),
     ...spawnBurst(position, {
+      affectedByPlanetGravity: EXPLOSION_PARTICLE_GRAVITY,
       color: 0x54403a,
       color2: 0x271a19,
       count: Math.max(3, Math.round(5 * intensity)),
@@ -264,6 +275,121 @@ export function createAsteroidPlanetImpactDebris(input: {
     particles,
     shakeDurationMs: 120,
     shakeIntensity: Math.max(1.5, config.radius * 0.025),
+  };
+}
+
+export function createShipPlanetImpactDebris(input: {
+  normal: Vector;
+  position: Vector;
+  velocity: Vector;
+}): EffectResult {
+  const normal = normalizeOr(input.normal, { x: 1, y: 0 });
+  const reflectedVelocity = reflectVelocity(input.velocity, normal);
+  const speed = Math.max(1, Math.hypot(input.velocity.x, input.velocity.y));
+  const particles = [
+    ...spawnDirectedBurst(input.position, {
+      affectedByPlanetGravity: EXPLOSION_PARTICLE_GRAVITY,
+      color: 0xffd36b,
+      color2: 0xdc2626,
+      count: 8,
+      direction: normal,
+      glowColor: 0xffbe5a,
+      inheritedVelocity: reflectedVelocity,
+      inheritedVelocityScale: 0.18,
+      kind: 'core',
+      lifetimeMs: 520,
+      radius: { min: 4, max: 8 },
+      speed: { min: 1.4 + speed * 0.04, max: 3.5 + speed * 0.08 },
+      spreadRadians: Math.PI * 0.5,
+      velocityBias: { x: normal.x * 0.35, y: normal.y * 0.35 },
+    }),
+    ...spawnDirectedBurst(input.position, {
+      color: 0xf2f6ff,
+      color2: 0x9ca3af,
+      count: 12,
+      direction: normal,
+      glowColor: 0xe2e8f0,
+      inheritedVelocity: reflectedVelocity,
+      inheritedVelocityScale: 0.2,
+      kind: 'panel',
+      lifetimeMs: 1500,
+      radius: { min: 7, max: 13 },
+      rotationSpeed: { min: -0.34, max: 0.34 },
+      speed: { min: 1.2 + speed * 0.04, max: 4 + speed * 0.1 },
+      spreadRadians: Math.PI * 0.7,
+      velocityBias: { x: normal.x * 0.25, y: normal.y * 0.25 },
+    }),
+    ...spawnDirectedBurst(input.position, {
+      color: 0x1a202c,
+      color2: 0x0f172a,
+      count: 10,
+      direction: normal,
+      glowColor: 0xe2e8f0,
+      inheritedVelocity: reflectedVelocity,
+      inheritedVelocityScale: 0.22,
+      kind: 'wing',
+      lifetimeMs: 1600,
+      radius: { min: 8, max: 15 },
+      rotationSpeed: { min: -0.28, max: 0.28 },
+      speed: { min: 1.2 + speed * 0.04, max: 3.8 + speed * 0.1 },
+      spreadRadians: Math.PI * 0.72,
+      velocityBias: { x: normal.x * 0.25, y: normal.y * 0.25 },
+    }),
+    ...spawnDirectedBurst(input.position, {
+      color: 0xffb454,
+      color2: 0x7f1d1d,
+      count: 20,
+      direction: normal,
+      glowColor: 0xffc878,
+      inheritedVelocity: reflectedVelocity,
+      inheritedVelocityScale: 0.18,
+      kind: 'shard',
+      lifetimeMs: 1300,
+      radius: { min: 5, max: 10 },
+      rotationSpeed: { min: -0.35, max: 0.35 },
+      speed: { min: 1.5 + speed * 0.04, max: 4.4 + speed * 0.1 },
+      spreadRadians: Math.PI * 0.62,
+      velocityBias: { x: normal.x * 0.3, y: normal.y * 0.3 },
+    }),
+    ...spawnDirectedBurst(input.position, {
+      affectedByPlanetGravity: EXPLOSION_PARTICLE_GRAVITY,
+      color: 0xfbbf24,
+      color2: 0xf97316,
+      count: 14,
+      direction: normal,
+      glowColor: 0xffdc82,
+      inheritedVelocity: reflectedVelocity,
+      inheritedVelocityScale: 0.14,
+      kind: 'spark',
+      lifetimeMs: 460,
+      radius: { min: 3, max: 6 },
+      rotationSpeed: { min: -0.3, max: 0.3 },
+      speed: { min: 1.8 + speed * 0.04, max: 4.6 + speed * 0.1 },
+      spreadRadians: Math.PI * 0.5,
+      velocityBias: { x: normal.x * 0.35, y: normal.y * 0.35 },
+    }),
+    ...spawnDirectedBurst(input.position, {
+      affectedByPlanetGravity: EXPLOSION_PARTICLE_GRAVITY,
+      color: 0x54403a,
+      color2: 0x271a19,
+      count: 5,
+      direction: normal,
+      dragPerSecond: 1.05,
+      glowColor: 0xff965a,
+      inheritedVelocity: reflectedVelocity,
+      inheritedVelocityScale: 0.06,
+      kind: 'smoke',
+      lifetimeMs: 760,
+      radius: { min: 9, max: 16 },
+      speed: { min: 0.4, max: 1.4 + speed * 0.04 },
+      spreadRadians: Math.PI * 0.52,
+      velocityBias: { x: normal.x * 0.12, y: normal.y * 0.12 },
+    }),
+  ];
+  return {
+    particles,
+    shakeDurationMs: 240,
+    shakeIntensity: 8,
   };
 }
 

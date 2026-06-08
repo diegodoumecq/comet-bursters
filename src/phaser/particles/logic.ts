@@ -2,6 +2,7 @@ import type { Vector } from '../core/types';
 import type { ParticleEntity, ParticleKind } from './types';
 
 type BurstOptions = {
+  affectedByPlanetGravity?: boolean;
   color2?: number;
   color: number;
   count: number;
@@ -23,6 +24,7 @@ type DirectedBurstOptions = BurstOptions & {
 };
 
 type ShockwaveOptions = {
+  affectedByPlanetGravity?: boolean;
   color: number;
   color2?: number;
   inheritedVelocity?: Vector;
@@ -81,6 +83,7 @@ export function spawnDirectedBurst(
 export function spawnShockwave(position: Vector, options: ShockwaveOptions): ParticleEntity {
   const inherited = options.inheritedVelocity ?? { x: 0, y: 0 };
   return {
+    affectedByPlanetGravity: options.affectedByPlanetGravity,
     alphaDecayPerSecond: 1 / (options.lifetimeMs / 1000),
     color: options.color,
     color2: options.color2,
@@ -122,6 +125,7 @@ export function updateParticle(particle: ParticleEntity, deltaMs: number): boole
 function createParticle(position: Vector, options: BurstOptions, velocity: Vector): ParticleEntity {
   const radius = randomBetween(options.radius.min, options.radius.max);
   return {
+    affectedByPlanetGravity: options.affectedByPlanetGravity,
     alphaDecayPerSecond: 1 / (options.lifetimeMs / 1000),
     color: options.color,
     color2: options.color2,

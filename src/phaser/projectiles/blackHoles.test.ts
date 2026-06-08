@@ -4,6 +4,13 @@ import type { AsteroidBodies } from '../asteroids/bodies';
 import type { AsteroidEntity } from '../asteroids/types';
 import type { MatterImage } from '../core/types';
 import type { FuelBlobEntity } from '../fuel/types';
+import type { ParticleEntity } from '../particles/types';
+import {
+  getBlackHoleInfluenceRadius,
+  getBlackHoleRenderRadius,
+  updateBlackHoles,
+} from './blackHoles';
+import type { ProjectileBodies } from './bodies';
 import {
   BLACK_HOLE_ASTEROID_MASS_SCALE,
   BLACK_HOLE_FUEL_BLOB_MASS_SCALE,
@@ -11,12 +18,6 @@ import {
   BLACK_HOLE_MATURE_AFTER_MS,
   BLACK_HOLE_MATURE_RADIUS,
 } from './definition';
-import {
-  getBlackHoleInfluenceRadius,
-  getBlackHoleRenderRadius,
-  updateBlackHoles,
-} from './blackHoles';
-import type { ProjectileBodies } from './bodies';
 import type { ProjectileEntity } from './types';
 
 vi.mock('phaser', () => ({
@@ -61,6 +62,21 @@ function createAsteroid(): AsteroidEntity {
   };
 }
 
+function createParticle(position: { x: number; y: number }): ParticleEntity {
+  return {
+    alphaDecayPerSecond: 1,
+    color: 0xffffff,
+    dragPerSecond: 1,
+    id: 1,
+    kind: 'shard',
+    lifetimeMs: 100,
+    maxLifetimeMs: 100,
+    position,
+    rotation: 0,
+    velocity: { x: 0, y: 0 },
+  };
+}
+
 function createBody() {
   const body = {
     body: { velocity: { x: 0, y: 0 } },
@@ -88,7 +104,9 @@ function update(input: {
   fuelBlobs?: FuelBlobEntity[];
   onBlackHoleRemoved?: (blackHole: ProjectileEntity) => void;
   onFuelBlobAbsorbed?: (blob: FuelBlobEntity) => void;
+  onParticleAbsorbed?: (particle: ParticleEntity) => void;
   onPlayerAbsorbed?: (blackHole: ProjectileEntity) => void;
+  particles?: ParticleEntity[];
   playerActive?: boolean;
   playerPosition?: { x: number; y: number };
   playerBody?: MatterImage;
@@ -120,7 +138,9 @@ function update(input: {
     },
     onFuelBurst: vi.fn(),
     onFuelBlobAbsorbed: input.onFuelBlobAbsorbed ?? vi.fn(),
+    onParticleAbsorbed: input.onParticleAbsorbed,
     onPlayerAbsorbed: input.onPlayerAbsorbed,
+    particles: input.particles,
     player:
       input.playerBody && input.playerVelocity
         ? {
@@ -188,6 +208,60 @@ describe('black-hole gravity', () => {
     });
 
     expect(fuelBlob.velocity.x).toBeGreaterThan(0);
+  });
+
+  it('pulls gravity-affected debris particles', () => {
+    const particle = createParticle({ x: 80, y: 0 });
+
+    update({
+      asteroids: [],
+      blackHole: createBlackHole(),
+      particles: [particle],
+    });
+
+    expect(particle.velocity.x).toBeGreaterThan(0);
+  });
+
+  it('does not pull particles that opt out of gravity', () => {
+    const particle = createParticle({ x: 80, y: 0 });
+    particle.affectedByPlanetGravity = false;
+
+    update({
+      asteroids: [],
+      blackHole: createBlackHole(),
+      particles: [particle],
+    });
+
+    expect(particle.velocity).toEqual({ x: 0, y: 0 });
+  });
+
+  it('absorbs particles that collide with a mature black hole', () => {
+    const particle = createParticle({ x: 100, y: 0 });
+    const onParticleAbsorbed = vi.fn();
+
+    update({
+      asteroids: [],
+      blackHole: createBlackHole(),
+      onParticleAbsorbed,
+      particles: [particle],
+    });
+
+    expect(onParticleAbsorbed).toHaveBeenCalledWith(particle);
+  });
+
+  it('absorbs gravity-opted-out particles that collide with a mature black hole', () => {
+    const particle = createParticle({ x: 100, y: 0 });
+    particle.affectedByPlanetGravity = false;
+    const onParticleAbsorbed = vi.fn();
+
+    update({
+      asteroids: [],
+      blackHole: createBlackHole(),
+      onParticleAbsorbed,
+      particles: [particle],
+    });
+
+    expect(onParticleAbsorbed).toHaveBeenCalledWith(particle);
   });
 
   it('pulls other active black holes when mature', () => {

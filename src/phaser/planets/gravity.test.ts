@@ -7,6 +7,7 @@ import {
   applyPlanetGravityToBody,
   applyPlanetGravityToFuelBlobs,
   applyPlanetGravityToParticles,
+  getParticlesCollidingWithPlanets,
 } from './gravity';
 import type { PlanetEntity } from './types';
 
@@ -99,14 +100,30 @@ describe('planet gravity', () => {
 
     expect(particle.velocity).toEqual({ x: 4, y: 0 });
   });
+
+  it('finds particles that have crossed a planet surface', () => {
+    const inside = createParticle({ x: 250, y: 100 }, 1);
+    const outside = createParticle({ x: 310, y: 100 }, 2);
+
+    expect(getParticlesCollidingWithPlanets([inside, outside], [planet], world)).toEqual([inside]);
+  });
+
+  it('finds particle planet collisions across wrapped world edges', () => {
+    const wrappedPlanet = { ...planet, position: { x: 960, y: 100 } };
+    const particle = createParticle({ x: 20, y: 100 });
+
+    expect(getParticlesCollidingWithPlanets([particle], [wrappedPlanet], world)).toEqual([
+      particle,
+    ]);
+  });
 });
 
-function createParticle(position: { x: number; y: number }): ParticleEntity {
+function createParticle(position: { x: number; y: number }, id = 1): ParticleEntity {
   return {
     alphaDecayPerSecond: 1,
     color: 0xffffff,
     dragPerSecond: 1,
-    id: 1,
+    id,
     kind: 'spark',
     lifetimeMs: 100,
     maxLifetimeMs: 100,

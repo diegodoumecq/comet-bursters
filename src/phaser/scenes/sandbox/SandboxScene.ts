@@ -20,6 +20,7 @@ import {
   createAsteroidPlanetImpactDebris,
   createExplosionBurst,
   createShipExplosion,
+  createShipPlanetImpactDebris,
   createThrusterParticles,
   type EffectResult,
 } from '../../combat/effects';
@@ -44,6 +45,7 @@ import {
   applyPlanetGravity,
   applyPlanetGravityToFuelBlobs,
   applyPlanetGravityToParticles,
+  getParticlesCollidingWithPlanets,
 } from '../../planets/gravity';
 import { PlanetViews } from '../../planets/views';
 import { PlayerBody } from '../../player/body';
@@ -423,6 +425,12 @@ export class PhaserSandboxScene extends BaseGameScene {
     applyPlanetGravityToParticles(this.runtime.world.particles, this.planets, WORLD, deltaSeconds);
     for (const particle of updateParticles(this.runtime.world.particles, deltaMs))
       this.removeParticle(particle);
+    for (const particle of getParticlesCollidingWithPlanets(
+      this.runtime.world.particles,
+      this.planets,
+      WORLD,
+    ))
+      this.removeParticle(particle);
     this.runtime.syncParticles();
     positionSandboxWrappedWorldNearPlayer(this.getWorldPositioningInput());
     this.planetViews.ensureNear(this.planets, this.player.position, PLANET_VIEW_PRELOAD_RADIUS);
@@ -489,7 +497,9 @@ export class PhaserSandboxScene extends BaseGameScene {
         );
       },
       onFuelBlobAbsorbed: (blob) => this.removeFuelBlob(blob),
+      onParticleAbsorbed: (particle) => this.removeParticle(particle),
       onPlayerAbsorbed: () => this.killPlayer(now),
+      particles: this.runtime.world.particles,
       planets: this.planets,
       player: {
         active: this.player.visible,
@@ -647,12 +657,12 @@ export class PhaserSandboxScene extends BaseGameScene {
       )
         this.removeProjectile(projectile);
     }
-    if (
-      this.player.visible &&
-      !this.shipCollisionsDisabledForIntro &&
-      this.collidesWithPlanet(this.player.position, this.getPlayerCollisionRadius())
-    )
-      this.killPlayer(this.time.now);
+    const playerCollision = this.getPlanetCollision(
+      this.player.position,
+      this.getPlayerCollisionRadius(),
+    );
+    if (this.player.visible && !this.shipCollisionsDisabledForIntro && playerCollision)
+      this.killPlayer(this.time.now, playerCollision);
   }
 
   private resolveInspectionProbeHits(now: number): void {
@@ -728,7 +738,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.removeAsteroid(asteroid);
   }
 
-  private killPlayer(now: number): void {
+  private killPlayer(now: number, planetCollision?: PlanetCollision): void {
     if (!this.player.visible) return;
     this.audioDirector.emit({ position: this.player.position, type: 'playerDestroyed' });
     this.player.visible = false;
@@ -737,8 +747,18 @@ export class PhaserSandboxScene extends BaseGameScene {
       spawnShipFuelDrops(this.player.position, this.player.velocity, this.ship.fuel),
     );
     this.ship.setFuel(0);
-    for (const effect of createShipExplosion(this.player.position, this.player.velocity))
-      this.applyEffect(effect);
+    if (planetCollision) {
+      this.applyEffect(
+        createShipPlanetImpactDebris({
+          normal: planetCollision.normal,
+          position: planetCollision.surface,
+          velocity: this.player.velocity,
+        }),
+      );
+    } else {
+      for (const effect of createShipExplosion(this.player.position, this.player.velocity))
+        this.applyEffect(effect);
+    }
     this.playerBody.setVisible(false);
     this.playerBody.setVelocity({ x: 0, y: 0 });
   }

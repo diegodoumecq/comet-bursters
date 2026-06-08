@@ -4,6 +4,7 @@ import type { AsteroidEntity } from '../asteroids/types';
 import { circleContains, circlesOverlap } from '../core/collision';
 import type { MatterImage, Vector } from '../core/types';
 import type { FuelBlobEntity } from '../fuel/types';
+import type { ParticleEntity } from '../particles/types';
 import type { PlanetEntity } from '../planets/types';
 import { PLAYER_COLLISION_RADIUS } from '../player/config';
 import type { ProjectileBodies } from './bodies';
@@ -34,7 +35,9 @@ export type BlackHoleLifecycleOptions = {
   onBlackHoleRemoved: (blackHole: ProjectileEntity) => void;
   onFuelBurst: (blackHole: ProjectileEntity) => void;
   onFuelBlobAbsorbed: (blob: FuelBlobEntity) => void;
+  onParticleAbsorbed?: (particle: ParticleEntity) => void;
   onPlayerAbsorbed?: (blackHole: ProjectileEntity) => void;
+  particles?: ParticleEntity[];
   planets?: PlanetEntity[];
   player?: {
     active: boolean;
@@ -86,6 +89,7 @@ export function updateBlackHoles(input: BlackHoleLifecycleOptions): void {
   mergeBlackHoles(input);
   applyBlackHoleGravity(input);
   absorbFuelBlobs(input);
+  absorbParticles(input);
   absorbPlayer(input);
   updateBlackHoleCollapse(input);
   absorbAsteroids(input);
@@ -189,6 +193,20 @@ function applyBlackHoleGravity(input: BlackHoleLifecycleOptions): void {
         timeScale,
         BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
       );
+    }
+    for (const particle of input.particles ?? []) {
+      if (particle.affectedByPlanetGravity ?? true) {
+        applyBlackHoleGravityToVelocity(
+          particle.velocity,
+          particle.position,
+          blackHole.position,
+          radius * BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
+          radius,
+          input.getDelta,
+          timeScale,
+          BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
+        );
+      }
     }
   }
 }
@@ -326,6 +344,32 @@ function absorbFuelBlobs(input: BlackHoleLifecycleOptions): void {
           projectile.absorbedFuel += 1;
           projectile.blackHoleMass = getBlackHoleMass(projectile) + BLACK_HOLE_FUEL_BLOB_MASS_SCALE;
           input.onFuelBlobAbsorbed(blob);
+        }
+      }
+    }
+  }
+}
+
+function absorbParticles(input: BlackHoleLifecycleOptions): void {
+  const particles = input.particles ?? [];
+  if (particles.length === 0 || !input.onParticleAbsorbed) return;
+
+  for (const projectile of [...input.projectiles]) {
+    if (
+      projectile.kind === 'blackHole' &&
+      projectile.collapseStartedAt === null &&
+      isMatureBlackHole(projectile)
+    ) {
+      const radius = getBlackHoleRenderRadius(projectile);
+      for (const particle of [...particles]) {
+        const hitDistance = input.distance(
+          projectile.position.x,
+          projectile.position.y,
+          particle.position.x,
+          particle.position.y,
+        );
+        if (circlesOverlap(hitDistance, radius, particle.radius ?? particle.size ?? 1)) {
+          input.onParticleAbsorbed(particle);
         }
       }
     }

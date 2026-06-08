@@ -665,7 +665,9 @@ export class PhaserArcadeScene extends BaseGameScene {
           this.startShake(effect.shakeIntensity, effect.shakeDurationMs);
       },
       onFuelBlobAbsorbed: (blob) => runtime.removeFuelBlob(blob),
+      onParticleAbsorbed: (particle) => runtime.removeParticle(particle),
       onPlayerAbsorbed: () => this.killPlayer(time),
+      particles: runtime.world.particles,
       player: {
         active:
           this.playerIsAlive() &&
@@ -885,6 +887,7 @@ export class PhaserArcadeScene extends BaseGameScene {
         }
       }
       this.applyBridgeBlackHoleFuelGravity(blackHole, targetRuntime, radius, timeScale);
+      this.applyBridgeBlackHoleParticleGravity(blackHole, targetRuntime, radius, timeScale);
       this.absorbBridgeBlackHoleTargets(blackHole, targetRuntime);
       this.absorbBridgeBlackHolePlayer(blackHole, targetRuntime);
     }
@@ -919,6 +922,33 @@ export class PhaserArcadeScene extends BaseGameScene {
     }
   }
 
+  private applyBridgeBlackHoleParticleGravity(
+    blackHole: ProjectileEntity,
+    targetRuntime: SpaceWorldRuntime,
+    radius: number,
+    timeScale: number,
+  ): void {
+    const portal = this.dimensionCoordinator.getActivePortal();
+    if (!portal) return;
+    for (const particle of targetRuntime.world.particles.filter(
+      (candidate) =>
+        (candidate.affectedByPlanetGravity ?? true) &&
+        portalApertureContainsCenter(portal, candidate.position),
+    )) {
+      applyBlackHoleGravityToVelocity(
+        particle.velocity,
+        particle.position,
+        blackHole.position,
+        radius * BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
+        radius,
+        (fromX, fromY, toX, toY) =>
+          wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize),
+        timeScale,
+        BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
+      );
+    }
+  }
+
   private absorbBridgeBlackHoleTargets(
     blackHole: ProjectileEntity,
     targetRuntime: SpaceWorldRuntime,
@@ -939,6 +969,19 @@ export class PhaserArcadeScene extends BaseGameScene {
         blackHole.absorbedFuel += 1;
         blackHole.blackHoleMass = getBlackHoleMass(blackHole) + BLACK_HOLE_FUEL_BLOB_MASS_SCALE;
         targetRuntime.removeFuelBlob(blob);
+      }
+    }
+
+    for (const particle of [...targetRuntime.world.particles]) {
+      if (
+        portalApertureContainsCenter(portal, particle.position) &&
+        circlesOverlap(
+          this.getWrappedDistance(blackHole.position, particle.position),
+          renderRadius,
+          particle.radius ?? particle.size ?? 1,
+        )
+      ) {
+        targetRuntime.removeParticle(particle);
       }
     }
 
