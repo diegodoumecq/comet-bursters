@@ -1034,7 +1034,11 @@ export class PhaserArcadeScene extends BaseGameScene {
       position: this.session.player.position,
       type: 'playerDestroyed',
     });
-    const fuelDrops = spawnShipFuelDrops(this.session.player.position, this.session.ship.fuel);
+    const fuelDrops = spawnShipFuelDrops(
+      this.session.player.position,
+      this.session.player.velocity,
+      this.session.ship.fuel,
+    );
     this.session.ship.setFuel(0);
     this.session.destroyPlayer(now);
     const effects = createShipExplosion(this.session.player.position, this.session.player.velocity);

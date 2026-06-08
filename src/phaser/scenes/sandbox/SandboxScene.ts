@@ -678,7 +678,9 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.audioDirector.emit({ position: this.player.position, type: 'playerDestroyed' });
     this.player.visible = false;
     this.player.respawnAt = now + RESPAWN_DELAY_MS;
-    this.addFuelBlobs(spawnShipFuelDrops(this.player.position, this.ship.fuel));
+    this.addFuelBlobs(
+      spawnShipFuelDrops(this.player.position, this.player.velocity, this.ship.fuel),
+    );
     this.ship.setFuel(0);
     for (const effect of createShipExplosion(this.player.position, this.player.velocity))
       this.applyEffect(effect);
