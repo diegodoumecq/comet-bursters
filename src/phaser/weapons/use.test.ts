@@ -101,9 +101,44 @@ describe('weapon projectile spawning', () => {
     });
     expect(result.fuelBlobs[0].collectableAtMs).toBe(1000 + getFuelGunCollectableDelayMs());
   });
+
+  it('fires secondary weapons along the ship heading instead of the turret aim', () => {
+    const player = new PlayerState();
+    const ship = new ShipState();
+    player.updateAim({ x: 0, y: -1 });
+    player.rotation = 0;
+    ship.assignWeapon('secondary', 'pusher');
+
+    const result = updateWeapons({
+      action: {
+        firePrimary: false,
+        fireSecondary: true,
+        playerActive: true,
+        timeDilation: false,
+      },
+      deltaSeconds: 1 / 60,
+      inspectionProbes: 0,
+      nextProjectileId: 10,
+      now: 1000,
+      origin: { x: 100, y: 200 },
+      player,
+      policy: { allowedWeapons: SANDBOX_WEAPONS },
+      selectedWeapon: 'small',
+      ship,
+      shooterVelocity: { x: 0, y: 0 },
+    });
+
+    expect(result.projectiles).toHaveLength(1);
+    expect(result.projectiles[0].position).toEqual({
+      x: 100 + getFirstEmission('pusher').spawnOffset,
+      y: 200,
+    });
+    expect(result.projectiles[0].velocity.x).toBeGreaterThan(0);
+    expect(result.projectiles[0].velocity.y).toBeCloseTo(0);
+  });
 });
 
-function getFirstEmission(weapon: 'fuelGun' | 'small') {
+function getFirstEmission(weapon: 'fuelGun' | 'pusher' | 'small') {
   return WEAPON_FIRE_CONFIGS[weapon].emissions[0];
 }
 

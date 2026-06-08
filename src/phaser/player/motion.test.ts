@@ -137,6 +137,33 @@ describe('Phaser player motion tuning', () => {
     expect(player.rotation).toBeCloseTo(Math.PI * 0.5);
   });
 
+  it('preserves player heading when the thruster is idle', () => {
+    const player = {
+      position: { x: 10, y: 20 },
+      rotation: Math.PI * 0.25,
+      updateThrust: vi.fn(),
+      velocity: { x: 0, y: 0 },
+    } as unknown as PlayerState;
+    const ship = {
+      fuel: 100,
+      setFuel: vi.fn((fuel: number) => {
+        ship.fuel = fuel;
+      }),
+    } as unknown as ShipState;
+
+    updatePlayerStateMotion({
+      deltaSeconds: 1 / 60,
+      move: { x: 0, y: 0 },
+      player,
+      ship,
+      tuning: { acceleration: PLAYER_ACCELERATION, maxSpeed: PLAYER_MAX_SPEED },
+      world: { width: 1000, height: 1000 },
+      wrap: false,
+    });
+
+    expect(player.rotation).toBeCloseTo(Math.PI * 0.25);
+  });
+
   it('preserves external state momentum above max speed without extra thrust', () => {
     const player = {
       position: { x: 10, y: 20 },

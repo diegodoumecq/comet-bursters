@@ -28,9 +28,7 @@ export function updatePlayerMotion(input: {
   world: WorldSize;
   wrap?: boolean;
 }): { thrustScale: number; thrusting: boolean } {
-  if (Math.hypot(input.move.x, input.move.y) > 0) {
-    input.body.setRotation(Math.atan2(input.move.y, input.move.x));
-  }
+  input.body.setRotation(getShipFacingRotation(input.player.rotation, input.move));
   const motion = applyPlayerThrust(
     input.body.body,
     input.move,
@@ -54,9 +52,7 @@ export function updatePlayerStateMotion(input: {
   world: WorldSize;
   wrap?: boolean;
 }): { thrustScale: number; thrusting: boolean } {
-  if (Math.hypot(input.move.x, input.move.y) > 0) {
-    input.player.rotation = Math.atan2(input.move.y, input.move.x);
-  }
+  input.player.rotation = getShipFacingRotation(input.player.rotation, input.move);
   const motion = applyPlayerStateThrust(
     input.player,
     input.move,
@@ -143,4 +139,10 @@ function normalizeMove(move: Vector): Vector | null {
 
 function dot(a: Vector, b: Vector): number {
   return a.x * b.x + a.y * b.y;
+}
+
+function getShipFacingRotation(currentRotation: number, thrustDirection: Vector): number {
+  const direction = normalizeMove(thrustDirection);
+  if (!direction) return currentRotation;
+  return Math.atan2(direction.y, direction.x);
 }
