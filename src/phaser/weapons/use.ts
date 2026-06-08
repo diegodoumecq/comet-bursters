@@ -48,6 +48,7 @@ export function updateWeapons(input: {
     input.action.playerActive && input.action.firePrimary
       ? fireSelectedWeapon(
           input,
+          input.player.lastAim,
           input.ship.primaryWeapon,
           input.nextProjectileId,
           input.inspectionProbes ?? 0,
@@ -57,6 +58,7 @@ export function updateWeapons(input: {
     input.action.playerActive && input.action.fireSecondary
       ? fireSelectedWeapon(
           input,
+          getShipDirection(input.player.rotation),
           input.ship.secondaryWeapon,
           primary.nextProjectileId,
           primary.inspectionProbes,
@@ -101,6 +103,7 @@ function assignSelectedWeapon(input: Parameters<typeof updateWeapons>[0]): Weapo
 
 function fireSelectedWeapon(
   input: Parameters<typeof updateWeapons>[0],
+  direction: Vector,
   weapon: WeaponKind,
   nextProjectileId: number,
   inspectionProbes: number,
@@ -116,7 +119,7 @@ function fireSelectedWeapon(
   if (weapon === 'inspectionProbe' && inspectionProbes <= 0)
     return noWeaponFire(nextProjectileId, inspectionProbes);
   const result = fireWeapon({
-    direction: input.player.lastAim,
+    direction,
     fuel: input.ship.fuel,
     kind: weapon,
     lastShotAt: input.player.lastShotAt,
@@ -159,5 +162,12 @@ function noWeaponFire(nextProjectileId: number, inspectionProbes: number) {
     projectiles: [],
     recoil: { x: 0, y: 0 },
     inspectionProbes,
+  };
+}
+
+function getShipDirection(rotation: number): Vector {
+  return {
+    x: Math.cos(rotation),
+    y: Math.sin(rotation),
   };
 }
