@@ -23,8 +23,8 @@ import {
   createThrusterParticles,
   type EffectResult,
 } from '../../combat/effects';
-import { updateFuelBlobCollection } from '../../combat/fuelCollection';
 import { resolveProjectileFuelBlobCombatEvents } from '../../combat/fuel';
+import { updateFuelBlobCollection } from '../../combat/fuelCollection';
 import { MatterContacts, type PlayerAsteroidContact } from '../../combat/matterContacts';
 import {
   getPortalBridgeProjectileAsteroidContacts,
@@ -41,7 +41,7 @@ import { PortalDirector } from '../../dimensions/PortalDirector';
 import { portalApertureContainsCenter } from '../../dimensions/portalGeometry';
 import { resetDimensionCoordinator } from '../../dimensions/runtime';
 import type { DimensionCommand, PortalViewPolicy, SpaceId } from '../../dimensions/types';
-import { isFuelBlobCollectable, spawnFuelBlobs } from '../../fuel/blobLogic';
+import { isFuelBlobCollectable, spawnFuelBlobs, spawnShipFuelDrops } from '../../fuel/blobLogic';
 import { FuelBodies } from '../../fuel/bodies';
 import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../../fuel/definition';
 import { MAX_FUEL, SHIELD_RADIUS } from '../../fuel/rules';
@@ -55,12 +55,6 @@ import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import { PLAYER_DEFINITIONS } from '../../player/definition';
 import { updatePlayerMotion } from '../../player/motion';
 import {
-  BLACK_HOLE_ABSORBED_FUEL_BLOBS,
-  BLACK_HOLE_FUEL_BLOB_MASS_SCALE,
-  BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
-  BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
-} from '../../projectiles/definition';
-import {
   applyBlackHoleGravityToVelocity,
   getBlackHoleMass,
   getBlackHoleRenderRadius,
@@ -69,6 +63,12 @@ import {
   updateBlackHoles,
 } from '../../projectiles/blackHoles';
 import { ProjectileBodies } from '../../projectiles/bodies';
+import {
+  BLACK_HOLE_ABSORBED_FUEL_BLOBS,
+  BLACK_HOLE_FUEL_BLOB_MASS_SCALE,
+  BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
+  BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
+} from '../../projectiles/definition';
 import { updateProjectiles } from '../../projectiles/logic';
 import type { ProjectileEntity } from '../../projectiles/types';
 import {
@@ -81,6 +81,7 @@ import { applyTractorBeam } from '../../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../../weapons/use';
 import { normalize, wrappedDelta } from '../../world/geometry';
 import { SpaceWorldRuntime } from '../../world/SpaceWorldRuntime';
+import { BaseGameScene } from '../BaseGameScene';
 import { ArcadeRenderEffects } from './ArcadeRenderEffects';
 import { ArcadeRenderer } from './ArcadeRenderer';
 import { ArcadeRunState } from './arcadeRunState';
@@ -89,7 +90,6 @@ import {
   getBlackHoleSpawnExclusions,
 } from './arcadeSpawns';
 import { createArcadeTextures } from './arcadeVisuals';
-import { BaseGameScene } from '../BaseGameScene';
 import type { PhaserRiftSpaceScene } from './rift/RiftSpaceScene';
 
 const GAME_OVER_RESTART_DELAY_MS = 3000;
@@ -1034,12 +1034,16 @@ export class PhaserArcadeScene extends BaseGameScene {
       position: this.session.player.position,
       type: 'playerDestroyed',
     });
+    const fuelDrops = spawnShipFuelDrops(this.session.player.position, this.session.ship.fuel);
+    this.session.ship.setFuel(0);
     this.session.destroyPlayer(now);
     const effects = createShipExplosion(this.session.player.position, this.session.player.velocity);
     if (this.session.player.membership.space === 'rift') {
       const riftRuntime = this.dimensionCoordinator.requireWorld('rift');
+      riftRuntime.addFuelBlobs(fuelDrops);
       for (const effect of effects) riftRuntime.addParticles(effect.particles);
     } else {
+      this.addFuelBlobs(fuelDrops);
       for (const effect of effects) this.applyEffect(effect);
     }
     this.playerBody.setVisible(false);

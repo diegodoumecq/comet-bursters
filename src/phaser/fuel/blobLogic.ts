@@ -50,6 +50,11 @@ export function spawnAsteroidFuelDrops(asteroid: AsteroidEntity): FuelBlobEntity
   return count === 0 ? [] : spawnFuelBlobs(asteroid.position, count);
 }
 
+export function spawnShipFuelDrops(position: Vector, fuel: number): FuelBlobEntity[] {
+  const count = Math.floor(Math.max(0, fuel) / FUEL_BLOB_AMOUNT);
+  return count === 0 ? [] : spawnFuelBlobs(position, count);
+}
+
 export function updateFuelBlob(
   blob: FuelBlobEntity,
   player: Vector,
@@ -132,11 +137,7 @@ export function getFuelBlobExplosionChain(input: {
   return exploded;
 }
 
-function applyFuelBlobDrag(
-  velocity: Vector,
-  deltaSeconds: number,
-  airResistance: number,
-): Vector {
+function applyFuelBlobDrag(velocity: Vector, deltaSeconds: number, airResistance: number): Vector {
   const frameScale = deltaSeconds * 60;
   const drag = Math.pow(1 - airResistance, frameScale);
   velocity.x *= drag;

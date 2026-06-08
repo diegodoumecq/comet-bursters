@@ -29,7 +29,7 @@ import { applyMatterBodySpec } from '../../core/matterBodySpec';
 import { startPerformanceFrame, withPerformanceMeasure } from '../../core/performance';
 import { getTimeScale } from '../../core/time';
 import type { Vector, WorldSize } from '../../core/types';
-import { spawnAsteroidFuelDrops, spawnFuelBlobs } from '../../fuel/blobLogic';
+import { spawnAsteroidFuelDrops, spawnFuelBlobs, spawnShipFuelDrops } from '../../fuel/blobLogic';
 import { FuelBodies } from '../../fuel/bodies';
 import { MAX_FUEL, SHIELD_RADIUS } from '../../fuel/rules';
 import type { FuelBlobEntity } from '../../fuel/types';
@@ -678,6 +678,8 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.audioDirector.emit({ position: this.player.position, type: 'playerDestroyed' });
     this.player.visible = false;
     this.player.respawnAt = now + RESPAWN_DELAY_MS;
+    this.addFuelBlobs(spawnShipFuelDrops(this.player.position, this.ship.fuel));
+    this.ship.setFuel(0);
     for (const effect of createShipExplosion(this.player.position, this.player.velocity))
       this.applyEffect(effect);
     this.playerBody.setVisible(false);
