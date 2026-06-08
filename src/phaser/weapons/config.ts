@@ -1,8 +1,5 @@
 import { PLAYER_TURRET_MUZZLE_OFFSET } from '../player/textures';
-import type {
-  DischargedWeaponKind,
-  WeaponFireSpec,
-} from './types';
+import type { DischargedWeaponKind, WeaponFireSpec } from './types';
 
 const FUEL_GUN_BLOB_SPAWN_OFFSET = PLAYER_TURRET_MUZZLE_OFFSET + 28;
 
@@ -59,7 +56,7 @@ export const WEAPON_FIRE_CONFIGS: Record<DischargedWeaponKind, WeaponFireSpec> =
       },
     ],
     fireIntervalMs: 60,
-    fuelCost: 0.2,
+    fuelCost: 0,
     recoil: 0.05,
   },
   shotgun: {
@@ -88,7 +85,7 @@ export const WEAPON_FIRE_CONFIGS: Record<DischargedWeaponKind, WeaponFireSpec> =
       },
     ],
     fireIntervalMs: 600,
-    fuelCost: 3,
+    fuelCost: 0,
     recoil: 3,
   },
   blackHole: {

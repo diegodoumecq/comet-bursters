@@ -286,7 +286,13 @@ export class SandboxRenderer {
         input.ship.fuel > 0,
         visible && input.player.thrusting,
       );
-      renderPlayerTurret(this.player, this.playerTurret, input.player.lastAim, visible);
+      renderPlayerTurret(
+        this.player,
+        this.playerTurret,
+        input.player.lastAim,
+        input.ship.primaryWeapon,
+        visible,
+      );
       renderPlayerFuel(
         this.playerFuelBase,
         this.playerFuelFill,

@@ -129,7 +129,13 @@ export class ArcadeRenderer {
       session.ship.fuel > 0,
       playerVisible && session.player.thrusting,
     );
-    renderPlayerTurret(this.player, this.playerTurret, session.player.lastAim, playerVisible);
+    renderPlayerTurret(
+      this.player,
+      this.playerTurret,
+      session.player.lastAim,
+      session.ship.primaryWeapon,
+      playerVisible,
+    );
     renderPlayerFuel(
       this.playerFuelBase,
       this.playerFuelFill,

@@ -136,6 +136,35 @@ describe('weapon projectile spawning', () => {
     expect(result.projectiles[0].velocity.x).toBeGreaterThan(0);
     expect(result.projectiles[0].velocity.y).toBeCloseTo(0);
   });
+
+  it('does not spend fuel while the tractor weapon is active', () => {
+    const player = new PlayerState();
+    const ship = new ShipState();
+    ship.setFuel(5);
+    ship.assignWeapon('primary', 'tractor');
+
+    const result = updateWeapons({
+      action: {
+        firePrimary: true,
+        fireSecondary: false,
+        playerActive: true,
+        timeDilation: false,
+      },
+      deltaSeconds: 1,
+      inspectionProbes: 0,
+      nextProjectileId: 10,
+      now: 1000,
+      origin: { x: 100, y: 200 },
+      player,
+      policy: { allowedWeapons: SANDBOX_WEAPONS },
+      selectedWeapon: 'tractor',
+      ship,
+      shooterVelocity: { x: 0, y: 0 },
+    });
+
+    expect(result.fuel).toBe(5);
+    expect(result.tractorActive).toBe(true);
+  });
 });
 
 function getFirstEmission(weapon: 'fuelGun' | 'pusher' | 'small') {

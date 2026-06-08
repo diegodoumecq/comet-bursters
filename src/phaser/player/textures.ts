@@ -1,9 +1,41 @@
 import type Phaser from 'phaser';
 
+import type { WeaponKind } from '../weapons/types';
+import { TURRET_SPRITE_DRAWERS, type TurretSpriteMetrics } from './turret';
+
 export const PLAYER_TEXTURE_KEY = 'phaser-ship';
 export const PLAYER_TURRET_TEXTURE_KEY = 'phaser-player-turret';
 export const PLAYER_VISUAL_SIZE = 60;
+export const PLAYER_TURRET_TEXTURE_SIZE = PLAYER_VISUAL_SIZE * 2;
 export const PLAYER_TURRET_MUZZLE_OFFSET = PLAYER_VISUAL_SIZE * 0.5 * 0.68;
+export const PLAYER_TURRET_SPRITE_ORIENTATION_RADIANS = 0;
+export const PLAYER_TURRET_TEXTURE_KEYS: Record<WeaponKind, string> = {
+  blackHole: 'phaser-player-turret-black-hole',
+  fuelGun: 'phaser-player-turret-fuel-gun',
+  inspectionProbe: 'phaser-player-turret-inspection-probe',
+  pusher: 'phaser-player-turret-pusher',
+  shotgun: 'phaser-player-turret-shotgun',
+  small: PLAYER_TURRET_TEXTURE_KEY,
+  tractor: 'phaser-player-turret-tractor',
+};
+
+export type PlayerTurretSpriteSpec = {
+  /** Forward +X visual tip shared by every turret sprite. */
+  length: number;
+  orientationRadians: number;
+  textureKey: string;
+  textureSize: number;
+};
+
+export const PLAYER_TURRET_SPRITE_SPECS: Record<WeaponKind, PlayerTurretSpriteSpec> = {
+  blackHole: createTurretSpriteSpec('blackHole'),
+  fuelGun: createTurretSpriteSpec('fuelGun'),
+  inspectionProbe: createTurretSpriteSpec('inspectionProbe'),
+  pusher: createTurretSpriteSpec('pusher'),
+  shotgun: createTurretSpriteSpec('shotgun'),
+  small: createTurretSpriteSpec('small'),
+  tractor: createTurretSpriteSpec('tractor'),
+};
 
 export function createPlayerTexture(scene: Phaser.Scene): void {
   if (!scene.textures.exists(PLAYER_TEXTURE_KEY)) {
@@ -15,15 +47,31 @@ export function createPlayerTexture(scene: Phaser.Scene): void {
     drawHull(ctx, PLAYER_VISUAL_SIZE * 0.5);
     scene.textures.addCanvas(PLAYER_TEXTURE_KEY, canvas);
   }
-  if (!scene.textures.exists(PLAYER_TURRET_TEXTURE_KEY)) {
-    const canvas = document.createElement('canvas');
-    canvas.width = PLAYER_VISUAL_SIZE * 2;
-    canvas.height = PLAYER_VISUAL_SIZE * 2;
-    const ctx = canvas.getContext('2d')!;
-    ctx.translate(PLAYER_VISUAL_SIZE, PLAYER_VISUAL_SIZE);
-    drawTurret(ctx, PLAYER_VISUAL_SIZE * 0.5);
-    scene.textures.addCanvas(PLAYER_TURRET_TEXTURE_KEY, canvas);
+  for (const weapon of Object.keys(PLAYER_TURRET_TEXTURE_KEYS) as WeaponKind[]) {
+    const textureKey = PLAYER_TURRET_TEXTURE_KEYS[weapon];
+    if (!scene.textures.exists(textureKey)) {
+      const canvas = document.createElement('canvas');
+      canvas.width = PLAYER_TURRET_TEXTURE_SIZE;
+      canvas.height = PLAYER_TURRET_TEXTURE_SIZE;
+      const ctx = canvas.getContext('2d')!;
+      ctx.translate(PLAYER_VISUAL_SIZE, PLAYER_VISUAL_SIZE);
+      drawTurret(ctx, weapon);
+      scene.textures.addCanvas(textureKey, canvas);
+    }
   }
+}
+
+export function getPlayerTurretTextureKey(weapon: WeaponKind): string {
+  return PLAYER_TURRET_TEXTURE_KEYS[weapon];
+}
+
+function createTurretSpriteSpec(weapon: WeaponKind): PlayerTurretSpriteSpec {
+  return {
+    length: PLAYER_TURRET_MUZZLE_OFFSET,
+    orientationRadians: PLAYER_TURRET_SPRITE_ORIENTATION_RADIANS,
+    textureKey: PLAYER_TURRET_TEXTURE_KEYS[weapon],
+    textureSize: PLAYER_TURRET_TEXTURE_SIZE,
+  };
 }
 
 export function drawFuelContour(
@@ -129,42 +177,15 @@ function drawHull(ctx: CanvasRenderingContext2D, size: number): void {
   ctx.fill();
 }
 
-function drawTurret(ctx: CanvasRenderingContext2D, size: number): void {
-  const core = ctx.createRadialGradient(0, 0, 0, 0, 0, size * 0.28);
-  core.addColorStop(0, '#e2e8f0');
-  core.addColorStop(0.55, '#475569');
-  core.addColorStop(1, '#0f172a');
-  ctx.fillStyle = core;
-  ctx.strokeStyle = '#94a3b8';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(0, 0, size * 0.24, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(size * 0.08, -size * 0.11);
-  ctx.lineTo(size * 0.26, -size * 0.11);
-  ctx.lineTo(size * 0.34, -size * 0.07);
-  ctx.lineTo(size * 0.68, -size * 0.05);
-  ctx.lineTo(size * 0.65, 0);
-  ctx.lineTo(size * 0.68, size * 0.05);
-  ctx.lineTo(size * 0.34, size * 0.07);
-  ctx.lineTo(size * 0.26, size * 0.11);
-  ctx.lineTo(size * 0.08, size * 0.11);
-  ctx.closePath();
-  const barrel = ctx.createLinearGradient(size * 0.08, 0, size * 0.7, 0);
-  barrel.addColorStop(0, '#94a3b8');
-  barrel.addColorStop(0.45, '#e2e8f0');
-  barrel.addColorStop(1, '#475569');
-  ctx.fillStyle = barrel;
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = '#38bdf8';
-  ctx.beginPath();
-  ctx.arc(size * 0.18, 0, size * 0.05, 0, Math.PI * 2);
-  ctx.fill();
+function drawTurret(ctx: CanvasRenderingContext2D, weapon: WeaponKind): void {
+  const size = PLAYER_VISUAL_SIZE * 0.5;
+  const metrics: TurretSpriteMetrics = {
+    baseRadius: size * 0.24,
+    length: PLAYER_TURRET_MUZZLE_OFFSET,
+    mountX: size * 0.08,
+    rearX: -size * 0.14,
+  };
+  TURRET_SPRITE_DRAWERS[weapon](ctx, metrics);
 }
 
 function traceHull(ctx: CanvasRenderingContext2D, size: number): void {
