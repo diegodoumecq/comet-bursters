@@ -58,7 +58,10 @@ export function updateWeapons(input: {
     input.action.playerActive && input.action.fireSecondary
       ? fireSelectedWeapon(
           input,
-          getShipDirection(input.player.rotation),
+          {
+            x: Math.cos(input.player.rotation),
+            y: Math.sin(input.player.rotation),
+          },
           input.ship.secondaryWeapon,
           primary.nextProjectileId,
           primary.inspectionProbes,
@@ -162,12 +165,5 @@ function noWeaponFire(nextProjectileId: number, inspectionProbes: number) {
     projectiles: [],
     recoil: { x: 0, y: 0 },
     inspectionProbes,
-  };
-}
-
-function getShipDirection(rotation: number): Vector {
-  return {
-    x: Math.cos(rotation),
-    y: Math.sin(rotation),
   };
 }
