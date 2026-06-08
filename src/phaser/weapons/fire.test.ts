@@ -40,7 +40,9 @@ describe('fireWeapon', () => {
     const maxAngle = emission.spread * 0.5;
 
     expect(
-      result.projectiles.every((projectile) => projectile.angle >= minAngle && projectile.angle <= maxAngle),
+      result.projectiles.every(
+        (projectile) => projectile.angle >= minAngle && projectile.angle <= maxAngle,
+      ),
     ).toBe(true);
   });
 
@@ -57,10 +59,19 @@ describe('fireWeapon', () => {
     expect(firstProjectile.lifetimeMs).toBeCloseTo(emission.entity.lifetimeMs);
   });
 
-  it('blocks shotgun fire at low fuel', () => {
+  it('fires shotgun even at low fuel', () => {
     const result = fire('shotgun', 5);
 
-    expect(result.projectiles).toHaveLength(0);
+    expect(result.projectiles).toHaveLength(
+      firstProjectileEmission('shotgun').count * (firstProjectileEmission('shotgun').volleys ?? 1),
+    );
+    expect(result.fuel).toBe(5);
+  });
+
+  it('does not spend fuel for pusher shots', () => {
+    const result = fire('pusher', 5);
+
+    expect(result.projectiles).toHaveLength(1);
     expect(result.fuel).toBe(5);
   });
 
@@ -77,11 +88,7 @@ describe('fireWeapon', () => {
   });
 });
 
-function fire(
-  kind: WeaponKind,
-  fuel = MAX_FUEL,
-  shooterVelocity = { x: 0, y: 0 },
-) {
+function fire(kind: WeaponKind, fuel = MAX_FUEL, shooterVelocity = { x: 0, y: 0 }) {
   return fireWeapon({
     direction: { x: 1, y: 0 },
     fuel,

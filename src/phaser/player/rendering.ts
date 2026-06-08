@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 
 import type { Vector } from '../core/types';
 import { MAX_FUEL, SHIELD_RADIUS } from '../fuel/rules';
-import { drawFuelContour, PLAYER_VISUAL_SIZE } from './textures';
+import type { WeaponKind } from '../weapons/types';
+import { drawFuelContour, getPlayerTurretTextureKey, PLAYER_VISUAL_SIZE } from './textures';
 
 type PlayerRenderTarget = {
   rotation: number;
@@ -26,10 +27,12 @@ export function renderPlayerTurret(
   player: PlayerRenderTarget,
   turret: Phaser.GameObjects.Image,
   aim: Vector,
+  primaryWeapon: WeaponKind,
   visible: boolean,
 ): void {
   player.setVisible(visible);
   turret.setVisible(visible);
+  turret.setTexture(getPlayerTurretTextureKey(primaryWeapon));
   turret.setPosition(player.x, player.y);
   turret.setRotation(Math.atan2(aim.y, aim.x));
   turret.setScale(player.scale ?? 1);

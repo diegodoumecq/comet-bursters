@@ -15,22 +15,24 @@ export const SHIELD_FUEL_COST: Record<AsteroidTier, number> = {
   small: 4,
 };
 
-const TRACTOR_FUEL_COST_PER_FRAME = 0.08;
-
 export type FireMode = 'normal' | 'degraded';
 
 export function consumeThrustFuel(fuel: number, deltaSeconds: number, thrusting: boolean): number {
   return thrusting ? Math.max(0, fuel - THRUST_FUEL_PER_SECOND * deltaSeconds) : fuel;
 }
 
-export function consumeTractorFuel(fuel: number, deltaSeconds: number, active: boolean): number {
-  return active ? Math.max(0, fuel - TRACTOR_FUEL_COST_PER_FRAME * deltaSeconds * 60) : fuel;
+export function consumeTractorFuel(
+  fuel: number,
+  _deltaSeconds: number,
+  _active: boolean,
+): number {
+  return fuel;
 }
 
 export function getFireMode(fuel: number, weapon: WeaponKind): FireMode | null {
   if (weapon === 'tractor') return null;
   if (weapon === 'inspectionProbe') return 'normal';
-  if (weapon === 'small') return fuel <= LOW_FUEL_THRESHOLD ? 'degraded' : 'normal';
+  if (weapon !== 'blackHole' && weapon !== 'fuelGun') return 'normal';
   return fuel <= LOW_FUEL_THRESHOLD || fuel < WEAPON_FIRE_CONFIGS[weapon].fuelCost
     ? null
     : 'normal';
@@ -39,9 +41,9 @@ export function getFireMode(fuel: number, weapon: WeaponKind): FireMode | null {
 export function spendWeaponFuel(
   fuel: number,
   weapon: Exclude<WeaponKind, 'tractor'>,
-  mode: FireMode,
+  _mode: FireMode,
 ): number {
-  if (weapon === 'small' && mode === 'degraded') return fuel;
+  if (weapon !== 'blackHole' && weapon !== 'fuelGun') return fuel;
   return Math.max(0, fuel - WEAPON_FIRE_CONFIGS[weapon].fuelCost);
 }
 

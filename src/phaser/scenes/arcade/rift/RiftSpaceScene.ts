@@ -23,7 +23,11 @@ import {
 } from '../../../player/rendering';
 import type { ShipState } from '../../../player/shipState';
 import type { PlayerState } from '../../../player/state';
-import { fillPlayerHull, PLAYER_TURRET_TEXTURE_KEY, strokePlayerHull } from '../../../player/textures';
+import {
+  fillPlayerHull,
+  PLAYER_TURRET_TEXTURE_KEY,
+  strokePlayerHull,
+} from '../../../player/textures';
 import { PortalSceneCapture } from '../../../portals/PortalSceneCapture';
 import { PortalWindowRenderer } from '../../../portals/PortalWindowRenderer';
 import { ProjectileBodies } from '../../../projectiles/bodies';
@@ -170,7 +174,13 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
       input.ship.fuel > 0,
       visible && input.player.thrusting,
     );
-    renderPlayerTurret(playerBody.body, this.playerTurret, input.player.lastAim, visible);
+    renderPlayerTurret(
+      playerBody.body,
+      this.playerTurret,
+      input.player.lastAim,
+      input.ship.primaryWeapon,
+      visible,
+    );
     renderPlayerFuel(
       this.playerFuelBase,
       this.playerFuelFill,
