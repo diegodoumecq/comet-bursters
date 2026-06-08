@@ -252,6 +252,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   protected renderState(action: ReturnType<ActionReader['read']>, time: number): void {
     this.syncProjectileVisualsToCamera();
     this.audioDirector.update({
+      listenerPosition: this.player.position,
       playerSpeed: Math.hypot(this.player.velocity.x, this.player.velocity.y),
       threatLevel: this.runtime.world.asteroids.length,
       timeDilation: action.timeDilation,

@@ -67,13 +67,14 @@ export class AudioManager {
     return new SceneAudioDirector(this, scene, sceneKey);
   }
 
-  emit(event: AudioEvent, scene?: Phaser.Scene): void {
+  emit(event: AudioEvent, scene?: Phaser.Scene, listenerPosition?: Vector): void {
     if (scene) this.bindScene(scene);
     for (const cue of resolveAudioEvent(event)) {
       const position = getEventPosition(event);
       if (position && scene) {
         this.playWorldSfx(cue.key, {
           camera: scene.cameras.main,
+          listenerPosition,
           cooldownMs: cue.cooldownMs,
           maxDistance: cue.maxDistance,
           position,
@@ -167,10 +168,11 @@ export class AudioManager {
   }
 
   playWorldSfx(key: AudioKey, options: WorldAudioOptions): void {
-    const attenuation = getCameraDistanceAttenuation(
+    const attenuation = getWorldDistanceAttenuation(
       options.position,
       options.camera,
       options.maxDistance ?? 1200,
+      options.listenerPosition,
     );
     if (attenuation <= 0) return;
     this.playSfx(key, { ...options, volume: (options.volume ?? 1) * attenuation });
@@ -275,12 +277,13 @@ export class AudioManager {
   }
 }
 
-export function getCameraDistanceAttenuation(
+export function getWorldDistanceAttenuation(
   position: Vector,
   camera: Phaser.Cameras.Scene2D.Camera,
   maxDistance: number,
+  listenerPosition?: Vector,
 ): number {
-  const center = {
+  const center = listenerPosition ?? {
     x: camera.worldView.x + camera.worldView.width * 0.5,
     y: camera.worldView.y + camera.worldView.height * 0.5,
   };

@@ -222,6 +222,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.processDimensionPortalTransfers(time);
     this.updateLifecycle(time);
     this.audioDirector.update({
+      listenerPosition: this.session.player.position,
       playerSpeed: Math.hypot(this.session.player.velocity.x, this.session.player.velocity.y),
       riftVisible: this.dimensionCoordinator.getActiveViewSpace(time) === 'rift',
       threatLevel: this.session.burstCount,
