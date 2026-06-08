@@ -22,6 +22,7 @@ import {
   createThrusterParticles,
   type EffectResult,
 } from '../../combat/effects';
+import { createBlackHoleFromFuelExplosion } from '../../combat/explosionBlackHoles';
 import { resolveProjectileFuelBlobCombatEvents } from '../../combat/fuel';
 import { updateFuelBlobCollection } from '../../combat/fuelCollection';
 import { MatterContacts, type PlayerAsteroidContact } from '../../combat/matterContacts';
@@ -522,6 +523,15 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   private explodeFuelBlobs(blobs: FuelBlobEntity[]): void {
+    const blackHole = createBlackHoleFromFuelExplosion({
+      blobs,
+      nextProjectileId: this.nextProjectileId,
+      now: this.time.now,
+    });
+    if (blackHole) {
+      this.nextProjectileId += 1;
+      this.addProjectile(blackHole);
+    }
     for (const blob of blobs) {
       this.applyEffect(createExplosionBurst(blob.position, blob.velocity, 0.45));
       this.removeFuelBlob(blob);

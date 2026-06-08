@@ -23,6 +23,7 @@ import {
   createThrusterParticles,
   type EffectResult,
 } from '../../combat/effects';
+import { createBlackHoleFromFuelExplosion } from '../../combat/explosionBlackHoles';
 import { resolveProjectileFuelBlobCombatEvents } from '../../combat/fuel';
 import { updateFuelBlobCollection } from '../../combat/fuelCollection';
 import { MatterContacts, type PlayerAsteroidContact } from '../../combat/matterContacts';
@@ -608,6 +609,15 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private explodeFuelBlobs(runtime: SpaceWorldRuntime, blobs: FuelBlobEntity[]): void {
+    const blackHole = createBlackHoleFromFuelExplosion({
+      blobs,
+      nextProjectileId: this.session.nextProjectileId,
+      now: this.time.now,
+    });
+    if (blackHole) {
+      this.session.nextProjectileId += 1;
+      runtime.addProjectile(blackHole);
+    }
     for (const blob of blobs) {
       const effect = createExplosionBurst(blob.position, blob.velocity, 0.45);
       runtime.addParticles(effect.particles);
