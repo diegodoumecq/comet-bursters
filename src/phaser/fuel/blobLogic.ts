@@ -23,7 +23,11 @@ export function isFuelBlobCollectable(blob: FuelBlobEntity, now: number): boolea
   return blob.collectableAtMs === undefined || now >= blob.collectableAtMs;
 }
 
-export function spawnFuelBlobs(position: Vector, count: number): FuelBlobEntity[] {
+export function spawnFuelBlobs(
+  position: Vector,
+  count: number,
+  sourceVelocity: Vector = { x: 0, y: 0 },
+): FuelBlobEntity[] {
   const blobs: FuelBlobEntity[] = [];
   for (let index = 0; index < count; index += 1) {
     const angle = Math.random() * Math.PI * 2;
@@ -36,8 +40,8 @@ export function spawnFuelBlobs(position: Vector, count: number): FuelBlobEntity[
           y: position.y + Math.sin(angle) * distance,
         },
         {
-          x: Math.cos(angle) * speed,
-          y: Math.sin(angle) * speed,
+          x: sourceVelocity.x * 0.5 + Math.cos(angle) * speed,
+          y: sourceVelocity.y * 0.5 + Math.sin(angle) * speed,
         },
       ),
     );
@@ -48,6 +52,15 @@ export function spawnFuelBlobs(position: Vector, count: number): FuelBlobEntity[
 export function spawnAsteroidFuelDrops(asteroid: AsteroidEntity): FuelBlobEntity[] {
   const count = getFuelDropCount(asteroid.tier);
   return count === 0 ? [] : spawnFuelBlobs(asteroid.position, count);
+}
+
+export function spawnShipFuelDrops(
+  position: Vector,
+  velocity: Vector,
+  fuel: number,
+): FuelBlobEntity[] {
+  const count = Math.floor((Math.max(0, fuel) * 0.5) / FUEL_BLOB_AMOUNT);
+  return count === 0 ? [] : spawnFuelBlobs(position, count, velocity);
 }
 
 export function updateFuelBlob(
@@ -132,11 +145,7 @@ export function getFuelBlobExplosionChain(input: {
   return exploded;
 }
 
-function applyFuelBlobDrag(
-  velocity: Vector,
-  deltaSeconds: number,
-  airResistance: number,
-): Vector {
+function applyFuelBlobDrag(velocity: Vector, deltaSeconds: number, airResistance: number): Vector {
   const frameScale = deltaSeconds * 60;
   const drag = Math.pow(1 - airResistance, frameScale);
   velocity.x *= drag;

@@ -4,10 +4,11 @@ import {
   getFuelBlobExplosionChain,
   spawnAsteroidFuelDrops,
   spawnFuelBlobs,
+  spawnShipFuelDrops,
   updateFuelBlob,
   updateFuelBlobs,
 } from './blobLogic';
-import { FUEL_BLOB_SPAWN_DRIFT_SPEED } from './definition';
+import { FUEL_BLOB_AMOUNT, FUEL_BLOB_SPAWN_DRIFT_SPEED } from './definition';
 
 vi.mock('phaser', () => ({
   default: {
@@ -104,9 +105,7 @@ describe('fuel blob movement', () => {
 
     const blobs = spawnFuelBlobs({ x: 100, y: 200 }, 1);
 
-    expect(Math.hypot(blobs[0].velocity.x, blobs[0].velocity.y)).toBe(
-      FUEL_BLOB_SPAWN_DRIFT_SPEED,
-    );
+    expect(Math.hypot(blobs[0].velocity.x, blobs[0].velocity.y)).toBe(FUEL_BLOB_SPAWN_DRIFT_SPEED);
   });
 
   it('does not launch asteroid fuel drops with asteroid velocity', () => {
@@ -123,6 +122,33 @@ describe('fuel blob movement', () => {
     });
 
     expect(blobs[0].velocity.x).toBe(FUEL_BLOB_SPAWN_DRIFT_SPEED);
+  });
+
+  it('spawns ship fuel drops with the ship velocity', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+
+    const blobs = spawnShipFuelDrops({ x: 100, y: 200 }, { x: 120, y: -40 }, FUEL_BLOB_AMOUNT * 2);
+
+    expect(blobs[0].velocity).toEqual({
+      x: 120 + FUEL_BLOB_SPAWN_DRIFT_SPEED,
+      y: -40,
+    });
+  });
+
+  it('spawns one fuel blob for each full fuel blob amount in half the ship fuel', () => {
+    const blobs = spawnShipFuelDrops({ x: 100, y: 200 }, { x: 0, y: 0 }, FUEL_BLOB_AMOUNT * 6);
+
+    expect(blobs).toHaveLength(3);
+  });
+
+  it('does not spawn ship fuel drops when half the ship fuel is below one blob amount', () => {
+    const blobs = spawnShipFuelDrops(
+      { x: 100, y: 200 },
+      { x: 0, y: 0 },
+      FUEL_BLOB_AMOUNT * 2 - 1,
+    );
+
+    expect(blobs).toHaveLength(0);
   });
 });
 
