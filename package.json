@@ -11,8 +11,15 @@
   ],
   "scripts": {
     "dev": "vite",
+    "e2e": "playwright test playwright/tests/sandbox-smoke.spec.ts",
+    "e2e:rendering": "playwright test playwright/tests/arcade-rendering-cases.spec.ts --project=chromium --reporter=line",
     "format": "prettier \"**/*.{js,jsx,json,tsx,ts}\" --write",
     "lint": "eslint .",
+    "playwright:install": "playwright install chromium",
+    "profile:arcade": "playwright test playwright/tests/arcade-profile.spec.ts --project=chromium --reporter=line",
+    "profile:sandbox": "playwright test playwright/tests/sandbox-profile.spec.ts --project=chromium --reporter=line",
+    "screenshot:arcade": "playwright test playwright/tests/arcade-screenshot.spec.ts --project=chromium --reporter=line",
+    "screenshot:sandbox": "playwright test playwright/tests/sandbox-screenshot.spec.ts --project=chromium --reporter=line",
     "type-check": "tsc -p tsconfig.json",
     "clean": "del-cli -f bin/*"
   },
@@ -46,6 +53,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@ianvs/prettier-plugin-sort-imports": "^4.7.1",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.14",

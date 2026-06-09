@@ -35,13 +35,26 @@ An arcade-style space shooter inspired by Comet Buster! (a 90s shareware game). 
 - **E**: Shotgun
 - **Shift**: Activate shield
 
-
 ## Running the Game
 
 ```bash
 pnpm install
 pnpm dev
 ```
+
+## Browser Testing and Profiling
+
+```bash
+pnpm playwright:install
+pnpm e2e
+pnpm e2e:rendering
+pnpm screenshot:arcade
+pnpm screenshot:sandbox
+pnpm profile:arcade
+pnpm profile:sandbox
+```
+
+The Playwright harness lives in `playwright/` and writes screenshots/profiles to `artifacts/playwright/`.
 
 ## Tech Stack
 

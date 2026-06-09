@@ -1,6 +1,6 @@
-const { chromium } = require('playwright');
+const { chromium } = require('@playwright/test');
 
-const DEFAULT_URL = 'http://127.0.0.1:5173/phaser-game.html';
+const DEFAULT_URL = process.env.PROFILE_URL ?? 'http://127.0.0.1:9001/phaser-game.html';
 const DEFAULT_DURATION_MS = 5000;
 
 async function main() {

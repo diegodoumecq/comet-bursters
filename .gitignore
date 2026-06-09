@@ -1,3 +1,4 @@
 node_modules
 devBundle
 TODO.md
+artifacts/playwright
