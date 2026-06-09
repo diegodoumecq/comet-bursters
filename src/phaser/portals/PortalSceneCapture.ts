@@ -16,6 +16,7 @@ export class PortalSceneCapture {
     private readonly scene: Phaser.Scene,
     world: WorldSize,
     private readonly getBackgroundCanvases: () => HTMLCanvasElement[] = () => [],
+    private readonly getOverlayCanvases: () => HTMLCanvasElement[] = () => [],
   ) {
     this.captureSize = { width: world.width, height: world.height };
     this.renderTexture = scene.add
@@ -29,6 +30,7 @@ export class PortalSceneCapture {
     this.renderTexture.clear();
     this.drawBackgroundCanvases();
     this.renderTexture.draw(this.getCaptureEntries());
+    this.drawOverlayCanvases();
     return this.textureKey;
   }
 
@@ -44,8 +46,15 @@ export class PortalSceneCapture {
   }
 
   private drawBackgroundCanvases(): void {
-    const canvas = this.getBackgroundCanvases()[0];
-    if (!canvas) return;
+    this.drawCanvasLayer(this.getBackgroundCanvases());
+  }
+
+  private drawOverlayCanvases(): void {
+    this.drawCanvasLayer(this.getOverlayCanvases());
+  }
+
+  private drawCanvasLayer(canvases: HTMLCanvasElement[]): void {
+    if (canvases.length === 0) return;
     const copyContext = this.backgroundCopyCanvas.getContext('2d');
     if (!copyContext) return;
     if (
@@ -56,7 +65,9 @@ export class PortalSceneCapture {
       this.backgroundCopyCanvas.height = this.captureSize.height;
     }
     copyContext.clearRect(0, 0, this.backgroundCopyCanvas.width, this.backgroundCopyCanvas.height);
-    copyContext.drawImage(canvas, 0, 0, this.captureSize.width, this.captureSize.height);
+    for (const canvas of canvases) {
+      copyContext.drawImage(canvas, 0, 0, this.captureSize.width, this.captureSize.height);
+    }
     let texture = this.scene.textures.exists(this.backgroundTextureKey)
       ? this.scene.textures.get(this.backgroundTextureKey)
       : this.scene.textures.addCanvas(this.backgroundTextureKey, this.backgroundCopyCanvas);

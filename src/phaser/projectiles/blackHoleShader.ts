@@ -192,6 +192,10 @@ export class BlackHoleShaderRenderer {
     this.canvas = null;
   }
 
+  getCanvas(): HTMLCanvasElement | null {
+    return this.canvas;
+  }
+
   setVisible(visible: boolean): void {
     if (this.canvas) this.canvas.style.display = visible ? 'block' : 'none';
   }
@@ -273,7 +277,12 @@ export class BlackHoleShaderRenderer {
       const underlays = this.getUnderlayCanvases();
       if (underlays.length === 0) {
         this.compositeContext.fillStyle = '#05070d';
-        this.compositeContext.fillRect(0, 0, this.compositeCanvas.width, this.compositeCanvas.height);
+        this.compositeContext.fillRect(
+          0,
+          0,
+          this.compositeCanvas.width,
+          this.compositeCanvas.height,
+        );
       }
       for (const underlay of underlays) {
         this.compositeContext.drawImage(

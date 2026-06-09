@@ -6,6 +6,8 @@ import type { MatterImage } from '../core/types';
 import type { SpaceId } from '../dimensions/types';
 import type { PlayerBody } from '../player/body';
 import { PlayerState } from '../player/state';
+import type { ProjectileBodies } from '../projectiles/bodies';
+import type { ProjectileEntity } from '../projectiles/types';
 import { SpaceWorldRuntime } from './SpaceWorldRuntime';
 
 describe('SpaceWorldRuntime player transfer authority', () => {
@@ -125,6 +127,39 @@ describe('SpaceWorldRuntime asteroid transfer authority', () => {
   });
 });
 
+describe('SpaceWorldRuntime projectile transfer authority', () => {
+  it('saves the live projectile body before transferring it', () => {
+    const projectile = createProjectile('arcade');
+    const sourceBodies = createProjectileBodiesSync({
+      position: { x: 80, y: 90 },
+      velocity: { x: -3, y: 5 },
+    });
+    const source = createRuntime('arcade', { projectileBodies: sourceBodies });
+    source.addProjectile(projectile);
+
+    const detached = source.detachTransferEntity({
+      id: projectile.id,
+      kind: 'projectile',
+      membership: { space: 'arcade' },
+      position: projectile.position,
+      previousPosition: { x: 40, y: 90 },
+    });
+
+    if (!detached || detached.kind !== 'projectile') throw new Error('Expected projectile detach');
+    expect(detached.entity.position).toEqual({ x: 80, y: 90 });
+    expect(detached.entity.velocity).toEqual({ x: -3, y: 5 });
+    expect(sourceBodies.sync).toHaveBeenCalledWith(projectile);
+    expect(sourceBodies.remove).toHaveBeenCalledWith(projectile);
+
+    const destinationBodies = createProjectileBodiesSync();
+    const destination = createRuntime('rift', { projectileBodies: destinationBodies });
+    destination.attachTransferredEntity(detached);
+
+    expect(destinationBodies.add).toHaveBeenCalledWith(projectile);
+    expect(detached.entity.membership).toEqual({ space: 'rift' });
+  });
+});
+
 function createRuntime(
   space: SpaceId,
   overrides: Partial<ConstructorParameters<typeof SpaceWorldRuntime>[1]> = {},
@@ -133,7 +168,9 @@ function createRuntime(
     asteroidBodies: {} as never,
     contacts: {
       addAsteroid: vi.fn(),
+      addProjectile: vi.fn(),
       removeAsteroid: vi.fn(),
+      removeProjectile: vi.fn(),
       setPlayer: vi.fn(),
       setShield: vi.fn(),
     } as never,
@@ -163,6 +200,27 @@ function createAsteroid(space: SpaceId): AsteroidEntity {
     tier: 'small',
     velocity: { x: 1, y: 2 },
     visualVariant: 0,
+  };
+}
+
+function createProjectile(space: SpaceId): ProjectileEntity {
+  return {
+    absorbedFuel: 0,
+    ageMs: 0,
+    airResistance: 0,
+    angle: 0,
+    baseSpeed: 0,
+    collapseStartedAt: null,
+    createdAt: 0,
+    damage: 0,
+    id: 7,
+    impact: 0,
+    kind: 'blackHole',
+    lifetimeMs: 10000,
+    membership: { space },
+    position: { x: 10, y: 20 },
+    radius: 6,
+    velocity: { x: 1, y: 2 },
   };
 }
 
@@ -200,6 +258,31 @@ function createAsteroidBodiesSync(
     }),
   };
   return bodies as unknown as AsteroidBodies & { addedAsteroid: AsteroidEntity | null };
+}
+
+function createProjectileBodiesSync(
+  state: {
+    position: { x: number; y: number };
+    velocity: { x: number; y: number };
+  } = {
+    position: { x: 0, y: 0 },
+    velocity: { x: 0, y: 0 },
+  },
+): ProjectileBodies {
+  return {
+    add: vi.fn(),
+    get: vi.fn(),
+    remove: vi.fn(),
+    setCollisionEnabled: vi.fn(),
+    setPosition: vi.fn(),
+    setVelocity: vi.fn(),
+    setVisible: vi.fn(),
+    sync: vi.fn((projectile: ProjectileEntity) => {
+      projectile.position = { ...state.position };
+      projectile.velocity = { ...state.velocity };
+    }),
+    syncVisualsRelativeToCamera: vi.fn(),
+  } as unknown as ProjectileBodies;
 }
 
 function createPlayerBodySync(

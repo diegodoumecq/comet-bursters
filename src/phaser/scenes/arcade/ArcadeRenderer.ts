@@ -38,6 +38,7 @@ export class ArcadeRenderer {
   private readonly sceneCapture: PortalSceneCapture;
   private readonly weaponMenu: WeaponMenu;
   private gameOverText: Phaser.GameObjects.Text | null = null;
+  private captureOverlayCanvasesProvider: () => HTMLCanvasElement[] = () => [];
   private playerInRift = false;
   private shakeUntil = 0;
   private shakeIntensity = 0;
@@ -63,10 +64,15 @@ export class ArcadeRenderer {
       width: world.width,
     });
     this.weaponMenu = new WeaponMenu(scene, weaponPolicy.allowedWeapons);
-    this.sceneCapture = new PortalSceneCapture(scene, world, () => {
-      const canvas = this.getBackgroundCanvas();
-      return canvas ? [canvas] : [];
-    });
+    this.sceneCapture = new PortalSceneCapture(
+      scene,
+      world,
+      () => {
+        const canvas = this.getBackgroundCanvas();
+        return canvas ? [canvas] : [];
+      },
+      () => this.captureOverlayCanvasesProvider(),
+    );
   }
 
   getSelectedWeapon(aim: Vector): WeaponKind {
@@ -99,6 +105,10 @@ export class ArcadeRenderer {
 
   setPlayerInRift(inRift: boolean): void {
     this.playerInRift = inRift;
+  }
+
+  setPortalCaptureOverlayCanvasesProvider(provider: () => HTMLCanvasElement[]): void {
+    this.captureOverlayCanvasesProvider = provider;
   }
 
   render(

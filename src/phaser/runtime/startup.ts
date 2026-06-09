@@ -12,6 +12,11 @@ export function getArcadeRiftDebugEnabled(): boolean {
   return getBooleanStartupFlag('arcadeRiftDebug', false);
 }
 
+export function getArcadeRiftDebugScenario(): string | null {
+  const search = new URLSearchParams(window.location.search);
+  return search.get('arcadeRiftDebugScenario');
+}
+
 export function getArcadeDimensionDebugEnabled(): boolean {
   return getBooleanStartupFlag('arcadeDimensionDebug', false);
 }

@@ -289,6 +289,7 @@ export class SpaceWorldRuntime {
     if (snapshot.kind === 'projectile') {
       const projectile = this.world.projectiles.find((candidate) => candidate.id === snapshot.id);
       if (!projectile) return null;
+      this.attachments.projectileBodies.sync(projectile);
       this.removeProjectile(projectile);
       return { entity: projectile, kind: 'projectile' };
     }

@@ -72,6 +72,7 @@ import type { ProjectileEntity } from '../../projectiles/types';
 import {
   getArcadeDimensionDebugEnabled,
   getArcadeRiftDebugEnabled,
+  getArcadeRiftDebugScenario,
   getStartingWave,
 } from '../../runtime/startup';
 import { ALL_WEAPONS, type SceneWeaponPolicy } from '../../weapons/scenePolicy';
@@ -115,7 +116,9 @@ export class PhaserArcadeScene extends BaseGameScene {
   private nextPortalId = 1;
   private riftSpaceScene: PhaserRiftSpaceScene | null = null;
   private readonly riftDebug = getArcadeRiftDebugEnabled();
+  private readonly riftDebugScenario = getArcadeRiftDebugScenario();
   private readonly dimensionDebugEnabled = getArcadeDimensionDebugEnabled();
+  private riftDebugScenarioStarted = false;
   private testCameraRiftKey: Phaser.Input.Keyboard.Key | null = null;
   private testWindowRiftKey: Phaser.Input.Keyboard.Key | null = null;
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: ALL_WEAPONS };
@@ -178,6 +181,9 @@ export class PhaserArcadeScene extends BaseGameScene {
         const canvas = this.sceneRenderer.getBackgroundCanvas();
         return canvas ? [canvas] : [];
       },
+    );
+    this.sceneRenderer.setPortalCaptureOverlayCanvasesProvider(() =>
+      this.renderEffects.getCaptureCanvases(),
     );
     this.events.once('shutdown', this.disposeRenderEffects, this);
     if (this.riftDebug) {
@@ -495,6 +501,16 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private updateDebugRiftInput(): void {
     if (
+      this.riftDebug &&
+      this.riftDebugScenario !== null &&
+      ['asteroidCrossing', 'blackHoleCrossing'].includes(this.riftDebugScenario) &&
+      !this.riftDebugScenarioStarted &&
+      this.riftWorldIsReady()
+    ) {
+      this.riftDebugScenarioStarted = true;
+      this.openDebugCrossingRift(this.time.now, this.riftDebugScenario);
+    }
+    if (
       this.testWindowRiftKey &&
       this.riftWorldIsReady() &&
       Phaser.Input.Keyboard.JustDown(this.testWindowRiftKey)
@@ -507,6 +523,71 @@ export class PhaserArcadeScene extends BaseGameScene {
       Phaser.Input.Keyboard.JustDown(this.testCameraRiftKey)
     ) {
       this.openRiftBurst(this.time.now, 'cameraTransfer');
+    }
+  }
+
+  private openDebugCrossingRift(now: number, scenario: string): void {
+    const portal = {
+      activeDurationMs: 9000,
+      aperture: { radiusX: 150, radiusY: 110 },
+      closeStartedAt: null,
+      closingDurationMs: 240,
+      id: this.nextPortalId,
+      lifecycle: 'active' as const,
+      normal: { x: 1, y: 0 },
+      openedAt: now - 260,
+      openingDurationMs: 240,
+      position: { x: this.worldSize.width * 0.68, y: this.worldSize.height * 0.5 },
+      viewPolicy: 'window' as const,
+      visualRadiusX: 190,
+      visualRadiusY: 135,
+    };
+    this.nextPortalId += 1;
+    this.dimensionCoordinator.openPortal({
+      portal,
+      spawn: {
+        asteroidCount: 0,
+        asteroidSpeed: 0,
+        spawnDistance: 0,
+        spreadRadius: 0,
+      },
+    });
+
+    if (scenario === 'asteroidCrossing') {
+      this.runtime.addAsteroids([
+        {
+          angularVelocity: 0.018,
+          hits: ASTEROIDS.medium.hits,
+          id: 900_001,
+          membership: { space: 'arcade' },
+          position: { x: portal.position.x + 92, y: portal.position.y - 18 },
+          rotation: 0.8,
+          tier: 'medium',
+          velocity: { x: -15, y: 0 },
+          visualVariant: 0,
+        },
+      ]);
+    } else if (scenario === 'blackHoleCrossing') {
+      this.runtime.addProjectile({
+        absorbedFuel: 0,
+        ageMs: 4300,
+        airResistance: 0.01,
+        angle: Math.PI,
+        baseSpeed: 1,
+        blackHoleMass: 4,
+        collapseStartedAt: null,
+        createdAt: now - 4300,
+        damage: 0,
+        id: this.session.nextProjectileId,
+        impact: 0,
+        kind: 'blackHole',
+        lifetimeMs: 10000,
+        membership: { space: 'arcade' },
+        position: { x: portal.position.x + 24, y: portal.position.y - 12 },
+        radius: 6,
+        velocity: { x: -2, y: 0 },
+      });
+      this.session.nextProjectileId += 1;
     }
   }
 
@@ -531,7 +612,20 @@ export class PhaserArcadeScene extends BaseGameScene {
       }
       return null;
     });
-    riftScene.setPortalDestinationTextureKeyProvider(() => this.sceneRenderer.captureTextureKey());
+    riftScene.setPortalDestinationTextureKeyProvider(() => this.captureArcadeTextureForPortal());
+  }
+
+  private captureArcadeTextureForPortal(): string {
+    if (this.dimensionCoordinator.getActiveViewSpace(this.time.now) === 'arcade') {
+      this.renderEffects.render(this.session, this.time.now, this.worldSize);
+    } else {
+      this.renderEffects.prepareCaptureCanvases(this.session, this.time.now, this.worldSize);
+    }
+    const textureKey = this.sceneRenderer.captureTextureKey();
+    if (this.dimensionCoordinator.getActiveViewSpace(this.time.now) !== 'arcade') {
+      this.renderEffects.setVisible(false);
+    }
+    return textureKey;
   }
 
   private updateDimensionPortalLifecycle(now: number): void {

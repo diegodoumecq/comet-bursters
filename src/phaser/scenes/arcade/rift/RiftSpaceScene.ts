@@ -86,10 +86,15 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
         return canvas ? [canvas] : [];
       },
     );
-    this.sceneCapture = new PortalSceneCapture(this, this.worldSize, () => {
-      const canvas = this.background.getCanvas();
-      return canvas ? [canvas] : [];
-    });
+    this.sceneCapture = new PortalSceneCapture(
+      this,
+      this.worldSize,
+      () => {
+        const canvas = this.background.getCanvas();
+        return canvas ? [canvas] : [];
+      },
+      () => this.renderEffects.getCaptureCanvases(),
+    );
     this.dimensionDebug = new DimensionDebugOverlay(this);
     this.portalRenderer = new PortalWindowRenderer(this, {
       height: this.worldSize.height,
@@ -144,8 +149,10 @@ export class PhaserRiftSpaceScene extends Phaser.Scene {
 
   captureTextureKey(): string {
     this.prepareBackgroundForCapture();
+    this.renderEffects.prepareCaptureCanvases(this.runtime.world, this.time.now, this.worldSize);
     const textureKey = this.sceneCapture.capture();
     this.background.hide();
+    if (!this.activeView) this.renderEffects.setVisible(false);
     return textureKey;
   }
 

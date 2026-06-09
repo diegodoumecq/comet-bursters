@@ -2,15 +2,21 @@ import { withPerformanceMeasure } from '../core/performance';
 import type { WorldSize } from '../core/types';
 import { FuelMetaballRenderer } from '../fuel/metaballs';
 import { buildFuelBlobMetaballSamples } from '../fuel/metaballSamples';
+import { renderBlackHoleCaptureCanvas } from '../projectiles/blackHoleCaptureCanvas';
 import { buildBlackHoleScreenSamples } from '../projectiles/blackHoleSamples';
-import { BlackHoleShaderRenderer } from '../projectiles/blackHoleShader';
+import {
+  BlackHoleShaderRenderer,
+  type BlackHoleScreenSample,
+} from '../projectiles/blackHoleShader';
 import { getSandboxPerfToggles } from '../runtime/startup';
 import type { GameWorld } from './state';
 
 export class SpaceRenderEffects {
   private readonly blackHoleShader: BlackHoleShaderRenderer;
+  private readonly blackHoleCaptureCanvas = document.createElement('canvas');
   private readonly fuelMetaballs: FuelMetaballRenderer | null;
   private readonly perfToggles = getSandboxPerfToggles();
+  private blackHoleCaptureVisible = false;
 
   constructor(
     sourceCanvas: HTMLCanvasElement,
@@ -30,6 +36,48 @@ export class SpaceRenderEffects {
   }
 
   render(world: GameWorld, now: number, screen: WorldSize): void {
+    this.renderFuelMetaballs(world, now, screen);
+
+    if (this.perfToggles.blackHoles) {
+      const blackHoles = this.buildBlackHoleSamples(world);
+      this.renderBlackHoleCapture(blackHoles, screen.width, screen.height);
+      withPerformanceMeasure('space.render.blackHoles', this.perfToggles.markers, () => {
+        this.blackHoleShader.render(blackHoles);
+      });
+    } else {
+      this.clearBlackHoleCapture(screen.width, screen.height);
+      this.blackHoleShader.setVisible(false);
+    }
+  }
+
+  prepareCaptureCanvases(world: GameWorld, now: number, screen: WorldSize): void {
+    this.renderFuelMetaballs(world, now, screen);
+    if (this.perfToggles.blackHoles) {
+      this.renderBlackHoleCapture(this.buildBlackHoleSamples(world), screen.width, screen.height);
+    } else {
+      this.clearBlackHoleCapture(screen.width, screen.height);
+    }
+  }
+
+  getCaptureCanvases(): HTMLCanvasElement[] {
+    const canvases: HTMLCanvasElement[] = [];
+    const fuelCanvas = this.fuelMetaballs?.getCanvas();
+    if (fuelCanvas) canvases.push(fuelCanvas);
+    if (this.blackHoleCaptureVisible) canvases.push(this.blackHoleCaptureCanvas);
+    return canvases;
+  }
+
+  setVisible(visible: boolean): void {
+    this.blackHoleShader.setVisible(visible);
+    this.fuelMetaballs?.setVisible(visible && this.perfToggles.fuelMetaballs);
+  }
+
+  dispose(): void {
+    this.blackHoleShader.dispose();
+    this.fuelMetaballs?.dispose();
+  }
+
+  private renderFuelMetaballs(world: GameWorld, now: number, screen: WorldSize): void {
     this.fuelMetaballs?.setVisible(this.perfToggles.fuelMetaballs);
     if (this.perfToggles.fuelMetaballs) {
       withPerformanceMeasure('space.render.fuelMetaballs', this.perfToggles.markers, () => {
@@ -55,28 +103,34 @@ export class SpaceRenderEffects {
         );
       });
     }
-
-    if (this.perfToggles.blackHoles) {
-      withPerformanceMeasure('space.render.blackHoles', this.perfToggles.markers, () => {
-        this.blackHoleShader.render(
-          buildBlackHoleScreenSamples({
-            projectiles: world.projectiles,
-            project: (position) => [position],
-          }),
-        );
-      });
-    } else {
-      this.blackHoleShader.setVisible(false);
-    }
   }
 
-  setVisible(visible: boolean): void {
-    this.blackHoleShader.setVisible(visible);
-    this.fuelMetaballs?.setVisible(visible && this.perfToggles.fuelMetaballs);
+  private buildBlackHoleSamples(world: GameWorld): BlackHoleScreenSample[] {
+    return buildBlackHoleScreenSamples({
+      projectiles: world.projectiles,
+      project: (position) => [position],
+    });
   }
 
-  dispose(): void {
-    this.blackHoleShader.dispose();
-    this.fuelMetaballs?.dispose();
+  private renderBlackHoleCapture(
+    blackHoles: BlackHoleScreenSample[],
+    width: number,
+    height: number,
+  ): void {
+    this.blackHoleCaptureVisible = renderBlackHoleCaptureCanvas({
+      blackHoles,
+      canvas: this.blackHoleCaptureCanvas,
+      height,
+      width,
+    });
+  }
+
+  private clearBlackHoleCapture(width: number, height: number): void {
+    this.blackHoleCaptureVisible = renderBlackHoleCaptureCanvas({
+      blackHoles: [],
+      canvas: this.blackHoleCaptureCanvas,
+      height,
+      width,
+    });
   }
 }
