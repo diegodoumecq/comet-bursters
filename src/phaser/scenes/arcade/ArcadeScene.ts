@@ -18,6 +18,7 @@ import {
 import {
   createAsteroidExplosion,
   createAsteroidImpactDebris,
+  createBlackHolePlanetAbsorption,
   createExplosionBurst,
   createShipExplosion,
   createThrusterParticles,
@@ -675,6 +676,16 @@ export class PhaserArcadeScene extends BaseGameScene {
         runtime.addParticles(createAsteroidExplosion(asteroid, 0.7).particles);
       },
       onAsteroidRemoved: (asteroid) => runtime.removeAsteroid(asteroid),
+      onBlackHoleAbsorbedByPlanet: (event) => {
+        const effect = createBlackHolePlanetAbsorption({
+          blackHole: event.blackHole,
+          normal: event.normal,
+          position: event.position,
+        });
+        runtime.addParticles(effect.particles);
+        if (effect.shakeDurationMs > 0)
+          this.startShake(effect.shakeIntensity, effect.shakeDurationMs);
+      },
       onBlackHoleRemoved: (projectile) => runtime.removeProjectile(projectile),
       onFuelBurst: (projectile) => {
         if (projectile.absorbedFuel > 0) {
@@ -692,6 +703,7 @@ export class PhaserArcadeScene extends BaseGameScene {
       onFuelBlobAbsorbed: (blob) => runtime.removeFuelBlob(blob),
       onParticleAbsorbed: (particle) => runtime.removeParticle(particle),
       onPlayerAbsorbed: () => this.killPlayer(time),
+      onProjectileAbsorbed: (projectile) => runtime.removeProjectile(projectile),
       particles: runtime.world.particles,
       player: {
         active:

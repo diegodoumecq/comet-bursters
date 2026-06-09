@@ -5,6 +5,7 @@ import {
   createAsteroidExplosion,
   createAsteroidImpactDebris,
   createAsteroidPlanetImpactDebris,
+  createBlackHolePlanetAbsorption,
   createExplosionBurst,
   createShipExplosion,
   createShipPlanetImpactDebris,
@@ -18,7 +19,16 @@ describe('combat particle effects', () => {
     expect(new Set(effect.particles.map((particle) => particle.kind))).toEqual(
       new Set(['core', 'shard', 'shockwave', 'smoke', 'spark']),
     );
-    expect(effect.particles.every((particle) => particle.gravityScale === 0)).toBe(true);
+    expect(
+      effect.particles
+        .filter((particle) => particle.kind === 'shard')
+        .every((particle) => particle.gravityScale === undefined),
+    ).toBe(true);
+    expect(
+      effect.particles
+        .filter((particle) => particle.kind !== 'shard')
+        .every((particle) => particle.gravityScale === 0),
+    ).toBe(true);
   });
 
   it('builds generic explosion particles that ignore gravity', () => {
@@ -53,6 +63,39 @@ describe('combat particle effects', () => {
     expect(averageVelocityX).toBeGreaterThan(0);
   });
 
+  it('creates black-hole planet absorption particles without ship debris', () => {
+    const effect = createBlackHolePlanetAbsorption({
+      blackHole: {
+        absorbedFuel: 0,
+        ageMs: 4000,
+        airResistance: 0.01,
+        angle: 0,
+        baseSpeed: 2,
+        blackHoleMass: 1,
+        collapseStartedAt: null,
+        createdAt: 0,
+        damage: 0,
+        id: 1,
+        impact: 0,
+        kind: 'blackHole',
+        lifetimeMs: 10000,
+        position: { x: 100, y: 100 },
+        radius: 6,
+        velocity: { x: -6, y: 0 },
+      },
+      normal: { x: 1, y: 0 },
+      position: { x: 300, y: 100 },
+    });
+
+    expect(effect.particles.length).toBeGreaterThan(30);
+    expect(new Set(effect.particles.map((particle) => particle.kind))).toEqual(
+      new Set(['core', 'shockwave', 'smoke', 'spark']),
+    );
+    expect(effect.particles.some((particle) => particle.kind === 'panel')).toBe(false);
+    expect(effect.particles.some((particle) => particle.kind === 'wing')).toBe(false);
+    expect(effect.shakeDurationMs).toBeGreaterThan(0);
+  });
+
   it('includes ship debris and a full explosion burst on player death', () => {
     const effects = createShipExplosion({ x: 120, y: 80 }, { x: 4, y: -2 });
     const particles = effects.flatMap((effect) => effect.particles);
@@ -78,16 +121,7 @@ describe('combat particle effects', () => {
       new Set(['core', 'panel', 'shard', 'smoke', 'spark', 'wing']),
     );
     expect(averageVelocityX).toBeGreaterThan(0);
-    expect(
-      effect.particles
-        .filter((particle) => ['panel', 'shard', 'wing'].includes(particle.kind))
-        .every((particle) => particle.gravityScale === undefined),
-    ).toBe(true);
-    expect(
-      effect.particles
-        .filter((particle) => ['core', 'smoke', 'spark'].includes(particle.kind))
-        .every((particle) => particle.gravityScale === 0),
-    ).toBe(true);
+    expect(effect.particles.every((particle) => particle.gravityScale === undefined)).toBe(true);
   });
 });
 

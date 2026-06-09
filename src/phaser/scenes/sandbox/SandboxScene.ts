@@ -18,6 +18,7 @@ import {
   createAsteroidExplosion,
   createAsteroidImpactDebris,
   createAsteroidPlanetImpactDebris,
+  createBlackHolePlanetAbsorption,
   createExplosionBurst,
   createShipExplosion,
   createShipPlanetImpactDebris,
@@ -473,6 +474,14 @@ export class PhaserSandboxScene extends BaseGameScene {
         this.applyEffect(createAsteroidExplosion(asteroid, 0.7));
       },
       onAsteroidRemoved: (asteroid) => this.removeAsteroid(asteroid),
+      onBlackHoleAbsorbedByPlanet: (event) =>
+        this.applyEffect(
+          createBlackHolePlanetAbsorption({
+            blackHole: event.blackHole,
+            normal: event.normal,
+            position: event.position,
+          }),
+        ),
       onBlackHoleRemoved: (projectile) => this.removeProjectile(projectile),
       onFuelBurst: (projectile) => {
         if (projectile.absorbedFuel > 0)
@@ -488,6 +497,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       onFuelBlobAbsorbed: (blob) => this.removeFuelBlob(blob),
       onParticleAbsorbed: (particle) => this.removeParticle(particle),
       onPlayerAbsorbed: () => this.killPlayer(now),
+      onProjectileAbsorbed: (projectile) => this.removeProjectile(projectile),
       particles: this.runtime.world.particles,
       planets: this.planets,
       player: {

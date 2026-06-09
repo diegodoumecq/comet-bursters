@@ -26,11 +26,13 @@ export type BlackHoleLifecycleOptions = {
   now: number;
   onAsteroidAbsorbed: (asteroid: AsteroidEntity) => void;
   onAsteroidRemoved: (asteroid: AsteroidEntity) => void;
+  onBlackHoleAbsorbedByPlanet?: (event: BlackHolePlanetAbsorptionEvent) => void;
   onBlackHoleRemoved: (blackHole: ProjectileEntity) => void;
   onFuelBurst: (blackHole: ProjectileEntity) => void;
   onFuelBlobAbsorbed: (blob: FuelBlobEntity) => void;
   onParticleAbsorbed?: (particle: ParticleEntity) => void;
   onPlayerAbsorbed?: (blackHole: ProjectileEntity) => void;
+  onProjectileAbsorbed: (projectile: ProjectileEntity, blackHole: ProjectileEntity) => void;
   particles?: ParticleEntity[];
   planets?: PlanetEntity[];
   player?: {
@@ -40,6 +42,13 @@ export type BlackHoleLifecycleOptions = {
   };
   projectileBodies: ProjectileBodies;
   projectiles: ProjectileEntity[];
+};
+
+export type BlackHolePlanetAbsorptionEvent = {
+  blackHole: ProjectileEntity;
+  normal: Vector;
+  planet: PlanetEntity;
+  position: Vector;
 };
 
 export function isMatureBlackHole(blackHole: ProjectileEntity, now = blackHole.ageMs): boolean {
@@ -80,6 +89,7 @@ export function updateBlackHoles(input: BlackHoleLifecycleOptions): void {
   removeBlackHolesCollidingWithPlanets(input);
   mergeBlackHoles(input);
   absorbFuelBlobs(input);
+  absorbProjectiles(input);
   absorbParticles(input);
   absorbPlayer(input);
   updateBlackHoleCollapse(input);
@@ -102,19 +112,51 @@ function removeBlackHolesCollidingWithPlanets(input: BlackHoleLifecycleOptions):
 
   for (const projectile of [...input.projectiles]) {
     if (projectile.kind === 'blackHole') {
-      const hitPlanet = planets.some(
-        (planet) =>
-          input.distance(
-            projectile.position.x,
-            projectile.position.y,
-            planet.position.x,
-            planet.position.y,
-          ) <=
-          planet.radius + BLACK_HOLE_RADIUS,
-      );
-      if (hitPlanet) input.onBlackHoleRemoved(projectile);
+      const hit = getBlackHolePlanetAbsorption(projectile, planets, input.distance);
+      if (hit) {
+        input.onBlackHoleAbsorbedByPlanet?.(hit);
+        input.onBlackHoleRemoved(projectile);
+      }
     }
   }
+}
+
+function getBlackHolePlanetAbsorption(
+  blackHole: ProjectileEntity,
+  planets: PlanetEntity[],
+  distance: BlackHoleLifecycleOptions['distance'],
+): BlackHolePlanetAbsorptionEvent | null {
+  for (const planet of planets) {
+    const hitDistance = distance(
+      blackHole.position.x,
+      blackHole.position.y,
+      planet.position.x,
+      planet.position.y,
+    );
+    if (hitDistance <= planet.radius + BLACK_HOLE_RADIUS) {
+      const normal = getPlanetSurfaceNormal(blackHole.position, planet.position);
+      return {
+        blackHole,
+        normal,
+        planet,
+        position: {
+          x: planet.position.x + normal.x * (planet.radius + 4),
+          y: planet.position.y + normal.y * (planet.radius + 4),
+        },
+      };
+    }
+  }
+  return null;
+}
+
+function getPlanetSurfaceNormal(position: Vector, planetPosition: Vector): Vector {
+  const delta = {
+    x: position.x - planetPosition.x,
+    y: position.y - planetPosition.y,
+  };
+  const distance = Math.hypot(delta.x, delta.y);
+  if (distance <= 0) return { x: 1, y: 0 };
+  return { x: delta.x / distance, y: delta.y / distance };
 }
 
 function mergeBlackHoles(input: BlackHoleLifecycleOptions): void {
@@ -227,6 +269,34 @@ function absorbFuelBlobs(input: BlackHoleLifecycleOptions): void {
           projectile.absorbedFuel += 1;
           projectile.blackHoleMass = getBlackHoleMass(projectile) + BLACK_HOLE_FUEL_BLOB_MASS_SCALE;
           input.onFuelBlobAbsorbed(blob);
+        }
+      }
+    }
+  }
+}
+
+function absorbProjectiles(input: BlackHoleLifecycleOptions): void {
+  const targets = input.projectiles.filter((projectile) => projectile.kind !== 'blackHole');
+  if (targets.length === 0) return;
+
+  for (const blackHole of [...input.projectiles]) {
+    if (
+      blackHole.kind === 'blackHole' &&
+      blackHole.collapseStartedAt === null &&
+      isMatureBlackHole(blackHole)
+    ) {
+      const radius = getBlackHoleRenderRadius(blackHole);
+      for (const target of [...targets]) {
+        if (input.projectiles.includes(target)) {
+          const hitDistance = input.distance(
+            blackHole.position.x,
+            blackHole.position.y,
+            target.position.x,
+            target.position.y,
+          );
+          if (circlesOverlap(hitDistance, radius, target.radius)) {
+            input.onProjectileAbsorbed(target, blackHole);
+          }
         }
       }
     }

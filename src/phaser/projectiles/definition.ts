@@ -12,7 +12,7 @@ export const BLACK_HOLE_DEFINITION = {
     } satisfies Record<AsteroidEntity['tier'], number>,
   },
   gravity: {
-    strength: 1.5,
+    strength: 3,
   },
   lifecycle: {
     collapseDurationMs: 700,

@@ -73,22 +73,20 @@ export function applyWorldGravity(input: WorldGravityInput): void {
   }
 
   for (const projectile of input.projectiles ?? []) {
-    if (projectile.kind !== 'blackHole' || projectile.collapseStartedAt === null) {
-      if (
-        applyGravityToTarget({
-          getDelta,
-          sources,
-          target: {
-            gravityScale: projectile.gravityScale,
-            owner: projectile,
-            position: projectile.position,
-            velocity: projectile.velocity,
-          },
-          timeScale,
-        })
-      ) {
-        input.onProjectileVelocityChanged?.(projectile);
-      }
+    if (
+      applyGravityToTarget({
+        getDelta,
+        sources,
+        target: {
+          gravityScale: projectile.gravityScale,
+          owner: projectile,
+          position: projectile.position,
+          velocity: projectile.velocity,
+        },
+        timeScale,
+      })
+    ) {
+      input.onProjectileVelocityChanged?.(projectile);
     }
   }
 

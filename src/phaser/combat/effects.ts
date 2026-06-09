@@ -8,6 +8,8 @@ import {
   spawnThrusterParticle,
 } from '../particles/logic';
 import type { ParticleEntity } from '../particles/types';
+import { getBlackHoleRenderRadius } from '../projectiles/blackHoles';
+import type { ProjectileEntity } from '../projectiles/types';
 
 const EXPLOSION_PARTICLE_GRAVITY_SCALE = 0;
 
@@ -43,7 +45,6 @@ export function createAsteroidExplosion(asteroid: AsteroidEntity, scale: number)
       speed: { min: 1.8, max: 5.2 * intensity },
     }),
     ...spawnBurst(asteroid.position, {
-      gravityScale: EXPLOSION_PARTICLE_GRAVITY_SCALE,
       color: config.color,
       color2: 0x7f1d1d,
       count: Math.max(12, Math.round(config.radius * 0.34 * intensity)),
@@ -278,6 +279,86 @@ export function createAsteroidPlanetImpactDebris(input: {
   };
 }
 
+export function createBlackHolePlanetAbsorption(input: {
+  blackHole: ProjectileEntity;
+  normal: Vector;
+  position: Vector;
+}): EffectResult {
+  const normal = normalizeOr(input.normal, { x: 1, y: 0 });
+  const inward = { x: -normal.x, y: -normal.y };
+  const radius = getBlackHoleRenderRadius(input.blackHole);
+  const speed = Math.max(1, Math.hypot(input.blackHole.velocity.x, input.blackHole.velocity.y));
+  const intensity = Math.max(0.7, Math.min(2.4, radius / 18));
+  const particles = [
+    spawnShockwave(input.position, {
+      gravityScale: EXPLOSION_PARTICLE_GRAVITY_SCALE,
+      color: 0x9f7aea,
+      color2: 0x111827,
+      inheritedVelocity: input.blackHole.velocity,
+      lifetimeMs: 300 + intensity * 90,
+      radius: 10 + radius * 0.5,
+    }),
+    ...spawnDirectedBurst(input.position, {
+      gravityScale: EXPLOSION_PARTICLE_GRAVITY_SCALE,
+      color: 0x0f172a,
+      color2: 0x7c3aed,
+      count: Math.max(12, Math.round(14 * intensity)),
+      direction: inward,
+      dragPerSecond: 2.25,
+      glowColor: 0xa78bfa,
+      inheritedVelocity: input.blackHole.velocity,
+      inheritedVelocityScale: 0.18,
+      kind: 'core',
+      lifetimeMs: 560 + intensity * 120,
+      radius: { min: 4, max: Math.max(7, radius * 0.22) },
+      speed: { min: 0.8 + speed * 0.04, max: 3.2 + speed * 0.12 },
+      spreadRadians: Math.PI * 0.9,
+      velocityBias: { x: inward.x * 0.5, y: inward.y * 0.5 },
+    }),
+    ...spawnDirectedBurst(input.position, {
+      gravityScale: EXPLOSION_PARTICLE_GRAVITY_SCALE,
+      color: 0x67e8f9,
+      color2: 0x312e81,
+      count: Math.max(10, Math.round(12 * intensity)),
+      direction: normal,
+      dragPerSecond: 2.1,
+      glowColor: 0x22d3ee,
+      inheritedVelocity: input.blackHole.velocity,
+      inheritedVelocityScale: 0.14,
+      kind: 'spark',
+      lifetimeMs: 420 + intensity * 80,
+      radius: { min: 2, max: Math.max(4, radius * 0.12) },
+      rotationSpeed: { min: -0.22, max: 0.22 },
+      speed: { min: 1.8 + speed * 0.05, max: 5 + speed * 0.16 },
+      spreadRadians: Math.PI * 0.7,
+      velocityBias: { x: normal.x * 0.2, y: normal.y * 0.2 },
+    }),
+    ...spawnDirectedBurst(input.position, {
+      gravityScale: EXPLOSION_PARTICLE_GRAVITY_SCALE,
+      color: 0x1e1b4b,
+      color2: 0x020617,
+      count: Math.max(5, Math.round(6 * intensity)),
+      direction: inward,
+      dragPerSecond: 1.35,
+      glowColor: 0x8b5cf6,
+      inheritedVelocity: input.blackHole.velocity,
+      inheritedVelocityScale: 0.1,
+      kind: 'smoke',
+      lifetimeMs: 820 + intensity * 180,
+      radius: { min: 9, max: Math.max(14, radius * 0.32) },
+      rotationSpeed: { min: -0.04, max: 0.04 },
+      speed: { min: 0.4, max: 1.8 + speed * 0.05 },
+      spreadRadians: Math.PI * 0.95,
+      velocityBias: { x: inward.x * 0.25, y: inward.y * 0.25 },
+    }),
+  ];
+  return {
+    particles,
+    shakeDurationMs: 140,
+    shakeIntensity: Math.max(2.5, radius * 0.09),
+  };
+}
+
 export function createShipPlanetImpactDebris(input: {
   normal: Vector;
   position: Vector;
@@ -288,7 +369,6 @@ export function createShipPlanetImpactDebris(input: {
   const speed = Math.max(1, Math.hypot(input.velocity.x, input.velocity.y));
   const particles = [
     ...spawnDirectedBurst(input.position, {
-      gravityScale: EXPLOSION_PARTICLE_GRAVITY_SCALE,
       color: 0xffd36b,
       color2: 0xdc2626,
       count: 8,
@@ -352,7 +432,6 @@ export function createShipPlanetImpactDebris(input: {
       velocityBias: { x: normal.x * 0.3, y: normal.y * 0.3 },
     }),
     ...spawnDirectedBurst(input.position, {
-      gravityScale: EXPLOSION_PARTICLE_GRAVITY_SCALE,
       color: 0xfbbf24,
       color2: 0xf97316,
       count: 14,
@@ -369,7 +448,6 @@ export function createShipPlanetImpactDebris(input: {
       velocityBias: { x: normal.x * 0.35, y: normal.y * 0.35 },
     }),
     ...spawnDirectedBurst(input.position, {
-      gravityScale: EXPLOSION_PARTICLE_GRAVITY_SCALE,
       color: 0x54403a,
       color2: 0x271a19,
       count: 5,

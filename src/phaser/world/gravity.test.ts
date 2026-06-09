@@ -169,6 +169,22 @@ describe('applyWorldGravity', () => {
     expect(targetBlackHole.velocity.x).toBeLessThan(0);
   });
 
+  it('applies planet gravity to active black holes', () => {
+    const blackHole = createBlackHole({ id: 1, position: { x: 80, y: 0 } });
+    const onProjectileVelocityChanged = vi.fn();
+
+    applyWorldGravity({
+      deltaSeconds: 1 / 60,
+      onProjectileVelocityChanged,
+      planets: [createPlanet()],
+      projectiles: [blackHole],
+      world,
+    });
+
+    expect(blackHole.velocity.x).toBeGreaterThan(0);
+    expect(onProjectileVelocityChanged).toHaveBeenCalledWith(blackHole);
+  });
+
   it('applies one fuel blob velocity mutation for one black-hole gravity source', () => {
     const fuelBlob = createFuelBlob({ x: -20, y: 0 });
     const onFuelBlobVelocityChanged = vi.fn();
@@ -221,7 +237,7 @@ describe('applyWorldGravity', () => {
     expect(particle.velocity).toEqual({ x: 0, y: 0 });
   });
 
-  it('ignores immature sources, collapsing sources, and collapsing black-hole targets', () => {
+  it('ignores immature and collapsing sources while still pulling collapsing black-hole targets', () => {
     const asteroid = createAsteroid();
     const immatureSource = createBlackHole({
       ageMs: BLACK_HOLE_MATURE_AFTER_MS - 1,
@@ -250,7 +266,7 @@ describe('applyWorldGravity', () => {
     expect(asteroid.velocity.x).toBeGreaterThan(0);
     expect(immatureSource.velocity.x).toBeLessThan(0);
     expect(collapsingSource.velocity).toEqual({ x: 0, y: 0 });
-    expect(collapsingTarget.velocity).toEqual({ x: 0, y: 0 });
+    expect(collapsingTarget.velocity.x).toBeLessThan(0);
   });
 
   it('applies planet and black-hole gravity to projectile targets through the same scale', () => {
