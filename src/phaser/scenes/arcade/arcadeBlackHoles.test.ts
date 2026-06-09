@@ -46,13 +46,16 @@ describe('arcade black hole rendering', () => {
     expect(samples).toContainEqual({ radius: BLACK_HOLE_RADIUS, x: 1060, y: 840 });
   });
 
-  it('uses distortion influence for wrapping before the core reaches an edge', () => {
+  it('uses the render target period for scaled wrapped samples', () => {
     const samples = buildArcadeBlackHoleScreenSamples(
       [createBlackHole({ ageMs: 0, position: { x: 180, y: 350 } })],
       screen,
+      { width: 1800, height: 1400 },
     );
 
     expect(samples).toHaveLength(2);
+    expect(samples).toContainEqual({ radius: BLACK_HOLE_RADIUS * 2, x: 360, y: 700 });
+    expect(samples).toContainEqual({ radius: BLACK_HOLE_RADIUS * 2, x: 2160, y: 700 });
   });
 
   it('duplicates mature black holes across every edge when their distortion covers the screen', () => {

@@ -13,7 +13,7 @@ export class ArcadeRenderEffects {
   private readonly perfToggles = getSandboxPerfToggles();
 
   constructor(
-    sourceCanvas: HTMLCanvasElement,
+    private readonly sourceCanvas: HTMLCanvasElement,
     parent: HTMLElement | null,
     getBackgroundCanvases: () => HTMLCanvasElement[],
   ) {
@@ -57,7 +57,10 @@ export class ArcadeRenderEffects {
     }
 
     if (this.perfToggles.blackHoles) {
-      const blackHoles = buildArcadeBlackHoleScreenSamples(session.world.projectiles, screen);
+      const blackHoles = buildArcadeBlackHoleScreenSamples(session.world.projectiles, screen, {
+        height: this.sourceCanvas.height,
+        width: this.sourceCanvas.width,
+      });
       withPerformanceMeasure('arcade.render.blackHoles', this.perfToggles.markers, () => {
         this.blackHoleShader.render(blackHoles);
       });
