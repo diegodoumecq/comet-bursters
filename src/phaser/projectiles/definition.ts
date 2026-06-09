@@ -12,9 +12,7 @@ export const BLACK_HOLE_DEFINITION = {
     } satisfies Record<AsteroidEntity['tier'], number>,
   },
   gravity: {
-    fuelRangeMultiplier: 12,
-    fuelStrengthMultiplier: 24,
-    strength: 1.5,
+    strength: 3,
   },
   lifecycle: {
     collapseDurationMs: 700,
@@ -36,10 +34,6 @@ export const BLACK_HOLE_RADIUS = BLACK_HOLE_DEFINITION.render.radius;
 export const BLACK_HOLE_MATURE_AFTER_MS = BLACK_HOLE_DEFINITION.lifecycle.matureAfterMs;
 export const BLACK_HOLE_MATURE_RADIUS = BLACK_HOLE_DEFINITION.render.matureRadius;
 export const BLACK_HOLE_GRAVITY_STRENGTH = BLACK_HOLE_DEFINITION.gravity.strength;
-export const BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER =
-  BLACK_HOLE_DEFINITION.gravity.fuelRangeMultiplier;
-export const BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER =
-  BLACK_HOLE_DEFINITION.gravity.fuelStrengthMultiplier;
 export const BLACK_HOLE_GROWTH_DURATION_MS = BLACK_HOLE_DEFINITION.lifecycle.growthDurationMs;
 export const BLACK_HOLE_COLLAPSE_DURATION_MS =
   BLACK_HOLE_DEFINITION.lifecycle.collapseDurationMs;

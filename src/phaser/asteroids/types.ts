@@ -5,6 +5,7 @@ export type AsteroidTier = 'small' | 'medium' | 'big' | 'mega';
 
 export type AsteroidEntity = {
   angularVelocity: number;
+  gravityScale?: number;
   id: number;
   hits?: number;
   membership?: SpaceMembership;

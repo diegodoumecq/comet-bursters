@@ -31,7 +31,6 @@ function asteroid(): AsteroidEntity {
 function fuelBlob(): FuelBlobEntity {
   return {
     id: 1,
-    affectedByPlanetGravity: true,
     airResistance: 0.015,
     position: { x: 0, y: 0 },
     velocity: { x: 0, y: 0 },

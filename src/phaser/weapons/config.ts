@@ -121,7 +121,6 @@ export const WEAPON_FIRE_CONFIGS: Record<DischargedWeaponKind, WeaponFireSpec> =
       {
         count: 1,
         entity: {
-          affectedByPlanetGravity: false,
           airResistance: 0.015,
           collectableDelayMs: 550,
         },

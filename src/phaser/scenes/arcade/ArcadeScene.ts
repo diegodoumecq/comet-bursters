@@ -18,6 +18,7 @@ import {
 import {
   createAsteroidExplosion,
   createAsteroidImpactDebris,
+  createBlackHolePlanetAbsorption,
   createExplosionBurst,
   createShipExplosion,
   createThrusterParticles,
@@ -56,10 +57,8 @@ import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import { PLAYER_DEFINITIONS } from '../../player/definition';
 import { updatePlayerMotion } from '../../player/motion';
 import {
-  applyBlackHoleGravityToVelocity,
   getBlackHoleMass,
   getBlackHoleRenderRadius,
-  getMatureBlackHoleRadius,
   isMatureBlackHole,
   updateBlackHoles,
 } from '../../projectiles/blackHoles';
@@ -67,8 +66,6 @@ import { ProjectileBodies } from '../../projectiles/bodies';
 import {
   BLACK_HOLE_ABSORBED_FUEL_BLOBS,
   BLACK_HOLE_FUEL_BLOB_MASS_SCALE,
-  BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
-  BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
 } from '../../projectiles/definition';
 import { updateProjectiles } from '../../projectiles/logic';
 import type { ProjectileEntity } from '../../projectiles/types';
@@ -81,6 +78,7 @@ import { ALL_WEAPONS, type SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { applyTractorBeam } from '../../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../../weapons/use';
 import { normalize, wrappedDelta } from '../../world/geometry';
+import { applyWorldGravity } from '../../world/gravity';
 import { SpaceWorldRuntime } from '../../world/SpaceWorldRuntime';
 import { BaseGameScene } from '../BaseGameScene';
 import { ArcadeRenderEffects } from './ArcadeRenderEffects';
@@ -633,16 +631,44 @@ export class PhaserArcadeScene extends BaseGameScene {
     deltaSeconds: number,
   ): void {
     const playerBody = runtime.getPlayerBody();
+    const getDelta = (fromX: number, fromY: number, toX: number, toY: number) =>
+      wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize);
+    applyWorldGravity({
+      asteroids: runtime.world.asteroids,
+      deltaSeconds,
+      fuelBlobs: runtime.world.fuelBlobs,
+      getDelta,
+      onAsteroidVelocityChanged: (asteroid) =>
+        runtime
+          .getAsteroidBodies()
+          .get(asteroid)
+          .setVelocity(asteroid.velocity.x, asteroid.velocity.y),
+      onFuelBlobVelocityChanged: (blob) => runtime.getFuelBodies().setVelocity(blob, blob.velocity),
+      onPlayerVelocityChanged: () => playerBody?.setVelocity(this.session.player.velocity),
+      onProjectileVelocityChanged: (projectile) =>
+        runtime
+          .getProjectileBodies()
+          .get(projectile)
+          .setVelocity(projectile.velocity.x, projectile.velocity.y),
+      particles: runtime.world.particles,
+      player: {
+        active:
+          this.playerIsAlive() &&
+          this.session.player.membership.space === runtime.space &&
+          playerBody !== null,
+        position: this.session.player.position,
+        velocity: this.session.player.velocity,
+      },
+      projectiles: runtime.world.projectiles,
+      world: this.worldSize,
+    });
     updateBlackHoles({
       asteroids: runtime.world.asteroids,
-      asteroidBodies: runtime.getAsteroidBodies(),
       distance: (fromX, fromY, toX, toY) => {
-        const delta = wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize);
+        const delta = getDelta(fromX, fromY, toX, toY);
         return Math.hypot(delta.x, delta.y);
       },
       fuelBlobs: runtime.world.fuelBlobs,
-      getDelta: (fromX, fromY, toX, toY) =>
-        wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize),
       now: time,
       onAsteroidAbsorbed: (asteroid) => {
         this.audioDirector.emit({ position: asteroid.position, type: 'asteroidDestroyed' });
@@ -650,6 +676,16 @@ export class PhaserArcadeScene extends BaseGameScene {
         runtime.addParticles(createAsteroidExplosion(asteroid, 0.7).particles);
       },
       onAsteroidRemoved: (asteroid) => runtime.removeAsteroid(asteroid),
+      onBlackHoleAbsorbedByPlanet: (event) => {
+        const effect = createBlackHolePlanetAbsorption({
+          blackHole: event.blackHole,
+          normal: event.normal,
+          position: event.position,
+        });
+        runtime.addParticles(effect.particles);
+        if (effect.shakeDurationMs > 0)
+          this.startShake(effect.shakeIntensity, effect.shakeDurationMs);
+      },
       onBlackHoleRemoved: (projectile) => runtime.removeProjectile(projectile),
       onFuelBurst: (projectile) => {
         if (projectile.absorbedFuel > 0) {
@@ -665,21 +701,21 @@ export class PhaserArcadeScene extends BaseGameScene {
           this.startShake(effect.shakeIntensity, effect.shakeDurationMs);
       },
       onFuelBlobAbsorbed: (blob) => runtime.removeFuelBlob(blob),
+      onParticleAbsorbed: (particle) => runtime.removeParticle(particle),
       onPlayerAbsorbed: () => this.killPlayer(time),
+      onProjectileAbsorbed: (projectile) => runtime.removeProjectile(projectile),
+      particles: runtime.world.particles,
       player: {
         active:
           this.playerIsAlive() &&
           this.session.player.membership.space === runtime.space &&
           playerBody !== null,
-        body: (playerBody ?? this.playerBody).body,
         position: this.session.player.position,
         velocity: this.session.player.velocity,
       },
       projectileBodies: runtime.getProjectileBodies(),
       projectiles: runtime.world.projectiles,
-      timeScale: deltaSeconds * 60,
     });
-    this.syncRuntimeFuelBodyVelocities(runtime);
   }
 
   private resolvePortalBridgeCollisions(): void {
@@ -853,7 +889,6 @@ export class PhaserArcadeScene extends BaseGameScene {
   ): void {
     const portal = this.dimensionCoordinator.getActivePortal();
     if (!portal) return;
-    const timeScale = deltaSeconds * 60;
     const blackHoles = sourceRuntime.world.projectiles.filter(
       (projectile) =>
         projectile.kind === 'blackHole' &&
@@ -861,61 +896,33 @@ export class PhaserArcadeScene extends BaseGameScene {
         portalApertureContainsCenter(portal, projectile.position),
     );
 
-    for (const blackHole of blackHoles) {
-      const radius = getMatureBlackHoleRadius(blackHole);
-      for (const asteroid of targetRuntime.world.asteroids.filter((candidate) =>
+    applyWorldGravity({
+      asteroids: targetRuntime.world.asteroids.filter((candidate) =>
         portalApertureContainsCenter(portal, candidate.position),
-      )) {
-        if (
-          applyBlackHoleGravityToVelocity(
-            asteroid.velocity,
-            asteroid.position,
-            blackHole.position,
-            radius * 6,
-            radius,
-            (fromX, fromY, toX, toY) =>
-              wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize),
-            timeScale,
-          )
-        ) {
-          targetRuntime
-            .getAsteroidBodies()
-            .get(asteroid)
-            .setVelocity(asteroid.velocity.x, asteroid.velocity.y);
-        }
-      }
-      this.applyBridgeBlackHoleFuelGravity(blackHole, targetRuntime, radius, timeScale);
+      ),
+      blackHoles,
+      deltaSeconds,
+      fuelBlobs: targetRuntime.world.fuelBlobs.filter((candidate) =>
+        portalApertureContainsCenter(portal, candidate.position),
+      ),
+      getDelta: (fromX, fromY, toX, toY) =>
+        wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize),
+      onAsteroidVelocityChanged: (asteroid) =>
+        targetRuntime
+          .getAsteroidBodies()
+          .get(asteroid)
+          .setVelocity(asteroid.velocity.x, asteroid.velocity.y),
+      onFuelBlobVelocityChanged: (blob) =>
+        targetRuntime.getFuelBodies().setVelocity(blob, blob.velocity),
+      particles: targetRuntime.world.particles.filter((candidate) =>
+        portalApertureContainsCenter(portal, candidate.position),
+      ),
+      world: this.worldSize,
+    });
+
+    for (const blackHole of blackHoles) {
       this.absorbBridgeBlackHoleTargets(blackHole, targetRuntime);
       this.absorbBridgeBlackHolePlayer(blackHole, targetRuntime);
-    }
-  }
-
-  private applyBridgeBlackHoleFuelGravity(
-    blackHole: ProjectileEntity,
-    targetRuntime: SpaceWorldRuntime,
-    radius: number,
-    timeScale: number,
-  ): void {
-    const portal = this.dimensionCoordinator.getActivePortal();
-    if (!portal) return;
-    for (const blob of targetRuntime.world.fuelBlobs.filter((candidate) =>
-      portalApertureContainsCenter(portal, candidate.position),
-    )) {
-      if (
-        applyBlackHoleGravityToVelocity(
-          blob.velocity,
-          blob.position,
-          blackHole.position,
-          radius * BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
-          radius,
-          (fromX, fromY, toX, toY) =>
-            wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, this.worldSize),
-          timeScale,
-          BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
-        )
-      ) {
-        targetRuntime.getFuelBodies().setVelocity(blob, blob.velocity);
-      }
     }
   }
 
@@ -939,6 +946,19 @@ export class PhaserArcadeScene extends BaseGameScene {
         blackHole.absorbedFuel += 1;
         blackHole.blackHoleMass = getBlackHoleMass(blackHole) + BLACK_HOLE_FUEL_BLOB_MASS_SCALE;
         targetRuntime.removeFuelBlob(blob);
+      }
+    }
+
+    for (const particle of [...targetRuntime.world.particles]) {
+      if (
+        portalApertureContainsCenter(portal, particle.position) &&
+        circlesOverlap(
+          this.getWrappedDistance(blackHole.position, particle.position),
+          renderRadius,
+          particle.radius ?? particle.size ?? 1,
+        )
+      ) {
+        targetRuntime.removeParticle(particle);
       }
     }
 
@@ -1096,11 +1116,6 @@ export class PhaserArcadeScene extends BaseGameScene {
     });
     this.session.ship.collectFuel(fuel.fuelGain);
     for (const blob of fuel.collected) runtime.removeFuelBlob(blob);
-  }
-
-  private syncRuntimeFuelBodyVelocities(runtime: SpaceWorldRuntime): void {
-    const fuelBodies = runtime.getFuelBodies();
-    for (const blob of runtime.world.fuelBlobs) fuelBodies.setVelocity(blob, blob.velocity);
   }
 
   private collectPortalBridgeFuelBlobs(): void {

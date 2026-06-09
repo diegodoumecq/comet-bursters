@@ -25,10 +25,10 @@ export type ProjectileEntityTemplate = Pick<
   | 'lifetimeMs'
   | 'radius'
 > &
-  Partial<Pick<ProjectileEntity, 'blackHoleMass'>>;
+  Partial<Pick<ProjectileEntity, 'blackHoleMass' | 'gravityScale'>>;
 
 export type FuelBlobEntityTemplate = Partial<
-  Pick<FuelBlobEntity, 'affectedByPlanetGravity' | 'airResistance' | 'collectableAtMs'>
+  Pick<FuelBlobEntity, 'airResistance' | 'collectableAtMs' | 'gravityScale'>
 > & {
   collectableDelayMs?: number;
 };

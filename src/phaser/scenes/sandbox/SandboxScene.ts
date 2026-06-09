@@ -17,8 +17,11 @@ import {
 import {
   createAsteroidExplosion,
   createAsteroidImpactDebris,
+  createAsteroidPlanetImpactDebris,
+  createBlackHolePlanetAbsorption,
   createExplosionBurst,
   createShipExplosion,
+  createShipPlanetImpactDebris,
   createThrusterParticles,
   type EffectResult,
 } from '../../combat/effects';
@@ -39,7 +42,7 @@ import { mainGameState } from '../../mainGame/state';
 import { updateParticles } from '../../particles/logic';
 import type { ParticleEntity } from '../../particles/types';
 import { ParticleViews } from '../../particles/views';
-import { applyPlanetGravity, applyPlanetGravityToFuelBlobs } from '../../planets/gravity';
+import { getParticlesCollidingWithPlanets } from '../../planets/gravity';
 import { PlanetViews } from '../../planets/views';
 import { PlayerBody } from '../../player/body';
 import { PLAYER_ACCELERATION, PLAYER_COLLISION_RADIUS } from '../../player/config';
@@ -58,6 +61,7 @@ import { SANDBOX_WEAPONS, type SceneWeaponPolicy } from '../../weapons/scenePoli
 import { applyTractorBeam } from '../../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../../weapons/use';
 import { normalize, wrappedDelta } from '../../world/geometry';
+import { applyWorldGravity } from '../../world/gravity';
 import { GameWorldRuntime } from '../../world/runtime';
 import { BaseGameScene } from '../BaseGameScene';
 import { SandboxDiscovery } from './discovery';
@@ -102,6 +106,12 @@ const MOTHERSHIP_LAUNCH_START_OFFSET: Vector = { x: MOTHERSHIP_DOOR_SLIDE_DISTAN
 const MOTHERSHIP_SPAWN_PLAYER_ROTATION = -Math.PI * 0.5;
 const MOTHERSHIP_SPAWN_PLAYER_AIM: Vector = { x: -1, y: 0 };
 const PLANET_VIEW_PRELOAD_RADIUS = 3600;
+
+type PlanetCollision = {
+  normal: Vector;
+  planet: SandboxPlanetEntity;
+  surface: Vector;
+};
 
 export class PhaserSandboxScene extends BaseGameScene {
   private actions!: ActionReader;
@@ -232,7 +242,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.updateWorld(delta, deltaSeconds);
 
       perf.startSection('sandbox.update.combat');
-      this.resolveCombat(time, this.isShieldActive(action), deltaSeconds);
+      this.resolveCombat(time, this.isShieldActive(action));
 
       perf.startSection('sandbox.update.fuelBlobs');
       this.updateFuelBlobs(deltaSeconds);
@@ -313,14 +323,6 @@ export class PhaserSandboxScene extends BaseGameScene {
         wrap: false,
       });
       if (motion.thrusting) this.spawnThrusterParticle(move, now, motion.thrustScale);
-      applyPlanetGravity(
-        this.player.velocity,
-        this.player.position,
-        this.planets,
-        WORLD,
-        deltaSeconds,
-      );
-      this.playerBody.setVelocity(this.player.velocity);
       this.spawnMaxSpeedTrail(now);
       rebaseSandboxWorldAtBounds(this.getWorldPositioningInput());
     }
@@ -380,25 +382,32 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   private updateWorld(deltaMs: number, deltaSeconds: number): void {
-    for (const asteroid of this.runtime.world.asteroids) {
-      applyPlanetGravity(asteroid.velocity, asteroid.position, this.planets, WORLD, deltaSeconds);
-      this.asteroidBodies.get(asteroid).setVelocity(asteroid.velocity.x, asteroid.velocity.y);
-    }
+    applyWorldGravity({
+      asteroids: this.runtime.world.asteroids,
+      deltaSeconds,
+      fuelBlobs: this.runtime.world.fuelBlobs,
+      getDelta: (fromX, fromY, toX, toY) =>
+        wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, WORLD),
+      onAsteroidVelocityChanged: (asteroid) =>
+        this.asteroidBodies.get(asteroid).setVelocity(asteroid.velocity.x, asteroid.velocity.y),
+      onFuelBlobVelocityChanged: (blob) => this.fuelBodies.setVelocity(blob, blob.velocity),
+      onPlayerVelocityChanged: () => this.playerBody.setVelocity(this.player.velocity),
+      onProjectileVelocityChanged: (projectile) =>
+        this.projectileBodies
+          .get(projectile)
+          .setVelocity(projectile.velocity.x, projectile.velocity.y),
+      particles: this.runtime.world.particles,
+      planets: this.planets,
+      player: {
+        active: this.player.visible,
+        position: this.player.position,
+        velocity: this.player.velocity,
+      },
+      projectiles: this.runtime.world.projectiles,
+      world: WORLD,
+    });
     this.asteroidBodies.syncAll(this.runtime.world.asteroids);
     updateAsteroidSplitCollisions(this.runtime.world.asteroids, this.asteroidBodies);
-    for (const projectile of this.runtime.world.projectiles) {
-      if (projectile.kind !== 'blackHole')
-        applyPlanetGravity(
-          projectile.velocity,
-          projectile.position,
-          this.planets,
-          WORLD,
-          deltaSeconds,
-        );
-      this.projectileBodies
-        .get(projectile)
-        .setVelocity(projectile.velocity.x, projectile.velocity.y);
-    }
     for (const projectile of updateProjectiles(
       this.runtime.world.projectiles,
       this.projectileBodies,
@@ -411,14 +420,18 @@ export class PhaserSandboxScene extends BaseGameScene {
     for (const planet of this.planets) this.planetViews.sync(planet);
     for (const particle of updateParticles(this.runtime.world.particles, deltaMs))
       this.removeParticle(particle);
+    for (const particle of getParticlesCollidingWithPlanets(
+      this.runtime.world.particles,
+      this.planets,
+      WORLD,
+    ))
+      this.removeParticle(particle);
     this.runtime.syncParticles();
     positionSandboxWrappedWorldNearPlayer(this.getWorldPositioningInput());
     this.planetViews.ensureNear(this.planets, this.player.position, PLANET_VIEW_PRELOAD_RADIUS);
   }
 
   private updateFuelBlobs(deltaSeconds: number): void {
-    applyPlanetGravityToFuelBlobs(this.runtime.world.fuelBlobs, this.planets, WORLD, deltaSeconds);
-    this.syncFuelBodyVelocities();
     const canCollectFuel = this.player.visible && this.ship.fuel < MAX_FUEL;
     const fuel = updateFuelBlobCollection({
       blobs: this.runtime.world.fuelBlobs,
@@ -446,24 +459,29 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.removeFuelBlob(blob);
   }
 
-  private resolveCombat(now: number, shieldActive: boolean, deltaSeconds: number): void {
+  private resolveCombat(now: number, shieldActive: boolean): void {
     this.resolveProjectileCombat();
     this.resolveInspectionProbeHits(now);
     this.resolvePlanetCollisions();
     updateBlackHoles({
       asteroids: this.runtime.world.asteroids,
-      asteroidBodies: this.asteroidBodies,
       distance: (fromX, fromY, toX, toY) =>
         getWrappedDistance({ x: fromX, y: fromY }, { x: toX, y: toY }, WORLD),
       fuelBlobs: this.runtime.world.fuelBlobs,
-      getDelta: (fromX, fromY, toX, toY) =>
-        wrappedDelta({ x: fromX, y: fromY }, { x: toX, y: toY }, WORLD),
       now,
       onAsteroidAbsorbed: (asteroid) => {
         this.audioDirector.emit({ position: asteroid.position, type: 'asteroidDestroyed' });
         this.applyEffect(createAsteroidExplosion(asteroid, 0.7));
       },
       onAsteroidRemoved: (asteroid) => this.removeAsteroid(asteroid),
+      onBlackHoleAbsorbedByPlanet: (event) =>
+        this.applyEffect(
+          createBlackHolePlanetAbsorption({
+            blackHole: event.blackHole,
+            normal: event.normal,
+            position: event.position,
+          }),
+        ),
       onBlackHoleRemoved: (projectile) => this.removeProjectile(projectile),
       onFuelBurst: (projectile) => {
         if (projectile.absorbedFuel > 0)
@@ -477,19 +495,19 @@ export class PhaserSandboxScene extends BaseGameScene {
         );
       },
       onFuelBlobAbsorbed: (blob) => this.removeFuelBlob(blob),
+      onParticleAbsorbed: (particle) => this.removeParticle(particle),
       onPlayerAbsorbed: () => this.killPlayer(now),
+      onProjectileAbsorbed: (projectile) => this.removeProjectile(projectile),
+      particles: this.runtime.world.particles,
       planets: this.planets,
       player: {
         active: this.player.visible,
-        body: this.playerBody.body,
         position: this.player.position,
         velocity: this.player.velocity,
       },
       projectileBodies: this.projectileBodies,
       projectiles: this.runtime.world.projectiles,
-      timeScale: deltaSeconds * 60,
     });
-    this.syncFuelBodyVelocities();
     this.resolvePlayerAsteroidCombat(now, shieldActive);
   }
 
@@ -619,8 +637,11 @@ export class PhaserSandboxScene extends BaseGameScene {
     const asteroidCount = this.runtime.world.asteroids.length;
     for (let index = asteroidCount - 1; index >= 0; index -= 1) {
       const asteroid = this.runtime.world.asteroids[index];
-      if (this.collidesWithPlanet(asteroid.position, ASTEROIDS[asteroid.tier].collisionRadius))
-        this.destroyAsteroid(asteroid, false);
+      const collision = this.getPlanetCollision(
+        asteroid.position,
+        ASTEROIDS[asteroid.tier].collisionRadius,
+      );
+      if (collision) this.destroyAsteroid(asteroid, false, collision);
     }
     const projectileCount = this.runtime.world.projectiles.length;
     for (let index = projectileCount - 1; index >= 0; index -= 1) {
@@ -632,12 +653,12 @@ export class PhaserSandboxScene extends BaseGameScene {
       )
         this.removeProjectile(projectile);
     }
-    if (
-      this.player.visible &&
-      !this.shipCollisionsDisabledForIntro &&
-      this.collidesWithPlanet(this.player.position, this.getPlayerCollisionRadius())
-    )
-      this.killPlayer(this.time.now);
+    const playerCollision = this.getPlanetCollision(
+      this.player.position,
+      this.getPlayerCollisionRadius(),
+    );
+    if (this.player.visible && !this.shipCollisionsDisabledForIntro && playerCollision)
+      this.killPlayer(this.time.now, playerCollision);
   }
 
   private resolveInspectionProbeHits(now: number): void {
@@ -661,16 +682,35 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   private collidesWithPlanet(position: Vector, radius: number): boolean {
-    return this.planets.some((planet) => {
-      const collisionRadius = radius + planet.radius;
-      return (
-        getWrappedDistanceSquared(position, planet.position, WORLD) <=
-        collisionRadius * collisionRadius
-      );
-    });
+    return this.getPlanetCollision(position, radius) !== null;
   }
 
-  private destroyAsteroid(asteroid: AsteroidEntity, split: boolean): void {
+  private getPlanetCollision(position: Vector, radius: number): PlanetCollision | null {
+    for (const planet of this.planets) {
+      const delta = wrappedDelta(planet.position, position, WORLD);
+      const distance = Math.hypot(delta.x, delta.y);
+      const collisionRadius = radius + planet.radius;
+      if (distance <= collisionRadius) {
+        const normal =
+          distance > 0 ? { x: delta.x / distance, y: delta.y / distance } : { x: 1, y: 0 };
+        return {
+          normal,
+          planet,
+          surface: wrapSandboxPosition({
+            x: planet.position.x + normal.x * (planet.radius + 4),
+            y: planet.position.y + normal.y * (planet.radius + 4),
+          }),
+        };
+      }
+    }
+    return null;
+  }
+
+  private destroyAsteroid(
+    asteroid: AsteroidEntity,
+    split: boolean,
+    planetCollision?: PlanetCollision,
+  ): void {
     this.audioDirector.emit({ position: asteroid.position, type: 'asteroidDestroyed' });
     if (split) {
       const destruction = destroyAsteroidWithWeapon(asteroid);
@@ -678,13 +718,23 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.addFuelBlobs(destruction.fuelBlobs);
       this.addAsteroids(destruction.children);
     } else {
-      this.applyEffect(createAsteroidExplosion(asteroid, 1));
-      this.addFuelBlobs(spawnAsteroidFuelDrops(asteroid));
+      const effect = planetCollision
+        ? createAsteroidPlanetImpactDebris({
+            asteroid,
+            normal: planetCollision.normal,
+            position: planetCollision.surface,
+          })
+        : createAsteroidExplosion(asteroid, 1);
+      this.applyEffect(effect);
+      const fuelDropSource = planetCollision
+        ? { ...asteroid, position: planetCollision.surface }
+        : asteroid;
+      this.addFuelBlobs(spawnAsteroidFuelDrops(fuelDropSource));
     }
     this.removeAsteroid(asteroid);
   }
 
-  private killPlayer(now: number): void {
+  private killPlayer(now: number, planetCollision?: PlanetCollision): void {
     if (!this.player.visible) return;
     this.audioDirector.emit({ position: this.player.position, type: 'playerDestroyed' });
     this.player.visible = false;
@@ -693,8 +743,18 @@ export class PhaserSandboxScene extends BaseGameScene {
       spawnShipFuelDrops(this.player.position, this.player.velocity, this.ship.fuel),
     );
     this.ship.setFuel(0);
-    for (const effect of createShipExplosion(this.player.position, this.player.velocity))
-      this.applyEffect(effect);
+    if (planetCollision) {
+      this.applyEffect(
+        createShipPlanetImpactDebris({
+          normal: planetCollision.normal,
+          position: planetCollision.surface,
+          velocity: this.player.velocity,
+        }),
+      );
+    } else {
+      for (const effect of createShipExplosion(this.player.position, this.player.velocity))
+        this.applyEffect(effect);
+    }
     this.playerBody.setVisible(false);
     this.playerBody.setVelocity({ x: 0, y: 0 });
   }
@@ -918,12 +978,6 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.runtime.removeFuelBlob(blob);
   }
 
-  private syncFuelBodyVelocities(): void {
-    for (const blob of this.runtime.world.fuelBlobs) {
-      this.fuelBodies.setVelocity(blob, blob.velocity);
-    }
-  }
-
   private removeParticle(particle: ParticleEntity): void {
     this.runtime.removeParticle(particle);
   }
@@ -943,4 +997,11 @@ function getWrappedDistanceSquared(from: Vector, to: Vector, world: WorldSize): 
   if (y > world.height * 0.5) y -= world.height;
   if (y < -world.height * 0.5) y += world.height;
   return x * x + y * y;
+}
+
+function wrapSandboxPosition(position: Vector): Vector {
+  return {
+    x: ((position.x % WORLD.width) + WORLD.width) % WORLD.width,
+    y: ((position.y % WORLD.height) + WORLD.height) % WORLD.height,
+  };
 }

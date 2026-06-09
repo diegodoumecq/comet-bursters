@@ -28,7 +28,6 @@ describe('fuel blob movement', () => {
   it('pulls strongly toward the player ship when collectable', () => {
     const blob = {
       id: 1,
-      affectedByPlanetGravity: true,
       airResistance: 0.015,
       position: { x: 100, y: 0 },
       velocity: { x: 0, y: 0 },
@@ -43,7 +42,6 @@ describe('fuel blob movement', () => {
   it('does not pull toward the player when collection is disabled', () => {
     const blob = {
       id: 1,
-      affectedByPlanetGravity: true,
       airResistance: 0.015,
       position: { x: 100, y: 0 },
       velocity: { x: 0, y: 0 },
@@ -58,8 +56,8 @@ describe('fuel blob movement', () => {
   it('does not cap fired fuel blob speed', () => {
     const blob = {
       id: 1,
-      affectedByPlanetGravity: false,
       airResistance: 0,
+      gravityScale: 0,
       position: { x: 0, y: 0 },
       velocity: { x: 24, y: 0 },
       wobbleSeed: 0,
@@ -74,7 +72,6 @@ describe('fuel blob movement', () => {
     const blobs = [
       {
         id: 1,
-        affectedByPlanetGravity: true,
         airResistance: 0.015,
         position: { x: 35, y: 0 },
         velocity: { x: 0, y: 0 },
@@ -142,11 +139,7 @@ describe('fuel blob movement', () => {
   });
 
   it('does not spawn ship fuel drops when half the ship fuel is below one blob amount', () => {
-    const blobs = spawnShipFuelDrops(
-      { x: 100, y: 200 },
-      { x: 0, y: 0 },
-      FUEL_BLOB_AMOUNT * 2 - 1,
-    );
+    const blobs = spawnShipFuelDrops({ x: 100, y: 200 }, { x: 0, y: 0 }, FUEL_BLOB_AMOUNT * 2 - 1);
 
     expect(blobs).toHaveLength(0);
   });
@@ -165,7 +158,6 @@ describe('fuel blob chain reactions', () => {
 function fuelBlob(id: number, x: number) {
   return {
     id,
-    affectedByPlanetGravity: true,
     airResistance: 0.015,
     position: { x, y: 0 },
     velocity: { x: 0, y: 0 },

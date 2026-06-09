@@ -6,6 +6,7 @@ type BurstOptions = {
   color: number;
   count: number;
   dragPerSecond?: number;
+  gravityScale?: number;
   glowColor?: number;
   inheritedVelocity?: Vector;
   inheritedVelocityScale?: number;
@@ -25,6 +26,7 @@ type DirectedBurstOptions = BurstOptions & {
 type ShockwaveOptions = {
   color: number;
   color2?: number;
+  gravityScale?: number;
   inheritedVelocity?: Vector;
   lifetimeMs: number;
   radius: number;
@@ -86,6 +88,7 @@ export function spawnShockwave(position: Vector, options: ShockwaveOptions): Par
     color2: options.color2,
     dragPerSecond: 2.4,
     glowColor: options.color,
+    gravityScale: options.gravityScale,
     id: nextParticleId++,
     kind: 'shockwave',
     lifetimeMs: options.lifetimeMs,
@@ -126,6 +129,7 @@ function createParticle(position: Vector, options: BurstOptions, velocity: Vecto
     color: options.color,
     color2: options.color2,
     dragPerSecond: options.dragPerSecond ?? 1.8,
+    gravityScale: options.gravityScale,
     glowColor: options.glowColor,
     id: nextParticleId++,
     kind: options.kind ?? 'circle',

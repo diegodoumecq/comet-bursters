@@ -8,11 +8,10 @@ export function createFuelBlob(
   position: Vector,
   velocity: Vector,
   properties: Partial<
-    Pick<FuelBlobEntity, 'affectedByPlanetGravity' | 'airResistance' | 'collectableAtMs'>
+    Pick<FuelBlobEntity, 'airResistance' | 'collectableAtMs' | 'gravityScale'>
   > = {},
 ): FuelBlobEntity {
   const blob: FuelBlobEntity = {
-    affectedByPlanetGravity: properties.affectedByPlanetGravity ?? true,
     airResistance: properties.airResistance ?? FUEL_BLOB_DEFINITION.spawn.defaultAirResistance,
     id: nextFuelBlobId++,
     position: { ...position },
@@ -20,5 +19,6 @@ export function createFuelBlob(
     wobbleSeed: Math.random(),
   };
   if (properties.collectableAtMs !== undefined) blob.collectableAtMs = properties.collectableAtMs;
+  if (properties.gravityScale !== undefined) blob.gravityScale = properties.gravityScale;
   return blob;
 }

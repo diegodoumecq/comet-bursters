@@ -4,8 +4,8 @@ import type { SpaceMembership } from '../dimensions/types';
 export type FuelBlobEntity = {
   id: number;
   airResistance: number;
-  affectedByPlanetGravity: boolean;
   collectableAtMs?: number;
+  gravityScale?: number;
   membership?: SpaceMembership;
   position: Vector;
   velocity: Vector;

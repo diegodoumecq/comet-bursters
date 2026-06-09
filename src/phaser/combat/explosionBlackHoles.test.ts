@@ -47,7 +47,6 @@ describe('explosion black holes', () => {
 
 function createFuelBlobs(count: number): FuelBlobEntity[] {
   return Array.from({ length: count }, (_, index) => ({
-    affectedByPlanetGravity: true,
     airResistance: 0.015,
     id: index + 1,
     position: { x: index * 10, y: 0 },

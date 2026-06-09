@@ -1,9 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { AsteroidBodies } from '../asteroids/bodies';
 import type { AsteroidEntity } from '../asteroids/types';
-import type { MatterImage } from '../core/types';
 import type { FuelBlobEntity } from '../fuel/types';
+import type { ParticleEntity } from '../particles/types';
+import type { PlanetEntity } from '../planets/types';
+import {
+  getBlackHoleInfluenceRadius,
+  getBlackHoleRenderRadius,
+  updateBlackHoles,
+  type BlackHolePlanetAbsorptionEvent,
+} from './blackHoles';
+import type { ProjectileBodies } from './bodies';
 import {
   BLACK_HOLE_ASTEROID_MASS_SCALE,
   BLACK_HOLE_FUEL_BLOB_MASS_SCALE,
@@ -11,12 +18,6 @@ import {
   BLACK_HOLE_MATURE_AFTER_MS,
   BLACK_HOLE_MATURE_RADIUS,
 } from './definition';
-import {
-  getBlackHoleInfluenceRadius,
-  getBlackHoleRenderRadius,
-  updateBlackHoles,
-} from './blackHoles';
-import type { ProjectileBodies } from './bodies';
 import type { ProjectileEntity } from './types';
 
 vi.mock('phaser', () => ({
@@ -49,6 +50,27 @@ function createBlackHole(input: Partial<ProjectileEntity> = {}): ProjectileEntit
   return { ...blackHole, ...input };
 }
 
+function createProjectile(input: Partial<ProjectileEntity> = {}): ProjectileEntity {
+  const projectile: ProjectileEntity = {
+    absorbedFuel: 0,
+    ageMs: 0,
+    angle: 0,
+    airResistance: 0.01,
+    baseSpeed: 1,
+    collapseStartedAt: null,
+    createdAt: 0,
+    damage: 1,
+    id: 2,
+    impact: 0.02,
+    kind: 'small',
+    lifetimeMs: 1000,
+    position: { x: 100, y: 0 },
+    radius: 6,
+    velocity: { x: 0, y: 0 },
+  };
+  return { ...projectile, ...input };
+}
+
 function createAsteroid(): AsteroidEntity {
   return {
     angularVelocity: 0,
@@ -61,14 +83,34 @@ function createAsteroid(): AsteroidEntity {
   };
 }
 
-function createBody() {
-  const body = {
-    body: { velocity: { x: 0, y: 0 } },
-    setVelocity: vi.fn((x: number, y: number) => {
-      body.body.velocity = { x, y };
-    }),
+function createPlanet(): PlanetEntity {
+  return {
+    altitudeVariations: [],
+    color: 0xffffff,
+    colorHex: '#ffffff',
+    gravityStrength: 1,
+    id: 1,
+    kind: 'lush',
+    position: { x: 100, y: 0 },
+    radius: 50,
+    rotation: 0,
+    rotationSpeed: 0,
   };
-  return body as unknown as MatterImage;
+}
+
+function createParticle(position: { x: number; y: number }): ParticleEntity {
+  return {
+    alphaDecayPerSecond: 1,
+    color: 0xffffff,
+    dragPerSecond: 1,
+    id: 1,
+    kind: 'shard',
+    lifetimeMs: 100,
+    maxLifetimeMs: 100,
+    position,
+    rotation: 0,
+    velocity: { x: 0, y: 0 },
+  };
 }
 
 function createProjectileBodies() {
@@ -86,33 +128,30 @@ function update(input: {
   blackHole: ProjectileEntity;
   fuelBlob?: FuelBlobEntity;
   fuelBlobs?: FuelBlobEntity[];
+  onBlackHoleAbsorbedByPlanet?: (event: BlackHolePlanetAbsorptionEvent) => void;
   onBlackHoleRemoved?: (blackHole: ProjectileEntity) => void;
   onFuelBlobAbsorbed?: (blob: FuelBlobEntity) => void;
+  onParticleAbsorbed?: (particle: ParticleEntity) => void;
   onPlayerAbsorbed?: (blackHole: ProjectileEntity) => void;
+  onProjectileAbsorbed?: (projectile: ProjectileEntity, blackHole: ProjectileEntity) => void;
+  particles?: ParticleEntity[];
+  planets?: PlanetEntity[];
   playerActive?: boolean;
   playerPosition?: { x: number; y: number };
-  playerBody?: MatterImage;
   playerVelocity?: { x: number; y: number };
   projectiles?: ProjectileEntity[];
 }) {
   const asteroids = input.asteroids ?? [input.asteroid ?? createAsteroid()];
   const asteroid = asteroids[0] ?? createAsteroid();
   const projectiles = input.projectiles ?? [input.blackHole];
-  const asteroidBody = {
-    setVelocity: vi.fn(),
-  };
-  const asteroidBodies = {
-    get: () => asteroidBody,
-  } as unknown as AsteroidBodies;
   updateBlackHoles({
     asteroids,
-    asteroidBodies,
     distance: (fromX, fromY, toX, toY) => Math.hypot(toX - fromX, toY - fromY),
     fuelBlobs: input.fuelBlobs ?? (input.fuelBlob ? [input.fuelBlob] : []),
-    getDelta: (fromX, fromY, toX, toY) => ({ x: toX - fromX, y: toY - fromY }),
     now: input.blackHole.ageMs,
     onAsteroidAbsorbed: vi.fn(),
     onAsteroidRemoved: vi.fn(),
+    onBlackHoleAbsorbedByPlanet: input.onBlackHoleAbsorbedByPlanet,
     onBlackHoleRemoved: (blackHole) => {
       input.onBlackHoleRemoved?.(blackHole);
       const index = projectiles.indexOf(blackHole);
@@ -120,21 +159,26 @@ function update(input: {
     },
     onFuelBurst: vi.fn(),
     onFuelBlobAbsorbed: input.onFuelBlobAbsorbed ?? vi.fn(),
+    onParticleAbsorbed: input.onParticleAbsorbed,
     onPlayerAbsorbed: input.onPlayerAbsorbed,
-    player:
-      input.playerBody && input.playerVelocity
-        ? {
-            active: input.playerActive ?? true,
-            body: input.playerBody,
-            position: input.playerPosition ?? { x: 80, y: 0 },
-            velocity: input.playerVelocity,
-          }
-        : undefined,
+    onProjectileAbsorbed: (projectile, blackHole) => {
+      input.onProjectileAbsorbed?.(projectile, blackHole);
+      const index = projectiles.indexOf(projectile);
+      if (index !== -1) projectiles.splice(index, 1);
+    },
+    particles: input.particles,
+    planets: input.planets,
+    player: input.playerVelocity
+      ? {
+          active: input.playerActive ?? true,
+          position: input.playerPosition ?? { x: 80, y: 0 },
+          velocity: input.playerVelocity,
+        }
+      : undefined,
     projectileBodies: createProjectileBodies(),
     projectiles,
-    timeScale: 1,
   });
-  return { asteroid, asteroidBody, projectiles };
+  return { asteroid, projectiles };
 }
 
 describe('black-hole gravity', () => {
@@ -143,130 +187,126 @@ describe('black-hole gravity', () => {
     expect(getBlackHoleInfluenceRadius(25)).toBeCloseTo(833.333, 3);
   });
 
-  it('pulls asteroids, player ships, and fuel blobs when mature', () => {
-    const playerBody = createBody();
-    const playerVelocity = { x: 0, y: 0 };
-    const fuelBlob = {
-      id: 1,
-      affectedByPlanetGravity: true,
-      airResistance: 0.015,
-      position: { x: 80, y: 0 },
-      velocity: { x: 0, y: 0 },
-      wobbleSeed: 0,
-    };
+  it('absorbs particles that collide with a mature black hole', () => {
+    const particle = createParticle({ x: 100, y: 0 });
+    const onParticleAbsorbed = vi.fn();
 
-    const { asteroid, asteroidBody } = update({
+    update({
+      asteroids: [],
       blackHole: createBlackHole(),
-      fuelBlob,
-      playerBody,
-      playerVelocity,
+      onParticleAbsorbed,
+      particles: [particle],
     });
 
-    expect(asteroid.velocity.x).toBeGreaterThan(0);
-    expect(asteroidBody.setVelocity).toHaveBeenCalledWith(asteroid.velocity.x, asteroid.velocity.y);
-    expect(playerVelocity.x).toBeGreaterThan(0);
-    expect(playerBody.setVelocity).toHaveBeenCalledWith(playerVelocity.x, playerVelocity.y);
-    expect(fuelBlob.velocity.x).toBeGreaterThan(0);
+    expect(onParticleAbsorbed).toHaveBeenCalledWith(particle);
   });
 
-  it('pulls fuel blobs from beyond the asteroid gravity range', () => {
-    const fuelBlob = {
-      id: 1,
-      affectedByPlanetGravity: true,
-      airResistance: 0.015,
-      position: { x: -100, y: 0 },
-      velocity: { x: 0, y: 0 },
-      wobbleSeed: 0,
-    };
+  it('absorbs zero-gravity-scale particles that collide with a mature black hole', () => {
+    const particle = createParticle({ x: 100, y: 0 });
+    particle.gravityScale = 0;
+    const onParticleAbsorbed = vi.fn();
 
     update({
       asteroids: [],
-      blackHole: createBlackHole({
-        ageMs: BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS,
-      }),
-      fuelBlob,
+      blackHole: createBlackHole(),
+      onParticleAbsorbed,
+      particles: [particle],
     });
 
-    expect(fuelBlob.velocity.x).toBeGreaterThan(0);
+    expect(onParticleAbsorbed).toHaveBeenCalledWith(particle);
   });
 
-  it('pulls other active black holes when mature', () => {
-    const source = createBlackHole({
-      ageMs: BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS,
-      id: 1,
-      position: { x: 100, y: 0 },
+  it('emits a planet absorption event before removing a black hole that hits a planet', () => {
+    const blackHole = createBlackHole({ position: { x: 155, y: 0 } });
+    const onBlackHoleAbsorbedByPlanet = vi.fn();
+    const onBlackHoleRemoved = vi.fn();
+
+    const { projectiles } = update({
+      asteroids: [],
+      blackHole,
+      onBlackHoleAbsorbedByPlanet,
+      onBlackHoleRemoved,
+      planets: [createPlanet()],
     });
-    const target = createBlackHole({
-      ageMs: BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS,
-      id: 2,
-      position: { x: 200, y: 0 },
+
+    expect(projectiles).toEqual([]);
+    expect(onBlackHoleAbsorbedByPlanet).toHaveBeenCalledWith({
+      blackHole,
+      normal: { x: 1, y: 0 },
+      planet: createPlanet(),
+      position: { x: 154, y: 0 },
     });
+    expect(onBlackHoleRemoved).toHaveBeenCalledWith(blackHole);
+    expect(onBlackHoleAbsorbedByPlanet.mock.invocationCallOrder[0]).toBeLessThan(
+      onBlackHoleRemoved.mock.invocationCallOrder[0],
+    );
+  });
+});
+
+describe('black-hole projectile absorption', () => {
+  it('absorbs bullets that collide with a mature black hole', () => {
+    const blackHole = createBlackHole();
+    const bullet = createProjectile();
+    const onProjectileAbsorbed = vi.fn();
+
+    const { projectiles } = update({
+      asteroids: [],
+      blackHole,
+      onProjectileAbsorbed,
+      projectiles: [blackHole, bullet],
+    });
+
+    expect(projectiles).toEqual([blackHole]);
+    expect(onProjectileAbsorbed).toHaveBeenCalledWith(bullet, blackHole);
+  });
+
+  it('does not absorb bullets before maturity, while collapsing, or outside the render radius', () => {
+    const immatureBlackHole = createBlackHole({ ageMs: BLACK_HOLE_MATURE_AFTER_MS - 1 });
+    const collapsingBlackHole = createBlackHole({ collapseStartedAt: BLACK_HOLE_MATURE_AFTER_MS });
+    const distantBlackHole = createBlackHole();
+    const immatureBullet = createProjectile({ id: 10 });
+    const collapsingBullet = createProjectile({ id: 11 });
+    const distantBullet = createProjectile({ id: 12, position: { x: 140, y: 0 } });
+    const onProjectileAbsorbed = vi.fn();
+
+    const immature = update({
+      asteroids: [],
+      blackHole: immatureBlackHole,
+      onProjectileAbsorbed,
+      projectiles: [immatureBlackHole, immatureBullet],
+    });
+    const collapsing = update({
+      asteroids: [],
+      blackHole: collapsingBlackHole,
+      onProjectileAbsorbed,
+      projectiles: [collapsingBlackHole, collapsingBullet],
+    });
+    const distant = update({
+      asteroids: [],
+      blackHole: distantBlackHole,
+      onProjectileAbsorbed,
+      projectiles: [distantBlackHole, distantBullet],
+    });
+
+    expect(immature.projectiles).toEqual([immatureBlackHole, immatureBullet]);
+    expect(collapsing.projectiles).toEqual([collapsingBlackHole, collapsingBullet]);
+    expect(distant.projectiles).toEqual([distantBlackHole, distantBullet]);
+    expect(onProjectileAbsorbed).not.toHaveBeenCalled();
+  });
+
+  it('keeps black-hole projectiles in the merge path instead of bullet absorption', () => {
+    const left = createBlackHole({ id: 1, position: { x: 100, y: 0 } });
+    const right = createBlackHole({ id: 2, position: { x: 105, y: 0 } });
+    const onProjectileAbsorbed = vi.fn();
 
     update({
       asteroids: [],
-      blackHole: source,
-      projectiles: [source, target],
+      blackHole: left,
+      onProjectileAbsorbed,
+      projectiles: [left, right],
     });
 
-    expect(target.velocity.x).toBeLessThan(0);
-    expect(source.velocity.x).toBeGreaterThan(0);
-  });
-
-  it('does not pull targets before the black hole matures', () => {
-    const fuelBlob = {
-      id: 1,
-      affectedByPlanetGravity: true,
-      airResistance: 0.015,
-      position: { x: 80, y: 0 },
-      velocity: { x: 0, y: 0 },
-      wobbleSeed: 0,
-    };
-
-    const { asteroid } = update({
-      blackHole: createBlackHole({ ageMs: BLACK_HOLE_MATURE_AFTER_MS - 1 }),
-      fuelBlob,
-    });
-
-    expect(asteroid.velocity).toEqual({ x: 0, y: 0 });
-    expect(fuelBlob.velocity).toEqual({ x: 0, y: 0 });
-  });
-
-  it('does not pull targets while collapsing', () => {
-    const playerBody = createBody();
-    const playerVelocity = { x: 0, y: 0 };
-
-    const { asteroid } = update({
-      asteroids: [],
-      blackHole: createBlackHole({ collapseStartedAt: BLACK_HOLE_MATURE_AFTER_MS }),
-      playerBody,
-      playerVelocity,
-    });
-
-    expect(asteroid.velocity).toEqual({ x: 0, y: 0 });
-    expect(playerVelocity).toEqual({ x: 0, y: 0 });
-    expect(playerBody.setVelocity).not.toHaveBeenCalled();
-  });
-
-  it('does not pull collapsing black holes', () => {
-    const source = createBlackHole({
-      ageMs: BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS,
-      id: 1,
-      position: { x: 100, y: 0 },
-    });
-    const collapsingTarget = createBlackHole({
-      ageMs: BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS,
-      collapseStartedAt: BLACK_HOLE_MATURE_AFTER_MS,
-      id: 2,
-      position: { x: 200, y: 0 },
-    });
-
-    update({
-      asteroids: [],
-      blackHole: source,
-      projectiles: [source, collapsingTarget],
-    });
-
-    expect(collapsingTarget.velocity).toEqual({ x: 0, y: 0 });
+    expect(onProjectileAbsorbed).not.toHaveBeenCalled();
   });
 });
 
@@ -275,7 +315,6 @@ describe('black-hole fuel absorption', () => {
     const blackHole = createBlackHole();
     const fuelBlob = {
       id: 1,
-      affectedByPlanetGravity: true,
       airResistance: 0.015,
       position: { x: 100, y: 0 },
       velocity: { x: 0, y: 0 },
@@ -295,7 +334,6 @@ describe('black-hole fuel absorption', () => {
     const blackHole = createBlackHole({ ageMs });
     const fuelBlob = {
       id: 1,
-      affectedByPlanetGravity: true,
       airResistance: 0.015,
       position: { x: 100, y: 0 },
       velocity: { x: 0, y: 0 },
@@ -316,7 +354,6 @@ describe('black-hole fuel absorption', () => {
     asteroid.position = { x: 100, y: 0 };
     const fuelBlobs = Array.from({ length: 4 }, (_, index) => ({
       id: index + 1,
-      affectedByPlanetGravity: true,
       airResistance: 0.015,
       position: { x: 100, y: 0 },
       velocity: { x: 0, y: 0 },
@@ -338,7 +375,6 @@ describe('black-hole fuel absorption', () => {
     const blackHole = createBlackHole();
     const fuelBlob = {
       id: 1,
-      affectedByPlanetGravity: true,
       airResistance: 0.015,
       position: { x: 140, y: 0 },
       velocity: { x: 0, y: 0 },
@@ -357,7 +393,6 @@ describe('black-hole fuel absorption', () => {
     const collapsingBlackHole = createBlackHole({ collapseStartedAt: BLACK_HOLE_MATURE_AFTER_MS });
     const fuelBlob = {
       id: 1,
-      affectedByPlanetGravity: true,
       airResistance: 0.015,
       position: { x: 100, y: 0 },
       velocity: { x: 0, y: 0 },
@@ -383,7 +418,6 @@ describe('black-hole player absorption', () => {
       asteroids: [],
       blackHole,
       onPlayerAbsorbed,
-      playerBody: createBody(),
       playerPosition: { x: 100, y: 0 },
       playerVelocity: { x: 0, y: 0 },
     });
@@ -398,7 +432,6 @@ describe('black-hole player absorption', () => {
       asteroids: [],
       blackHole: createBlackHole(),
       onPlayerAbsorbed,
-      playerBody: createBody(),
       playerPosition: { x: 150, y: 0 },
       playerVelocity: { x: 0, y: 0 },
     });
@@ -414,7 +447,6 @@ describe('black-hole player absorption', () => {
       blackHole: createBlackHole(),
       onPlayerAbsorbed,
       playerActive: false,
-      playerBody: createBody(),
       playerPosition: { x: 100, y: 0 },
       playerVelocity: { x: 0, y: 0 },
     });
@@ -422,7 +454,6 @@ describe('black-hole player absorption', () => {
       asteroids: [],
       blackHole: createBlackHole({ ageMs: BLACK_HOLE_MATURE_AFTER_MS - 1 }),
       onPlayerAbsorbed,
-      playerBody: createBody(),
       playerPosition: { x: 100, y: 0 },
       playerVelocity: { x: 0, y: 0 },
     });
@@ -430,7 +461,6 @@ describe('black-hole player absorption', () => {
       asteroids: [],
       blackHole: createBlackHole({ collapseStartedAt: BLACK_HOLE_MATURE_AFTER_MS }),
       onPlayerAbsorbed,
-      playerBody: createBody(),
       playerPosition: { x: 100, y: 0 },
       playerVelocity: { x: 0, y: 0 },
     });
