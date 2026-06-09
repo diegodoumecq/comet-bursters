@@ -66,7 +66,6 @@ function distance(from: { x: number; y: number }, to: { x: number; y: number }):
 function createFuelBlob(id: number, x: number): FuelBlobEntity {
   return {
     id,
-    affectedByPlanetGravity: true,
     airResistance: 0.015,
     position: { x, y: 0 },
     velocity: { x: 0, y: 0 },
@@ -74,10 +73,7 @@ function createFuelBlob(id: number, x: number): FuelBlobEntity {
   };
 }
 
-function createProjectile(
-  id: number,
-  kind: ProjectileEntity['kind'] = 'small',
-): ProjectileEntity {
+function createProjectile(id: number, kind: ProjectileEntity['kind'] = 'small'): ProjectileEntity {
   return {
     absorbedFuel: 0,
     ageMs: 0,

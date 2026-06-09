@@ -40,8 +40,8 @@ export function spawnFuelBlobs(
           y: position.y + Math.sin(angle) * distance,
         },
         {
-          x: sourceVelocity.x * 0.5 + Math.cos(angle) * speed,
-          y: sourceVelocity.y * 0.5 + Math.sin(angle) * speed,
+          x: sourceVelocity.x + Math.cos(angle) * speed,
+          y: sourceVelocity.y + Math.sin(angle) * speed,
         },
       ),
     );

@@ -12,6 +12,7 @@ export type ProjectileEntity = {
   collapseStartedAt: number | null;
   createdAt: number;
   damage: number;
+  gravityScale?: number;
   id: number;
   impact: number;
   kind: ProjectileKind;

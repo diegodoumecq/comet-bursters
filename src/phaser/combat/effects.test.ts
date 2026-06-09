@@ -18,17 +18,13 @@ describe('combat particle effects', () => {
     expect(new Set(effect.particles.map((particle) => particle.kind))).toEqual(
       new Set(['core', 'shard', 'shockwave', 'smoke', 'spark']),
     );
-    expect(effect.particles.every((particle) => particle.affectedByPlanetGravity === false)).toBe(
-      true,
-    );
+    expect(effect.particles.every((particle) => particle.gravityScale === 0)).toBe(true);
   });
 
-  it('builds generic explosion particles that ignore planet gravity', () => {
+  it('builds generic explosion particles that ignore gravity', () => {
     const effect = createExplosionBurst({ x: 120, y: 80 }, { x: 4, y: -2 }, 1);
 
-    expect(effect.particles.every((particle) => particle.affectedByPlanetGravity === false)).toBe(
-      true,
-    );
+    expect(effect.particles.every((particle) => particle.gravityScale === 0)).toBe(true);
   });
 
   it('creates impact debris with directional shards, sparks, and smoke', () => {
@@ -85,12 +81,12 @@ describe('combat particle effects', () => {
     expect(
       effect.particles
         .filter((particle) => ['panel', 'shard', 'wing'].includes(particle.kind))
-        .every((particle) => particle.affectedByPlanetGravity === undefined),
+        .every((particle) => particle.gravityScale === undefined),
     ).toBe(true);
     expect(
       effect.particles
         .filter((particle) => ['core', 'smoke', 'spark'].includes(particle.kind))
-        .every((particle) => particle.affectedByPlanetGravity === false),
+        .every((particle) => particle.gravityScale === 0),
     ).toBe(true);
   });
 });

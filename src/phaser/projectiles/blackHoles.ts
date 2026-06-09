@@ -1,8 +1,7 @@
-import type { AsteroidBodies } from '../asteroids/bodies';
 import { ASTEROIDS } from '../asteroids/config';
 import type { AsteroidEntity } from '../asteroids/types';
 import { circleContains, circlesOverlap } from '../core/collision';
-import type { MatterImage, Vector } from '../core/types';
+import type { Vector } from '../core/types';
 import type { FuelBlobEntity } from '../fuel/types';
 import type { ParticleEntity } from '../particles/types';
 import type { PlanetEntity } from '../planets/types';
@@ -12,9 +11,6 @@ import {
   BLACK_HOLE_ABSORBED_FUEL_BLOBS,
   BLACK_HOLE_COLLAPSE_DURATION_MS,
   BLACK_HOLE_FUEL_BLOB_MASS_SCALE,
-  BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
-  BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
-  BLACK_HOLE_GRAVITY_STRENGTH,
   BLACK_HOLE_GROWTH_DURATION_MS,
   BLACK_HOLE_MATURE_AFTER_MS,
   BLACK_HOLE_MATURE_RADIUS,
@@ -25,10 +21,8 @@ import type { ProjectileEntity } from './types';
 
 export type BlackHoleLifecycleOptions = {
   asteroids: AsteroidEntity[];
-  asteroidBodies: AsteroidBodies;
   distance: (fromX: number, fromY: number, toX: number, toY: number) => number;
   fuelBlobs?: FuelBlobEntity[];
-  getDelta: (fromX: number, fromY: number, toX: number, toY: number) => { x: number; y: number };
   now: number;
   onAsteroidAbsorbed: (asteroid: AsteroidEntity) => void;
   onAsteroidRemoved: (asteroid: AsteroidEntity) => void;
@@ -41,13 +35,11 @@ export type BlackHoleLifecycleOptions = {
   planets?: PlanetEntity[];
   player?: {
     active: boolean;
-    body: MatterImage;
     position: Vector;
     velocity: Vector;
   };
   projectileBodies: ProjectileBodies;
   projectiles: ProjectileEntity[];
-  timeScale?: number;
 };
 
 export function isMatureBlackHole(blackHole: ProjectileEntity, now = blackHole.ageMs): boolean {
@@ -87,7 +79,6 @@ export function getBlackHoleInfluenceRadius(radius: number): number {
 export function updateBlackHoles(input: BlackHoleLifecycleOptions): void {
   removeBlackHolesCollidingWithPlanets(input);
   mergeBlackHoles(input);
-  applyBlackHoleGravity(input);
   absorbFuelBlobs(input);
   absorbParticles(input);
   absorbPlayer(input);
@@ -122,91 +113,6 @@ function removeBlackHolesCollidingWithPlanets(input: BlackHoleLifecycleOptions):
           planet.radius + BLACK_HOLE_RADIUS,
       );
       if (hitPlanet) input.onBlackHoleRemoved(projectile);
-    }
-  }
-}
-
-function applyBlackHoleGravity(input: BlackHoleLifecycleOptions): void {
-  const activeBlackHoles = getActiveBlackHoles(input.projectiles).filter((projectile) =>
-    isMatureBlackHole(projectile),
-  );
-  if (activeBlackHoles.length === 0) return;
-
-  const timeScale = input.timeScale ?? 1;
-  for (const blackHole of activeBlackHoles) {
-    const radius = getMatureBlackHoleRadius(blackHole);
-    const gravityRange = radius * 6;
-    for (const asteroid of input.asteroids) {
-      if (
-        applyBlackHoleGravityToVelocity(
-          asteroid.velocity,
-          asteroid.position,
-          blackHole.position,
-          gravityRange,
-          radius,
-          input.getDelta,
-          timeScale,
-        )
-      ) {
-        input.asteroidBodies.get(asteroid).setVelocity(asteroid.velocity.x, asteroid.velocity.y);
-      }
-    }
-    if (input.player?.active) {
-      applyBlackHoleGravityToVelocity(
-        input.player.velocity,
-        input.player.position,
-        blackHole.position,
-        gravityRange,
-        radius,
-        input.getDelta,
-        timeScale,
-      );
-      input.player.body.setVelocity(input.player.velocity.x, input.player.velocity.y);
-    }
-    for (const targetBlackHole of getActiveBlackHoles(input.projectiles)) {
-      if (targetBlackHole !== blackHole) {
-        if (
-          applyBlackHoleGravityToVelocity(
-            targetBlackHole.velocity,
-            targetBlackHole.position,
-            blackHole.position,
-            gravityRange,
-            radius,
-            input.getDelta,
-            timeScale,
-          )
-        ) {
-          input.projectileBodies
-            .get(targetBlackHole)
-            .setVelocity(targetBlackHole.velocity.x, targetBlackHole.velocity.y);
-        }
-      }
-    }
-    for (const blob of input.fuelBlobs ?? []) {
-      applyBlackHoleGravityToVelocity(
-        blob.velocity,
-        blob.position,
-        blackHole.position,
-        radius * BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
-        radius,
-        input.getDelta,
-        timeScale,
-        BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
-      );
-    }
-    for (const particle of input.particles ?? []) {
-      if (particle.affectedByPlanetGravity ?? true) {
-        applyBlackHoleGravityToVelocity(
-          particle.velocity,
-          particle.position,
-          blackHole.position,
-          radius * BLACK_HOLE_FUEL_GRAVITY_RANGE_MULTIPLIER,
-          radius,
-          input.getDelta,
-          timeScale,
-          BLACK_HOLE_FUEL_GRAVITY_STRENGTH_MULTIPLIER,
-        );
-      }
     }
   }
 }
@@ -275,29 +181,6 @@ function mergeBlackHoleInto(survivor: ProjectileEntity, absorbed: ProjectileEnti
     y: (survivor.velocity.y * survivorMass + absorbed.velocity.y * absorbedMass) / totalMass,
   };
   survivor.lifetimeMs = survivor.ageMs + remainingLifetime;
-}
-
-export function applyBlackHoleGravityToVelocity(
-  velocity: Vector,
-  position: Vector,
-  blackHolePosition: Vector,
-  gravityRange: number,
-  radius: number,
-  getDelta: BlackHoleLifecycleOptions['getDelta'],
-  timeScale: number,
-  strengthMultiplier = 1,
-): boolean {
-  const delta = getDelta(position.x, position.y, blackHolePosition.x, blackHolePosition.y);
-  const distSq = delta.x * delta.x + delta.y * delta.y;
-  const dist = Math.sqrt(distSq);
-  if (dist > 0 && dist < gravityRange) {
-    const force =
-      (BLACK_HOLE_GRAVITY_STRENGTH * strengthMultiplier * 0.5 * radius * radius) / distSq;
-    velocity.x += (delta.x / dist) * force * timeScale;
-    velocity.y += (delta.y / dist) * force * timeScale;
-    return true;
-  }
-  return false;
 }
 
 function updateBlackHoleCollapse(input: BlackHoleLifecycleOptions): void {

@@ -5,19 +5,19 @@ import type { Vector } from '../../core/types';
 import type { FuelBlobEntity } from '../../fuel/types';
 import type { ParticleEntity } from '../../particles/types';
 import type { ProjectileEntity } from '../../projectiles/types';
+import type { SandboxPlanetEntity } from './planetFuel';
 import {
   positionSandboxWrappedWorldNearPlayer,
   rebaseSandboxWorldAtBounds,
   type SandboxWorldRebaseInput,
 } from './worldPositioning';
-import type { SandboxPlanetEntity } from './planetFuel';
 
 describe('sandbox world positioning', () => {
   it('syncs fuel blobs from Matter before repositioning them near the player', () => {
     const blob: FuelBlobEntity = {
       id: 1,
-      affectedByPlanetGravity: false,
       airResistance: 0.015,
+      gravityScale: 0,
       position: { x: 0, y: 0 },
       velocity: { x: 24, y: 0 },
       wobbleSeed: 0,
@@ -57,7 +57,6 @@ describe('sandbox world positioning', () => {
     const projectile = createProjectile({ x: 70, y: 80 });
     const blob: FuelBlobEntity = {
       id: 1,
-      affectedByPlanetGravity: true,
       airResistance: 0.015,
       position: { x: 90, y: 100 },
       velocity: { x: 0, y: 0 },
