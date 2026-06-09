@@ -5,6 +5,11 @@ const { defineConfig, devices } = playwright;
 const port = Number.parseInt(process.env.PLAYWRIGHT_PORT ?? '9001', 10);
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${port}`;
 const skipWebServer = process.env.PLAYWRIGHT_SKIP_WEBSERVER === 'true';
+const desktopChrome = {
+  ...devices['Desktop Chrome'],
+  deviceScaleFactor: 1,
+  viewport: { height: 720, width: 1280 },
+};
 
 export default defineConfig({
   expect: {
@@ -16,9 +21,24 @@ export default defineConfig({
     {
       name: 'chromium',
       use: {
-        ...devices['Desktop Chrome'],
-        deviceScaleFactor: 1,
-        viewport: { height: 720, width: 1280 },
+        ...desktopChrome,
+      },
+    },
+    {
+      name: 'profile-chromium',
+      use: {
+        ...desktopChrome,
+        launchOptions: {
+          args: [
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            '--disable-features=CalculateNativeWinOcclusion',
+          ],
+        },
+        screenshot: 'off',
+        trace: 'off',
+        video: 'off',
       },
     },
   ],

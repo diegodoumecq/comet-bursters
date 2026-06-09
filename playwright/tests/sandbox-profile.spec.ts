@@ -27,5 +27,8 @@ test('profiles the Phaser sandbox', async ({ page }, testInfo) => {
   diagnostics.stop();
 
   expect(report).toBeTruthy();
-  console.log('Sandbox profile: artifacts/playwright/profiles/sandbox-profile.json');
+  console.log(`Sandbox profile: ${report.artifactPath}`);
+  if (report.comparison) {
+    console.log(`Sandbox milestone: ${report.comparison.milestoneArtifactPath}`);
+  }
 });

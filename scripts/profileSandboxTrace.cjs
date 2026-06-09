@@ -1,11 +1,13 @@
 const { chromium } = require('@playwright/test');
+const { writeProfileArtifact } = require('./profileArtifacts.cjs');
 
 const DEFAULT_URL = process.env.PROFILE_URL ?? 'http://127.0.0.1:9001/phaser-game.html';
 const DEFAULT_DURATION_MS = 8000;
 
 async function main() {
-  const url = process.argv[2] ?? DEFAULT_URL;
-  const durationMs = Number.parseInt(process.argv[3] ?? '', 10) || DEFAULT_DURATION_MS;
+  const args = readScriptArgs();
+  const url = args[0] ?? DEFAULT_URL;
+  const durationMs = Number.parseInt(args[1] ?? '', 10) || DEFAULT_DURATION_MS;
   const browser = await chromium.launch({
     headless: true,
     args: ['--disable-background-timer-throttling', '--disable-renderer-backgrounding'],
@@ -24,117 +26,115 @@ async function main() {
     consoleMessages.push(`pageerror: ${error.message}`);
   });
 
-  await page.addInitScript((toggles) => {
-    window.__profileSandboxBiomeDebug = toggles.biomeDebug;
-    window.__profileSandboxBlackHoles = toggles.blackHoles;
-    window.__profileSandboxFuelMetaballs = toggles.fuelMetaballs;
-    window.__profileSandboxGrid = toggles.grid;
-    window.__profileSandboxMinimap = toggles.minimap;
-    window.__profileSandboxNebulaRegions = toggles.nebulaRegions;
-    window.__profileSandboxPlayerHud = toggles.playerHud;
-    window.__profileSandboxStarfield = toggles.starfield;
-    window.__profileSandboxThreeBackground = toggles.threeBackground;
-    window.__profileSandboxTrajectoryPreview = toggles.trajectoryPreview;
-  }, getProfileToggles());
+  try {
+    await page.addInitScript((toggles) => {
+      window.__profileSandboxBiomeDebug = toggles.biomeDebug;
+      window.__profileSandboxBlackHoles = toggles.blackHoles;
+      window.__profileSandboxFuelMetaballs = toggles.fuelMetaballs;
+      window.__profileSandboxGrid = toggles.grid;
+      window.__profileSandboxMinimap = toggles.minimap;
+      window.__profileSandboxNebulaRegions = toggles.nebulaRegions;
+      window.__profileSandboxPlayerHud = toggles.playerHud;
+      window.__profileSandboxStarfield = toggles.starfield;
+      window.__profileSandboxThreeBackground = toggles.threeBackground;
+      window.__profileSandboxTrajectoryPreview = toggles.trajectoryPreview;
+    }, getProfileToggles());
 
-  await page.goto(url, { waitUntil: 'networkidle' });
-  await page.evaluate(() => {
-    sessionStorage.setItem('comet-bursters-sandboxPerfMarkers', 'false');
-    sessionStorage.setItem('comet-bursters-sandboxBiomeDebug', window.__profileSandboxBiomeDebug);
-    sessionStorage.setItem('comet-bursters-sandboxBlackHoles', window.__profileSandboxBlackHoles);
-    sessionStorage.setItem(
-      'comet-bursters-sandboxFuelMetaballs',
-      window.__profileSandboxFuelMetaballs,
-    );
-    sessionStorage.setItem('comet-bursters-sandboxGrid', window.__profileSandboxGrid);
-    sessionStorage.setItem('comet-bursters-sandboxMinimap', window.__profileSandboxMinimap);
-    sessionStorage.setItem(
-      'comet-bursters-sandboxNebulaRegions',
-      window.__profileSandboxNebulaRegions,
-    );
-    sessionStorage.setItem('comet-bursters-sandboxPlayerHud', window.__profileSandboxPlayerHud);
-    sessionStorage.setItem('comet-bursters-sandboxStarfield', window.__profileSandboxStarfield);
-    sessionStorage.setItem(
-      'comet-bursters-sandboxThreeBackground',
-      window.__profileSandboxThreeBackground,
-    );
-    sessionStorage.setItem(
-      'comet-bursters-sandboxTrajectoryPreview',
-      window.__profileSandboxTrajectoryPreview,
-    );
-  });
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('canvas').waitFor({ state: 'visible' });
-  await page.mouse.click(640, 484);
-  await page.waitForTimeout(1200);
-  const graphicsBeforeProfile = await collectGraphicsSummary(page);
+    await page.goto(url, { waitUntil: 'networkidle' });
+    await page.evaluate(() => {
+      sessionStorage.setItem('comet-bursters-sandboxPerfMarkers', 'false');
+      sessionStorage.setItem('comet-bursters-sandboxBiomeDebug', window.__profileSandboxBiomeDebug);
+      sessionStorage.setItem('comet-bursters-sandboxBlackHoles', window.__profileSandboxBlackHoles);
+      sessionStorage.setItem(
+        'comet-bursters-sandboxFuelMetaballs',
+        window.__profileSandboxFuelMetaballs,
+      );
+      sessionStorage.setItem('comet-bursters-sandboxGrid', window.__profileSandboxGrid);
+      sessionStorage.setItem('comet-bursters-sandboxMinimap', window.__profileSandboxMinimap);
+      sessionStorage.setItem(
+        'comet-bursters-sandboxNebulaRegions',
+        window.__profileSandboxNebulaRegions,
+      );
+      sessionStorage.setItem('comet-bursters-sandboxPlayerHud', window.__profileSandboxPlayerHud);
+      sessionStorage.setItem('comet-bursters-sandboxStarfield', window.__profileSandboxStarfield);
+      sessionStorage.setItem(
+        'comet-bursters-sandboxThreeBackground',
+        window.__profileSandboxThreeBackground,
+      );
+      sessionStorage.setItem(
+        'comet-bursters-sandboxTrajectoryPreview',
+        window.__profileSandboxTrajectoryPreview,
+      );
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.locator('canvas').waitFor({ state: 'visible' });
+    await page.mouse.click(640, 484);
+    await page.waitForTimeout(1200);
+    const graphicsBeforeProfile = await collectGraphicsSummary(page);
 
-  await cdp.send('Profiler.enable');
-  await cdp.send('Profiler.start');
-  await cdp.send('Tracing.start', {
-    categories: [
-      'blink',
-      'cc',
-      'devtools.timeline',
-      'disabled-by-default-devtools.timeline',
-      'disabled-by-default-devtools.timeline.frame',
-      'disabled-by-default-v8.cpu_profiler',
-      'gpu',
-      'loading',
-      'renderer.scheduler',
-      'toplevel',
-      'v8',
-    ].join(','),
-    options: 'sampling-frequency=10000',
-    transferMode: 'ReturnAsStream',
-  });
+    await cdp.send('Profiler.enable');
+    await cdp.send('Profiler.start');
+    await cdp.send('Tracing.start', {
+      categories: [
+        'blink',
+        'cc',
+        'devtools.timeline',
+        'disabled-by-default-devtools.timeline',
+        'disabled-by-default-devtools.timeline.frame',
+        'disabled-by-default-v8.cpu_profiler',
+        'gpu',
+        'loading',
+        'renderer.scheduler',
+        'toplevel',
+        'v8',
+      ].join(','),
+      options: 'sampling-frequency=10000',
+      transferMode: 'ReturnAsStream',
+    });
 
-  await page.evaluate(() => {
-    window.__cometBurstersFrameSample = {
-      frames: [],
-      start: performance.now(),
-    };
-    const sample = () => {
-      const state = window.__cometBurstersFrameSample;
-      if (!state) return;
-      state.frames.push(performance.now());
+    await page.evaluate(() => {
+      window.__cometBurstersFrameSample = {
+        frames: [],
+        start: performance.now(),
+      };
+      const sample = () => {
+        const state = window.__cometBurstersFrameSample;
+        if (!state) return;
+        state.frames.push(performance.now());
+        window.requestAnimationFrame(sample);
+      };
       window.requestAnimationFrame(sample);
-    };
-    window.requestAnimationFrame(sample);
-  });
+    });
 
-  await page.waitForTimeout(durationMs);
+    await page.waitForTimeout(durationMs);
 
-  const tracePromise = readTrace(cdp);
-  await cdp.send('Tracing.end');
-  const traceEvents = await tracePromise;
-  const { profile } = await cdp.send('Profiler.stop');
-  const frameStats = await page.evaluate(() => {
-    const sample = window.__cometBurstersFrameSample;
-    if (!sample || sample.frames.length < 2) return null;
-    const frames = sample.frames;
-    const deltas = [];
-    for (let index = 1; index < frames.length; index += 1) {
-      deltas.push(frames[index] - frames[index - 1]);
-    }
-    const averageDeltaMs = deltas.reduce((sum, delta) => sum + delta, 0) / deltas.length;
-    return {
-      averageDeltaMs,
-      averageFps: 1000 / averageDeltaMs,
-      frameCount: frames.length,
-      maxDeltaMs: Math.max(...deltas),
-      minDeltaMs: Math.min(...deltas),
-    };
-  });
-  const graphicsAfterProfile = await collectGraphicsSummary(page);
+    const tracePromise = readTrace(cdp);
+    await cdp.send('Tracing.end');
+    const traceEvents = await tracePromise;
+    const { profile } = await cdp.send('Profiler.stop');
+    const frameStats = await page.evaluate(() => {
+      const sample = window.__cometBurstersFrameSample;
+      if (!sample || sample.frames.length < 2) return null;
+      const frames = sample.frames;
+      const deltas = [];
+      for (let index = 1; index < frames.length; index += 1) {
+        deltas.push(frames[index] - frames[index - 1]);
+      }
+      const averageDeltaMs = deltas.reduce((sum, delta) => sum + delta, 0) / deltas.length;
+      return {
+        averageDeltaMs,
+        averageFps: 1000 / averageDeltaMs,
+        frameCount: frames.length,
+        maxDeltaMs: Math.max(...deltas),
+        minDeltaMs: Math.min(...deltas),
+      };
+    });
+    const graphicsAfterProfile = await collectGraphicsSummary(page);
 
-  await browser.close();
-
-  const timeline = summarizeTrace(traceEvents);
-  const cpu = summarizeCpuProfile(profile);
-  console.log(
-    JSON.stringify(
-      {
+    const timeline = summarizeTrace(traceEvents);
+    const cpu = summarizeCpuProfile(profile);
+    const report = await writeProfileArtifact({
+      report: {
         consoleMessages: consoleMessages.slice(-20),
         cpu,
         durationMs,
@@ -144,10 +144,13 @@ async function main() {
         timeline,
         url,
       },
-      null,
-      2,
-    ),
-  );
+      scene: 'sandbox',
+      traceMode: 'trace',
+    });
+    console.log(JSON.stringify(report, null, 2));
+  } finally {
+    await browser.close();
+  }
 }
 
 async function collectGraphicsSummary(page) {
@@ -237,6 +240,11 @@ function getProfileToggles() {
     threeBackground: getBooleanEnv('SANDBOX_THREE_BACKGROUND', true),
     trajectoryPreview: getBooleanEnv('SANDBOX_TRAJECTORY_PREVIEW', true),
   };
+}
+
+function readScriptArgs() {
+  const args = process.argv.slice(2);
+  return args[0] === '--' ? args.slice(1) : args;
 }
 
 function getBooleanEnv(name, defaultValue) {

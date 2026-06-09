@@ -27,5 +27,8 @@ test('profiles the Phaser arcade scene', async ({ page }, testInfo) => {
   diagnostics.stop();
 
   expect(report).toBeTruthy();
-  console.log('Arcade profile: artifacts/playwright/profiles/arcade-profile.json');
+  console.log(`Arcade profile: ${report.artifactPath}`);
+  if (report.comparison) {
+    console.log(`Arcade milestone: ${report.comparison.milestoneArtifactPath}`);
+  }
 });

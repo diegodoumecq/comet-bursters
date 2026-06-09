@@ -1,4 +1,6 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import type { CDPSession, Page, TestInfo } from '@playwright/test';
 
@@ -59,6 +61,59 @@ type ConsoleDiagnostics = {
 };
 
 type PhaserProfileScene = 'arcade' | 'sandbox';
+type PhaserProfileTraceMode = 'sample' | 'trace';
+type PhaserProfileRunMode = 'current' | 'milestone';
+
+type ProfileMetadata = {
+  git: {
+    branch: string | null;
+    commit: string | null;
+    dirty: boolean | null;
+  };
+  machine: {
+    arch: string;
+    cpuModel: string | null;
+    hostname: string;
+    platform: string;
+    release: string;
+  };
+  pid: number;
+  runMode: PhaserProfileRunMode;
+  scene: PhaserProfileScene;
+  timestamp: string;
+  traceMode: PhaserProfileTraceMode;
+};
+
+type ProfileMetricComparison = {
+  current: number | null;
+  delta: number | null;
+  deltaPercent: number | null;
+  milestone: number | null;
+};
+
+type ProfileComparison = {
+  frameStats: Record<keyof FrameStats, ProfileMetricComparison>;
+  markerAverages: Record<string, ProfileMetricComparison>;
+  milestoneArtifactPath: string;
+  milestoneTimestamp: string;
+};
+
+type PhaserProfileReport = {
+  artifactPath: string;
+  comparison: ProfileComparison | null;
+  consoleMessages: string[];
+  cpu: Array<{ name: string; totalMs: number }> | null;
+  durationMs: number;
+  frameSnapshot: unknown;
+  frameStats: FrameStats | null;
+  graphicsAfterProfile: unknown;
+  graphicsBeforeProfile: unknown;
+  metadata: ProfileMetadata;
+  startupSnapshot: unknown;
+  timeline: ReturnType<typeof summarizeTrace> | null;
+  traceMode: PhaserProfileTraceMode;
+  url: string;
+};
 
 const artifactRoot = path.resolve(process.cwd(), 'artifacts/playwright');
 
@@ -367,7 +422,7 @@ export async function recordSandboxProfile(
     includeTrace?: boolean;
     testInfo: TestInfo;
   },
-): Promise<unknown> {
+): Promise<PhaserProfileReport> {
   return recordPhaserProfile(page, { ...options, scene: 'sandbox' });
 }
 
@@ -379,7 +434,7 @@ export async function recordArcadeProfile(
     includeTrace?: boolean;
     testInfo: TestInfo;
   },
-): Promise<unknown> {
+): Promise<PhaserProfileReport> {
   return recordPhaserProfile(page, { ...options, scene: 'arcade' });
 }
 
@@ -392,8 +447,11 @@ async function recordPhaserProfile(
     scene: PhaserProfileScene;
     testInfo: TestInfo;
   },
-): Promise<unknown> {
+): Promise<PhaserProfileReport> {
   const includeTrace = options.includeTrace ?? true;
+  const traceMode: PhaserProfileTraceMode = includeTrace ? 'trace' : 'sample';
+  const runMode = readProfileRunMode();
+  const metadata = createProfileMetadata(options.scene, traceMode, runMode);
   const graphicsBeforeProfile = await collectGraphicsSummary(page);
   const startupSnapshot = await collectPerfSnapshot(page);
   await clearPerfSnapshot(page);
@@ -439,7 +497,18 @@ async function recordPhaserProfile(
   const frameStats = await collectFrameStats(page);
   const frameSnapshot = await collectPerfSnapshot(page);
   const graphicsAfterProfile = await collectGraphicsSummary(page);
-  const report = {
+  const relativeArtifactPath = createProfileArtifactPath(metadata);
+  const artifactPath = path.join(artifactRoot, relativeArtifactPath);
+  const comparison =
+    runMode === 'current'
+      ? await compareWithLatestMilestone(options.scene, traceMode, metadata, {
+          frameSnapshot,
+          frameStats,
+        })
+      : null;
+  const report: PhaserProfileReport = {
+    artifactPath,
+    comparison,
     consoleMessages: (options.consoleMessages ?? []).slice(-20),
     cpu: profile ? summarizeCpuProfile(profile) : null,
     durationMs: options.durationMs,
@@ -447,17 +516,216 @@ async function recordPhaserProfile(
     frameStats,
     graphicsAfterProfile,
     graphicsBeforeProfile,
+    metadata,
     startupSnapshot,
     timeline: includeTrace ? summarizeTrace(traceEvents) : null,
+    traceMode,
     url: page.url(),
   };
 
-  await writeJsonArtifact(`profiles/${options.scene}-profile.json`, report);
+  await writeJsonArtifact(relativeArtifactPath, report);
   await options.testInfo.attach(`${options.scene}-profile`, {
     body: JSON.stringify(report, null, 2),
     contentType: 'application/json',
   });
   return report;
+}
+
+function readProfileRunMode(): PhaserProfileRunMode {
+  const raw = process.env.PROFILE_RUN_MODE;
+  return raw === 'milestone' ? 'milestone' : 'current';
+}
+
+function createProfileMetadata(
+  scene: PhaserProfileScene,
+  traceMode: PhaserProfileTraceMode,
+  runMode: PhaserProfileRunMode,
+): ProfileMetadata {
+  const cpus = os.cpus();
+  return {
+    git: {
+      branch: readGitValue(['branch', '--show-current']),
+      commit: readGitValue(['rev-parse', 'HEAD']),
+      dirty: readGitDirty(),
+    },
+    machine: {
+      arch: os.arch(),
+      cpuModel: cpus[0]?.model ?? null,
+      hostname: os.hostname(),
+      platform: os.platform(),
+      release: os.release(),
+    },
+    pid: process.pid,
+    runMode,
+    scene,
+    timestamp: new Date().toISOString(),
+    traceMode,
+  };
+}
+
+function createProfileArtifactPath(metadata: ProfileMetadata): string {
+  const timestamp = metadata.timestamp.replace(/[:.]/g, '-');
+  return `profiles/${metadata.scene}/${metadata.runMode}/${metadata.scene}-profile-${metadata.traceMode}-${timestamp}-${metadata.pid}.json`;
+}
+
+async function compareWithLatestMilestone(
+  scene: PhaserProfileScene,
+  traceMode: PhaserProfileTraceMode,
+  metadata: ProfileMetadata,
+  current: {
+    frameSnapshot: unknown;
+    frameStats: FrameStats | null;
+  },
+): Promise<ProfileComparison | null> {
+  const milestone = await readLatestMatchingMilestone(scene, traceMode, metadata);
+  if (!milestone) return null;
+
+  return {
+    frameStats: compareFrameStats(current.frameStats, milestone.report.frameStats ?? null),
+    markerAverages: compareMarkerAverages(current.frameSnapshot, milestone.report.frameSnapshot),
+    milestoneArtifactPath: milestone.artifactPath,
+    milestoneTimestamp: milestone.report.metadata?.timestamp ?? '(unknown)',
+  };
+}
+
+async function readLatestMatchingMilestone(
+  scene: PhaserProfileScene,
+  traceMode: PhaserProfileTraceMode,
+  metadata: ProfileMetadata,
+): Promise<{ artifactPath: string; report: Partial<PhaserProfileReport> } | null> {
+  const milestoneDir = path.join(artifactRoot, 'profiles', scene, 'milestone');
+  let entries: string[] = [];
+  try {
+    entries = await readdir(milestoneDir);
+  } catch {
+    entries = [];
+  }
+
+  const candidates: Array<{ artifactPath: string; report: Partial<PhaserProfileReport> }> = [];
+  for (const entry of entries) {
+    if (entry.endsWith('.json')) {
+      const artifactPath = path.join(milestoneDir, entry);
+      const report = await readProfileReport(artifactPath);
+      if (isMatchingMilestone(report, scene, traceMode, metadata)) {
+        candidates.push({ artifactPath, report });
+      }
+    }
+  }
+
+  candidates.sort((a, b) =>
+    String(b.report.metadata?.timestamp ?? '').localeCompare(
+      String(a.report.metadata?.timestamp ?? ''),
+    ),
+  );
+  return candidates[0] ?? null;
+}
+
+async function readProfileReport(
+  artifactPath: string,
+): Promise<Partial<PhaserProfileReport> | null> {
+  try {
+    return JSON.parse(await readFile(artifactPath, 'utf8')) as Partial<PhaserProfileReport>;
+  } catch {
+    return null;
+  }
+}
+
+function isMatchingMilestone(
+  report: Partial<PhaserProfileReport> | null,
+  scene: PhaserProfileScene,
+  traceMode: PhaserProfileTraceMode,
+  metadata: ProfileMetadata,
+): report is Partial<PhaserProfileReport> {
+  return (
+    report?.metadata?.runMode === 'milestone' &&
+    report.metadata.scene === scene &&
+    report.metadata.traceMode === traceMode &&
+    report.metadata.machine.hostname === metadata.machine.hostname
+  );
+}
+
+function compareFrameStats(
+  current: FrameStats | null,
+  milestone: FrameStats | null,
+): Record<keyof FrameStats, ProfileMetricComparison> {
+  return {
+    averageDeltaMs: compareMetric(
+      current?.averageDeltaMs ?? null,
+      milestone?.averageDeltaMs ?? null,
+    ),
+    averageFps: compareMetric(current?.averageFps ?? null, milestone?.averageFps ?? null),
+    durationMs: compareMetric(current?.durationMs ?? null, milestone?.durationMs ?? null),
+    frameCount: compareMetric(current?.frameCount ?? null, milestone?.frameCount ?? null),
+    maxDeltaMs: compareMetric(current?.maxDeltaMs ?? null, milestone?.maxDeltaMs ?? null),
+    minDeltaMs: compareMetric(current?.minDeltaMs ?? null, milestone?.minDeltaMs ?? null),
+  };
+}
+
+function compareMarkerAverages(
+  currentSnapshot: unknown,
+  milestoneSnapshot: unknown,
+): Record<string, ProfileMetricComparison> {
+  const current = readMarkerAverages(currentSnapshot);
+  const milestone = readMarkerAverages(milestoneSnapshot);
+  const markerNames = [...new Set([...Object.keys(current), ...Object.keys(milestone)])].sort();
+  return Object.fromEntries(
+    markerNames.map((name) => [
+      name,
+      compareMetric(current[name] ?? null, milestone[name] ?? null),
+    ]),
+  );
+}
+
+function readMarkerAverages(snapshot: unknown): Record<string, number> {
+  if (!snapshot || typeof snapshot !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(snapshot)
+      .map(([name, value]) => [name, readAverageMetric(value)] as const)
+      .filter((entry): entry is readonly [string, number] => typeof entry[1] === 'number'),
+  );
+}
+
+function readAverageMetric(value: unknown): number | null {
+  if (!value || typeof value !== 'object') return null;
+  const average = (value as { average?: unknown }).average;
+  return typeof average === 'number' && Number.isFinite(average) ? average : null;
+}
+
+function compareMetric(current: number | null, milestone: number | null): ProfileMetricComparison {
+  const delta = current !== null && milestone !== null ? current - milestone : null;
+  return {
+    current,
+    delta,
+    deltaPercent:
+      delta !== null && milestone !== null && milestone !== 0 ? (delta / milestone) * 100 : null,
+    milestone,
+  };
+}
+
+function readGitValue(args: string[]): string | null {
+  try {
+    const value = execFileSync('git', args, {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    return value.length > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function readGitDirty(): boolean | null {
+  try {
+    const value = execFileSync('git', ['status', '--porcelain'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return value.trim().length > 0;
+  } catch {
+    return null;
+  }
 }
 
 export async function saveSandboxScreenshot(page: Page, testInfo: TestInfo): Promise<string> {
