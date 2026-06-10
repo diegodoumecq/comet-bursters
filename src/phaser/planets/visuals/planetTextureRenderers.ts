@@ -5,6 +5,7 @@ import type { PlanetTextureSizing } from '../textureSizing';
 import type { PlanetEntity, PlanetKind, PlanetSpriteSource } from '../types';
 import { createLavaPlanetShaderTexture } from './lavaPlanetShader';
 import { drawStyledPlanet } from './planetVisuals';
+import { createToxicPlanetShaderTexture } from './toxicPlanetShader';
 
 type PlanetTextureRenderer = (
   scene: Phaser.Scene,
@@ -15,6 +16,7 @@ type PlanetTextureRenderer = (
 
 const planetTextureRenderers: Partial<Record<PlanetKind, PlanetTextureRenderer>> = {
   lava: renderLavaPlanetTexture,
+  toxic: renderToxicPlanetTexture,
 };
 
 export function renderPlanetTexture(
@@ -24,7 +26,10 @@ export function renderPlanetTexture(
   sizing: PlanetTextureSizing,
 ): void {
   const renderer = planetTextureRenderers[planet.kind];
-  if (renderer?.(scene, textureKey, planet, sizing)) return;
+  if (renderer) {
+    if (renderer(scene, textureKey, planet, sizing)) return;
+    throw new Error(`Unable to render ${planet.kind} planet shader texture`);
+  }
 
   renderCanvasPlanetTexture(scene, textureKey, planet, sizing);
 }
@@ -36,6 +41,21 @@ function renderLavaPlanetTexture(
   sizing: PlanetTextureSizing,
 ): boolean {
   return createLavaPlanetShaderTexture(
+    scene,
+    textureKey,
+    planet,
+    sizing.textureSize,
+    sizing.textureScale,
+  );
+}
+
+function renderToxicPlanetTexture(
+  scene: Phaser.Scene,
+  textureKey: string,
+  planet: PlanetEntity,
+  sizing: PlanetTextureSizing,
+): boolean {
+  return createToxicPlanetShaderTexture(
     scene,
     textureKey,
     planet,

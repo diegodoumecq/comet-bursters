@@ -3,20 +3,15 @@ import { drawCrystalSurface } from './crystal';
 import { drawDesertSurface } from './desert';
 import { drawGasSurface } from './gas';
 import { drawIceSurface } from './ice';
-import { drawLavaSurface } from './lava';
 import { drawLushSurface } from './lush';
-import { drawToxicSurface } from './toxic';
 
-const surfaceRenderers: Record<
-  PlanetKind,
-  (planet: Planet, ctx: CanvasRenderingContext2D, radius: number) => void
+const surfaceRenderers: Partial<
+  Record<PlanetKind, (planet: Planet, ctx: CanvasRenderingContext2D, radius: number) => void>
 > = {
   lush: drawLushSurface,
   desert: drawDesertSurface,
   ice: drawIceSurface,
-  lava: drawLavaSurface,
   gas: drawGasSurface,
-  toxic: drawToxicSurface,
   crystal: drawCrystalSurface,
 };
 
@@ -25,5 +20,7 @@ export function drawPlanetSurface(
   ctx: CanvasRenderingContext2D,
   radius: number,
 ): void {
-  surfaceRenderers[planet.kind](planet, ctx, radius);
+  const renderer = surfaceRenderers[planet.kind];
+  if (!renderer) throw new Error(`${planet.kind} planets are rendered by shader textures`);
+  renderer(planet, ctx, radius);
 }

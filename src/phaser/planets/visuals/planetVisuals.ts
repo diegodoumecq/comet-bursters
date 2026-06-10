@@ -39,7 +39,6 @@ function drawDesertBaseGradient(
 function drawStyledPlanetToContext(planet: Planet, ctx: CanvasRenderingContext2D): void {
   const radius = planet.getRadius();
   const style = PLANET_SHELL_STYLES[planet.kind];
-  const isToxic = planet.kind === 'toxic';
   const lightAngle = -Math.PI / 3;
   const lightOffset = polarPoint(radius * 0.45, lightAngle);
 
@@ -90,31 +89,26 @@ function drawStyledPlanetToContext(planet: Planet, ctx: CanvasRenderingContext2D
   drawDesertBaseGradient(planet, ctx, radius, lightOffset);
   drawPlanetSurface(planet, ctx, radius);
 
-  if (!isToxic) {
-    const shellLightOverlay = ctx.createRadialGradient(
-      lightOffset.x,
-      lightOffset.y,
-      radius * 0.12,
-      0,
-      0,
-      radius * 1.08,
-    );
-    shellLightOverlay.addColorStop(
-      0,
-      withAlpha(tintColor(planet.color, style.shellInnerTint), 0.06),
-    );
-    shellLightOverlay.addColorStop(
-      Math.max(0.18, style.shellMidStop - 0.08),
-      withAlpha(tintColor(planet.color, style.shellMidTint), 0.025),
-    );
-    shellLightOverlay.addColorStop(style.shellBaseStop, withAlpha(planet.color, 0.008));
-    shellLightOverlay.addColorStop(
-      1,
-      withAlpha(tintColor(planet.color, style.shellOuterTint), 0.015),
-    );
-    ctx.fillStyle = shellLightOverlay;
-    ctx.fillRect(-radius * 1.3, -radius * 1.3, radius * 2.6, radius * 2.6);
-  }
+  const shellLightOverlay = ctx.createRadialGradient(
+    lightOffset.x,
+    lightOffset.y,
+    radius * 0.12,
+    0,
+    0,
+    radius * 1.08,
+  );
+  shellLightOverlay.addColorStop(0, withAlpha(tintColor(planet.color, style.shellInnerTint), 0.06));
+  shellLightOverlay.addColorStop(
+    Math.max(0.18, style.shellMidStop - 0.08),
+    withAlpha(tintColor(planet.color, style.shellMidTint), 0.025),
+  );
+  shellLightOverlay.addColorStop(style.shellBaseStop, withAlpha(planet.color, 0.008));
+  shellLightOverlay.addColorStop(
+    1,
+    withAlpha(tintColor(planet.color, style.shellOuterTint), 0.015),
+  );
+  ctx.fillStyle = shellLightOverlay;
+  ctx.fillRect(-radius * 1.3, -radius * 1.3, radius * 2.6, radius * 2.6);
 
   const shadeGradient = ctx.createLinearGradient(
     radius * style.shadeStartX,
@@ -128,46 +122,42 @@ function drawStyledPlanetToContext(planet: Planet, ctx: CanvasRenderingContext2D
   ctx.fillStyle = shadeGradient;
   ctx.fillRect(-radius * 1.3, -radius * 1.3, radius * 2.6, radius * 2.6);
 
-  if (!isToxic) {
-    const rimGradient = ctx.createLinearGradient(
-      -radius * 0.6,
-      -radius * 0.7,
-      radius * 0.55,
-      radius * 0.45,
-    );
-    rimGradient.addColorStop(0, `rgba(255, 255, 255, ${style.rimStartAlpha})`);
-    rimGradient.addColorStop(0.28, `rgba(255, 255, 255, ${style.rimMidAlpha})`);
-    rimGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    ctx.strokeStyle = rimGradient;
-    ctx.lineWidth = style.rimLineWidth;
-    tracePlanetShape(ctx, planet, radius * 0.98);
-    ctx.stroke();
-  }
+  const rimGradient = ctx.createLinearGradient(
+    -radius * 0.6,
+    -radius * 0.7,
+    radius * 0.55,
+    radius * 0.45,
+  );
+  rimGradient.addColorStop(0, `rgba(255, 255, 255, ${style.rimStartAlpha})`);
+  rimGradient.addColorStop(0.28, `rgba(255, 255, 255, ${style.rimMidAlpha})`);
+  rimGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.strokeStyle = rimGradient;
+  ctx.lineWidth = style.rimLineWidth;
+  tracePlanetShape(ctx, planet, radius * 0.98);
+  ctx.stroke();
   ctx.restore();
 
-  if (!isToxic) {
-    const atmosphereGradient = ctx.createRadialGradient(
-      lightOffset.x * 0.2,
-      lightOffset.y * 0.2,
-      radius * style.atmosphereInnerRadius,
-      0,
-      0,
-      radius * style.atmosphereOuterRadius,
-    );
-    atmosphereGradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
-    atmosphereGradient.addColorStop(
-      style.atmosphereStart,
-      `${tintColor(planet.color, 0.35).replace('rgb', 'rgba').replace(')', `, ${style.atmosphereAlpha})`)}`,
-    );
-    atmosphereGradient.addColorStop(
-      1,
-      `${tintColor(planet.color, 0.15).replace('rgb', 'rgba').replace(')', ', 0)')}`,
-    );
-    ctx.fillStyle = atmosphereGradient;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius * style.atmosphereOuterRadius, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  const atmosphereGradient = ctx.createRadialGradient(
+    lightOffset.x * 0.2,
+    lightOffset.y * 0.2,
+    radius * style.atmosphereInnerRadius,
+    0,
+    0,
+    radius * style.atmosphereOuterRadius,
+  );
+  atmosphereGradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  atmosphereGradient.addColorStop(
+    style.atmosphereStart,
+    `${tintColor(planet.color, 0.35).replace('rgb', 'rgba').replace(')', `, ${style.atmosphereAlpha})`)}`,
+  );
+  atmosphereGradient.addColorStop(
+    1,
+    `${tintColor(planet.color, 0.15).replace('rgb', 'rgba').replace(')', ', 0)')}`,
+  );
+  ctx.fillStyle = atmosphereGradient;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius * style.atmosphereOuterRadius, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.strokeStyle = tintColor(planet.color, style.outlineTint);
   ctx.lineWidth = style.outlineWidth;

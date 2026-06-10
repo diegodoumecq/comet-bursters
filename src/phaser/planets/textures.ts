@@ -4,7 +4,7 @@ import { getPlanetDisplaySizeForRadius, getPlanetTextureSizing } from './texture
 import type { PlanetEntity } from './types';
 import { renderPlanetTexture } from './visuals/planetTextureRenderers';
 
-const PLANET_TEXTURE_VERSION = 'v38-lava-shader-cracked-crust';
+const PLANET_TEXTURE_VERSION = 'v39-planet-shader-textures';
 const textureKeys = new Map<string, string>();
 
 export function getPlanetTextureKey(scene: Phaser.Scene, planet: PlanetEntity): string {
