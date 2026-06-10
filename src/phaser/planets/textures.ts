@@ -1,11 +1,10 @@
 import Phaser from 'phaser';
 
-import { createCanvasTexture } from '../core/canvasTextures';
 import { getPlanetDisplaySizeForRadius, getPlanetTextureSizing } from './textureSizing';
-import type { PlanetEntity, PlanetSpriteSource } from './types';
-import { drawStyledPlanet } from './visuals/planetVisuals';
+import type { PlanetEntity } from './types';
+import { renderPlanetTexture } from './visuals/planetTextureRenderers';
 
-const PLANET_TEXTURE_VERSION = 'v21-lazy-direct-painter-surface';
+const PLANET_TEXTURE_VERSION = 'v38-lava-shader-cracked-crust';
 const textureKeys = new Map<string, string>();
 
 export function getPlanetTextureKey(scene: Phaser.Scene, planet: PlanetEntity): string {
@@ -31,9 +30,7 @@ export function getPlanetDisplaySize(planet: PlanetEntity): number {
 
 function createPlanetTexture(scene: Phaser.Scene, textureKey: string, planet: PlanetEntity): void {
   const sizing = getPlanetTextureSizing(planet.radius, getRendererMaxTextureSize(scene));
-  createCanvasTexture(scene, textureKey, sizing.textureSize, sizing.textureSize, (ctx) => {
-    drawStyledPlanet(toSpriteSource(planet, sizing.textureSize, sizing.textureScale), ctx);
-  });
+  renderPlanetTexture(scene, textureKey, planet, sizing);
 }
 
 function getRendererMaxTextureSize(scene: Phaser.Scene): number | null {
@@ -43,20 +40,4 @@ function getRendererMaxTextureSize(scene: Phaser.Scene): number | null {
     if (typeof maxTextureSize === 'number' && maxTextureSize > 0) return maxTextureSize;
   }
   return null;
-}
-
-function toSpriteSource(
-  planet: PlanetEntity,
-  canvasSize: number,
-  textureScale: number,
-): PlanetSpriteSource {
-  return {
-    altitudeVariations: planet.altitudeVariations,
-    color: planet.colorHex,
-    getRadius: () => planet.radius * textureScale,
-    kind: planet.kind,
-    rotation: 0,
-    x: canvasSize * 0.5,
-    y: canvasSize * 0.5,
-  };
 }
