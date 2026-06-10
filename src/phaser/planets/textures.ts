@@ -4,7 +4,7 @@ import { getPlanetDisplaySizeForRadius, getPlanetTextureSizing } from './texture
 import type { PlanetEntity } from './types';
 import { renderPlanetTexture } from './visuals/planetTextureRenderers';
 
-const PLANET_TEXTURE_VERSION = 'v40-toxic-distinct-texture';
+const PLANET_TEXTURE_VERSION = 'v49-gas-purple-no-spot';
 const textureKeys = new Map<string, string>();
 
 export function getPlanetTextureKey(scene: Phaser.Scene, planet: PlanetEntity): string {

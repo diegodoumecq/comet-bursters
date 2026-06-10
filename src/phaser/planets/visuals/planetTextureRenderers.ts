@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { createCanvasTexture } from '../../core/canvasTextures';
 import type { PlanetTextureSizing } from '../textureSizing';
 import type { PlanetEntity, PlanetKind, PlanetSpriteSource } from '../types';
+import { createGasPlanetShaderTexture } from './gasPlanetShader';
 import { createLavaPlanetShaderTexture } from './lavaPlanetShader';
 import { drawStyledPlanet } from './planetVisuals';
 import { createToxicPlanetShaderTexture } from './toxicPlanetShader';
@@ -15,6 +16,7 @@ type PlanetTextureRenderer = (
 ) => boolean;
 
 const planetTextureRenderers: Partial<Record<PlanetKind, PlanetTextureRenderer>> = {
+  gas: renderGasPlanetTexture,
   lava: renderLavaPlanetTexture,
   toxic: renderToxicPlanetTexture,
 };
@@ -41,6 +43,21 @@ function renderLavaPlanetTexture(
   sizing: PlanetTextureSizing,
 ): boolean {
   return createLavaPlanetShaderTexture(
+    scene,
+    textureKey,
+    planet,
+    sizing.textureSize,
+    sizing.textureScale,
+  );
+}
+
+function renderGasPlanetTexture(
+  scene: Phaser.Scene,
+  textureKey: string,
+  planet: PlanetEntity,
+  sizing: PlanetTextureSizing,
+): boolean {
+  return createGasPlanetShaderTexture(
     scene,
     textureKey,
     planet,

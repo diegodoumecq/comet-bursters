@@ -1,7 +1,6 @@
 import type { PlanetSpriteSource as Planet, PlanetKind } from '../../types';
 import { drawCrystalSurface } from './crystal';
 import { drawDesertSurface } from './desert';
-import { drawGasSurface } from './gas';
 import { drawIceSurface } from './ice';
 import { drawLushSurface } from './lush';
 
@@ -11,7 +10,6 @@ const surfaceRenderers: Partial<
   lush: drawLushSurface,
   desert: drawDesertSurface,
   ice: drawIceSurface,
-  gas: drawGasSurface,
   crystal: drawCrystalSurface,
 };
 
