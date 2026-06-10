@@ -103,6 +103,22 @@ float ridgedFbm(vec3 p) {
   return value;
 }
 
+float billowFbm(vec3 p) {
+  float value = 0.0;
+  float amplitude = 0.56;
+  for (int i = 0; i < 6; i++) {
+    float billow = abs(valueNoise(p) * 2.0 - 1.0);
+    value += (1.0 - billow * billow) * amplitude;
+    p = mat3(
+      0.49, -0.78, 0.39,
+      0.86, 0.43, -0.27,
+      0.04, 0.46, 0.89
+    ) * p * 1.84 + vec3(4.3, 7.6, 2.1);
+    amplitude *= 0.53;
+  }
+  return value;
+}
+
 float cellular(vec3 p) {
   vec3 cell = floor(p);
   vec3 local = fract(p);
@@ -121,24 +137,11 @@ float cellular(vec3 p) {
   return nearest;
 }
 
-float veinLayer(vec3 p, vec3 direction, float frequency, float phase, float width) {
-  vec3 dir = normalize(direction);
-  float warp =
-    fbm(p * 0.62 + dir * 3.1 + vec3(phase)) * 1.24 +
-    ridgedFbm(p * 0.4 + dir.yzx * 2.2 - vec3(phase)) * 0.86;
-  float line = sin(dot(p, dir) * frequency + warp * 2.65 + phase);
-  return 1.0 - smoothstep(width, width * 3.4, abs(line));
-}
-
-float chemicalVeins(vec3 p) {
-  float broad =
-    veinLayer(p, vec3(1.0, -0.16, 0.48), 8.4, u_seed * 0.023, 0.102) * 0.3 +
-    veinLayer(p, vec3(-0.36, 0.88, 0.3), 11.6, u_seed * 0.039 + 1.7, 0.082) * 0.27 +
-    veinLayer(p, vec3(0.22, 0.52, 1.0), 13.8, u_seed * 0.031 + 3.2, 0.066) * 0.25;
-  float fine =
-    veinLayer(p, vec3(0.74, 0.5, -0.44), 24.0, u_seed * 0.017 + 0.9, 0.034) * 0.23 +
-    veinLayer(p, vec3(-0.48, 1.0, 0.2), 30.0, u_seed * 0.043 + 2.1, 0.026) * 0.2;
-  return clamp(broad + fine, 0.0, 1.0);
+float speckleField(vec3 p) {
+  float cells = cellular(p);
+  float dots = 1.0 - smoothstep(0.07, 0.22, cells);
+  float dust = smoothstep(0.62, 0.92, valueNoise(p * 1.73 + vec3(8.1, 2.3, 5.7)));
+  return dots * dust;
 }
 
 vec3 tint(vec3 color, float amount) {
@@ -148,56 +151,61 @@ vec3 tint(vec3 color, float amount) {
 
 vec4 sampleToxicSurface(vec2 sphereUv, vec3 normal) {
   vec3 rotatedNormal = rotateY(u_rotation) * normal;
-  vec3 seedOffset = vec3(u_seed * 0.019, u_seed * 0.013, u_seed * 0.021);
-  vec3 basePosition = rotatedNormal * 3.45 + seedOffset;
+  vec3 seedOffset = vec3(u_seed * 0.023, u_seed * 0.017, u_seed * 0.029);
+  vec3 basePosition = rotatedNormal * 2.35 + seedOffset;
   vec3 warp = vec3(
-    fbm(basePosition * 1.08 + vec3(8.2, 1.7, 3.1)),
-    fbm(basePosition * 1.21 + vec3(2.6, 7.4, 5.5)),
-    fbm(basePosition * 0.94 + vec3(4.8, 3.2, 9.0))
+    billowFbm(basePosition * 0.86 + vec3(8.2, 1.7, 3.1)),
+    fbm(basePosition * 1.04 + vec3(2.6, 7.4, 5.5)),
+    billowFbm(basePosition * 0.72 + vec3(4.8, 3.2, 9.0))
   ) - 0.5;
-  vec3 q = rotatedNormal * 4.8 + warp * 1.38 + seedOffset * 0.42;
+  vec3 q = rotatedNormal * 3.15 + warp * 1.72 + seedOffset * 0.38;
 
-  float continents = fbm(q * 0.78 + vec3(1.8, 2.4, 7.2));
-  float swamp = fbm(q * 1.52 + warp * 1.72);
-  float sludge = fbm(q * 4.4 + vec3(7.1, 3.8, 1.6));
-  float fineSlime = fbm(q * 10.8 + warp * 2.5 + vec3(1.2, 8.4, 4.1));
-  float ridges = ridgedFbm(q * 2.36 + warp * 1.6);
-  float caustics = ridgedFbm(q * 6.4 + vec3(5.3, 2.2, 8.7));
-  float cells = cellular(q * 2.45 + warp * 1.05);
-  float smallCells = cellular(q * 7.4 + warp * 2.2 + vec3(3.5, 6.8, 1.7));
-  float veins = chemicalVeins(q + warp * 0.72);
+  float murk = fbm(q * 0.62 + vec3(1.8, 2.4, 7.2));
+  float billows = billowFbm(q * 1.08 + warp * 1.18);
+  float oily = fbm(q * 2.45 + vec3(7.1, 3.8, 1.6));
+  float fineFilm = billowFbm(q * 6.4 + warp * 1.9 + vec3(1.2, 8.4, 4.1));
+  float softRidges = ridgedFbm(q * 1.35 + warp * 0.7);
+  float largeCells = cellular(q * 1.26 + warp * 0.82);
+  float mediumCells = cellular(q * 3.45 + warp * 1.28 + vec3(3.5, 6.8, 1.7));
+  float tinySpores = speckleField(q * 11.0 + warp * 2.3 + vec3(6.2, 1.1, 9.3));
 
   float latitudeBands =
-    sin((sphereUv.y * 11.4 + sphereUv.x * 1.9 + warp.x * 0.38 + swamp * 0.32) * TAU) * 0.5 + 0.5;
-  float shearBands =
-    sin((sphereUv.x * 8.2 - sphereUv.y * 4.6 + ridges * 0.72 + warp.y * 0.24) * TAU) * 0.5 + 0.5;
-  float murkBands = smoothstep(0.48, 0.91, latitudeBands * 0.38 + shearBands * 0.2 + ridges * 0.26);
+    sin((sphereUv.y * 6.7 + sphereUv.x * 0.9 + warp.x * 0.3 + billows * 0.24) * TAU) * 0.5 + 0.5;
+  float oilyBands =
+    sin((sphereUv.x * 3.8 - sphereUv.y * 5.2 + oily * 0.65 + warp.y * 0.34) * TAU) * 0.5 + 0.5;
+  float smogBands = smoothstep(0.42, 0.82, latitudeBands * 0.4 + oilyBands * 0.18 + billows * 0.28);
 
-  float acidLakes = smoothstep(0.55, 0.84, (1.0 - cells) * 0.62 + swamp * 0.22 + murkBands * 0.12);
-  float lakeEdges = smoothstep(0.34, 0.52, 1.0 - cells) * (1.0 - smoothstep(0.52, 0.78, 1.0 - cells));
-  float bloomedPools = smoothstep(0.52, 0.88, acidLakes * 0.5 + caustics * 0.26 + (1.0 - smallCells) * 0.2);
-  float crustRot = smoothstep(0.48, 0.82, continents * 0.38 + sludge * 0.34 + ridges * 0.25);
-  float tarScabs = smoothstep(0.58, 0.9, sludge * 0.44 + fineSlime * 0.28 + ridges * 0.2);
-  float veinGlow = smoothstep(0.4, 0.78, veins * 0.6 + caustics * 0.2 + murkBands * 0.14);
-  float foam = smoothstep(0.64, 0.92, fineSlime * 0.46 + lakeEdges * 0.4 + caustics * 0.12);
-  float vents = smoothstep(0.76, 0.95, (1.0 - smallCells) * 0.44 + fineSlime * 0.28 + veins * 0.18);
+  float cellCore = 1.0 - smoothstep(0.18, 0.58, largeCells);
+  float cellRim = smoothstep(0.26, 0.48, largeCells) * (1.0 - smoothstep(0.48, 0.76, largeCells));
+  float acidLagoons = smoothstep(0.48, 0.82, cellCore * 0.54 + billows * 0.26 + smogBands * 0.18);
+  float algaeMats = smoothstep(0.54, 0.88, (1.0 - mediumCells) * 0.34 + oily * 0.36 + murk * 0.22);
+  float cyanSlicks = smoothstep(0.5, 0.86, fineFilm * 0.42 + cellRim * 0.32 + oilyBands * 0.14);
+  float darkBrine = smoothstep(0.56, 0.9, murk * 0.46 + softRidges * 0.24 + oily * 0.18);
+  float yellowBloom = smoothstep(0.62, 0.93, acidLagoons * 0.48 + fineFilm * 0.28 + cellRim * 0.2);
+  float purpleScum = smoothstep(
+    0.5,
+    0.86,
+    tinySpores * 0.58 + (1.0 - mediumCells) * 0.16 + fineFilm * 0.18
+  );
 
-  vec3 deepBog = mix(u_base_color, vec3(0.006, 0.09, 0.046), 0.72);
-  vec3 bruisedGreen = mix(u_base_color, vec3(0.03, 0.22, 0.08), 0.46);
-  vec3 slick = mix(u_base_color, vec3(0.18, 0.66, 0.18), 0.28);
-  vec3 acid = vec3(0.72, 1.0, 0.22);
-  vec3 hotAcid = vec3(0.92, 1.0, 0.46);
-  vec3 cyanScum = vec3(0.14, 0.95, 0.62);
-  vec3 pinkSpores = vec3(1.0, 0.28, 0.72);
+  vec3 blackwater = mix(u_base_color, vec3(0.0, 0.055, 0.058), 0.76);
+  vec3 deepTeal = mix(u_base_color, vec3(0.0, 0.25, 0.2), 0.58);
+  vec3 algae = vec3(0.16, 0.62, 0.24);
+  vec3 acid = vec3(0.74, 1.0, 0.12);
+  vec3 chartreuse = vec3(0.9, 0.98, 0.32);
+  vec3 cyanSlick = vec3(0.02, 0.82, 0.76);
+  vec3 violetWaste = vec3(0.72, 0.18, 0.82);
 
-  vec3 color = mix(deepBog, bruisedGreen, continents * 0.62 + murkBands * 0.14);
-  color = mix(color, slick, swamp * 0.28 + crustRot * 0.18);
-  color = mix(color, vec3(0.004, 0.045, 0.024), tarScabs * 0.42);
-  color = mix(color, acid, acidLakes * 0.62 + veinGlow * 0.2);
-  color = mix(color, hotAcid, bloomedPools * 0.34 + foam * 0.22);
-  color = mix(color, cyanScum, caustics * acidLakes * 0.18 + foam * 0.13);
-  color += pinkSpores * vents * 0.12;
-  color += acid * veinGlow * 0.08;
+  vec3 color = mix(blackwater, deepTeal, murk * 0.62 + smogBands * 0.16);
+  color = mix(color, algae, algaeMats * 0.34 + billows * 0.12);
+  color = mix(color, vec3(0.0, 0.034, 0.034), darkBrine * 0.38);
+  color = mix(color, acid, acidLagoons * 0.44);
+  color = mix(color, chartreuse, yellowBloom * 0.24 + cellRim * 0.08);
+  color = mix(color, cyanSlick, cyanSlicks * 0.25);
+  color = mix(color, violetWaste, purpleScum * 0.22);
+  color += chartreuse * yellowBloom * 0.08;
+  color += cyanSlick * cyanSlicks * 0.05;
+  color += violetWaste * purpleScum * 0.06;
 
   vec3 lightDirection = normalize(vec3(-0.44, 0.58, 0.69));
   float diffuse = clamp(dot(normal, lightDirection), 0.0, 1.0);
@@ -205,7 +213,9 @@ vec4 sampleToxicSurface(vec2 sphereUv, vec3 normal) {
   float limb = 1.0 - clamp(normal.z, 0.0, 1.0);
   color *= 0.44 + diffuse * 0.74;
   color = mix(color * 0.36, color, day);
-  color += (acid * acidLakes + hotAcid * veinGlow + cyanScum * foam) * (0.1 + (1.0 - day) * 0.14);
+  color +=
+    (acid * acidLagoons + chartreuse * yellowBloom + cyanSlick * cyanSlicks + violetWaste * purpleScum * 0.36) *
+    (0.08 + (1.0 - day) * 0.12);
   color += tint(u_base_color, 0.6) * pow(limb, 2.1) * 0.09 * day;
 
   return vec4(color, 1.0);
