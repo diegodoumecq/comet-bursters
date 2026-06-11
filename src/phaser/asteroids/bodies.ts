@@ -4,7 +4,11 @@ import { ASTEROID_COLLISION_CATEGORY } from '../combat/collisionCategories';
 import { applyMatterBodySpec } from '../core/matterBodySpec';
 import type { MatterImage, Vector, WorldSize } from '../core/types';
 import { ASTEROID_DEFINITIONS, ASTEROIDS } from './config';
-import { ASTEROID_TEXTURES, getAsteroidTextureDisplaySize } from './textures';
+import {
+  getAsteroidTextureBlend,
+  getAsteroidTextureDisplaySize,
+  getAsteroidTextureKey,
+} from './textures';
 import { getToroidalOffsets, wrapCoordinate } from './toroidal';
 import type { AsteroidEntity } from './types';
 
@@ -15,6 +19,12 @@ type ToroidalCopy = {
   active: boolean;
   body: MatterImage;
   direction: Vector;
+  visual: AsteroidVisual;
+};
+
+type AsteroidVisual = {
+  current: Phaser.GameObjects.Image;
+  next: Phaser.GameObjects.Image;
 };
 
 type Snapshot = {
@@ -26,6 +36,7 @@ type Snapshot = {
 export class AsteroidBodies {
   private readonly attached = new Set<number>();
   private readonly bodies = new Map<number, MatterImage>();
+  private readonly visuals = new Map<number, AsteroidVisual>();
   private readonly toroidalCopies = new Map<number, ToroidalCopy[]>();
   private readonly snapshots = new Map<number, Snapshot>();
 
@@ -41,6 +52,8 @@ export class AsteroidBodies {
       this.attached.add(asteroid.id);
       this.placeBody(
         existing,
+        this.getVisual(asteroid),
+        asteroid,
         asteroid.position,
         asteroid.velocity,
         asteroid.rotation,
@@ -52,7 +65,9 @@ export class AsteroidBodies {
     }
 
     const body = this.createBody(asteroid);
+    const visual = this.createVisual(asteroid);
     this.bodies.set(asteroid.id, body);
+    this.visuals.set(asteroid.id, visual);
     this.attached.add(asteroid.id);
     this.syncCollisionFilter(asteroid);
     return body;
@@ -64,6 +79,12 @@ export class AsteroidBodies {
     return body;
   }
 
+  private getVisual(asteroid: AsteroidEntity): AsteroidVisual {
+    const visual = this.visuals.get(asteroid.id);
+    if (!visual) throw new Error(`Missing asteroid visual ${asteroid.id}`);
+    return visual;
+  }
+
   remove(asteroid: AsteroidEntity): void {
     this.destroy(asteroid);
   }
@@ -72,13 +93,14 @@ export class AsteroidBodies {
     const body = this.get(asteroid);
     asteroid.position = { x: body.x, y: body.y };
     asteroid.velocity = { x: body.body.velocity.x, y: body.body.velocity.y };
-    asteroid.rotation = body.rotation;
+    asteroid.rotation = this.getBodyRotation(body);
     asteroid.angularVelocity = body.body.angularVelocity;
-    for (const current of this.getAllBodies(asteroid)) {
-      current.setVisible(false);
-      current.body.collisionFilter.mask = 0;
-      current.setVelocity(0, 0);
-      current.setAngularVelocity(0);
+    for (const current of this.getAllVisuals(asteroid)) {
+      current.body.setVisible(false);
+      this.setVisualVisible(current.visual, false);
+      current.body.body.collisionFilter.mask = 0;
+      current.body.setVelocity(0, 0);
+      current.body.setAngularVelocity(0);
     }
     this.attached.delete(asteroid.id);
     this.snapshots.delete(asteroid.id);
@@ -86,10 +108,15 @@ export class AsteroidBodies {
 
   destroy(asteroid: AsteroidEntity): void {
     this.get(asteroid).destroy();
+    this.destroyVisual(this.getVisual(asteroid));
     this.bodies.delete(asteroid.id);
+    this.visuals.delete(asteroid.id);
     this.attached.delete(asteroid.id);
     const copies = this.toroidalCopies.get(asteroid.id) ?? [];
-    for (const copy of copies) copy.body.destroy();
+    for (const copy of copies) {
+      copy.body.destroy();
+      this.destroyVisual(copy.visual);
+    }
     this.toroidalCopies.delete(asteroid.id);
     this.snapshots.delete(asteroid.id);
   }
@@ -99,8 +126,9 @@ export class AsteroidBodies {
     const body = this.get(asteroid);
     asteroid.position = { x: body.x, y: body.y };
     asteroid.velocity = { x: body.body.velocity.x, y: body.body.velocity.y };
-    asteroid.rotation = body.rotation;
+    asteroid.rotation = this.getBodyRotation(body);
     asteroid.angularVelocity = body.body.angularVelocity;
+    this.applyVisualFrame(this.getVisual(asteroid), asteroid, asteroid.rotation);
   }
 
   syncAll(asteroids: AsteroidEntity[]): void {
@@ -129,9 +157,11 @@ export class AsteroidBodies {
   }
 
   setVisible(asteroid: AsteroidEntity, visible: boolean): void {
-    for (const body of this.getAllBodies(asteroid)) {
-      body.setVisible(visible);
-      body.body.collisionFilter.mask = visible && this.attached.has(asteroid.id) ? 0xffffffff : 0;
+    for (const current of this.getAllVisuals(asteroid)) {
+      current.body.setVisible(false);
+      this.setVisualVisible(current.visual, visible);
+      current.body.body.collisionFilter.mask =
+        visible && this.attached.has(asteroid.id) ? 0xffffffff : 0;
     }
   }
 
@@ -166,13 +196,22 @@ export class AsteroidBodies {
       x: authority.body.body.velocity.x,
       y: authority.body.body.velocity.y,
     };
-    const rotation = authority.body.rotation;
+    const rotation = this.getBodyRotation(authority.body);
     const angularVelocity = authority.body.body.angularVelocity;
     asteroid.position = position;
     asteroid.velocity = velocity;
     asteroid.rotation = rotation;
     asteroid.angularVelocity = angularVelocity;
-    this.placeBody(primary, position, velocity, rotation, angularVelocity, true);
+    this.placeBody(
+      primary,
+      this.getVisual(asteroid),
+      asteroid,
+      position,
+      velocity,
+      rotation,
+      angularVelocity,
+      true,
+    );
   }
 
   private prepareToroidalCopies(asteroid: AsteroidEntity, world: WorldSize): void {
@@ -186,7 +225,16 @@ export class AsteroidBodies {
     const primary = this.get(asteroid);
     const rotation = asteroid.rotation;
     const angularVelocity = asteroid.angularVelocity;
-    this.placeBody(primary, asteroid.position, velocity, rotation, angularVelocity, true);
+    this.placeBody(
+      primary,
+      this.getVisual(asteroid),
+      asteroid,
+      asteroid.position,
+      velocity,
+      rotation,
+      angularVelocity,
+      true,
+    );
     for (const copy of copies) {
       const offset = getWorldOffset(copy.direction, world);
       const active = activeOffsets.some(
@@ -197,7 +245,16 @@ export class AsteroidBodies {
         y: asteroid.position.y + offset.y,
       };
       copy.active = active;
-      this.placeBody(copy.body, position, velocity, rotation, angularVelocity, active);
+      this.placeBody(
+        copy.body,
+        copy.visual,
+        asteroid,
+        position,
+        velocity,
+        rotation,
+        angularVelocity,
+        active,
+      );
     }
     this.syncCollisionFilter(asteroid);
     this.snapshots.set(asteroid.id, {
@@ -225,6 +282,7 @@ export class AsteroidBodies {
       active: false,
       body: this.createBody(asteroid),
       direction,
+      visual: this.createVisual(asteroid),
     }));
     this.toroidalCopies.set(asteroid.id, copies);
     return copies;
@@ -235,7 +293,7 @@ export class AsteroidBodies {
     const body = this.scene.matter.add.image(
       asteroid.position.x,
       asteroid.position.y,
-      ASTEROID_TEXTURES[asteroid.tier][asteroid.visualVariant],
+      getAsteroidTextureKey(asteroid.tier, asteroid.visualVariant, asteroid.rotation),
     ) as MatterImage;
     const displaySize = getAsteroidTextureDisplaySize(asteroid.tier);
     body.setDisplaySize(displaySize, displaySize);
@@ -245,12 +303,44 @@ export class AsteroidBodies {
     body.setVelocity(asteroid.velocity.x, asteroid.velocity.y);
     body.setRotation(asteroid.rotation);
     body.setAngularVelocity(asteroid.angularVelocity);
+    body.setVisible(false);
     return body;
+  }
+
+  private createVisual(asteroid: AsteroidEntity): AsteroidVisual {
+    const current = this.scene.add.image(
+      asteroid.position.x,
+      asteroid.position.y,
+      getAsteroidTextureKey(asteroid.tier, asteroid.visualVariant, asteroid.rotation),
+    );
+    const next = this.scene.add.image(
+      asteroid.position.x,
+      asteroid.position.y,
+      getAsteroidTextureKey(asteroid.tier, asteroid.visualVariant, asteroid.rotation),
+    );
+    const visual = { current, next };
+    const displaySize = getAsteroidTextureDisplaySize(asteroid.tier);
+    current.setDisplaySize(displaySize, displaySize);
+    current.setName(`asteroid-visual-${asteroid.id}`);
+    next.setDisplaySize(displaySize, displaySize);
+    next.setName(`asteroid-visual-${asteroid.id}-blend`);
+    this.applyVisualFrame(visual, asteroid, asteroid.rotation);
+    return visual;
   }
 
   private getAllBodies(asteroid: AsteroidEntity): MatterImage[] {
     const copies = this.toroidalCopies.get(asteroid.id) ?? [];
     return [this.get(asteroid), ...copies.map((copy) => copy.body)];
+  }
+
+  private getAllVisuals(
+    asteroid: AsteroidEntity,
+  ): Array<{ body: MatterImage; visual: AsteroidVisual }> {
+    const copies = this.toroidalCopies.get(asteroid.id) ?? [];
+    return [
+      { body: this.get(asteroid), visual: this.getVisual(asteroid) },
+      ...copies.map((copy) => ({ body: copy.body, visual: copy.visual })),
+    ];
   }
 
   private getChangeScore(body: MatterImage, snapshot: Snapshot, offset: Vector): number {
@@ -271,6 +361,8 @@ export class AsteroidBodies {
 
   private placeBody(
     body: MatterImage,
+    visual: AsteroidVisual,
+    asteroid: AsteroidEntity,
     position: Vector,
     velocity: Vector,
     rotation: number,
@@ -281,8 +373,46 @@ export class AsteroidBodies {
     body.setRotation(rotation);
     body.setVelocity(velocity.x, velocity.y);
     body.setAngularVelocity(angularVelocity);
-    body.setVisible(active);
+    body.setVisible(false);
     body.body.collisionFilter.mask = active ? 0xffffffff : 0;
+    visual.current.setPosition(position.x, position.y);
+    visual.next.setPosition(position.x, position.y);
+    this.applyVisualFrame(visual, asteroid, rotation);
+    this.setVisualVisible(visual, active);
+  }
+
+  private applyVisualFrame(
+    visual: AsteroidVisual,
+    asteroid: AsteroidEntity,
+    rotation: number,
+  ): void {
+    const textureBlend = getAsteroidTextureBlend(asteroid.tier, asteroid.visualVariant, rotation);
+    if (visual.current.texture.key !== textureBlend.currentKey)
+      visual.current.setTexture(textureBlend.currentKey);
+    if (visual.next.texture.key !== textureBlend.nextKey)
+      visual.next.setTexture(textureBlend.nextKey);
+    const displaySize = getAsteroidTextureDisplaySize(asteroid.tier);
+    visual.current.setDisplaySize(displaySize, displaySize);
+    visual.next.setDisplaySize(displaySize, displaySize);
+    visual.current.setRotation(0);
+    visual.next.setRotation(0);
+    visual.current.setAlpha(1);
+    visual.next.setAlpha(textureBlend.nextAlpha);
+    this.setVisualVisible(visual, visual.current.visible);
+  }
+
+  private destroyVisual(visual: AsteroidVisual): void {
+    visual.current.destroy();
+    visual.next.destroy();
+  }
+
+  private setVisualVisible(visual: AsteroidVisual, visible: boolean): void {
+    visual.current.setVisible(visible);
+    visual.next.setVisible(visible && visual.next.alpha > 0.001);
+  }
+
+  private getBodyRotation(body: MatterImage): number {
+    return body.body.angle;
   }
 }
 

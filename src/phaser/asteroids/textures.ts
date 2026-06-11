@@ -11,11 +11,12 @@ import type { ShaderTextureInput } from '../core/shaderTextures';
 import { ASTEROIDS } from './config';
 import type { AsteroidTier } from './types';
 
-const ASTEROID_SURFACE_VARIANTS = ['cartoon-chunky', 'cartoon-lumpy', 'cartoon-scorched'] as const;
+const ASTEROID_SURFACE_VARIANTS = ['cartoon-lumpy', 'cartoon-scorched'] as const;
+const FULL_ROTATION = Math.PI * 2;
 
 type AsteroidSurfaceVariant = (typeof ASTEROID_SURFACE_VARIANTS)[number];
 
-type SurfaceStyle = 'chunky' | 'lumpy' | 'scorched';
+type SurfaceStyle = 'lumpy' | 'scorched';
 
 type SurfaceRecipe = {
   accent?: string;
@@ -45,19 +46,14 @@ const TIER_BASE_COLORS: Record<AsteroidTier, string> = {
   small: '#4d96ff',
 };
 
+const TIER_ROTATION_FRAME_COUNTS: Record<AsteroidTier, number> = {
+  mega: 96,
+  big: 72,
+  medium: 48,
+  small: 48,
+};
+
 const SURFACE_RECIPES: readonly SurfaceRecipe[] = [
-  {
-    accentAmount: 0.1,
-    bandCount: 4,
-    cracks: 0.3,
-    craters: 0.18,
-    facets: 0.68,
-    key: 'cartoon-chunky',
-    shape: 0.92,
-    style: 'chunky',
-    tint: '#8b7a67',
-    tintAmount: 0.2,
-  },
   {
     accentAmount: 0.08,
     bandCount: 4,
@@ -86,13 +82,20 @@ const SURFACE_RECIPES: readonly SurfaceRecipe[] = [
 ];
 
 const SURFACE_STYLE_INDEX: Record<SurfaceStyle, number> = {
-  chunky: 0,
-  lumpy: 1,
-  scorched: 2,
+  lumpy: 0,
+  scorched: 1,
 };
 
 const ASTEROID_TEXTURE_PADDING = 4;
 const DEFAULT_ACCENT_COLOR = '#ffffff';
+const FRAME_BLEND_START = 0.25;
+const FRAME_BLEND_END = 0.75;
+
+export type AsteroidTextureBlend = {
+  currentKey: string;
+  nextAlpha: number;
+  nextKey: string;
+};
 
 const fragmentShader = `
 precision highp float;
@@ -181,15 +184,14 @@ float angularNoise(float angle, float scale, float offset) {
 
 float silhouetteRadius(vec2 uv) {
   float angle = atan(uv.y, uv.x);
-  float chunky = styleMask(0.0);
-  float lumpy = styleMask(1.0);
-  float segmentCount = 6.0 + chunky * 2.0;
+  float lumpy = styleMask(0.0);
+  float segmentCount = 6.0;
   float segment = floor((angle + 3.14159) / 6.28318 * segmentCount) / segmentCount;
   float segmentAngle = segment * 6.28318;
   float broad =
     (angularNoise(angle, 1.2, 2.1) - 0.5) * (0.22 + u_shape_amount * 0.1 + lumpy * 0.08) +
     (angularNoise(angle, 2.7, 8.4) - 0.5) * (0.13 + u_shape_amount * 0.08);
-  float block = (angularNoise(segmentAngle, 3.1, 31.7) - 0.5) * (0.11 + chunky * 0.08);
+  float block = (angularNoise(segmentAngle, 3.1, 31.7) - 0.5) * 0.11;
   float bite = smoothstep(0.74, 0.98, angularNoise(angle, 7.4, 14.8)) *
     angularNoise(angle, 12.0, 5.7) *
     (0.04 + u_shape_amount * 0.04);
@@ -197,7 +199,7 @@ float silhouetteRadius(vec2 uv) {
 }
 
 float crackMask(vec2 uv) {
-  float scorched = styleMask(2.0);
+  float scorched = styleMask(1.0);
   float angle = hash12(vec2(6.2, 19.8)) * 6.28318;
   vec2 p = rotate2d(angle) * (uv - (hash22(vec2(12.7, 83.1)) - 0.5) * 0.34);
   float mainWarp = (softNoise(vec2(p.x * 1.25, p.y * 0.55) + 8.3) - 0.5) * 0.18;
@@ -210,7 +212,7 @@ float crackMask(vec2 uv) {
 }
 
 vec3 craterData(vec2 uv) {
-  float scorched = styleMask(2.0);
+  float scorched = styleMask(1.0);
   float scale = (2.7 + scorched * 1.4) * u_detail_scale;
   vec2 p = uv * scale + u_seed * 0.031;
   vec2 cell = floor(p);
@@ -236,14 +238,13 @@ vec3 craterData(vec2 uv) {
   float bowl = (1.0 - smoothstep(0.07, 0.25, nearest)) * gate;
   float rim = smoothstep(0.13, 0.22, nearest) * (1.0 - smoothstep(0.22, 0.36, nearest)) * gate;
   vec2 craterNormal = normalize(craterVector + vec2(0.0001));
-  float lightSide = dot(craterNormal, normalize(vec2(-0.54, -0.72)));
+  float lightSide = dot(craterNormal, normalize(vec2(-0.54, 0.72)));
   return vec3(bowl, rim, lightSide);
 }
 
-vec3 cartoonSurface(vec2 uv, float radial) {
-  float chunky = styleMask(0.0);
-  float lumpy = styleMask(1.0);
-  float scorched = styleMask(2.0);
+vec3 cartoonSurface(vec2 uv, vec2 lightUv, float radial) {
+  float lumpy = styleMask(0.0);
+  float scorched = styleMask(1.0);
   float facetScale = 1.85 + u_facet_amount * 2.15 - lumpy * 0.35;
   vec3 cells = cellularPatches(uv * facetScale + u_seed * 0.004);
   float patchBoundary = (1.0 - smoothstep(0.025, 0.15, cells.y)) * u_facet_amount;
@@ -251,10 +252,10 @@ vec3 cartoonSurface(vec2 uv, float radial) {
   float lowBlob = softNoise(uv * (1.55 + lumpy * 0.75) + vec2(4.2, -1.7));
   float crack = crackMask(uv);
   vec3 crater = craterData(uv);
-  vec2 light2 = normalize(vec2(-0.58, -0.72));
-  float facingLight = dot(normalize(uv + vec2(0.0001)), light2);
+  vec2 light2 = normalize(vec2(-0.58, 0.72));
+  float facingLight = dot(normalize(lightUv + vec2(0.0001)), light2);
   float roundLight = smoothstep(-0.46, 0.82, facingLight) * 0.5 + (1.0 - radial) * 0.22;
-  float facetLight = (patchValue - 0.5) * (0.22 + u_facet_amount * 0.2 + chunky * 0.08);
+  float facetLight = (patchValue - 0.5) * (0.22 + u_facet_amount * 0.2);
   float lumpyLight = (lowBlob - 0.5) * (0.18 + lumpy * 0.12);
   float shade = 0.43 + roundLight + facetLight + lumpyLight;
   shade -= crack * 0.24;
@@ -267,7 +268,7 @@ vec3 cartoonSurface(vec2 uv, float radial) {
   vec3 lightColor = mix(u_base_color, vec3(1.0, 0.94, 0.76), 0.34);
   vec3 color = mix(shadowColor, midColor, smoothstep(0.24, 0.58, steppedShade));
   color = mix(color, lightColor, smoothstep(0.62, 1.0, steppedShade));
-  color = mix(color, u_base_color * (0.78 + patchValue * 0.3), patchBoundary * (0.08 + chunky * 0.08));
+  color = mix(color, u_base_color * (0.78 + patchValue * 0.3), patchBoundary * 0.08);
   float craterInk = crater.x * (0.48 + scorched * 0.16);
   color = mix(color, vec3(0.11, 0.09, 0.11), craterInk);
   color = mix(color, lightColor, crater.y * max(crater.z, 0.0) * 0.18);
@@ -292,10 +293,11 @@ void main() {
   } else {
     vec2 surfaceUv = uv / max(edge, 0.001);
     float surfaceRadial = radial / max(edge, 0.001);
-    vec3 color = cartoonSurface(surfaceUv, surfaceRadial);
+    vec2 lightUv = centered / max(edge, 0.001);
+    vec3 color = cartoonSurface(surfaceUv, lightUv, surfaceRadial);
     float outline = 1.0 - smoothstep(0.02, 0.085, distanceToEdge);
     float innerRim = smoothstep(0.76, 1.0, surfaceRadial) *
-      smoothstep(0.1, 0.85, dot(normalize(surfaceUv + vec2(0.0001)), normalize(vec2(-0.58, -0.72))));
+      smoothstep(0.1, 0.85, dot(normalize(lightUv + vec2(0.0001)), normalize(vec2(-0.58, 0.72))));
     color = mix(color, vec3(0.055, 0.047, 0.065), outline * 0.94);
     color = mix(color, vec3(1.0, 0.91, 0.62), innerRim * 0.14 * (1.0 - outline));
     gl_FragColor = vec4(color, alpha);
@@ -306,22 +308,58 @@ void main() {
 export function createAsteroidTextures(scene: Phaser.Scene): void {
   const inputs: ShaderTextureInput[] = [];
   for (const tier of Object.keys(ASTEROIDS) as AsteroidTier[]) {
-    ASTEROID_TEXTURES[tier].forEach((key, index) => {
-      if (scene.textures.exists(key)) return;
-      const textureSize = getAsteroidTextureSize(tier);
-      inputs.push(
-        createAsteroidShaderTextureInput(
-          key,
-          textureSize,
-          ASTEROIDS[tier].radius,
+    const frameCount = TIER_ROTATION_FRAME_COUNTS[tier];
+    SURFACE_RECIPES.forEach((recipe, variantIndex) => {
+      for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+        const key = getAsteroidTextureKey(
           tier,
-          SURFACE_RECIPES[index],
-        ),
-      );
+          variantIndex,
+          getFrameAngle(frameIndex, frameCount),
+        );
+        if (!scene.textures.exists(key)) {
+          const textureSize = getAsteroidTextureSize(tier);
+          inputs.push(
+            createAsteroidShaderTextureInput(
+              key,
+              textureSize,
+              ASTEROIDS[tier].radius,
+              tier,
+              recipe,
+              frameIndex,
+              frameCount,
+            ),
+          );
+        }
+      }
     });
   }
   if (inputs.length > 0 && !createShaderTextures(scene, fragmentShader, inputs))
     throw new Error('Unable to create asteroid shader textures');
+}
+
+export function getAsteroidTextureKey(
+  tier: AsteroidTier,
+  visualVariant: number,
+  rotation: number,
+): string {
+  const variant = getAsteroidSurfaceVariant(visualVariant);
+  return createFrameTextureKey(tier, variant, getAsteroidTextureFrameIndex(tier, rotation));
+}
+
+export function getAsteroidTextureBlend(
+  tier: AsteroidTier,
+  visualVariant: number,
+  rotation: number,
+): AsteroidTextureBlend {
+  const variant = getAsteroidSurfaceVariant(visualVariant);
+  const frameCount = TIER_ROTATION_FRAME_COUNTS[tier];
+  const frame = getAsteroidTextureFrame(tier, rotation);
+  const nextFrameIndex = (frame.index + 1) % frameCount;
+  return {
+    currentKey: createFrameTextureKey(tier, variant, frame.index),
+    nextAlpha: smoothstep(FRAME_BLEND_START, FRAME_BLEND_END, frame.progress),
+    nextKey: createFrameTextureKey(tier, variant, nextFrameIndex),
+  };
 }
 
 export function getAsteroidTextureDisplaySize(tier: AsteroidTier): number {
@@ -334,6 +372,8 @@ function createAsteroidShaderTextureInput(
   radius: number,
   tier: AsteroidTier,
   recipe: SurfaceRecipe,
+  frameIndex: number,
+  frameCount: number,
 ): ShaderTextureInput {
   const baseColor = mixHexColor(TIER_BASE_COLORS[tier], recipe.tint, recipe.tintAmount);
   return {
@@ -345,7 +385,12 @@ function createAsteroidShaderTextureInput(
       setFloatUniform(gl, program, 'u_detail_scale', getTierDetailScale(tier));
       setFloatUniform(gl, program, 'u_facet_amount', recipe.facets);
       setFloatUniform(gl, program, 'u_radius', radius);
-      setFloatUniform(gl, program, 'u_rotation', seededAngle(`${tier}:${recipe.key}:rotation`));
+      setFloatUniform(
+        gl,
+        program,
+        'u_rotation',
+        seededAngle(`${tier}:${recipe.key}:rotation`) + getFrameAngle(frameIndex, frameCount),
+      );
       setFloatUniform(gl, program, 'u_seed', shaderSeed(`${tier}:${recipe.key}`));
       setFloatUniform(gl, program, 'u_shape_amount', recipe.shape);
       setFloatUniform(gl, program, 'u_style', SURFACE_STYLE_INDEX[recipe.style]);
@@ -364,7 +409,53 @@ function createAsteroidShaderTextureInput(
 }
 
 function createTextureKeys(tier: AsteroidTier): readonly string[] {
-  return ASTEROID_SURFACE_VARIANTS.map((variant) => `phaser-asteroid-${tier}-${variant}`);
+  return ASTEROID_SURFACE_VARIANTS.map((variant) => createFrameTextureKey(tier, variant, 0));
+}
+
+function createFrameTextureKey(
+  tier: AsteroidTier,
+  variant: AsteroidSurfaceVariant,
+  frameIndex: number,
+): string {
+  return `phaser-asteroid-${tier}-${variant}-frame-${frameIndex}`;
+}
+
+function getAsteroidSurfaceVariant(visualVariant: number): AsteroidSurfaceVariant {
+  const index =
+    ((Math.trunc(visualVariant) % ASTEROID_SURFACE_VARIANTS.length) +
+      ASTEROID_SURFACE_VARIANTS.length) %
+    ASTEROID_SURFACE_VARIANTS.length;
+  return ASTEROID_SURFACE_VARIANTS[index];
+}
+
+function getAsteroidTextureFrameIndex(tier: AsteroidTier, rotation: number): number {
+  const frame = getAsteroidTextureFrame(tier, rotation);
+  const frameCount = TIER_ROTATION_FRAME_COUNTS[tier];
+  return Math.round(frame.progress) === 1 ? (frame.index + 1) % frameCount : frame.index;
+}
+
+function getAsteroidTextureFrame(
+  tier: AsteroidTier,
+  rotation: number,
+): { index: number; progress: number } {
+  const normalized = normalizeRotation(rotation);
+  const frameCount = TIER_ROTATION_FRAME_COUNTS[tier];
+  const frame = (normalized / FULL_ROTATION) * frameCount;
+  const index = Math.floor(frame) % frameCount;
+  return { index, progress: frame - Math.floor(frame) };
+}
+
+function getFrameAngle(frameIndex: number, frameCount: number): number {
+  return (frameIndex / frameCount) * FULL_ROTATION;
+}
+
+function normalizeRotation(rotation: number): number {
+  return ((rotation % FULL_ROTATION) + FULL_ROTATION) % FULL_ROTATION;
+}
+
+function smoothstep(edge0: number, edge1: number, value: number): number {
+  const t = Math.min(1, Math.max(0, (value - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
 }
 
 function getAsteroidTextureSize(tier: AsteroidTier): number {

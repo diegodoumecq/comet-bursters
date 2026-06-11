@@ -1,9 +1,9 @@
 import { AsteroidBodies } from '../../asteroids/bodies';
-import { getGameAudio } from '../../audio/AudioManager';
-import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
 import { ASTEROIDS, createAsteroid } from '../../asteroids/logic';
 import { ASTEROID_TEXTURES, createAsteroidTextures } from '../../asteroids/textures';
-import type { AsteroidEntity } from '../../asteroids/types';
+import type { AsteroidEntity, AsteroidTier } from '../../asteroids/types';
+import { getGameAudio } from '../../audio/AudioManager';
+import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
 import { applyMatterBodySpec } from '../../core/matterBodySpec';
 import type { WorldSize } from '../../core/types';
 import { MAX_FUEL } from '../../fuel/rules';
@@ -27,7 +27,15 @@ const DEMO_PLAYER_MAX_SPEED = 42;
 const DEMO_PLANET_ROW_START = { x: 520, y: 1180 };
 const DEMO_PLANET_GAP = 110;
 const DEMO_SHOWCASE_ROTATION = 0;
+const DEMO_ASTEROID_ROTATION_SPEED = 0.00072;
 const DEMO_PLANET_ROTATION_SPEED = 0.00008;
+
+const DEMO_ASTEROID_TIER_ROTATION_SCALE: Record<AsteroidTier, number> = {
+  big: 0.68,
+  medium: 0.88,
+  mega: 0.52,
+  small: 1.12,
+};
 
 export class PhaserDemoScene extends BaseGameScene {
   private actions!: ActionReader;
@@ -89,6 +97,7 @@ export class PhaserDemoScene extends BaseGameScene {
       wrap: false,
     });
     this.ship.setFuel(MAX_FUEL);
+    this.updateAsteroids(delta);
     this.updatePlanets(delta);
   }
 
@@ -158,7 +167,7 @@ export class PhaserDemoScene extends BaseGameScene {
       const asteroid = createAsteroid(tier, { x, y }, { x: 0, y: 0 });
       asteroid.visualVariant = visualVariant;
       asteroid.rotation = DEMO_SHOWCASE_ROTATION;
-      asteroid.angularVelocity = 0;
+      asteroid.angularVelocity = getDemoAsteroidAngularVelocity(tier, visualVariant);
       this.asteroidBodies.add(asteroid).setStatic(true);
       this.add
         .text(x, y + ASTEROIDS[tier].radius + 18, `${tier} / variant ${visualVariant}`, {
@@ -171,10 +180,26 @@ export class PhaserDemoScene extends BaseGameScene {
     });
   }
 
+  private updateAsteroids(deltaMs: number): void {
+    for (const asteroid of this.asteroids) {
+      const angularVelocity = asteroid.angularVelocity;
+      asteroid.rotation += angularVelocity * deltaMs;
+      const body = this.asteroidBodies.get(asteroid);
+      body.setRotation(asteroid.rotation);
+      this.asteroidBodies.sync(asteroid);
+      asteroid.angularVelocity = angularVelocity;
+    }
+  }
+
   private updatePlanets(deltaMs: number): void {
     for (const planet of this.planets) {
       planet.rotation += planet.rotationSpeed * deltaMs;
       this.planetViews.sync(planet);
     }
   }
+}
+
+function getDemoAsteroidAngularVelocity(tier: AsteroidTier, visualVariant: number): number {
+  const direction = visualVariant % 2 === 0 ? 1 : -1;
+  return DEMO_ASTEROID_ROTATION_SPEED * DEMO_ASTEROID_TIER_ROTATION_SCALE[tier] * direction;
 }
