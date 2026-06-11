@@ -27,6 +27,7 @@ const DEMO_PLAYER_MAX_SPEED = 42;
 const DEMO_PLANET_ROW_START = { x: 520, y: 1180 };
 const DEMO_PLANET_GAP = 110;
 const DEMO_SHOWCASE_ROTATION = 0;
+const DEMO_PLANET_ROTATION_SPEED = 0.00008;
 
 export class PhaserDemoScene extends BaseGameScene {
   private actions!: ActionReader;
@@ -88,6 +89,7 @@ export class PhaserDemoScene extends BaseGameScene {
       wrap: false,
     });
     this.ship.setFuel(MAX_FUEL);
+    this.updatePlanets(delta);
   }
 
   protected renderState(_action: ReturnType<ActionReader['read']>, time: number): void {
@@ -128,7 +130,7 @@ export class PhaserDemoScene extends BaseGameScene {
       nextLeft = x + spec.radius + DEMO_PLANET_GAP;
       const planet = createPlanet(x, nextTop, spec);
       planet.rotation = DEMO_SHOWCASE_ROTATION;
-      planet.rotationSpeed = 0;
+      planet.rotationSpeed = DEMO_PLANET_ROTATION_SPEED;
       return planet;
     });
     for (const planet of this.planets) {
@@ -167,5 +169,12 @@ export class PhaserDemoScene extends BaseGameScene {
         .setOrigin(0.5);
       return asteroid;
     });
+  }
+
+  private updatePlanets(deltaMs: number): void {
+    for (const planet of this.planets) {
+      planet.rotation += planet.rotationSpeed * deltaMs;
+      this.planetViews.sync(planet);
+    }
   }
 }
