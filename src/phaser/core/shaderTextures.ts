@@ -192,6 +192,7 @@ function createProgram(gl: WebGLRenderingContext, fragmentShader: string): WebGL
   gl.deleteShader(fragment);
 
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(program));
     gl.deleteProgram(program);
     return null;
   }
@@ -209,6 +210,7 @@ function compileShader(
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(shader));
     gl.deleteShader(shader);
     return null;
   }
