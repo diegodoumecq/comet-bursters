@@ -4,7 +4,7 @@ import { getPlanetDisplaySizeForRadius, getPlanetTextureSizing } from './texture
 import type { PlanetEntity } from './types';
 import { renderPlanetTexture } from './visuals/planetTextureRenderers';
 
-const PLANET_TEXTURE_VERSION = 'v53-clearer-gas-swirl';
+const PLANET_TEXTURE_VERSION = 'v54-unified-gas-mist';
 const textureKeys = new Map<string, string>();
 
 export function getPlanetTextureKey(scene: Phaser.Scene, planet: PlanetEntity): string {

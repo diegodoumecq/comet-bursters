@@ -329,6 +329,20 @@ vec4 sampleGasSurface(vec2 sphereUv, vec3 normal) {
       ridgedFbm(warpedNormal * 38.0 + vec3(1.8, 5.4, u_seed * 0.029)) * 0.34 +
       billowFbm(warpedNormal * 21.0 + vec3(6.2, u_seed * 0.037, 3.1)) * 0.16
   );
+  float unityMistBroad = fbm(
+    warpedNormal * 2.8 + vec3(longitudinalFlow * 0.9, bandCoord * 1.5, u_seed * 0.113)
+  );
+  float unityMistBillow = billowFbm(
+    warpedNormal * 4.8 + vec3(shearWarp * 1.2, broadWarp * 1.4, u_seed * 0.127)
+  );
+  float unityMistThread = ridgedFbm(
+    warpedNormal * 13.0 + vec3(longitudinalFlow * 3.2 + gasSwirls, bandCoord * 7.0, u_seed * 0.139)
+  );
+  float unityMist = smoothstep(
+    0.34,
+    0.86,
+    unityMistBroad * 0.42 + unityMistBillow * 0.34 + unityMistThread * 0.12 + cohesionVeil * 0.12
+  );
 
   float stormNoise = billowFbm(warpedNormal * 14.0 + vec3(7.2, 3.4, 8.8));
   float stormMask = stormSwirlField(swirledUv, vec2(0.57, 0.59), vec2(0.13, 0.058), -0.18, stormNoise);
@@ -363,6 +377,9 @@ vec4 sampleGasSurface(vec2 sphereUv, vec3 normal) {
   color = mix(color, plum, microShear * shadowFilaments * 0.012);
   color += vec3(0.06, 0.04, 0.13) * (stormMask + secondaryStormMask) * stormNoise * 0.026;
   color = mix(color, pearl, (1.0 - darkBelts) * cohesionVeil * 0.035);
+  color = mix(color, mix(lilacHaze, pearl, brightZones * 0.28 + highClouds * 0.12), unityMist * 0.052);
+  color = mix(color, mix(violetSmoke, blueViolet, cohesionVeil * 0.55), unityMist * darkBelts * 0.034);
+  color += vec3(0.045, 0.04, 0.095) * unityMistThread * unityMist * 0.026;
 
   vec3 lightDirection = normalize(vec3(-0.44, 0.58, 0.69));
   float diffuse = clamp(dot(normal, lightDirection), 0.0, 1.0);
