@@ -12,44 +12,27 @@ import { ASTEROIDS } from './config';
 import type { AsteroidTier } from './types';
 
 const ASTEROID_SURFACE_VARIANTS = [
-  'fbm-rugged',
-  'granite-grain',
-  'layered-planes',
-  'fractured-basalt',
-  'striated-shale',
-  'breccia-mosaic',
-  'regolith-dust',
-  'iron-veined',
-  'quartz-seamed',
-  'eroded-ridges',
-  'slag-scarred',
-  'cold-carbon',
+  'cartoon-chunky',
+  'cartoon-lumpy',
+  'cartoon-cracked',
+  'cartoon-pocked',
+  'cartoon-crystal',
+  'cartoon-scorched',
 ] as const;
 
 type AsteroidSurfaceVariant = (typeof ASTEROID_SURFACE_VARIANTS)[number];
 
-type SurfaceStyle =
-  | 'basalt'
-  | 'breccia'
-  | 'carbon'
-  | 'eroded'
-  | 'granite'
-  | 'iron'
-  | 'planes'
-  | 'quartz'
-  | 'regolith'
-  | 'rugged'
-  | 'shale'
-  | 'slag';
+type SurfaceStyle = 'chunky' | 'cracked' | 'crystal' | 'lumpy' | 'pocked' | 'scorched';
 
 type SurfaceRecipe = {
-  cell: number;
-  contrast: number;
-  dust: number;
-  grainScale: number;
+  accent?: string;
+  accentAmount: number;
+  bandCount: number;
+  cracks: number;
+  craters: number;
+  facets: number;
   key: AsteroidSurfaceVariant;
-  metal?: string;
-  ridge: number;
+  shape: number;
   style: SurfaceStyle;
   tint: string;
   tintAmount: number;
@@ -71,177 +54,111 @@ const TIER_BASE_COLORS: Record<AsteroidTier, string> = {
 
 const SURFACE_RECIPES: readonly SurfaceRecipe[] = [
   {
-    cell: 0.16,
-    contrast: 0.64,
-    dust: 0.06,
-    grainScale: 3.2,
-    key: 'fbm-rugged',
-    ridge: 0.58,
-    style: 'rugged',
-    tint: '#8a8177',
-    tintAmount: 0.66,
+    accentAmount: 0.1,
+    bandCount: 4,
+    cracks: 0.3,
+    craters: 0.18,
+    facets: 0.68,
+    key: 'cartoon-chunky',
+    shape: 0.92,
+    style: 'chunky',
+    tint: '#8b7a67',
+    tintAmount: 0.2,
   },
   {
-    cell: 0.34,
-    contrast: 0.6,
-    dust: 0.05,
-    grainScale: 4.5,
-    key: 'granite-grain',
-    ridge: 0.48,
-    style: 'granite',
-    tint: '#716a61',
-    tintAmount: 0.7,
+    accentAmount: 0.08,
+    bandCount: 4,
+    cracks: 0.2,
+    craters: 0.38,
+    facets: 0.38,
+    key: 'cartoon-lumpy',
+    shape: 0.78,
+    style: 'lumpy',
+    tint: '#95866f',
+    tintAmount: 0.16,
   },
   {
-    cell: 0.12,
-    contrast: 0.68,
-    dust: 0.05,
-    grainScale: 2.8,
-    key: 'layered-planes',
-    ridge: 0.62,
-    style: 'planes',
-    tint: '#85766d',
-    tintAmount: 0.68,
+    accent: '#fff1b3',
+    accentAmount: 0.16,
+    bandCount: 3,
+    cracks: 0.95,
+    craters: 0.16,
+    facets: 0.74,
+    key: 'cartoon-cracked',
+    shape: 0.84,
+    style: 'cracked',
+    tint: '#74685f',
+    tintAmount: 0.22,
   },
   {
-    cell: 0.1,
-    contrast: 0.72,
-    dust: 0.03,
-    grainScale: 5.8,
-    key: 'fractured-basalt',
-    ridge: 0.88,
-    style: 'basalt',
-    tint: '#3f454b',
-    tintAmount: 0.8,
+    accentAmount: 0.08,
+    bandCount: 4,
+    cracks: 0.18,
+    craters: 0.92,
+    facets: 0.28,
+    key: 'cartoon-pocked',
+    shape: 0.62,
+    style: 'pocked',
+    tint: '#a48d70',
+    tintAmount: 0.18,
   },
   {
-    cell: 0.08,
-    contrast: 0.62,
-    dust: 0.05,
-    grainScale: 3.6,
-    key: 'striated-shale',
-    ridge: 0.9,
-    style: 'shale',
-    tint: '#6c6870',
-    tintAmount: 0.72,
+    accent: '#d9f6ff',
+    accentAmount: 0.46,
+    bandCount: 4,
+    cracks: 0.42,
+    craters: 0.08,
+    facets: 1,
+    key: 'cartoon-crystal',
+    shape: 0.74,
+    style: 'crystal',
+    tint: '#6f7ea3',
+    tintAmount: 0.2,
   },
   {
-    cell: 0.38,
-    contrast: 0.66,
-    dust: 0.07,
-    grainScale: 4.1,
-    key: 'breccia-mosaic',
-    ridge: 0.58,
-    style: 'breccia',
-    tint: '#8a7f6f',
-    tintAmount: 0.68,
-  },
-  {
-    cell: 0.1,
-    contrast: 0.48,
-    dust: 0.38,
-    grainScale: 6.5,
-    key: 'regolith-dust',
-    ridge: 0.34,
-    style: 'regolith',
-    tint: '#aaa092',
-    tintAmount: 0.74,
-  },
-  {
-    cell: 0.08,
-    contrast: 0.64,
-    dust: 0.04,
-    grainScale: 4.8,
-    key: 'iron-veined',
-    metal: '#ff9b4d',
-    ridge: 0.66,
-    style: 'iron',
-    tint: '#5b4540',
-    tintAmount: 0.76,
-  },
-  {
-    cell: 0.1,
-    contrast: 0.62,
-    dust: 0.04,
-    grainScale: 4.6,
-    key: 'quartz-seamed',
-    metal: '#d7f4ff',
-    ridge: 0.64,
-    style: 'quartz',
-    tint: '#73808b',
-    tintAmount: 0.72,
-  },
-  {
-    cell: 0.08,
-    contrast: 0.74,
-    dust: 0.05,
-    grainScale: 3.4,
-    key: 'eroded-ridges',
-    ridge: 1,
-    style: 'eroded',
-    tint: '#77705f',
-    tintAmount: 0.72,
-  },
-  {
-    cell: 0.18,
-    contrast: 0.78,
-    dust: 0.03,
-    grainScale: 5.2,
-    key: 'slag-scarred',
-    metal: '#c16b45',
-    ridge: 0.72,
-    style: 'slag',
-    tint: '#4c403a',
-    tintAmount: 0.78,
-  },
-  {
-    cell: 0.12,
-    contrast: 0.66,
-    dust: 0.08,
-    grainScale: 4.4,
-    key: 'cold-carbon',
-    ridge: 0.7,
-    style: 'carbon',
-    tint: '#414853',
-    tintAmount: 0.82,
+    accent: '#ff9d5c',
+    accentAmount: 0.34,
+    bandCount: 3,
+    cracks: 0.58,
+    craters: 0.54,
+    facets: 0.52,
+    key: 'cartoon-scorched',
+    shape: 0.86,
+    style: 'scorched',
+    tint: '#4b4144',
+    tintAmount: 0.28,
   },
 ];
 
 const SURFACE_STYLE_INDEX: Record<SurfaceStyle, number> = {
-  basalt: 3,
-  breccia: 5,
-  carbon: 11,
-  eroded: 9,
-  granite: 1,
-  iron: 7,
-  planes: 2,
-  quartz: 8,
-  regolith: 6,
-  rugged: 0,
-  shale: 4,
-  slag: 10,
+  chunky: 0,
+  lumpy: 1,
+  cracked: 2,
+  pocked: 3,
+  crystal: 4,
+  scorched: 5,
 };
 
 const ASTEROID_TEXTURE_PADDING = 4;
-const NO_METAL_COLOR = '#000000';
+const DEFAULT_ACCENT_COLOR = '#ffffff';
 
 const fragmentShader = `
 precision highp float;
 
-uniform float u_cell;
-uniform float u_contrast;
+uniform float u_accent_amount;
+uniform float u_band_count;
+uniform float u_crack_amount;
+uniform float u_crater_amount;
 uniform float u_detail_scale;
-uniform float u_dust;
-uniform float u_grain_scale;
-uniform float u_has_metal;
+uniform float u_facet_amount;
 uniform float u_radius;
-uniform float u_ridge;
 uniform float u_rotation;
 uniform float u_seed;
+uniform float u_shape_amount;
 uniform float u_style;
 uniform vec2 u_texture_size;
+uniform vec3 u_accent_color;
 uniform vec3 u_base_color;
-uniform vec3 u_metal_color;
 
 mat2 rotate2d(float angle) {
   float s = sin(angle);
@@ -276,32 +193,13 @@ float valueNoise(vec2 p) {
   return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
-float fbm(vec2 p) {
-  float value = 0.0;
-  float amplitude = 0.5;
-  mat2 warp = mat2(0.82, -0.57, 0.57, 0.82);
-  for (int octave = 0; octave < 3; octave++) {
-    value += valueNoise(p) * amplitude;
-    p = warp * p * 2.06 + vec2(7.1, 3.9);
-    amplitude *= 0.52;
-  }
-  return value;
+float softNoise(vec2 p) {
+  float first = valueNoise(p) * 0.68;
+  float second = valueNoise(p * 2.03 + vec2(5.7, 2.1)) * 0.32;
+  return first + second;
 }
 
-float ridgedFbm(vec2 p) {
-  float value = 0.0;
-  float amplitude = 0.52;
-  mat2 warp = mat2(0.64, -0.77, 0.77, 0.64);
-  for (int octave = 0; octave < 3; octave++) {
-    float ridge = 1.0 - abs(valueNoise(p) * 2.0 - 1.0);
-    value += ridge * ridge * amplitude;
-    p = warp * p * 2.17 + vec2(4.9, 8.1);
-    amplitude *= 0.54;
-  }
-  return value;
-}
-
-vec3 cellularRock(vec2 p) {
+vec3 cellularPatches(vec2 p) {
   vec2 cell = floor(p);
   vec2 local = fract(p);
   float nearest = 8.0;
@@ -310,7 +208,7 @@ vec3 cellularRock(vec2 p) {
   for (int y = -1; y <= 1; y++) {
     for (int x = -1; x <= 1; x++) {
       vec2 neighbor = vec2(float(x), float(y));
-      vec2 point = neighbor + hash22(cell + neighbor) * 0.72 + 0.14;
+      vec2 point = neighbor + hash22(cell + neighbor) * 0.58 + 0.21;
       float distanceToPoint = length(local - point);
       if (distanceToPoint < nearest) {
         secondNearest = nearest;
@@ -329,123 +227,46 @@ float angularNoise(float angle, float scale, float offset) {
   return valueNoise(direction * scale + offset + u_seed * 0.017);
 }
 
-vec2 structureOrigin() {
-  return (vec2(hash12(vec2(12.7, 83.1)), hash12(vec2(97.4, 41.6))) - 0.5) * 0.72;
-}
-
-float structureAngle() {
-  return hash12(vec2(6.2, 19.8)) * 6.28318530718;
-}
-
-vec2 faultUv(vec2 uv) {
-  return rotate2d(structureAngle()) * (uv - structureOrigin());
-}
-
-float majorFaults(vec2 uv) {
-  vec2 fault = faultUv(uv);
-  float primaryWarp = (fbm(vec2(fault.x * 1.15, fault.y * 0.5) + 8.3) - 0.5) * 0.24;
-  float secondaryWarp = (fbm(vec2(fault.y * 1.0, fault.x * 0.45) - 4.7) - 0.5) * 0.22;
-  float primary = 1.0 - smoothstep(0.018, 0.07, abs(fault.y + primaryWarp));
-  float secondary = 1.0 - smoothstep(0.014, 0.055, abs(fault.x * 0.78 + fault.y * 0.38 + secondaryWarp));
-  float gate = smoothstep(0.2, 0.84, fbm(fault * 0.95 + 2.7));
-  return clamp((primary * 0.85 + secondary * 0.48) * gate, 0.0, 1.0);
-}
-
-vec3 macroSlabs(vec2 uv) {
-  vec2 fault = faultUv(uv);
-  vec3 slabs = cellularRock(fault * (1.35 + u_detail_scale * 0.35));
-  float boundary = 1.0 - smoothstep(0.02, 0.18, slabs.y);
-  float plane = floor((slabs.z - 0.5) * 4.0) / 4.0;
-  return vec3(boundary, plane, slabs.z);
-}
-
-vec2 styleUv(vec2 uv) {
-  float granite = styleMask(1.0);
-  float planes = styleMask(2.0);
-  float shale = styleMask(4.0);
-  float regolith = styleMask(6.0);
-  float quartz = styleMask(8.0);
-  float eroded = styleMask(9.0);
-  float carbon = styleMask(11.0);
-  vec2 shaleUv = rotate2d(0.42) * vec2(uv.x * 0.82, uv.y * 1.28);
-  vec2 erodedUv = rotate2d(-0.35) * vec2(uv.x * 1.24, uv.y * 0.86);
-  vec2 planeUv = rotate2d(0.2) * vec2(uv.x * 1.12, uv.y * 0.95);
-  vec2 quartzUv = rotate2d(-0.22) * vec2(uv.x * 0.94, uv.y * 1.16);
-  vec2 roundUv = uv * (1.0 + regolith * 0.06 + granite * 0.03);
-  vec2 styled = mix(uv, shaleUv, shale);
-  styled = mix(styled, erodedUv, eroded);
-  styled = mix(styled, planeUv, planes);
-  styled = mix(styled, quartzUv, quartz);
-  styled = mix(styled, roundUv, regolith + granite + carbon * 0.18);
-  return styled;
-}
-
 float silhouetteRadius(vec2 uv) {
   float angle = atan(uv.y, uv.x);
-  float rugged = styleMask(0.0);
-  float granite = styleMask(1.0);
-  float planes = styleMask(2.0);
-  float basalt = styleMask(3.0);
-  float shale = styleMask(4.0);
-  float breccia = styleMask(5.0);
-  float regolith = styleMask(6.0);
-  float quartz = styleMask(8.0);
-  float eroded = styleMask(9.0);
-  float slag = styleMask(10.0);
-  float carbon = styleMask(11.0);
-  float hardRock = rugged + basalt + breccia + slag + carbon;
-  float softRock = granite + regolith + shale * 0.35 + eroded * 0.28;
-  float angular = floor((angle + 3.14159) / 6.28318 * (7.0 + basalt * 2.0 + planes * 1.0)) / (7.0 + basalt * 2.0 + planes * 1.0);
-  float block = (angularNoise(angular * 6.28318, 3.2, 31.7) - 0.5) * (basalt * 0.16 + planes * 0.1);
-  float crystal = pow(abs(sin(angle * 5.0 + u_seed * 0.017)), 4.0) * quartz * 0.13;
-  float lobe =
-    (angularNoise(angle, 1.3, 2.1) - 0.5) * (0.28 + hardRock * 0.12 - softRock * 0.12) +
-    (angularNoise(angle, 3.9, 8.4) - 0.5) * (0.14 + hardRock * 0.08 - softRock * 0.06) +
-    floor(angularNoise(angle, 10.0, 14.8) * 5.0) * (0.018 + hardRock * 0.014);
-  float chipNoise = angularNoise(angle, 7.2, 21.3);
-  float chip = smoothstep(0.68, 0.98, chipNoise) * angularNoise(angle, 13.0, 5.7) * (0.09 + hardRock * 0.11 - softRock * 0.04);
-  float dustyRoundness = regolith * 0.14 + granite * 0.05;
-  return clamp(0.9 + lobe + block + crystal - chip + dustyRoundness, 0.66, 1.2);
+  float chunky = styleMask(0.0);
+  float lumpy = styleMask(1.0);
+  float crystal = styleMask(4.0);
+  float pocked = styleMask(3.0);
+  float segmentCount = 6.0 + chunky * 2.0 + crystal * 3.0;
+  float segment = floor((angle + 3.14159) / 6.28318 * segmentCount) / segmentCount;
+  float segmentAngle = segment * 6.28318;
+  float broad =
+    (angularNoise(angle, 1.2, 2.1) - 0.5) * (0.22 + u_shape_amount * 0.1 + lumpy * 0.08) +
+    (angularNoise(angle, 2.7, 8.4) - 0.5) * (0.13 + u_shape_amount * 0.08);
+  float block = (angularNoise(segmentAngle, 3.1, 31.7) - 0.5) * (0.11 + chunky * 0.08 + crystal * 0.07);
+  float bite = smoothstep(0.74, 0.98, angularNoise(angle, 7.4, 14.8)) *
+    angularNoise(angle, 12.0, 5.7) *
+    (0.04 + pocked * 0.05 + u_shape_amount * 0.04);
+  float crystalPoint = pow(abs(sin(angle * 5.0 + u_seed * 0.017)), 5.0) * crystal * 0.1;
+  return clamp(0.92 + broad + block + crystalPoint - bite, 0.68, 1.22);
 }
 
-float crackMask(vec2 uv, vec3 cells, float ridge) {
-  float planes = styleMask(2.0);
-  float basalt = styleMask(3.0);
-  float breccia = styleMask(5.0);
-  float shale = styleMask(4.0);
-  float regolith = styleMask(6.0);
-  float iron = styleMask(7.0);
-  float quartz = styleMask(8.0);
-  float slag = styleMask(10.0);
-  float cellCrack = 1.0 - smoothstep(0.018, 0.09 + u_cell * 0.07, cells.y);
-  float sparseCellCrack = pow(cellCrack, 3.0) * smoothstep(0.54, 0.92, valueNoise(uv * 5.7 + u_seed));
-  float ridgeCrack = smoothstep(0.76, 1.0, ridge) * smoothstep(0.42, 0.9, fbm(uv * 4.8 - u_seed));
-  float layerCrack = smoothstep(0.88, 0.995, abs(sin((uv.y + fbm(uv * 1.8) * 0.18) * 18.0)));
-  float seamCrack = smoothstep(0.82, 1.0, ridge) * smoothstep(0.54, 0.94, fbm(uv * 2.4 + vec2(3.7, -1.9)));
-  vec3 slabs = macroSlabs(uv);
-  float fault = majorFaults(uv);
-  float styleStrength =
-    0.7 +
-    basalt * 0.38 +
-    breccia * 0.5 +
-    shale * 0.34 -
-    regolith * 0.48 +
-    iron * 0.24 +
-    quartz * 0.22 +
-    slag * 0.36;
-  return clamp(
-    sparseCellCrack * (0.05 + breccia * 0.38 + basalt * 0.12) +
-      slabs.x * (0.18 + planes * 0.26 + breccia * 0.16 + basalt * 0.14) +
-      fault * (0.62 + basalt * 0.18 + planes * 0.16 + iron * 0.12 + quartz * 0.1) +
-      ridgeCrack * styleStrength * 0.36 +
-      layerCrack * shale * 0.42 +
-      seamCrack * (iron + quartz) * 0.64,
-    0.0,
-    1.0
-  );
+float crackMask(vec2 uv) {
+  float cracked = styleMask(2.0);
+  float crystal = styleMask(4.0);
+  float scorched = styleMask(5.0);
+  float angle = hash12(vec2(6.2, 19.8)) * 6.28318;
+  vec2 p = rotate2d(angle) * (uv - (hash22(vec2(12.7, 83.1)) - 0.5) * 0.34);
+  float mainWarp = (softNoise(vec2(p.x * 1.25, p.y * 0.55) + 8.3) - 0.5) * 0.18;
+  float branchWarp = (softNoise(vec2(p.y * 1.05, p.x * 0.55) - 4.7) - 0.5) * 0.16;
+  float mainLine = 1.0 - smoothstep(0.018, 0.07, abs(p.y + mainWarp));
+  float branchLine = 1.0 - smoothstep(0.014, 0.055, abs(p.x * 0.74 + p.y * 0.44 + branchWarp));
+  float chipLines = 1.0 - smoothstep(0.02, 0.08, abs(fract((p.x + p.y * 0.42) * 3.0) - 0.5));
+  float gate = smoothstep(0.22, 0.84, softNoise(p * 1.2 + 2.7));
+  float styleBoost = 0.66 + cracked * 0.34 + crystal * 0.18 + scorched * 0.18;
+  return clamp((mainLine * 0.82 + branchLine * 0.5 + chipLines * crystal * 0.18) * gate * u_crack_amount * styleBoost, 0.0, 1.0);
 }
 
-vec3 craterData(vec2 uv, float scale, float threshold) {
+vec3 craterData(vec2 uv) {
+  float pocked = styleMask(3.0);
+  float scorched = styleMask(5.0);
+  float scale = (2.7 + pocked * 2.2 + scorched * 1.4) * u_detail_scale;
   vec2 p = uv * scale + u_seed * 0.031;
   vec2 cell = floor(p);
   vec2 local = fract(p);
@@ -455,7 +276,7 @@ vec3 craterData(vec2 uv, float scale, float threshold) {
   for (int y = -1; y <= 1; y++) {
     for (int x = -1; x <= 1; x++) {
       vec2 neighbor = vec2(float(x), float(y));
-      vec2 point = neighbor + hash22(cell + neighbor) * 0.72 + 0.14;
+      vec2 point = neighbor + hash22(cell + neighbor) * 0.62 + 0.19;
       vec2 offset = local - point;
       float distanceToPoint = length(offset);
       if (distanceToPoint < nearest) {
@@ -465,228 +286,77 @@ vec3 craterData(vec2 uv, float scale, float threshold) {
       }
     }
   }
-  float gate = smoothstep(threshold, 1.0, craterId);
-  float depression = (1.0 - smoothstep(0.05, 0.27, nearest)) * gate;
+  float threshold = 0.62 - pocked * 0.18 - scorched * 0.08;
+  float gate = smoothstep(threshold, 1.0, craterId) * u_crater_amount;
+  float bowl = (1.0 - smoothstep(0.07, 0.25, nearest)) * gate;
   float rim = smoothstep(0.13, 0.22, nearest) * (1.0 - smoothstep(0.22, 0.36, nearest)) * gate;
   vec2 craterNormal = normalize(craterVector + vec2(0.0001));
-  float lightSide = dot(craterNormal, normalize(vec2(-0.5, -0.68)));
-  return vec3(depression, rim, lightSide);
+  float lightSide = dot(craterNormal, normalize(vec2(-0.54, -0.72)));
+  return vec3(bowl, rim, lightSide);
 }
 
-float craterMask(vec2 uv, float scale, float threshold) {
-  return craterData(uv, scale, threshold).x;
-}
-
-float rockRelief(vec2 uv) {
-  float rugged = styleMask(0.0);
-  float granite = styleMask(1.0);
-  float planes = styleMask(2.0);
-  float basalt = styleMask(3.0);
-  float shale = styleMask(4.0);
-  float breccia = styleMask(5.0);
-  float regolith = styleMask(6.0);
-  float iron = styleMask(7.0);
-  float quartz = styleMask(8.0);
-  float eroded = styleMask(9.0);
-  float slag = styleMask(10.0);
-  float carbon = styleMask(11.0);
-  float fractureStyle = rugged + planes * 0.75 + basalt + breccia + slag * 0.8 + carbon * 0.7;
-  vec3 macro = macroSlabs(uv);
-  vec2 warped = uv + vec2(
-    fbm(uv * 1.7 + 11.1) - 0.5,
-    fbm(uv * 1.9 - 7.4) - 0.5
-  ) * (0.08 + fractureStyle * 0.1 - regolith * 0.04);
-  float detail = u_detail_scale;
-  float cellScale = (2.25 + u_cell * 4.2 + breccia * 1.8 + planes * 0.75 - regolith * 1.0) * (0.72 + detail * 0.28);
-  vec3 cells = cellularRock(warped * cellScale);
-  float ridge = ridgedFbm(warped * (u_grain_scale * detail * (0.45 + fractureStyle * 0.32) + 1.3 + fractureStyle * 0.9));
-  float broad = fbm(warped * 1.15) - 0.5;
-  float grain = fbm(warped * u_grain_scale * 2.2) - 0.5;
-  float shaleBands = sin((warped.y + fbm(warped * 1.7) * 0.15) * 20.0) * 0.5 + 0.5;
-  float erodedRidges = ridgedFbm(vec2(warped.x * 1.2 + warped.y * 0.35, warped.y * 5.2));
-  float quartzShard = pow(abs(sin((warped.x * 1.3 - warped.y * 0.9 + fbm(warped * 2.0) * 0.35) * 8.0)), 10.0);
-  float basaltBlock = floor(valueNoise(warped * 5.4 + cells.z * 8.0) * 5.0) / 5.0 - 0.35;
-  float carbonSlab = floor(valueNoise(warped * 3.6 - cells.z * 5.0) * 4.0) / 4.0 - 0.38;
-  float regolithMottle = fbm(warped * 7.5 + vec2(11.0, -3.0));
-  float brecciaChunk = floor(cells.z * 5.0) / 5.0 - 0.38;
-  float planeSteps = floor((cells.z - 0.5) * (5.0 + planes * 4.0 + breccia * 3.0)) / (5.0 + planes * 4.0 + breccia * 3.0);
-  float crevice = crackMask(uv, cells, ridge);
-  vec3 crater = craterData(warped, (3.2 + slag * 4.2 + regolith * 1.7) * detail, 0.64 - slag * 0.12);
-  float relief =
-    macro.y * (0.42 + planes * 0.28 + basalt * 0.22 + breccia * 0.18) -
-    macro.x * (0.18 + planes * 0.18 + basalt * 0.14) +
-    broad * (0.3 + rugged * 0.08 - regolith * 0.16) +
-    planeSteps * (0.36 + planes * 0.42 + breccia * 0.18) +
-    brecciaChunk * breccia * 0.62 +
-    ridge * u_ridge * (0.26 + basalt * 0.28 + slag * 0.18 + carbon * 0.12) +
-    grain * (0.06 + granite * 0.1 + regolith * 0.08) +
-    (shaleBands - 0.5) * shale * 0.36 +
-    (erodedRidges - 0.45) * eroded * 0.52 +
-    (regolithMottle - 0.5) * regolith * 0.22 +
-    quartzShard * quartz * 0.34 +
-    basaltBlock * basalt * 0.48 +
-    carbonSlab * carbon * 0.36 -
-    crevice * (0.18 + fractureStyle * 0.22 + iron * 0.14 + quartz * 0.1) -
-    crater.x * (0.38 + slag * 0.32 + regolith * 0.1) +
-    crater.y * (0.16 + regolith * 0.08);
-  return relief;
-}
-
-vec3 rockNormal(vec2 uv) {
-  float texel = 1.0 / u_radius;
-  float left = rockRelief(uv - vec2(texel, 0.0));
-  float right = rockRelief(uv + vec2(texel, 0.0));
-  float down = rockRelief(uv - vec2(0.0, texel));
-  float up = rockRelief(uv + vec2(0.0, texel));
-  float regolith = styleMask(6.0);
-  float granite = styleMask(1.0);
-  float planes = styleMask(2.0);
-  float basalt = styleMask(3.0);
-  float breccia = styleMask(5.0);
-  float strength = 1.2 + planes * 0.4 + basalt * 0.45 + breccia * 0.25 - regolith * 0.45 - granite * 0.18;
-  return normalize(vec3((left - right) * strength, (down - up) * strength, 0.18));
-}
-
-vec3 shadeRock(vec2 uv, float radial, float alpha) {
-  float rugged = styleMask(0.0);
-  float granite = styleMask(1.0);
-  float planes = styleMask(2.0);
-  float basalt = styleMask(3.0);
-  float shale = styleMask(4.0);
-  float breccia = styleMask(5.0);
-  float regolith = styleMask(6.0);
-  float iron = styleMask(7.0);
-  float quartz = styleMask(8.0);
-  float eroded = styleMask(9.0);
-  float slag = styleMask(10.0);
-  float carbon = styleMask(11.0);
-  float smoothStyle = granite + regolith * 1.15;
-  float fractureStyle = rugged + planes * 0.75 + basalt + breccia + slag * 0.8 + carbon * 0.7;
-  float detail = u_detail_scale;
-  vec3 macro = macroSlabs(uv);
-  vec2 warped = uv + vec2(
-    fbm(uv * 1.7 + 11.1) - 0.5,
-    fbm(uv * 1.9 - 7.4) - 0.5
-  ) * (0.08 + fractureStyle * 0.12 - smoothStyle * 0.035);
-  float cellScale = (2.25 + u_cell * 4.2 + breccia * 1.8 + planes * 0.75 - regolith * 1.0) * (0.72 + detail * 0.28);
-  vec3 cells = cellularRock(warped * cellScale);
-  float ridge = ridgedFbm(warped * (u_grain_scale * detail * (0.45 + fractureStyle * 0.32) + 1.3 + fractureStyle * 0.9));
-  float crack = crackMask(uv, cells, ridge);
-  float fault = majorFaults(uv);
-  float reliefHeight = rockRelief(uv);
-  float broad = fbm(warped * 1.25) - 0.5;
-  float grainHeight = fbm(warped * u_grain_scale * 2.7) - 0.5;
-  float shaleBands = sin((warped.y + fbm(warped * 1.7) * 0.15) * 20.0) * 0.5 + 0.5;
-  float erodedRidges = ridgedFbm(vec2(warped.x * 1.2 + warped.y * 0.35, warped.y * 5.2));
-  float graniteFlecks = smoothstep(0.66, 0.98, valueNoise(warped * 18.0 + cells.z * 4.0));
-  float regolithMottle = fbm(warped * 7.5 + vec2(11.0, -3.0));
-  float quartzShard = pow(abs(sin((warped.x * 1.3 - warped.y * 0.9 + fbm(warped * 2.0) * 0.35) * 8.0)), 10.0);
-  float basaltBlock = floor(valueNoise(warped * 5.4 + cells.z * 8.0) * 5.0) / 5.0 - 0.35;
-  float slagPore = smoothstep(0.72, 0.98, valueNoise(warped * 12.0 + u_seed * 0.23)) * smoothstep(0.45, 1.0, ridge);
-  float carbonSlab = floor(valueNoise(warped * 3.6 - cells.z * 5.0) * 4.0) / 4.0 - 0.38;
-  float brecciaChunk = floor(cells.z * 5.0) / 5.0 - 0.38;
-  float planeSteps = floor((cells.z - 0.5) * (5.0 + planes * 4.0 + breccia * 3.0)) / (5.0 + planes * 4.0 + breccia * 3.0);
-  float plane = planeSteps + brecciaChunk * breccia * 0.85;
-  float painterlyHeight =
-    macro.y * (0.42 + planes * 0.28 + basalt * 0.22 + breccia * 0.18) -
-    macro.x * (0.18 + planes * 0.18 + basalt * 0.14) +
-    broad * (0.3 + rugged * 0.12 - regolith * 0.16) +
-    plane * (0.34 + u_cell * 0.25 + planes * 0.32 + breccia * 0.28) +
-    grainHeight * (0.08 + granite * 0.12 + regolith * 0.14) +
-    ridge * u_ridge * (0.24 + basalt * 0.2 + slag * 0.18 + carbon * 0.12) +
-    (shaleBands - 0.5) * shale * 0.28 +
-    (erodedRidges - 0.45) * eroded * 0.44 +
-    (regolithMottle - 0.5) * regolith * 0.32 +
-    quartzShard * quartz * 0.24 +
-    basaltBlock * basalt * 0.42 +
-    carbonSlab * carbon * 0.34 -
-    slagPore * slag * 0.5 +
-    crack * (0.18 + fractureStyle * 0.24 - smoothStyle * 0.08);
-  float height = mix(painterlyHeight, reliefHeight, 0.72);
-  float steppedHeight = floor((height + 0.7) * (5.0 + planes * 3.0 + breccia * 2.0)) / (5.0 + planes * 3.0 + breccia * 2.0);
-  vec2 facetTilt = vec2(
-    valueNoise(warped * 4.2 + cells.z * 9.1) - 0.5,
-    valueNoise(warped * 4.6 - cells.z * 6.7) - 0.5
-  );
-  facetTilt += vec2(
-    (shaleBands - 0.5) * shale * 1.25 + quartzShard * quartz * 0.5,
-    (erodedRidges - 0.45) * eroded * 1.1 + (regolithMottle - 0.5) * regolith * 0.32
-  );
-  vec3 sampledNormal = rockNormal(uv);
-  vec3 facetNormal = normalize(vec3(
-    facetTilt * (0.42 + fractureStyle * 0.52 + u_contrast * 0.28 + planes * 0.32 + breccia * 0.22 - smoothStyle * 0.16) - uv * 0.18,
-    0.8 - basalt * 0.08 - planes * 0.06 + smoothStyle * 0.12
-  ));
-  vec3 normal = normalize(mix(facetNormal, sampledNormal, 0.68));
-  vec3 lightDirection = normalize(vec3(-0.5, -0.68, 0.74));
-  float diffuse = max(dot(normal, lightDirection), 0.0);
-  float planarDiffuse = mix(diffuse, floor(diffuse * (4.0 + planes * 2.0 + breccia * 1.0)) / (4.0 + planes * 2.0 + breccia * 1.0), 0.45 + u_contrast * 0.25 + planes * 0.18);
-  float light = 0.32 + planarDiffuse * 0.82;
-  float shadow = smoothstep(0.52, 1.04, radial) * 0.55;
-  float facet =
-    plane * u_contrast * 0.72 +
-    steppedHeight * u_contrast * 0.34 +
-    broad * 0.2 +
-    grainHeight * 0.16 +
-    (ridge - 0.34) * u_ridge * 0.42 +
-    (shaleBands - 0.5) * shale * 0.18 +
-    (erodedRidges - 0.45) * eroded * 0.32 +
-    (graniteFlecks - 0.35) * granite * 0.24 +
-    basaltBlock * basalt * 0.42 +
-    carbonSlab * carbon * 0.28 -
-    slagPore * slag * 0.22;
-  vec3 crater = craterData(warped, (3.2 + slag * 4.2 + regolith * 1.7) * detail, 0.64 - slag * 0.12);
-  vec2 light2 = normalize(vec2(-0.5, -0.68));
-  float texel = 1.25 / u_radius;
-  float bevel =
-    rockRelief(uv + light2 * texel) -
-    rockRelief(uv - light2 * texel);
-  float bevelMask = clamp(crack + fault + macro.x * 0.7, 0.0, 1.0);
-  float craterLight = crater.y * crater.z;
-  float occlusion =
-    crack * (0.26 + u_ridge * 0.14) +
-    fault * 0.26 +
-    crater.x * (0.22 + slag * 0.28) -
-    craterLight * 0.18 +
-    shadow;
-  float luma = dot(u_base_color, vec3(0.299, 0.587, 0.114));
-  vec3 mineralBase = mix(u_base_color, vec3(luma), 0.34 + basalt * 0.12 + carbon * 0.16 + regolith * 0.1);
-  vec3 color = mineralBase * (light + facet - occlusion);
-  color += bevel * bevelMask * vec3(0.82, 0.76, 0.66) * (0.34 + planes * 0.12 + basalt * 0.1);
-  color += craterLight * vec3(0.7, 0.63, 0.5) * (0.12 + regolith * 0.08);
-  color = mix(color, color * vec3(1.08, 1.06, 1.0), graniteFlecks * granite * 0.3);
-  color = mix(color, color * vec3(0.78, 0.84, 0.96), shaleBands * shale * 0.2);
-  color = mix(color, color * vec3(0.52, 0.58, 0.64), basalt * 0.42);
-  color = mix(color, color * vec3(0.45, 0.48, 0.54), carbon * 0.5);
-  color = mix(color, u_base_color * (0.8 + brecciaChunk), breccia * 0.28);
-  color = mix(color, u_base_color * (0.7 + regolithMottle * 0.42), regolith * 0.62);
-  color = mix(color, vec3(0.85, 0.95, 1.0), quartzShard * quartz * 0.36);
-  float pits = smoothstep(0.66, 0.98, ridge) * smoothstep(0.5, 0.92, valueNoise(warped * (8.0 + slag * 4.0) * detail + u_seed));
-  color = mix(color, vec3(0.025, 0.024, 0.027), pits * (0.12 + u_ridge * 0.12 + basalt * 0.12 + slag * 0.28 + carbon * 0.18));
-  float seam = smoothstep(0.72, 1.0, crack) * smoothstep(0.5, 1.0, ridge);
-  float ironSeam = smoothstep(0.74, 0.99, ridgedFbm(warped * 3.2 + vec2(4.1, -2.7)));
-  float vein = seam * u_has_metal * (0.7 + iron * 0.35 + quartz * 0.3);
-  color = mix(color, u_metal_color * (0.72 + diffuse * 0.7), vein * 0.32 + ironSeam * iron * 0.24);
-  color = mix(color, vec3(0.015, 0.012, 0.012), slagPore * slag * 0.62);
-  float grain = hash12(gl_FragCoord.xy + u_seed) - 0.5;
-  color += grain * (0.05 + u_dust * 0.1 + granite * 0.04 + regolith * 0.08);
-  float dust = smoothstep(1.0 - u_dust * 0.18, 1.0, hash12(gl_FragCoord.xy * 0.73 - u_seed));
-  color = mix(color, vec3(0.95, 0.89, 0.78), dust * u_dust * (0.24 + regolith * 0.44));
-  float edgeWear = smoothstep(0.78, 1.0, radial) * smoothstep(0.2, 1.0, dot(normal, lightDirection));
-  color = mix(color, vec3(1.0, 0.94, 0.82), edgeWear * (0.08 + planes * 0.06 + slag * 0.05) * alpha);
+vec3 cartoonSurface(vec2 uv, float radial) {
+  float chunky = styleMask(0.0);
+  float lumpy = styleMask(1.0);
+  float cracked = styleMask(2.0);
+  float pocked = styleMask(3.0);
+  float crystal = styleMask(4.0);
+  float scorched = styleMask(5.0);
+  float facetScale = 1.85 + u_facet_amount * 2.15 + crystal * 1.25 - lumpy * 0.35;
+  vec3 cells = cellularPatches(uv * facetScale + u_seed * 0.004);
+  float patchBoundary = (1.0 - smoothstep(0.025, 0.15, cells.y)) * u_facet_amount;
+  float patchValue = floor((cells.z + softNoise(uv * 1.4 + cells.z) * 0.36) * (3.0 + crystal * 2.0)) / (3.0 + crystal * 2.0);
+  float lowBlob = softNoise(uv * (1.55 + lumpy * 0.75) + vec2(4.2, -1.7));
+  float crack = crackMask(uv);
+  vec3 crater = craterData(uv);
+  vec2 light2 = normalize(vec2(-0.58, -0.72));
+  float facingLight = dot(normalize(uv + vec2(0.0001)), light2);
+  float roundLight = smoothstep(-0.46, 0.82, facingLight) * 0.5 + (1.0 - radial) * 0.22;
+  float facetLight = (patchValue - 0.5) * (0.22 + u_facet_amount * 0.2 + chunky * 0.08 + crystal * 0.1);
+  float lumpyLight = (lowBlob - 0.5) * (0.18 + lumpy * 0.12 + pocked * 0.08);
+  float shade = 0.43 + roundLight + facetLight + lumpyLight;
+  shade -= crack * (0.24 + cracked * 0.16);
+  shade -= crater.x * (0.22 + pocked * 0.18 + scorched * 0.14);
+  shade -= smoothstep(0.58, 1.02, radial) * 0.2;
+  shade += crater.y * max(crater.z, 0.0) * 0.18;
+  float steppedShade = floor(clamp(shade, 0.0, 1.0) * u_band_count) / max(u_band_count - 1.0, 1.0);
+  vec3 shadowColor = u_base_color * vec3(0.42, 0.39, 0.43);
+  vec3 midColor = u_base_color * vec3(0.82, 0.78, 0.72);
+  vec3 lightColor = mix(u_base_color, vec3(1.0, 0.94, 0.76), 0.34);
+  vec3 color = mix(shadowColor, midColor, smoothstep(0.24, 0.58, steppedShade));
+  color = mix(color, lightColor, smoothstep(0.62, 1.0, steppedShade));
+  color = mix(color, u_base_color * (0.78 + patchValue * 0.3), patchBoundary * (0.08 + chunky * 0.08 + crystal * 0.12));
+  float craterInk = crater.x * (0.48 + pocked * 0.28 + scorched * 0.16);
+  color = mix(color, vec3(0.11, 0.09, 0.11), craterInk);
+  color = mix(color, lightColor, crater.y * max(crater.z, 0.0) * (0.18 + pocked * 0.08));
+  float accentPatch = smoothstep(0.68, 1.0, patchValue) * (crystal * 0.74 + cracked * 0.14);
+  float scorchGlow = smoothstep(0.62, 1.0, lowBlob) * crater.x * scorched;
+  color = mix(color, u_accent_color, (accentPatch + scorchGlow) * u_accent_amount);
+  float highlight = smoothstep(0.35, 0.95, facingLight) * smoothstep(0.28, 0.78, radial) * (1.0 - smoothstep(0.78, 1.0, radial));
+  color = mix(color, vec3(1.0, 0.95, 0.78), highlight * (0.16 + crystal * 0.08));
+  color = mix(color, vec3(0.07, 0.06, 0.08), crack * (0.58 + cracked * 0.18 + crystal * 0.08));
+  color = mix(color, vec3(0.09, 0.07, 0.06), scorched * smoothstep(0.74, 0.98, softNoise(uv * 4.6 - u_seed * 0.01)) * 0.36);
   return clamp(color, vec3(0.0), vec3(1.0));
 }
 
 void main() {
   vec2 centered = (gl_FragCoord.xy - u_texture_size * 0.5) / u_radius;
-  vec2 uv = styleUv(rotate2d(u_rotation) * centered);
+  vec2 uv = rotate2d(u_rotation) * centered;
   float radial = length(uv);
   float edge = silhouetteRadius(uv);
-  float alpha = smoothstep(edge + 0.018, edge - 0.008, radial);
+  float distanceToEdge = edge - radial;
+  float alpha = smoothstep(-0.012, 0.012, distanceToEdge);
   if (alpha <= 0.001) {
     gl_FragColor = vec4(0.0);
   } else {
-    vec3 color = shadeRock(uv / max(edge, 0.001), radial / max(edge, 0.001), alpha);
+    vec2 surfaceUv = uv / max(edge, 0.001);
+    float surfaceRadial = radial / max(edge, 0.001);
+    vec3 color = cartoonSurface(surfaceUv, surfaceRadial);
+    float outline = 1.0 - smoothstep(0.02, 0.085, distanceToEdge);
+    float innerRim = smoothstep(0.76, 1.0, surfaceRadial) *
+      smoothstep(0.1, 0.85, dot(normalize(surfaceUv + vec2(0.0001)), normalize(vec2(-0.58, -0.72))));
+    color = mix(color, vec3(0.055, 0.047, 0.065), outline * 0.94);
+    color = mix(color, vec3(1.0, 0.91, 0.62), innerRim * 0.14 * (1.0 - outline));
     gl_FragColor = vec4(color, alpha);
   }
 }
@@ -698,13 +368,15 @@ export function createAsteroidTextures(scene: Phaser.Scene): void {
     ASTEROID_TEXTURES[tier].forEach((key, index) => {
       if (scene.textures.exists(key)) return;
       const textureSize = getAsteroidTextureSize(tier);
-      inputs.push(createAsteroidShaderTextureInput(
-        key,
-        textureSize,
-        ASTEROIDS[tier].radius,
-        tier,
-        SURFACE_RECIPES[index],
-      ));
+      inputs.push(
+        createAsteroidShaderTextureInput(
+          key,
+          textureSize,
+          ASTEROIDS[tier].radius,
+          tier,
+          SURFACE_RECIPES[index],
+        ),
+      );
     });
   }
   if (inputs.length > 0 && !createShaderTextures(scene, fragmentShader, inputs))
@@ -725,25 +397,25 @@ function createAsteroidShaderTextureInput(
   const baseColor = mixHexColor(TIER_BASE_COLORS[tier], recipe.tint, recipe.tintAmount);
   return {
     setUniforms: (gl, program) => {
-      setFloatUniform(gl, program, 'u_cell', recipe.cell);
-      setFloatUniform(gl, program, 'u_contrast', recipe.contrast);
+      setFloatUniform(gl, program, 'u_accent_amount', recipe.accentAmount);
+      setFloatUniform(gl, program, 'u_band_count', recipe.bandCount);
+      setFloatUniform(gl, program, 'u_crack_amount', recipe.cracks);
+      setFloatUniform(gl, program, 'u_crater_amount', recipe.craters);
       setFloatUniform(gl, program, 'u_detail_scale', getTierDetailScale(tier));
-      setFloatUniform(gl, program, 'u_dust', recipe.dust);
-      setFloatUniform(gl, program, 'u_grain_scale', recipe.grainScale);
-      setFloatUniform(gl, program, 'u_has_metal', recipe.metal ? 1 : 0);
+      setFloatUniform(gl, program, 'u_facet_amount', recipe.facets);
       setFloatUniform(gl, program, 'u_radius', radius);
-      setFloatUniform(gl, program, 'u_ridge', recipe.ridge);
       setFloatUniform(gl, program, 'u_rotation', seededAngle(`${tier}:${recipe.key}:rotation`));
       setFloatUniform(gl, program, 'u_seed', shaderSeed(`${tier}:${recipe.key}`));
+      setFloatUniform(gl, program, 'u_shape_amount', recipe.shape);
       setFloatUniform(gl, program, 'u_style', SURFACE_STYLE_INDEX[recipe.style]);
       setVec2Uniform(gl, program, 'u_texture_size', textureSize, textureSize);
-      setVec3Uniform(gl, program, 'u_base_color', hexToVec3Uniform(baseColor));
       setVec3Uniform(
         gl,
         program,
-        'u_metal_color',
-        hexToVec3Uniform(recipe.metal ?? NO_METAL_COLOR),
+        'u_accent_color',
+        hexToVec3Uniform(recipe.accent ?? DEFAULT_ACCENT_COLOR),
       );
+      setVec3Uniform(gl, program, 'u_base_color', hexToVec3Uniform(baseColor));
     },
     textureKey,
     textureSize,
@@ -759,10 +431,10 @@ function getAsteroidTextureSize(tier: AsteroidTier): number {
 }
 
 function getTierDetailScale(tier: AsteroidTier): number {
-  if (tier === 'mega') return 1.15;
+  if (tier === 'mega') return 1.08;
   if (tier === 'big') return 1;
-  if (tier === 'medium') return 0.82;
-  return 0.66;
+  if (tier === 'medium') return 0.9;
+  return 0.78;
 }
 
 function seededAngle(value: string): number {
