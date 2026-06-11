@@ -178,6 +178,19 @@ float stormSwirlField(vec2 uv, vec2 center, vec2 radius, float rotation, float s
   return falloff * (0.55 + spiral * 0.45);
 }
 
+float gasSwirlLayer(vec2 uv, vec2 center, vec2 radius, float rotation, float turn, float noise) {
+  vec2 delta = uv - center;
+  float s = sin(rotation);
+  float c = cos(rotation);
+  vec2 rotated = mat2(c, -s, s, c) * delta;
+  float distanceToOval = length(rotated / radius);
+  float falloff = 1.0 - smoothstep(0.25, 1.34, distanceToOval);
+  float angle = atan(rotated.y / radius.y, rotated.x / radius.x);
+  float spiral = sin(angle * 2.6 + distanceToOval * turn + noise * 3.2);
+  float strands = sin(rotated.x / radius.x * 7.0 + spiral * 1.2 + noise * 2.4) * 0.5 + 0.5;
+  return falloff * smoothstep(0.26, 0.88, strands);
+}
+
 vec3 tint(vec3 color, float amount) {
   if (amount >= 0.0) {
     return mix(vec3(0.28, 0.16, 0.52), vec3(0.86, 0.76, 1.0), amount);
@@ -216,13 +229,19 @@ vec4 sampleGasSurface(vec2 sphereUv, vec3 normal) {
   float secondarySwirl =
     sin(atan(secondaryDelta.y, secondaryDelta.x) * -3.0 + length(secondaryDelta * vec2(14.0, 24.0)) + laceNoise * 2.0) *
     secondaryFalloff;
+  float gasSwirlNoise = fbm(vec3(swirledUv * vec2(7.0, 11.0), u_seed * 0.101) + warpedNormal * 1.3);
+  float upperGasSwirl = gasSwirlLayer(swirledUv, vec2(0.28, 0.63), vec2(0.34, 0.075), -0.1, 8.6, gasSwirlNoise);
+  float midGasSwirl = gasSwirlLayer(swirledUv, vec2(0.63, 0.48), vec2(0.42, 0.09), 0.08, -7.2, gasSwirlNoise + shearWarp);
+  float lowerGasSwirl = gasSwirlLayer(swirledUv, vec2(0.38, 0.34), vec2(0.28, 0.062), -0.18, 9.4, gasSwirlNoise + broadWarp);
+  float gasSwirls = clamp(upperGasSwirl * 0.52 + midGasSwirl * 0.62 + lowerGasSwirl * 0.48, 0.0, 1.0);
   float longitudinalFlow =
     swirledUv.x +
     (shearWarp - 0.5) * 0.13 +
     curl.x * 0.065 +
     sin((latitude * 4.8 + broadWarp * 0.7) * TAU) * 0.025 +
     stormSwirl * 0.09 +
-    secondarySwirl * 0.055;
+    secondarySwirl * 0.055 +
+    gasSwirls * 0.052;
   float bandCoord =
     swirledUv.y +
     (broadWarp - 0.5) * 0.09 +
@@ -230,7 +249,8 @@ vec4 sampleGasSurface(vec2 sphereUv, vec3 normal) {
     curl.y * 0.045 +
     sin((longitudinalFlow * 2.0 + shearWarp * 0.45) * TAU) * 0.022 +
     stormSwirl * 0.036 +
-    secondarySwirl * 0.025;
+    secondarySwirl * 0.025 +
+    (upperGasSwirl - lowerGasSwirl) * 0.018;
   float broadBelts =
     sin((bandCoord * 5.6 + sin(longitudinalFlow * TAU * 1.35) * 0.15 + turbulentWisps * 0.18 + ridgeStreaks * 0.12) * TAU) * 0.5 + 0.5;
   float tightBelts =
@@ -262,43 +282,94 @@ vec4 sampleGasSurface(vec2 sphereUv, vec3 normal) {
     0.9,
     broadBeltMask * 0.4 + narrowBeltMask * 0.2 + beltNoise * 0.16 + ridgeStreaks * 0.12 + (1.0 - brokenFlow) * 0.1
   );
-  float brightZones = smoothstep(0.4, 0.92, mergedZoneMask * 0.48 + billows * 0.22 + wispMask * 0.2 + laceNoise * 0.08);
+  float brightZones = smoothstep(0.42, 0.94, mergedZoneMask * 0.44 + billows * 0.2 + wispMask * 0.16 + laceNoise * 0.07);
   float copperBands = smoothstep(
     0.5,
     0.94,
     narrowBeltMask * 0.22 + turbulentWisps * 0.18 + widthNoise * 0.13 + ovalPocketMask * 0.1 + (1.0 - abs(latitude - 0.54) * 2.0) * 0.12
   );
   float blueHollows = smoothstep(0.54, 0.94, darkBelts * 0.22 + fineCloud * 0.2 + shearWarp * 0.12 + zoneNoise * 0.1 + cellularPockets * 0.16);
-  float highClouds = smoothstep(0.48, 0.9, billows * 0.28 + fineCloud * 0.16 + brightZones * 0.2 + wispMask * 0.2 + laceNoise * 0.08);
+  float highClouds = smoothstep(0.52, 0.92, billows * 0.24 + fineCloud * 0.16 + brightZones * 0.16 + wispMask * 0.17 + laceNoise * 0.07);
+  float coolFilaments = smoothstep(
+    0.5,
+    0.9,
+    ridgedFbm(
+      warpedNormal * 24.0 +
+        vec3(longitudinalFlow * 2.2 + curl.x * 0.8, bandCoord * 6.0 + curl.y * 1.4, u_seed * 0.057)
+    ) +
+      fineCloud * 0.1
+  ) * brokenFlow;
+  float shadowFilaments = smoothstep(
+    0.56,
+    0.94,
+    ridgedFbm(warpedNormal * 31.0 + vec3(5.1, u_seed * 0.019, 2.6)) + (1.0 - brokenFlow) * 0.12
+  ) * (0.24 + darkBelts * 0.3);
+  float veilBillows = billowFbm(
+    warpedNormal * 6.2 + vec3(longitudinalFlow * 1.6, bandCoord * 2.4, u_seed * 0.071)
+  );
+  float veilRidges = ridgedFbm(
+    warpedNormal * 11.5 + vec3(broadWarp * 2.0 + curl.x, shearWarp * 1.5 + curl.y, u_seed * 0.083)
+  );
+  float veilPockets =
+    1.0 -
+    smoothstep(
+      0.16,
+      0.48,
+      cellular(warpedNormal * 4.8 + vec3(shearWarp * 2.4, broadWarp * 1.6, u_seed * 0.067))
+    );
+  float cohesionVeil = smoothstep(
+    0.38,
+    0.84,
+    veilBillows * 0.42 + veilRidges * 0.32 + veilPockets * 0.12 + brokenFlow * 0.08 + gasSwirls * 0.08
+  );
+  float microShear = smoothstep(
+    0.46,
+    0.9,
+    fbm(vec3(longitudinalFlow * 18.0 + curl.x * 2.0, bandCoord * 32.0 + curl.y * 1.6, u_seed * 0.091)) * 0.5 +
+      ridgedFbm(warpedNormal * 38.0 + vec3(1.8, 5.4, u_seed * 0.029)) * 0.34 +
+      billowFbm(warpedNormal * 21.0 + vec3(6.2, u_seed * 0.037, 3.1)) * 0.16
+  );
 
   float stormNoise = billowFbm(warpedNormal * 14.0 + vec3(7.2, 3.4, 8.8));
   float stormMask = stormSwirlField(swirledUv, vec2(0.57, 0.59), vec2(0.13, 0.058), -0.18, stormNoise);
   float secondaryStormMask = stormSwirlField(swirledUv, vec2(0.36, 0.43), vec2(0.075, 0.034), 0.42, laceNoise);
 
-  vec3 pearl = vec3(0.84, 0.76, 0.96);
-  vec3 amethyst = vec3(0.5, 0.33, 0.74);
-  vec3 violetSmoke = vec3(0.26, 0.18, 0.42);
-  vec3 plum = vec3(0.22, 0.14, 0.34);
-  vec3 deepViolet = vec3(0.15, 0.1, 0.26);
-  vec3 blueViolet = vec3(0.28, 0.25, 0.5);
-  vec3 roseGold = vec3(0.72, 0.42, 0.52);
+  float cloudContamination = clamp(darkBelts * 0.18 + blueHollows * 0.14 + turbulentWisps * 0.1 + ridgeStreaks * 0.08, 0.0, 0.36);
+  float zoneFeather = clamp(1.0 - darkBelts * 0.22 - narrowBeltMask * 0.12, 0.62, 1.0);
 
-  vec3 color = mix(violetSmoke, deepViolet, darkBelts * 0.26);
+  vec3 pearl = vec3(0.78, 0.72, 0.93);
+  vec3 amethyst = vec3(0.56, 0.39, 0.78);
+  vec3 lilacHaze = vec3(0.5, 0.41, 0.7);
+  vec3 violetSmoke = vec3(0.32, 0.24, 0.48);
+  vec3 plum = vec3(0.27, 0.19, 0.4);
+  vec3 deepViolet = vec3(0.2, 0.15, 0.33);
+  vec3 blueViolet = vec3(0.34, 0.31, 0.56);
+  vec3 ionBlue = vec3(0.3, 0.36, 0.62);
+  vec3 integratedPearl = mix(pearl, mix(amethyst, ionBlue, blueHollows * 0.34), cloudContamination);
+
+  vec3 color = mix(violetSmoke, deepViolet, darkBelts * 0.18);
   color = mix(color, amethyst, turbulentWisps * 0.18 + copperBands * 0.1);
-  color = mix(color, pearl, brightZones * 0.36 + highClouds * 0.16);
-  color = mix(color, plum, copperBands * 0.12 + darkBelts * copperBands * 0.08);
-  color = mix(color, blueViolet, blueHollows * 0.14);
-  color = mix(color, roseGold, ovalPocketMask * 0.12 + secondaryStormMask * 0.08);
-  color = mix(color, plum, stormMask * 0.065 + secondaryStormMask * 0.05);
-  color += vec3(0.08, 0.04, 0.16) * (turbulentWisps * 0.05 + ridgeStreaks * 0.035);
-  color += vec3(0.08, 0.04, 0.14) * (stormMask + secondaryStormMask) * stormNoise * 0.032;
+  color = mix(color, integratedPearl, (brightZones * 0.34 + highClouds * 0.16) * zoneFeather);
+  color = mix(color, lilacHaze, copperBands * 0.08 + ovalPocketMask * 0.055 + secondaryStormMask * 0.04);
+  color = mix(color, plum, darkBelts * copperBands * 0.05 + stormMask * 0.04 + shadowFilaments * 0.045);
+  color = mix(color, blueViolet, blueHollows * 0.14 + coolFilaments * 0.045);
+  color = mix(color, ionBlue, coolFilaments * blueHollows * 0.05);
+  color = mix(color, lilacHaze, gasSwirls * (0.065 + brightZones * 0.035));
+  color = mix(color, deepViolet, gasSwirls * darkBelts * 0.02);
+  color = mix(color, mix(lilacHaze, blueViolet, blueHollows * 0.42 + coolFilaments * 0.22), cohesionVeil * 0.08);
+  color = mix(color, deepViolet, cohesionVeil * shadowFilaments * 0.018);
+  color += vec3(0.08, 0.065, 0.16) * (turbulentWisps * 0.05 + ridgeStreaks * 0.032 + coolFilaments * 0.04);
+  color += vec3(0.065, 0.06, 0.14) * microShear * cohesionVeil * 0.038;
+  color = mix(color, plum, microShear * shadowFilaments * 0.012);
+  color += vec3(0.06, 0.04, 0.13) * (stormMask + secondaryStormMask) * stormNoise * 0.026;
+  color = mix(color, pearl, (1.0 - darkBelts) * cohesionVeil * 0.035);
 
   vec3 lightDirection = normalize(vec3(-0.44, 0.58, 0.69));
   float diffuse = clamp(dot(normal, lightDirection), 0.0, 1.0);
   float day = smoothstep(-0.35, 0.5, dot(normal, lightDirection));
   float limb = 1.0 - clamp(normal.z, 0.0, 1.0);
-  color *= 0.56 + diffuse * 0.58;
-  color = mix(color * 0.55, color, day);
+  color *= 0.68 + diffuse * 0.52;
+  color = mix(color * 0.68, color, day);
   color += tint(u_base_color, 0.62) * pow(limb, 1.8) * 0.12 * day;
 
   return vec4(color, 1.0);
