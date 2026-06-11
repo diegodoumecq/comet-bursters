@@ -22,7 +22,6 @@ type SurfaceRecipe = {
   accent?: string;
   accentAmount: number;
   bandCount: number;
-  cracks: number;
   craters: number;
   facets: number;
   key: AsteroidSurfaceVariant;
@@ -57,7 +56,6 @@ const SURFACE_RECIPES: readonly SurfaceRecipe[] = [
   {
     accentAmount: 0.08,
     bandCount: 4,
-    cracks: 0.2,
     craters: 0.38,
     facets: 0.38,
     key: 'cartoon-lumpy',
@@ -70,7 +68,6 @@ const SURFACE_RECIPES: readonly SurfaceRecipe[] = [
     accent: '#ff9d5c',
     accentAmount: 0.34,
     bandCount: 3,
-    cracks: 0.58,
     craters: 0.54,
     facets: 0.52,
     key: 'cartoon-scorched',
@@ -102,7 +99,6 @@ precision highp float;
 
 uniform float u_accent_amount;
 uniform float u_band_count;
-uniform float u_crack_amount;
 uniform float u_crater_amount;
 uniform float u_detail_scale;
 uniform float u_facet_amount;
@@ -198,19 +194,6 @@ float silhouetteRadius(vec2 uv) {
   return clamp(0.92 + broad + block - bite, 0.68, 1.22);
 }
 
-float crackMask(vec2 uv) {
-  float scorched = styleMask(1.0);
-  float angle = hash12(vec2(6.2, 19.8)) * 6.28318;
-  vec2 p = rotate2d(angle) * (uv - (hash22(vec2(12.7, 83.1)) - 0.5) * 0.34);
-  float mainWarp = (softNoise(vec2(p.x * 1.25, p.y * 0.55) + 8.3) - 0.5) * 0.18;
-  float branchWarp = (softNoise(vec2(p.y * 1.05, p.x * 0.55) - 4.7) - 0.5) * 0.16;
-  float mainLine = 1.0 - smoothstep(0.018, 0.07, abs(p.y + mainWarp));
-  float branchLine = 1.0 - smoothstep(0.014, 0.055, abs(p.x * 0.74 + p.y * 0.44 + branchWarp));
-  float gate = smoothstep(0.22, 0.84, softNoise(p * 1.2 + 2.7));
-  float styleBoost = 0.66 + scorched * 0.18;
-  return clamp((mainLine * 0.82 + branchLine * 0.5) * gate * u_crack_amount * styleBoost, 0.0, 1.0);
-}
-
 vec3 craterData(vec2 uv) {
   float scorched = styleMask(1.0);
   float scale = (2.7 + scorched * 1.4) * u_detail_scale;
@@ -247,10 +230,8 @@ vec3 cartoonSurface(vec2 uv, vec2 lightUv, float radial) {
   float scorched = styleMask(1.0);
   float facetScale = 1.85 + u_facet_amount * 2.15 - lumpy * 0.35;
   vec3 cells = cellularPatches(uv * facetScale + u_seed * 0.004);
-  float patchBoundary = (1.0 - smoothstep(0.025, 0.15, cells.y)) * u_facet_amount;
   float patchValue = floor((cells.z + softNoise(uv * 1.4 + cells.z) * 0.36) * 3.0) / 3.0;
   float lowBlob = softNoise(uv * (1.55 + lumpy * 0.75) + vec2(4.2, -1.7));
-  float crack = crackMask(uv);
   vec3 crater = craterData(uv);
   vec2 light2 = normalize(vec2(-0.58, 0.72));
   float facingLight = dot(normalize(lightUv + vec2(0.0001)), light2);
@@ -258,7 +239,6 @@ vec3 cartoonSurface(vec2 uv, vec2 lightUv, float radial) {
   float facetLight = (patchValue - 0.5) * (0.22 + u_facet_amount * 0.2);
   float lumpyLight = (lowBlob - 0.5) * (0.18 + lumpy * 0.12);
   float shade = 0.43 + roundLight + facetLight + lumpyLight;
-  shade -= crack * 0.24;
   shade -= crater.x * (0.22 + scorched * 0.14);
   shade -= smoothstep(0.58, 1.02, radial) * 0.2;
   shade += crater.y * max(crater.z, 0.0) * 0.18;
@@ -268,7 +248,6 @@ vec3 cartoonSurface(vec2 uv, vec2 lightUv, float radial) {
   vec3 lightColor = mix(u_base_color, vec3(1.0, 0.94, 0.76), 0.34);
   vec3 color = mix(shadowColor, midColor, smoothstep(0.24, 0.58, steppedShade));
   color = mix(color, lightColor, smoothstep(0.62, 1.0, steppedShade));
-  color = mix(color, u_base_color * (0.78 + patchValue * 0.3), patchBoundary * 0.08);
   float craterInk = crater.x * (0.48 + scorched * 0.16);
   color = mix(color, vec3(0.11, 0.09, 0.11), craterInk);
   color = mix(color, lightColor, crater.y * max(crater.z, 0.0) * 0.18);
@@ -276,7 +255,6 @@ vec3 cartoonSurface(vec2 uv, vec2 lightUv, float radial) {
   color = mix(color, u_accent_color, scorchGlow * u_accent_amount);
   float highlight = smoothstep(0.35, 0.95, facingLight) * smoothstep(0.28, 0.78, radial) * (1.0 - smoothstep(0.78, 1.0, radial));
   color = mix(color, vec3(1.0, 0.95, 0.78), highlight * 0.16);
-  color = mix(color, vec3(0.07, 0.06, 0.08), crack * 0.58);
   color = mix(color, vec3(0.09, 0.07, 0.06), scorched * smoothstep(0.74, 0.98, softNoise(uv * 4.6 - u_seed * 0.01)) * 0.36);
   return clamp(color, vec3(0.0), vec3(1.0));
 }
@@ -380,7 +358,6 @@ function createAsteroidShaderTextureInput(
     setUniforms: (gl, program) => {
       setFloatUniform(gl, program, 'u_accent_amount', recipe.accentAmount);
       setFloatUniform(gl, program, 'u_band_count', recipe.bandCount);
-      setFloatUniform(gl, program, 'u_crack_amount', recipe.cracks);
       setFloatUniform(gl, program, 'u_crater_amount', recipe.craters);
       setFloatUniform(gl, program, 'u_detail_scale', getTierDetailScale(tier));
       setFloatUniform(gl, program, 'u_facet_amount', recipe.facets);
