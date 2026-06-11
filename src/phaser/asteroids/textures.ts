@@ -11,18 +11,11 @@ import type { ShaderTextureInput } from '../core/shaderTextures';
 import { ASTEROIDS } from './config';
 import type { AsteroidTier } from './types';
 
-const ASTEROID_SURFACE_VARIANTS = [
-  'cartoon-chunky',
-  'cartoon-lumpy',
-  'cartoon-cracked',
-  'cartoon-pocked',
-  'cartoon-crystal',
-  'cartoon-scorched',
-] as const;
+const ASTEROID_SURFACE_VARIANTS = ['cartoon-chunky', 'cartoon-lumpy', 'cartoon-scorched'] as const;
 
 type AsteroidSurfaceVariant = (typeof ASTEROID_SURFACE_VARIANTS)[number];
 
-type SurfaceStyle = 'chunky' | 'cracked' | 'crystal' | 'lumpy' | 'pocked' | 'scorched';
+type SurfaceStyle = 'chunky' | 'lumpy' | 'scorched';
 
 type SurfaceRecipe = {
   accent?: string;
@@ -78,44 +71,6 @@ const SURFACE_RECIPES: readonly SurfaceRecipe[] = [
     tintAmount: 0.16,
   },
   {
-    accent: '#fff1b3',
-    accentAmount: 0.16,
-    bandCount: 3,
-    cracks: 0.95,
-    craters: 0.16,
-    facets: 0.74,
-    key: 'cartoon-cracked',
-    shape: 0.84,
-    style: 'cracked',
-    tint: '#74685f',
-    tintAmount: 0.22,
-  },
-  {
-    accentAmount: 0.08,
-    bandCount: 4,
-    cracks: 0.18,
-    craters: 0.92,
-    facets: 0.28,
-    key: 'cartoon-pocked',
-    shape: 0.62,
-    style: 'pocked',
-    tint: '#a48d70',
-    tintAmount: 0.18,
-  },
-  {
-    accent: '#d9f6ff',
-    accentAmount: 0.46,
-    bandCount: 4,
-    cracks: 0.42,
-    craters: 0.08,
-    facets: 1,
-    key: 'cartoon-crystal',
-    shape: 0.74,
-    style: 'crystal',
-    tint: '#6f7ea3',
-    tintAmount: 0.2,
-  },
-  {
     accent: '#ff9d5c',
     accentAmount: 0.34,
     bandCount: 3,
@@ -133,10 +88,7 @@ const SURFACE_RECIPES: readonly SurfaceRecipe[] = [
 const SURFACE_STYLE_INDEX: Record<SurfaceStyle, number> = {
   chunky: 0,
   lumpy: 1,
-  cracked: 2,
-  pocked: 3,
-  crystal: 4,
-  scorched: 5,
+  scorched: 2,
 };
 
 const ASTEROID_TEXTURE_PADDING = 4;
@@ -231,42 +183,35 @@ float silhouetteRadius(vec2 uv) {
   float angle = atan(uv.y, uv.x);
   float chunky = styleMask(0.0);
   float lumpy = styleMask(1.0);
-  float crystal = styleMask(4.0);
-  float pocked = styleMask(3.0);
-  float segmentCount = 6.0 + chunky * 2.0 + crystal * 3.0;
+  float segmentCount = 6.0 + chunky * 2.0;
   float segment = floor((angle + 3.14159) / 6.28318 * segmentCount) / segmentCount;
   float segmentAngle = segment * 6.28318;
   float broad =
     (angularNoise(angle, 1.2, 2.1) - 0.5) * (0.22 + u_shape_amount * 0.1 + lumpy * 0.08) +
     (angularNoise(angle, 2.7, 8.4) - 0.5) * (0.13 + u_shape_amount * 0.08);
-  float block = (angularNoise(segmentAngle, 3.1, 31.7) - 0.5) * (0.11 + chunky * 0.08 + crystal * 0.07);
+  float block = (angularNoise(segmentAngle, 3.1, 31.7) - 0.5) * (0.11 + chunky * 0.08);
   float bite = smoothstep(0.74, 0.98, angularNoise(angle, 7.4, 14.8)) *
     angularNoise(angle, 12.0, 5.7) *
-    (0.04 + pocked * 0.05 + u_shape_amount * 0.04);
-  float crystalPoint = pow(abs(sin(angle * 5.0 + u_seed * 0.017)), 5.0) * crystal * 0.1;
-  return clamp(0.92 + broad + block + crystalPoint - bite, 0.68, 1.22);
+    (0.04 + u_shape_amount * 0.04);
+  return clamp(0.92 + broad + block - bite, 0.68, 1.22);
 }
 
 float crackMask(vec2 uv) {
-  float cracked = styleMask(2.0);
-  float crystal = styleMask(4.0);
-  float scorched = styleMask(5.0);
+  float scorched = styleMask(2.0);
   float angle = hash12(vec2(6.2, 19.8)) * 6.28318;
   vec2 p = rotate2d(angle) * (uv - (hash22(vec2(12.7, 83.1)) - 0.5) * 0.34);
   float mainWarp = (softNoise(vec2(p.x * 1.25, p.y * 0.55) + 8.3) - 0.5) * 0.18;
   float branchWarp = (softNoise(vec2(p.y * 1.05, p.x * 0.55) - 4.7) - 0.5) * 0.16;
   float mainLine = 1.0 - smoothstep(0.018, 0.07, abs(p.y + mainWarp));
   float branchLine = 1.0 - smoothstep(0.014, 0.055, abs(p.x * 0.74 + p.y * 0.44 + branchWarp));
-  float chipLines = 1.0 - smoothstep(0.02, 0.08, abs(fract((p.x + p.y * 0.42) * 3.0) - 0.5));
   float gate = smoothstep(0.22, 0.84, softNoise(p * 1.2 + 2.7));
-  float styleBoost = 0.66 + cracked * 0.34 + crystal * 0.18 + scorched * 0.18;
-  return clamp((mainLine * 0.82 + branchLine * 0.5 + chipLines * crystal * 0.18) * gate * u_crack_amount * styleBoost, 0.0, 1.0);
+  float styleBoost = 0.66 + scorched * 0.18;
+  return clamp((mainLine * 0.82 + branchLine * 0.5) * gate * u_crack_amount * styleBoost, 0.0, 1.0);
 }
 
 vec3 craterData(vec2 uv) {
-  float pocked = styleMask(3.0);
-  float scorched = styleMask(5.0);
-  float scale = (2.7 + pocked * 2.2 + scorched * 1.4) * u_detail_scale;
+  float scorched = styleMask(2.0);
+  float scale = (2.7 + scorched * 1.4) * u_detail_scale;
   vec2 p = uv * scale + u_seed * 0.031;
   vec2 cell = floor(p);
   vec2 local = fract(p);
@@ -286,7 +231,7 @@ vec3 craterData(vec2 uv) {
       }
     }
   }
-  float threshold = 0.62 - pocked * 0.18 - scorched * 0.08;
+  float threshold = 0.62 - scorched * 0.08;
   float gate = smoothstep(threshold, 1.0, craterId) * u_crater_amount;
   float bowl = (1.0 - smoothstep(0.07, 0.25, nearest)) * gate;
   float rim = smoothstep(0.13, 0.22, nearest) * (1.0 - smoothstep(0.22, 0.36, nearest)) * gate;
@@ -298,25 +243,22 @@ vec3 craterData(vec2 uv) {
 vec3 cartoonSurface(vec2 uv, float radial) {
   float chunky = styleMask(0.0);
   float lumpy = styleMask(1.0);
-  float cracked = styleMask(2.0);
-  float pocked = styleMask(3.0);
-  float crystal = styleMask(4.0);
-  float scorched = styleMask(5.0);
-  float facetScale = 1.85 + u_facet_amount * 2.15 + crystal * 1.25 - lumpy * 0.35;
+  float scorched = styleMask(2.0);
+  float facetScale = 1.85 + u_facet_amount * 2.15 - lumpy * 0.35;
   vec3 cells = cellularPatches(uv * facetScale + u_seed * 0.004);
   float patchBoundary = (1.0 - smoothstep(0.025, 0.15, cells.y)) * u_facet_amount;
-  float patchValue = floor((cells.z + softNoise(uv * 1.4 + cells.z) * 0.36) * (3.0 + crystal * 2.0)) / (3.0 + crystal * 2.0);
+  float patchValue = floor((cells.z + softNoise(uv * 1.4 + cells.z) * 0.36) * 3.0) / 3.0;
   float lowBlob = softNoise(uv * (1.55 + lumpy * 0.75) + vec2(4.2, -1.7));
   float crack = crackMask(uv);
   vec3 crater = craterData(uv);
   vec2 light2 = normalize(vec2(-0.58, -0.72));
   float facingLight = dot(normalize(uv + vec2(0.0001)), light2);
   float roundLight = smoothstep(-0.46, 0.82, facingLight) * 0.5 + (1.0 - radial) * 0.22;
-  float facetLight = (patchValue - 0.5) * (0.22 + u_facet_amount * 0.2 + chunky * 0.08 + crystal * 0.1);
-  float lumpyLight = (lowBlob - 0.5) * (0.18 + lumpy * 0.12 + pocked * 0.08);
+  float facetLight = (patchValue - 0.5) * (0.22 + u_facet_amount * 0.2 + chunky * 0.08);
+  float lumpyLight = (lowBlob - 0.5) * (0.18 + lumpy * 0.12);
   float shade = 0.43 + roundLight + facetLight + lumpyLight;
-  shade -= crack * (0.24 + cracked * 0.16);
-  shade -= crater.x * (0.22 + pocked * 0.18 + scorched * 0.14);
+  shade -= crack * 0.24;
+  shade -= crater.x * (0.22 + scorched * 0.14);
   shade -= smoothstep(0.58, 1.02, radial) * 0.2;
   shade += crater.y * max(crater.z, 0.0) * 0.18;
   float steppedShade = floor(clamp(shade, 0.0, 1.0) * u_band_count) / max(u_band_count - 1.0, 1.0);
@@ -325,16 +267,15 @@ vec3 cartoonSurface(vec2 uv, float radial) {
   vec3 lightColor = mix(u_base_color, vec3(1.0, 0.94, 0.76), 0.34);
   vec3 color = mix(shadowColor, midColor, smoothstep(0.24, 0.58, steppedShade));
   color = mix(color, lightColor, smoothstep(0.62, 1.0, steppedShade));
-  color = mix(color, u_base_color * (0.78 + patchValue * 0.3), patchBoundary * (0.08 + chunky * 0.08 + crystal * 0.12));
-  float craterInk = crater.x * (0.48 + pocked * 0.28 + scorched * 0.16);
+  color = mix(color, u_base_color * (0.78 + patchValue * 0.3), patchBoundary * (0.08 + chunky * 0.08));
+  float craterInk = crater.x * (0.48 + scorched * 0.16);
   color = mix(color, vec3(0.11, 0.09, 0.11), craterInk);
-  color = mix(color, lightColor, crater.y * max(crater.z, 0.0) * (0.18 + pocked * 0.08));
-  float accentPatch = smoothstep(0.68, 1.0, patchValue) * (crystal * 0.74 + cracked * 0.14);
+  color = mix(color, lightColor, crater.y * max(crater.z, 0.0) * 0.18);
   float scorchGlow = smoothstep(0.62, 1.0, lowBlob) * crater.x * scorched;
-  color = mix(color, u_accent_color, (accentPatch + scorchGlow) * u_accent_amount);
+  color = mix(color, u_accent_color, scorchGlow * u_accent_amount);
   float highlight = smoothstep(0.35, 0.95, facingLight) * smoothstep(0.28, 0.78, radial) * (1.0 - smoothstep(0.78, 1.0, radial));
-  color = mix(color, vec3(1.0, 0.95, 0.78), highlight * (0.16 + crystal * 0.08));
-  color = mix(color, vec3(0.07, 0.06, 0.08), crack * (0.58 + cracked * 0.18 + crystal * 0.08));
+  color = mix(color, vec3(1.0, 0.95, 0.78), highlight * 0.16);
+  color = mix(color, vec3(0.07, 0.06, 0.08), crack * 0.58);
   color = mix(color, vec3(0.09, 0.07, 0.06), scorched * smoothstep(0.74, 0.98, softNoise(uv * 4.6 - u_seed * 0.01)) * 0.36);
   return clamp(color, vec3(0.0), vec3(1.0));
 }
