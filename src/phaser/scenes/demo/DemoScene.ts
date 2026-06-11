@@ -150,8 +150,8 @@ export class PhaserDemoScene extends BaseGameScene {
       ASTEROID_TEXTURES[tier].map((_, visualVariant) => ({
         tier,
         visualVariant,
-        x: 400 + visualVariant * 280,
-        y: 1800 + row * 220,
+        x: 280 + (visualVariant % 6) * 240,
+        y: 1800 + row * 360 + Math.floor(visualVariant / 6) * 150,
       })),
     );
     this.asteroids = layouts.map(({ tier, visualVariant, x, y }) => {

@@ -1,4 +1,5 @@
 import { ASTEROIDS } from '../asteroids/config';
+import { ASTEROID_TEXTURES } from '../asteroids/textures';
 import type { AsteroidEntity, AsteroidTier } from '../asteroids/types';
 import { addVector, getPortalTangent, scaleVector } from './portalGeometry';
 import type { PortalDirectorPlan } from './types';
@@ -35,7 +36,7 @@ export function createPortalAsteroidSpawn(input: {
       rotation: randomBetween(0, Math.PI * 2),
       tier,
       velocity,
-      visualVariant: randomInt(0, 1),
+      visualVariant: randomInt(0, ASTEROID_TEXTURES[tier].length - 1),
     });
   }
   return asteroids;
