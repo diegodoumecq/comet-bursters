@@ -381,14 +381,6 @@ vec4 sampleGasSurface(vec2 sphereUv, vec3 normal) {
   color = mix(color, mix(violetSmoke, blueViolet, cohesionVeil * 0.55), unityMist * darkBelts * 0.034);
   color += vec3(0.045, 0.04, 0.095) * unityMistThread * unityMist * 0.026;
 
-  vec3 lightDirection = normalize(vec3(-0.44, 0.58, 0.69));
-  float diffuse = clamp(dot(normal, lightDirection), 0.0, 1.0);
-  float day = smoothstep(-0.35, 0.5, dot(normal, lightDirection));
-  float limb = 1.0 - clamp(normal.z, 0.0, 1.0);
-  color *= 0.68 + diffuse * 0.52;
-  color = mix(color * 0.68, color, day);
-  color += tint(u_base_color, 0.62) * pow(limb, 1.8) * 0.12 * day;
-
   return vec4(color, 1.0);
 }
 
@@ -400,43 +392,20 @@ void main() {
 
   float distanceFromCenter = length(planetPosition);
   float bodyAlpha = 1.0 - smoothstep(0.992, 1.006, distanceFromCenter);
-  float outerGlow = smoothstep(0.98, 1.02, distanceFromCenter) *
-    (1.0 - smoothstep(1.0, 1.4, distanceFromCenter));
-  float atmosphere = smoothstep(0.62, 0.98, distanceFromCenter) *
-    (1.0 - smoothstep(0.98, 1.28, distanceFromCenter));
 
-  if (distanceFromCenter > 1.4) {
+  if (bodyAlpha <= VISIBLE_ALPHA_THRESHOLD) {
     discard;
   }
 
-  vec3 glowColor = vec3(0.42, 0.24, 0.76);
-  vec3 color = glowColor * outerGlow * 0.2;
-  float alpha = outerGlow * 0.34 + atmosphere * 0.18;
+  float z = sqrt(max(0.0, 1.0 - distanceFromCenter * distanceFromCenter));
+  vec3 normal = normalize(vec3(planetPosition.x, planetPosition.y, z));
+  vec2 sphereUv = vec2(
+    atan(normal.x, normal.z) / TAU + 0.5,
+    asin(clamp(normal.y, -1.0, 1.0)) / PI + 0.5
+  );
+  vec4 surface = sampleGasSurface(sphereUv, normal);
 
-  if (bodyAlpha > 0.0) {
-    float z = sqrt(max(0.0, 1.0 - distanceFromCenter * distanceFromCenter));
-    vec3 normal = normalize(vec3(planetPosition.x, planetPosition.y, z));
-    vec2 sphereUv = vec2(
-      atan(normal.x, normal.z) / TAU + 0.5,
-      asin(clamp(normal.y, -1.0, 1.0)) / PI + 0.5
-    );
-    vec4 surface = sampleGasSurface(sphereUv, normal);
-
-    float rim = smoothstep(0.68, 1.0, distanceFromCenter) * bodyAlpha;
-    float outline = smoothstep(0.982, 1.0, distanceFromCenter) * bodyAlpha;
-    vec3 rimColor = tint(u_base_color, 0.72);
-    vec3 outlined = mix(surface.rgb, vec3(0.07, 0.04, 0.15), outline * 0.48);
-    outlined += rimColor * rim * 0.2;
-
-    color = mix(color, outlined, bodyAlpha);
-    alpha = max(alpha, bodyAlpha);
-  }
-
-  if (alpha <= VISIBLE_ALPHA_THRESHOLD) {
-    discard;
-  }
-
-  gl_FragColor = vec4(color, alpha);
+  gl_FragColor = vec4(surface.rgb, bodyAlpha);
 }
 `;
 

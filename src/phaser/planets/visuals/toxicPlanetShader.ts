@@ -207,16 +207,9 @@ vec4 sampleToxicSurface(vec2 sphereUv, vec3 normal) {
   color += cyanSlick * cyanSlicks * 0.05;
   color += violetWaste * purpleScum * 0.06;
 
-  vec3 lightDirection = normalize(vec3(-0.44, 0.58, 0.69));
-  float diffuse = clamp(dot(normal, lightDirection), 0.0, 1.0);
-  float day = smoothstep(-0.32, 0.5, dot(normal, lightDirection));
-  float limb = 1.0 - clamp(normal.z, 0.0, 1.0);
-  color *= 0.44 + diffuse * 0.74;
-  color = mix(color * 0.36, color, day);
   color +=
     (acid * acidLagoons + chartreuse * yellowBloom + cyanSlick * cyanSlicks + violetWaste * purpleScum * 0.36) *
-    (0.08 + (1.0 - day) * 0.12);
-  color += tint(u_base_color, 0.6) * pow(limb, 2.1) * 0.09 * day;
+    0.08;
 
   return vec4(color, 1.0);
 }
@@ -229,47 +222,20 @@ void main() {
 
   float distanceFromCenter = length(planetPosition);
   float bodyAlpha = 1.0 - smoothstep(0.992, 1.006, distanceFromCenter);
-  float outerGlow = smoothstep(0.98, 1.02, distanceFromCenter) *
-    (1.0 - smoothstep(1.0, 1.4, distanceFromCenter));
-  float atmosphere = smoothstep(0.64, 0.98, distanceFromCenter) *
-    (1.0 - smoothstep(0.98, 1.27, distanceFromCenter));
 
-  if (distanceFromCenter > 1.4) {
+  if (bodyAlpha <= VISIBLE_ALPHA_THRESHOLD) {
     discard;
   }
 
-  vec3 glowColor = mix(u_base_color, vec3(0.78, 1.0, 0.2), 0.58);
-  vec3 color = glowColor * outerGlow * 0.2;
-  float alpha = outerGlow * 0.38 + atmosphere * 0.16;
+  float z = sqrt(max(0.0, 1.0 - distanceFromCenter * distanceFromCenter));
+  vec3 normal = normalize(vec3(planetPosition.x, planetPosition.y, z));
+  vec2 sphereUv = vec2(
+    atan(normal.x, normal.z) / TAU + 0.5,
+    asin(clamp(normal.y, -1.0, 1.0)) / PI + 0.5
+  );
+  vec4 surface = sampleToxicSurface(sphereUv, normal);
 
-  if (bodyAlpha > 0.0) {
-    float z = sqrt(max(0.0, 1.0 - distanceFromCenter * distanceFromCenter));
-    vec3 normal = normalize(vec3(planetPosition.x, planetPosition.y, z));
-    vec2 sphereUv = vec2(
-      atan(normal.x, normal.z) / TAU + 0.5,
-      asin(clamp(normal.y, -1.0, 1.0)) / PI + 0.5
-    );
-    vec4 surface = sampleToxicSurface(sphereUv, normal);
-
-    float rim = smoothstep(0.68, 1.0, distanceFromCenter) * bodyAlpha;
-    float outline = smoothstep(0.982, 1.0, distanceFromCenter) * bodyAlpha;
-    vec3 rimColor = tint(u_base_color, 0.72);
-    vec3 outlined = mix(surface.rgb, vec3(0.0, 0.032, 0.018), outline * 0.62);
-    outlined += rimColor * rim * 0.18;
-
-    vec2 hazeOffset = planetPosition - vec2(-0.08, 0.04);
-    float haze = (1.0 - smoothstep(0.18, 0.96, length(hazeOffset))) * bodyAlpha;
-    outlined += vec3(0.74, 1.0, 0.26) * haze * 0.025;
-
-    color = mix(color, outlined, bodyAlpha);
-    alpha = max(alpha, bodyAlpha);
-  }
-
-  if (alpha <= VISIBLE_ALPHA_THRESHOLD) {
-    discard;
-  }
-
-  gl_FragColor = vec4(color, alpha);
+  gl_FragColor = vec4(surface.rgb, bodyAlpha);
 }
 `;
 

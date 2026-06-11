@@ -156,16 +156,7 @@ vec4 sampleLavaSurface(vec2 sphereUv, vec3 normal) {
   color = mix(color, sulfur, hairlineCracks * 0.2 + emberDust * 0.1);
   color += magma * emberDust * 0.1;
 
-  vec3 lightDirection = normalize(vec3(-0.46, 0.58, 0.68));
-  float diffuse = clamp(dot(normal, lightDirection), 0.0, 1.0);
-  float night = smoothstep(-0.35, 0.45, dot(normal, lightDirection));
-  float limb = 1.0 - clamp(normal.z, 0.0, 1.0);
-  color *= 0.48 + diffuse * 0.78;
-  color = mix(color * 0.38, color, night);
-  color +=
-    (magma * fissures + hotMagma * (lavaPools + hairlineCracks * 0.34)) *
-    (0.16 + (1.0 - night) * 0.18);
-  color += vec3(1.0, 0.55, 0.22) * pow(limb, 2.4) * 0.08 * night;
+  color += (magma * fissures + hotMagma * (lavaPools + hairlineCracks * 0.34)) * 0.12;
 
   return vec4(color, 1.0);
 }
@@ -178,50 +169,20 @@ void main() {
 
   float distanceFromCenter = length(planetPosition);
   float bodyAlpha = 1.0 - smoothstep(0.992, 1.006, distanceFromCenter);
-  float outerGlow = smoothstep(0.98, 1.02, distanceFromCenter) *
-    (1.0 - smoothstep(1.0, 1.42, distanceFromCenter));
-  float atmosphere = smoothstep(0.74, 0.98, distanceFromCenter) *
-    (1.0 - smoothstep(0.98, 1.24, distanceFromCenter));
 
-  if (distanceFromCenter > 1.42) {
+  if (bodyAlpha <= VISIBLE_ALPHA_THRESHOLD) {
     discard;
   }
 
-  vec3 glowColor = mix(u_base_color, vec3(1.0, 0.52, 0.18), 0.56);
-  vec3 color = glowColor * outerGlow * 0.16;
-  float alpha = outerGlow * 0.32 + atmosphere * 0.15;
+  float z = sqrt(max(0.0, 1.0 - distanceFromCenter * distanceFromCenter));
+  vec3 normal = normalize(vec3(planetPosition.x, planetPosition.y, z));
+  vec2 sphereUv = vec2(
+    atan(normal.x, normal.z) / TAU + 0.5,
+    asin(clamp(normal.y, -1.0, 1.0)) / PI + 0.5
+  );
+  vec4 surface = sampleLavaSurface(sphereUv, normal);
 
-  if (bodyAlpha > 0.0) {
-    float z = sqrt(max(0.0, 1.0 - distanceFromCenter * distanceFromCenter));
-    vec3 normal = normalize(vec3(planetPosition.x, planetPosition.y, z));
-    vec2 sphereUv = vec2(
-      atan(normal.x, normal.z) / TAU + 0.5,
-      asin(clamp(normal.y, -1.0, 1.0)) / PI + 0.5
-    );
-    vec4 surface = sampleLavaSurface(sphereUv, normal);
-
-    float rim = smoothstep(0.72, 1.0, distanceFromCenter) * bodyAlpha;
-    float outline = smoothstep(0.985, 1.0, distanceFromCenter) * bodyAlpha;
-    vec3 rimColor = tint(u_base_color, 0.38);
-    vec3 outlined = mix(surface.rgb, vec3(0.06, 0.012, 0.006), outline * 0.56);
-    outlined += rimColor * rim * 0.14;
-
-    vec2 crescentOffset = planetPosition - vec2(-0.03, 0.02);
-    vec2 crescentCutOffset = planetPosition - vec2(0.62, -0.12);
-    float crescentOuter = 1.0 - smoothstep(0.98, 1.025, length(crescentOffset));
-    float crescentCut = 1.0 - smoothstep(0.78, 0.84, length(crescentCutOffset));
-    float crescent = max(crescentOuter - crescentCut, 0.0) * bodyAlpha;
-    outlined += vec3(1.0, 0.52, 0.2) * crescent * 0.16;
-
-    color = mix(color, outlined, bodyAlpha);
-    alpha = max(alpha, bodyAlpha);
-  }
-
-  if (alpha <= VISIBLE_ALPHA_THRESHOLD) {
-    discard;
-  }
-
-  gl_FragColor = vec4(color, alpha);
+  gl_FragColor = vec4(surface.rgb, bodyAlpha);
 }
 `;
 

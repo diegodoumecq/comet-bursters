@@ -5,8 +5,10 @@ import type { PlanetTextureSizing } from '../textureSizing';
 import type { PlanetEntity, PlanetKind, PlanetSpriteSource } from '../types';
 import { createGasPlanetShaderTexture } from './gasPlanetShader';
 import { createLavaPlanetShaderTexture } from './lavaPlanetShader';
-import { drawStyledPlanet } from './planetVisuals';
+import { drawPlanetLightingLayer, drawPlanetSurfaceLayer } from './planetVisuals';
 import { createToxicPlanetShaderTexture } from './toxicPlanetShader';
+
+export type PlanetTextureLayer = 'lighting' | 'surface';
 
 type PlanetTextureRenderer = (
   scene: Phaser.Scene,
@@ -26,14 +28,20 @@ export function renderPlanetTexture(
   textureKey: string,
   planet: PlanetEntity,
   sizing: PlanetTextureSizing,
+  layer: PlanetTextureLayer,
 ): void {
+  if (layer === 'lighting') {
+    renderCanvasPlanetLayer(scene, textureKey, planet, sizing, layer);
+    return;
+  }
+
   const renderer = planetTextureRenderers[planet.kind];
   if (renderer) {
     if (renderer(scene, textureKey, planet, sizing)) return;
     throw new Error(`Unable to render ${planet.kind} planet shader texture`);
   }
 
-  renderCanvasPlanetTexture(scene, textureKey, planet, sizing);
+  renderCanvasPlanetLayer(scene, textureKey, planet, sizing, layer);
 }
 
 function renderLavaPlanetTexture(
@@ -81,14 +89,20 @@ function renderToxicPlanetTexture(
   );
 }
 
-function renderCanvasPlanetTexture(
+function renderCanvasPlanetLayer(
   scene: Phaser.Scene,
   textureKey: string,
   planet: PlanetEntity,
   sizing: PlanetTextureSizing,
+  layer: PlanetTextureLayer,
 ): boolean {
   createCanvasTexture(scene, textureKey, sizing.textureSize, sizing.textureSize, (ctx) => {
-    drawStyledPlanet(toSpriteSource(planet, sizing.textureSize, sizing.textureScale), ctx);
+    const spriteSource = toSpriteSource(planet, sizing.textureSize, sizing.textureScale);
+    if (layer === 'surface') {
+      drawPlanetSurfaceLayer(spriteSource, ctx);
+      return;
+    }
+    drawPlanetLightingLayer(spriteSource, ctx);
   });
   return true;
 }

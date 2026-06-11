@@ -1,26 +1,35 @@
 import Phaser from 'phaser';
 
 import type { Vector } from '../core/types';
-import { getPlanetDisplaySize, getPlanetTextureKey } from './textures';
+import { getPlanetDisplaySize, getPlanetTextureKeys } from './textures';
 import type { PlanetEntity } from './types';
 
+export type PlanetView = {
+  lighting: Phaser.GameObjects.Image;
+  surface: Phaser.GameObjects.Image;
+};
+
 export class PlanetViews {
-  private readonly sprites = new Map<number, Phaser.GameObjects.Image>();
+  private readonly sprites = new Map<number, PlanetView>();
 
   constructor(private readonly scene: Phaser.Scene) {}
 
-  add(planet: PlanetEntity): Phaser.GameObjects.Image {
+  add(planet: PlanetEntity): PlanetView {
     const existing = this.sprites.get(planet.id);
     if (existing) return existing;
 
-    const textureKey = getPlanetTextureKey(this.scene, planet);
+    const textureKeys = getPlanetTextureKeys(this.scene, planet);
     const size = getPlanetDisplaySize(planet);
-    const sprite = this.scene.add
-      .image(planet.position.x, planet.position.y, textureKey)
+    const surface = this.scene.add
+      .image(planet.position.x, planet.position.y, textureKeys.surface)
       .setDisplaySize(size, size)
       .setRotation(planet.rotation);
-    this.sprites.set(planet.id, sprite);
-    return sprite;
+    const lighting = this.scene.add
+      .image(planet.position.x, planet.position.y, textureKeys.lighting)
+      .setDisplaySize(size, size);
+    const view = { lighting, surface };
+    this.sprites.set(planet.id, view);
+    return view;
   }
 
   ensureNear(planets: PlanetEntity[], center: Vector, loadRadius: number): void {
@@ -34,10 +43,12 @@ export class PlanetViews {
   }
 
   sync(planet: PlanetEntity): void {
-    const sprite = this.sprites.get(planet.id);
-    if (!sprite) return;
-    sprite.setPosition(planet.position.x, planet.position.y);
-    sprite.setRotation(planet.rotation);
+    const view = this.sprites.get(planet.id);
+    if (!view) return;
+    view.surface.setPosition(planet.position.x, planet.position.y);
+    view.surface.setRotation(planet.rotation);
+    view.lighting.setPosition(planet.position.x, planet.position.y);
+    view.lighting.setRotation(0);
   }
 }
 
