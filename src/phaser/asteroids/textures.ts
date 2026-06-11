@@ -1,13 +1,13 @@
 import Phaser from 'phaser';
 
 import {
-  createShaderTextures,
+  createShaderCanvases,
   hexToVec3Uniform,
   setFloatUniform,
   setVec2Uniform,
   setVec3Uniform,
 } from '../core/shaderTextures';
-import type { ShaderTextureInput } from '../core/shaderTextures';
+import type { ShaderCanvasOutput, ShaderTextureInput } from '../core/shaderTextures';
 import { ASTEROIDS } from './config';
 import type { AsteroidTier } from './types';
 
@@ -29,6 +29,42 @@ type SurfaceRecipe = {
   style: SurfaceStyle;
   tint: string;
   tintAmount: number;
+};
+
+type AsteroidTextureFrameRef = {
+  frameKey: string;
+  textureKey: string;
+};
+
+type AsteroidAtlasLayout = {
+  columns: number;
+  frameCount: number;
+  height: number;
+  pageIndex: number;
+  startFrame: number;
+  textureKey: string;
+  width: number;
+};
+
+type AtlasFrameData = {
+  frame: {
+    h: number;
+    w: number;
+    x: number;
+    y: number;
+  };
+  rotated: false;
+  sourceSize: {
+    h: number;
+    w: number;
+  };
+  spriteSourceSize: {
+    h: number;
+    w: number;
+    x: number;
+    y: number;
+  };
+  trimmed: false;
 };
 
 export const ASTEROID_TEXTURES: Record<AsteroidTier, readonly string[]> = {
@@ -84,14 +120,15 @@ const SURFACE_STYLE_INDEX: Record<SurfaceStyle, number> = {
 };
 
 const ASTEROID_TEXTURE_PADDING = 4;
+const ASTEROID_ATLAS_MAX_SIZE = 2048;
 const DEFAULT_ACCENT_COLOR = '#ffffff';
 const FRAME_BLEND_START = 0.25;
 const FRAME_BLEND_END = 0.75;
 
 export type AsteroidTextureBlend = {
-  currentKey: string;
+  current: AsteroidTextureFrameRef;
   nextAlpha: number;
-  nextKey: string;
+  next: AsteroidTextureFrameRef;
 };
 
 const fragmentShader = `
@@ -284,44 +321,21 @@ void main() {
 `;
 
 export function createAsteroidTextures(scene: Phaser.Scene): void {
-  const inputs: ShaderTextureInput[] = [];
   for (const tier of Object.keys(ASTEROIDS) as AsteroidTier[]) {
     const frameCount = TIER_ROTATION_FRAME_COUNTS[tier];
     SURFACE_RECIPES.forEach((recipe, variantIndex) => {
-      for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
-        const key = getAsteroidTextureKey(
-          tier,
-          variantIndex,
-          getFrameAngle(frameIndex, frameCount),
-        );
-        if (!scene.textures.exists(key)) {
-          const textureSize = getAsteroidTextureSize(tier);
-          inputs.push(
-            createAsteroidShaderTextureInput(
-              key,
-              textureSize,
-              ASTEROIDS[tier].radius,
-              tier,
-              recipe,
-              frameIndex,
-              frameCount,
-            ),
-          );
-        }
-      }
+      createAsteroidTextureAtlas(scene, tier, recipe, variantIndex, frameCount);
     });
   }
-  if (inputs.length > 0 && !createShaderTextures(scene, fragmentShader, inputs))
-    throw new Error('Unable to create asteroid shader textures');
 }
 
-export function getAsteroidTextureKey(
+export function getAsteroidTextureFrameRef(
   tier: AsteroidTier,
   visualVariant: number,
   rotation: number,
-): string {
+): AsteroidTextureFrameRef {
   const variant = getAsteroidSurfaceVariant(visualVariant);
-  return createFrameTextureKey(tier, variant, getAsteroidTextureFrameIndex(tier, rotation));
+  return createAsteroidAtlasFrameRef(tier, variant, getAsteroidTextureFrameIndex(tier, rotation));
 }
 
 export function getAsteroidTextureBlend(
@@ -334,9 +348,9 @@ export function getAsteroidTextureBlend(
   const frame = getAsteroidTextureFrame(tier, rotation);
   const nextFrameIndex = (frame.index + 1) % frameCount;
   return {
-    currentKey: createFrameTextureKey(tier, variant, frame.index),
+    current: createAsteroidAtlasFrameRef(tier, variant, frame.index),
     nextAlpha: smoothstep(FRAME_BLEND_START, FRAME_BLEND_END, frame.progress),
-    nextKey: createFrameTextureKey(tier, variant, nextFrameIndex),
+    next: createAsteroidAtlasFrameRef(tier, variant, nextFrameIndex),
   };
 }
 
@@ -386,7 +400,177 @@ function createAsteroidShaderTextureInput(
 }
 
 function createTextureKeys(tier: AsteroidTier): readonly string[] {
-  return ASTEROID_SURFACE_VARIANTS.map((variant) => createFrameTextureKey(tier, variant, 0));
+  return ASTEROID_SURFACE_VARIANTS.map((variant) => createAtlasTextureKey(tier, variant, 0));
+}
+
+function createAsteroidTextureAtlas(
+  scene: Phaser.Scene,
+  tier: AsteroidTier,
+  recipe: SurfaceRecipe,
+  variantIndex: number,
+  frameCount: number,
+): void {
+  const textureSize = getAsteroidTextureSize(tier);
+  const layouts = createAtlasLayouts(tier, recipe.key, frameCount, textureSize);
+  if (layouts.every((layout) => scene.textures.exists(layout.textureKey))) return;
+
+  const inputs = createAsteroidShaderTextureInputs(
+    tier,
+    recipe,
+    variantIndex,
+    frameCount,
+    textureSize,
+  );
+  const outputs = createShaderCanvases(fragmentShader, inputs);
+  if (!outputs) throw new Error('Unable to create asteroid shader textures');
+
+  for (const layout of layouts) {
+    if (!scene.textures.exists(layout.textureKey))
+      createAsteroidAtlasPage(scene, tier, recipe.key, layout, textureSize, outputs);
+  }
+}
+
+function createAsteroidShaderTextureInputs(
+  tier: AsteroidTier,
+  recipe: SurfaceRecipe,
+  variantIndex: number,
+  frameCount: number,
+  textureSize: number,
+): ShaderTextureInput[] {
+  const inputs: ShaderTextureInput[] = [];
+  for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+    inputs.push(
+      createAsteroidShaderTextureInput(
+        createFrameTextureKey(tier, getAsteroidSurfaceVariant(variantIndex), frameIndex),
+        textureSize,
+        ASTEROIDS[tier].radius,
+        tier,
+        recipe,
+        frameIndex,
+        frameCount,
+      ),
+    );
+  }
+  return inputs;
+}
+
+function createAsteroidAtlasPage(
+  scene: Phaser.Scene,
+  tier: AsteroidTier,
+  variant: AsteroidSurfaceVariant,
+  layout: AsteroidAtlasLayout,
+  textureSize: number,
+  outputs: readonly ShaderCanvasOutput[],
+): void {
+  const atlasCanvas = document.createElement('canvas');
+  atlasCanvas.width = layout.width;
+  atlasCanvas.height = layout.height;
+  const context = atlasCanvas.getContext('2d');
+  if (!context) throw new Error('Unable to create asteroid atlas canvas');
+
+  const frames: Record<string, AtlasFrameData> = {};
+  for (let frameOffset = 0; frameOffset < layout.frameCount; frameOffset += 1) {
+    const frameIndex = layout.startFrame + frameOffset;
+    const output = outputs[frameIndex];
+    if (!output) throw new Error(`Missing asteroid frame ${frameIndex}`);
+
+    const x = (frameOffset % layout.columns) * textureSize;
+    const y = Math.floor(frameOffset / layout.columns) * textureSize;
+    context.drawImage(output.canvas, x, y);
+    frames[createFrameTextureKey(tier, variant, frameIndex)] = createAtlasFrameData(
+      x,
+      y,
+      textureSize,
+    );
+  }
+
+  const atlas = scene.textures.addAtlasJSONHash(
+    layout.textureKey,
+    atlasCanvas as unknown as HTMLImageElement,
+    { frames },
+  );
+  if (!atlas) throw new Error(`Unable to create asteroid atlas ${layout.textureKey}`);
+}
+
+function createAtlasFrameData(x: number, y: number, textureSize: number): AtlasFrameData {
+  return {
+    frame: { h: textureSize, w: textureSize, x, y },
+    rotated: false,
+    sourceSize: { h: textureSize, w: textureSize },
+    spriteSourceSize: { h: textureSize, w: textureSize, x: 0, y: 0 },
+    trimmed: false,
+  };
+}
+
+function createAsteroidAtlasFrameRef(
+  tier: AsteroidTier,
+  variant: AsteroidSurfaceVariant,
+  frameIndex: number,
+): AsteroidTextureFrameRef {
+  return {
+    frameKey: createFrameTextureKey(tier, variant, frameIndex),
+    textureKey: createAtlasTextureKey(
+      tier,
+      variant,
+      getAtlasPageIndex(frameIndex, getAsteroidTextureSize(tier)),
+    ),
+  };
+}
+
+function createAtlasLayouts(
+  tier: AsteroidTier,
+  variant: AsteroidSurfaceVariant,
+  frameCount: number,
+  frameSize: number,
+): AsteroidAtlasLayout[] {
+  const framesPerPage = getAtlasFramesPerPage(frameSize);
+  const layouts: AsteroidAtlasLayout[] = [];
+  for (let startFrame = 0; startFrame < frameCount; startFrame += framesPerPage) {
+    const pageFrameCount = Math.min(framesPerPage, frameCount - startFrame);
+    const pageIndex = getAtlasPageIndex(startFrame, frameSize);
+    const grid = chooseAtlasGrid(pageFrameCount, frameSize);
+    layouts.push({
+      columns: grid.columns,
+      frameCount: pageFrameCount,
+      height: grid.rows * frameSize,
+      pageIndex,
+      startFrame,
+      textureKey: createAtlasTextureKey(tier, variant, pageIndex),
+      width: grid.columns * frameSize,
+    });
+  }
+  return layouts;
+}
+
+function chooseAtlasGrid(frameCount: number, frameSize: number): { columns: number; rows: number } {
+  const maxColumns = Math.min(frameCount, Math.floor(ASTEROID_ATLAS_MAX_SIZE / frameSize));
+  let best = { area: Number.POSITIVE_INFINITY, columns: 1, rows: frameCount };
+  for (let columns = 1; columns <= maxColumns; columns += 1) {
+    const rows = Math.ceil(frameCount / columns);
+    const area = columns * rows;
+    const squareness = Math.abs(columns - rows) / Math.max(columns, rows);
+    const bestSquareness = Math.abs(best.columns - best.rows) / Math.max(best.columns, best.rows);
+    if (area < best.area || (area === best.area && squareness < bestSquareness))
+      best = { area, columns, rows };
+  }
+  return { columns: best.columns, rows: best.rows };
+}
+
+function getAtlasPageIndex(frameIndex: number, frameSize: number): number {
+  return Math.floor(frameIndex / getAtlasFramesPerPage(frameSize));
+}
+
+function getAtlasFramesPerPage(frameSize: number): number {
+  const framesPerAxis = Math.max(1, Math.floor(ASTEROID_ATLAS_MAX_SIZE / frameSize));
+  return framesPerAxis * framesPerAxis;
+}
+
+function createAtlasTextureKey(
+  tier: AsteroidTier,
+  variant: AsteroidSurfaceVariant,
+  pageIndex: number,
+): string {
+  return `phaser-asteroid-${tier}-${variant}-atlas-${pageIndex}`;
 }
 
 function createFrameTextureKey(

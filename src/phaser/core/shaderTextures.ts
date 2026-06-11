@@ -14,6 +14,11 @@ export type ShaderTextureInput = {
   textureSize: number;
 };
 
+export type ShaderCanvasOutput = {
+  canvas: HTMLCanvasElement;
+  textureKey: string;
+};
+
 const vertexShader = `
 attribute vec2 a_position;
 
@@ -91,10 +96,18 @@ export function createShaderTextures(
   fragmentShader: string,
   inputs: readonly ShaderTextureInput[],
 ): boolean {
-  const maxTextureSize = inputs.reduce(
-    (maxSize, input) => Math.max(maxSize, input.textureSize),
-    1,
-  );
+  const canvases = createShaderCanvases(fragmentShader, inputs);
+  if (!canvases) return false;
+
+  for (const output of canvases) scene.textures.addCanvas(output.textureKey, output.canvas);
+  return true;
+}
+
+export function createShaderCanvases(
+  fragmentShader: string,
+  inputs: readonly ShaderTextureInput[],
+): ShaderCanvasOutput[] | null {
+  const maxTextureSize = inputs.reduce((maxSize, input) => Math.max(maxSize, input.textureSize), 1);
   const shaderCanvas = document.createElement('canvas');
   shaderCanvas.width = maxTextureSize;
   shaderCanvas.height = maxTextureSize;
@@ -106,15 +119,15 @@ export function createShaderTextures(
     preserveDrawingBuffer: true,
     stencil: false,
   });
-  if (!gl) return false;
+  if (!gl) return null;
 
   const program = createProgram(gl, fragmentShader);
-  if (!program) return false;
+  if (!program) return null;
 
   const positionBuffer = gl.createBuffer();
   if (!positionBuffer) {
     gl.deleteProgram(program);
-    return false;
+    return null;
   }
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
@@ -124,22 +137,28 @@ export function createShaderTextures(
   gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
   gl.useProgram(program);
 
-  const created = inputs.every((input) =>
-    renderShaderTexture(scene, gl, program, input.textureKey, input.textureSize, input.setUniforms),
-  );
+  const outputs: ShaderCanvasOutput[] = [];
+  for (const input of inputs) {
+    const canvas = renderShaderCanvas(gl, program, input.textureSize, input.setUniforms);
+    if (!canvas) {
+      gl.deleteBuffer(positionBuffer);
+      gl.deleteProgram(program);
+      return null;
+    }
+    outputs.push({ canvas, textureKey: input.textureKey });
+  }
+
   gl.deleteBuffer(positionBuffer);
   gl.deleteProgram(program);
-  return created;
+  return outputs;
 }
 
-function renderShaderTexture(
-  scene: Phaser.Scene,
+function renderShaderCanvas(
   gl: WebGLRenderingContext,
   program: WebGLProgram,
-  textureKey: string,
   textureSize: number,
   setUniforms: ShaderUniformSetter,
-): boolean {
+): HTMLCanvasElement | null {
   gl.viewport(0, 0, textureSize, textureSize);
   gl.clearColor(0, 0, 0, 0);
   gl.clear(gl.COLOR_BUFFER_BIT);
@@ -150,15 +169,14 @@ function renderShaderTexture(
   canvas.width = textureSize;
   canvas.height = textureSize;
   const context = canvas.getContext('2d');
-  if (!context) return false;
+  if (!context) return null;
 
   const pixels = new Uint8Array(textureSize * textureSize * 4);
   gl.readPixels(0, 0, textureSize, textureSize, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
   const imageData = context.createImageData(textureSize, textureSize);
   flipFramebufferPixels(pixels, imageData.data, textureSize, textureSize);
   context.putImageData(imageData, 0, 0);
-  scene.textures.addCanvas(textureKey, canvas);
-  return true;
+  return canvas;
 }
 
 function flipFramebufferPixels(

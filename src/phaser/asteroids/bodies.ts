@@ -7,7 +7,7 @@ import { ASTEROID_DEFINITIONS, ASTEROIDS } from './config';
 import {
   getAsteroidTextureBlend,
   getAsteroidTextureDisplaySize,
-  getAsteroidTextureKey,
+  getAsteroidTextureFrameRef,
 } from './textures';
 import { getToroidalOffsets, wrapCoordinate } from './toroidal';
 import type { AsteroidEntity } from './types';
@@ -290,10 +290,16 @@ export class AsteroidBodies {
 
   private createBody(asteroid: AsteroidEntity): MatterImage {
     const config = ASTEROID_DEFINITIONS[asteroid.tier];
+    const texture = getAsteroidTextureFrameRef(
+      asteroid.tier,
+      asteroid.visualVariant,
+      asteroid.rotation,
+    );
     const body = this.scene.matter.add.image(
       asteroid.position.x,
       asteroid.position.y,
-      getAsteroidTextureKey(asteroid.tier, asteroid.visualVariant, asteroid.rotation),
+      texture.textureKey,
+      texture.frameKey,
     ) as MatterImage;
     const displaySize = getAsteroidTextureDisplaySize(asteroid.tier);
     body.setDisplaySize(displaySize, displaySize);
@@ -308,15 +314,22 @@ export class AsteroidBodies {
   }
 
   private createVisual(asteroid: AsteroidEntity): AsteroidVisual {
+    const texture = getAsteroidTextureFrameRef(
+      asteroid.tier,
+      asteroid.visualVariant,
+      asteroid.rotation,
+    );
     const current = this.scene.add.image(
       asteroid.position.x,
       asteroid.position.y,
-      getAsteroidTextureKey(asteroid.tier, asteroid.visualVariant, asteroid.rotation),
+      texture.textureKey,
+      texture.frameKey,
     );
     const next = this.scene.add.image(
       asteroid.position.x,
       asteroid.position.y,
-      getAsteroidTextureKey(asteroid.tier, asteroid.visualVariant, asteroid.rotation),
+      texture.textureKey,
+      texture.frameKey,
     );
     const visual = { current, next };
     const displaySize = getAsteroidTextureDisplaySize(asteroid.tier);
@@ -387,10 +400,16 @@ export class AsteroidBodies {
     rotation: number,
   ): void {
     const textureBlend = getAsteroidTextureBlend(asteroid.tier, asteroid.visualVariant, rotation);
-    if (visual.current.texture.key !== textureBlend.currentKey)
-      visual.current.setTexture(textureBlend.currentKey);
-    if (visual.next.texture.key !== textureBlend.nextKey)
-      visual.next.setTexture(textureBlend.nextKey);
+    if (
+      visual.current.texture.key !== textureBlend.current.textureKey ||
+      visual.current.frame.name !== textureBlend.current.frameKey
+    )
+      visual.current.setTexture(textureBlend.current.textureKey, textureBlend.current.frameKey);
+    if (
+      visual.next.texture.key !== textureBlend.next.textureKey ||
+      visual.next.frame.name !== textureBlend.next.frameKey
+    )
+      visual.next.setTexture(textureBlend.next.textureKey, textureBlend.next.frameKey);
     const displaySize = getAsteroidTextureDisplaySize(asteroid.tier);
     visual.current.setDisplaySize(displaySize, displaySize);
     visual.next.setDisplaySize(displaySize, displaySize);
