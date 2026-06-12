@@ -413,8 +413,8 @@ export class AsteroidBodies {
     const displaySize = getAsteroidTextureDisplaySize(asteroid.tier);
     visual.current.setDisplaySize(displaySize, displaySize);
     visual.next.setDisplaySize(displaySize, displaySize);
-    visual.current.setRotation(0);
-    visual.next.setRotation(0);
+    visual.current.setRotation(Phaser.Math.Angle.Wrap(textureBlend.current.frameAngle - rotation));
+    visual.next.setRotation(Phaser.Math.Angle.Wrap(textureBlend.next.frameAngle - rotation));
     visual.current.setAlpha(1);
     visual.next.setAlpha(textureBlend.nextAlpha);
     this.setVisualVisible(visual, visual.current.visible);

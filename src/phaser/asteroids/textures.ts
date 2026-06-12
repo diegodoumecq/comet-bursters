@@ -33,6 +33,7 @@ type SurfaceRecipe = {
 
 type AsteroidTextureFrameRef = {
   frameKey: string;
+  frameAngle: number;
   textureKey: string;
 };
 
@@ -509,6 +510,7 @@ function createAsteroidAtlasFrameRef(
 ): AsteroidTextureFrameRef {
   return {
     frameKey: createFrameTextureKey(tier, variant, frameIndex),
+    frameAngle: getFrameAngle(frameIndex, TIER_ROTATION_FRAME_COUNTS[tier]),
     textureKey: createAtlasTextureKey(
       tier,
       variant,
