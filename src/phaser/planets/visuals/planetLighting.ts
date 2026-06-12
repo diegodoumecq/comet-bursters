@@ -1,20 +1,51 @@
 import type { PlanetShapeSource as Planet } from '../types';
 import { tracePlanetShape } from './planetShapes';
 
-const LIGHT_DIRECTION = { x: -0.58, y: -0.42 };
-const BODY_EXTENT_SCALE = 1.08;
-const BODY_FILL_SIZE = 2.16;
+type Crescent = {
+  color: string;
+  mask: {
+    radius: number;
+    x: number;
+    y: number;
+  };
+};
+
+const LIGHT_CRESCENTS: Crescent[] = [
+  {
+    color: 'rgba(255, 255, 255, 0.08)',
+    mask: { radius: 1, x: 0.072, y: 0.072 },
+  },
+  {
+    color: 'rgba(255, 255, 255, 0.14)',
+    mask: { radius: 1, x: 0.048, y: 0.048 },
+  },
+  {
+    color: 'rgba(255, 255, 255, 0.24)',
+    mask: { radius: 1, x: 0.026, y: 0.026 },
+  },
+];
+
+const SHADOW_CRESCENTS: Crescent[] = [
+  {
+    color: 'rgba(0, 0, 0, 0.055)',
+    mask: { radius: 1, x: -0.5, y: -0.5 },
+  },
+  {
+    color: 'rgba(0, 0, 0, 0.11)',
+    mask: { radius: 1, x: -0.16, y: -0.16 },
+  },
+  {
+    color: 'rgba(0, 0, 0, 0.16)',
+    mask: { radius: 1, x: -0.11, y: -0.11 },
+  },
+  {
+    color: 'rgba(0, 0, 0, 0.24)',
+    mask: { radius: 1, x: -0.07, y: -0.07 },
+  },
+];
 
 export function drawPlanetLightingLayer(planet: Planet, ctx: CanvasRenderingContext2D): void {
   const radius = planet.getRadius();
-  const lightOffset = {
-    x: LIGHT_DIRECTION.x * radius * 0.42,
-    y: LIGHT_DIRECTION.y * radius * 0.42,
-  };
-  const shadowOffset = {
-    x: -LIGHT_DIRECTION.x * radius,
-    y: -LIGHT_DIRECTION.y * radius,
-  };
 
   ctx.save();
   ctx.translate(planet.x, planet.y);
@@ -23,54 +54,11 @@ export function drawPlanetLightingLayer(planet: Planet, ctx: CanvasRenderingCont
   tracePlanetShape(ctx, planet, radius);
   ctx.clip();
 
-  const directionalShade = ctx.createLinearGradient(
-    lightOffset.x,
-    lightOffset.y,
-    shadowOffset.x,
-    shadowOffset.y,
-  );
-  directionalShade.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
-  directionalShade.addColorStop(0.28, 'rgba(255, 255, 255, 0.035)');
-  directionalShade.addColorStop(0.54, 'rgba(0, 0, 0, 0.08)');
-  directionalShade.addColorStop(0.82, 'rgba(0, 0, 0, 0.36)');
-  directionalShade.addColorStop(1, 'rgba(0, 0, 0, 0.58)');
-  ctx.fillStyle = directionalShade;
-  fillPlanetLightingBounds(ctx, radius);
-
-  const highlight = ctx.createRadialGradient(
-    lightOffset.x,
-    lightOffset.y,
-    radius * 0.02,
-    lightOffset.x,
-    lightOffset.y,
-    radius * 0.95,
-  );
-  highlight.addColorStop(0, 'rgba(255, 255, 255, 0.18)');
-  highlight.addColorStop(0.34, 'rgba(255, 255, 255, 0.08)');
-  highlight.addColorStop(0.72, 'rgba(255, 255, 255, 0.018)');
-  highlight.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  ctx.fillStyle = highlight;
-  fillPlanetLightingBounds(ctx, radius);
-
-  const limbShade = ctx.createRadialGradient(0, 0, radius * 0.48, 0, 0, radius * BODY_EXTENT_SCALE);
-  limbShade.addColorStop(0, 'rgba(0, 0, 0, 0)');
-  limbShade.addColorStop(0.58, 'rgba(0, 0, 0, 0)');
-  limbShade.addColorStop(0.86, 'rgba(0, 0, 0, 0.16)');
-  limbShade.addColorStop(1, 'rgba(0, 0, 0, 0.34)');
-  ctx.fillStyle = limbShade;
-  fillPlanetLightingBounds(ctx, radius);
+  drawCrescents(ctx, radius, SHADOW_CRESCENTS);
+  drawCrescents(ctx, radius, LIGHT_CRESCENTS);
   ctx.restore();
 
-  const litRim = ctx.createLinearGradient(
-    radius * -0.78,
-    radius * -0.78,
-    radius * 0.45,
-    radius * 0.45,
-  );
-  litRim.addColorStop(0, 'rgba(255, 255, 255, 0.2)');
-  litRim.addColorStop(0.32, 'rgba(255, 255, 255, 0.09)');
-  litRim.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  ctx.strokeStyle = litRim;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
   ctx.lineWidth = Math.max(1.5, radius * 0.018);
   tracePlanetShape(ctx, planet, radius * 0.985);
   ctx.stroke();
@@ -83,7 +71,24 @@ export function drawPlanetLightingLayer(planet: Planet, ctx: CanvasRenderingCont
   ctx.restore();
 }
 
-function fillPlanetLightingBounds(ctx: CanvasRenderingContext2D, radius: number): void {
-  const size = radius * BODY_FILL_SIZE;
-  ctx.fillRect(-size * 0.5, -size * 0.5, size, size);
+function drawCrescents(ctx: CanvasRenderingContext2D, radius: number, crescents: Crescent[]): void {
+  for (const crescent of crescents) {
+    drawCrescent(ctx, radius, crescent);
+  }
+}
+
+function drawCrescent(ctx: CanvasRenderingContext2D, radius: number, crescent: Crescent): void {
+  ctx.save();
+  ctx.fillStyle = crescent.color;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.arc(
+    crescent.mask.x * radius,
+    crescent.mask.y * radius,
+    crescent.mask.radius * radius,
+    0,
+    Math.PI * 2,
+  );
+  ctx.fill('evenodd');
+  ctx.restore();
 }
