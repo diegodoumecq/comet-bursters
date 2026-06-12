@@ -223,6 +223,9 @@ export default defineConfig({
   },
   server: {
     port: 9001,
+    watch: {
+      ignored: ['**/artifacts/**'],
+    },
   },
   build: {
     outDir: 'devBundle',

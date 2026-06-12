@@ -1,4 +1,7 @@
 node_modules
 devBundle
 TODO.md
-artifacts/playwright
+artifacts/playwright/**
+!artifacts/playwright/performance/
+!artifacts/playwright/performance/**/
+!artifacts/playwright/performance/**/milestone/*.json

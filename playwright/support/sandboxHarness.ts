@@ -259,8 +259,36 @@ async function openPhaserGameScene(
   await page.goto(options.url ?? '/phaser-game.html', { waitUntil: 'networkidle' });
   const canvas = page.locator('canvas').first();
   await canvas.waitFor({ state: 'visible' });
+  await page.waitForFunction(() => {
+    type GameWindow = typeof window & {
+      __cometBurstersGame?: {
+        scene?: {
+          getScene?: (key: string) => { scene?: { isActive?: () => boolean } };
+        };
+      };
+    };
+    return (
+      (window as GameWindow).__cometBurstersGame?.scene
+        ?.getScene?.('scene-menu')
+        ?.scene?.isActive?.() === true
+    );
+  });
   const clickTarget = menuClickByScene[options.scene];
   await page.mouse.click(clickTarget.x, clickTarget.y);
+  await page.waitForFunction((sceneKey) => {
+    type GameWindow = typeof window & {
+      __cometBurstersGame?: {
+        scene?: {
+          getScene?: (key: string) => { scene?: { isActive?: () => boolean } };
+        };
+      };
+    };
+    return (
+      (window as GameWindow).__cometBurstersGame?.scene
+        ?.getScene?.(sceneKey)
+        ?.scene?.isActive?.() === true
+    );
+  }, options.scene);
   await page.waitForTimeout(options.settleMs ?? 1200);
 }
 
@@ -794,6 +822,10 @@ function readTrace(cdp: CDPSession): Promise<TraceEvent[]> {
   return new Promise((resolve, reject) => {
     cdp.once('Tracing.tracingComplete', async ({ stream }) => {
       try {
+        if (!stream) {
+          reject(new Error('Tracing completed without an IO stream handle'));
+          return;
+        }
         let result = '';
         let eof = false;
         while (!eof) {

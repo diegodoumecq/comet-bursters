@@ -50,11 +50,17 @@ pnpm e2e
 pnpm e2e:rendering
 pnpm screenshot:arcade
 pnpm screenshot:sandbox
-pnpm profile:arcade
-pnpm profile:sandbox
+pnpm profile:milestone
+pnpm profile:current
+pnpm profile:current -- -g crowded-effects
 ```
 
 The Playwright harness lives in `playwright/` and writes screenshots/profiles to `artifacts/playwright/`.
+Use `pnpm profile:milestone` on a known-good build, then `pnpm profile:current` during
+optimization work. The granular performance artifacts land under `artifacts/playwright/performance/`
+with per-scenario current-vs-milestone comparisons. Milestone JSON files are git-trackable
+baselines; current run artifacts stay ignored. Pass Playwright args after `--` to narrow a profile
+run to a grep pattern or spec file.
 
 ## Tech Stack
 

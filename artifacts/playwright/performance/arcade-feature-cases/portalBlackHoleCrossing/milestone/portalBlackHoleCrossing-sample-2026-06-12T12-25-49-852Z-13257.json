@@ -1,0 +1,186 @@
+{
+  "artifactPath": "/Users/diegodoumecq/git/comet-bursters/artifacts/playwright/performance/arcade-feature-cases/portalBlackHoleCrossing/milestone/portalBlackHoleCrossing-sample-2026-06-12T12-25-49-852Z-13257.json",
+  "comparison": null,
+  "consoleMessages": [
+    "debug: [vite] connecting...",
+    "debug: [vite] connected.",
+    "log: %c %c %c %c %c Phaser v3.90.0 (WebGL | Web Audio) %c https://phaser.io/v390 background: #ff0000 background: #ffff00 background: #00ff00 background: #00ffff color: #ffffff; background: #000000 background: transparent"
+  ],
+  "counts": {
+    "arcadeAsteroids": 0,
+    "blackHoles": 1,
+    "fuelBlobs": 0,
+    "riftAsteroids": 0,
+    "riftBlackHoles": 0,
+    "toroidalAsteroidCopies": 0,
+    "wrappedBlackHoles": 0
+  },
+  "durationMs": 1500,
+  "frameStats": {
+    "averageDeltaMs": 297.319999999553,
+    "averageFps": 3.3633795237505164,
+    "durationMs": 1486.5999999977648,
+    "frameCount": 6,
+    "maxDeltaMs": 304.5,
+    "minDeltaMs": 291.5
+  },
+  "markers": {
+    "arcade.render.background.three": {
+      "average": 0.024999999906867743,
+      "count": 8,
+      "max": 0.10000000149011612,
+      "min": 0,
+      "total": 0.19999999925494194
+    },
+    "arcade.render.background.starfield": {
+      "average": 0.012499999720603228,
+      "count": 8,
+      "max": 0.09999999776482582,
+      "min": 0,
+      "total": 0.09999999776482582
+    },
+    "arcade.render.background": {
+      "average": 0.03749999962747097,
+      "count": 8,
+      "max": 0.10000000149011612,
+      "min": 0,
+      "total": 0.29999999701976776
+    },
+    "space.render.fuelMetaballs": {
+      "average": 0.012499999720603228,
+      "count": 8,
+      "max": 0.09999999776482582,
+      "min": 0,
+      "total": 0.09999999776482582
+    },
+    "arcade.render.fuelMetaballs": {
+      "average": 0,
+      "count": 8,
+      "max": 0,
+      "min": 0,
+      "total": 0
+    },
+    "arcade.render.blackHoles": {
+      "average": 80.95000000065193,
+      "count": 8,
+      "max": 83.30000000074506,
+      "min": 80,
+      "total": 647.6000000052154
+    }
+  },
+  "metadata": {
+    "artifactVersion": 1,
+    "git": {
+      "branch": "main",
+      "commit": "fa8bd4fecbc14981cf4103b597fd203a5904fc62",
+      "dirty": true
+    },
+    "granularity": "case",
+    "machine": {
+      "arch": "x64",
+      "cpuModel": "Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz",
+      "hostname": "MacBook-Pro-de-Diego.local",
+      "platform": "darwin",
+      "release": "24.6.0"
+    },
+    "pid": 13257,
+    "runMode": "milestone",
+    "scene": "arcade",
+    "scenario": "portalBlackHoleCrossing",
+    "suite": "arcade-feature-cases",
+    "tags": [
+      "arcade",
+      "effects",
+      "portals"
+    ],
+    "timestamp": "2026-06-12T12:25:49.852Z",
+    "traceMode": "sample",
+    "viewport": {
+      "deviceScaleFactor": 1,
+      "height": 720,
+      "width": 1280
+    }
+  },
+  "metrics": {
+    "frame.averageDeltaMs": 297.319999999553,
+    "frame.averageFps": 3.3633795237505164,
+    "frame.durationMs": 1486.5999999977648,
+    "frame.frameCount": 6,
+    "frame.maxDeltaMs": 304.5,
+    "frame.minDeltaMs": 291.5,
+    "count.arcadeAsteroids": 0,
+    "count.blackHoles": 1,
+    "count.fuelBlobs": 0,
+    "count.riftAsteroids": 0,
+    "count.riftBlackHoles": 0,
+    "count.toroidalAsteroidCopies": 0,
+    "count.wrappedBlackHoles": 0,
+    "markerAverage.arcade.render.background.three": 0.024999999906867743,
+    "markerAverage.arcade.render.background.starfield": 0.012499999720603228,
+    "markerAverage.arcade.render.background": 0.03749999962747097,
+    "markerAverage.space.render.fuelMetaballs": 0.012499999720603228,
+    "markerAverage.arcade.render.fuelMetaballs": 0,
+    "markerAverage.arcade.render.blackHoles": 80.95000000065193,
+    "activePortal": 1,
+    "sceneActive": 1
+  },
+  "notes": [],
+  "samples": {
+    "activePortal": true,
+    "activeScenes": [
+      "arcade",
+      "rift-space"
+    ],
+    "arcadeAsteroids": 0,
+    "blackHoles": 1,
+    "domCanvases": [
+      {
+        "height": 720,
+        "visible": true,
+        "width": 1280
+      },
+      {
+        "height": 720,
+        "visible": false,
+        "width": 1280
+      },
+      {
+        "height": 720,
+        "visible": true,
+        "width": 1280
+      },
+      {
+        "height": 720,
+        "visible": true,
+        "width": 1280
+      }
+    ],
+    "fuelBlobs": 0,
+    "player": {
+      "nearEdge": false,
+      "position": {
+        "x": 641.2450514214286,
+        "y": 359.942556484631
+      }
+    },
+    "riftAsteroids": 0,
+    "riftBlackHoles": 0,
+    "sceneActive": true,
+    "toroidalAsteroidCopyCount": 0,
+    "wrappedBlackHoleCount": 0
+  },
+  "toggles": {
+    "biomeDebug": false,
+    "blackHoles": true,
+    "fuelMetaballs": true,
+    "grid": true,
+    "markers": true,
+    "minimap": true,
+    "nebulaRegions": true,
+    "playerHud": true,
+    "starfield": true,
+    "threeBackground": true,
+    "trajectoryPreview": true
+  },
+  "url": "http://127.0.0.1:9001/phaser-game.html"
+}

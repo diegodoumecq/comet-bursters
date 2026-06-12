@@ -1,0 +1,412 @@
+{
+  "artifactPath": "/Users/diegodoumecq/git/comet-bursters/artifacts/playwright/performance/sandbox-feature-cases/free-flight-all-systems/milestone/free-flight-all-systems-sample-2026-06-12T12-27-34-906Z-13257.json",
+  "comparison": null,
+  "consoleMessages": [
+    "debug: [vite] connecting...",
+    "debug: [vite] connected.",
+    "log: %c %c %c %c %c Phaser v3.90.0 (WebGL | Web Audio) %c https://phaser.io/v390 background: #ff0000 background: #ffff00 background: #00ff00 background: #00ffff color: #ffffff; background: #000000 background: transparent"
+  ],
+  "counts": {
+    "activeScenes": 1,
+    "asteroidAtlases": 10,
+    "canvases": 3,
+    "displayObjects": 359,
+    "graphics": 9,
+    "planetTextures": 2,
+    "visibleCanvases": 2,
+    "asteroids": 63,
+    "fuelBlobs": 0,
+    "particles": 0,
+    "planets": 64,
+    "projectiles": 0
+  },
+  "durationMs": 1500,
+  "frameStats": {
+    "averageDeltaMs": 169.73749999981374,
+    "averageFps": 5.891450033145872,
+    "durationMs": 1357.8999999985099,
+    "frameCount": 9,
+    "maxDeltaMs": 173.29999999701977,
+    "minDeltaMs": 166
+  },
+  "markers": {
+    "sandbox.update.player": {
+      "average": 0.05454545434225689,
+      "count": 11,
+      "max": 0.10000000149011612,
+      "min": 0,
+      "total": 0.5999999977648258
+    },
+    "sandbox.update.world": {
+      "average": 0.6454545455900106,
+      "count": 11,
+      "max": 0.8999999985098839,
+      "min": 0.5,
+      "total": 7.100000001490116
+    },
+    "sandbox.update.combat": {
+      "average": 0.2545454546131871,
+      "count": 11,
+      "max": 0.30000000074505806,
+      "min": 0.19999999925494194,
+      "total": 2.800000000745058
+    },
+    "sandbox.update.fuelBlobs": {
+      "average": 0,
+      "count": 11,
+      "max": 0,
+      "min": 0,
+      "total": 0
+    },
+    "sandbox.update.sceneState": {
+      "average": 0.018181818114085632,
+      "count": 11,
+      "max": 0.10000000149011612,
+      "min": 0,
+      "total": 0.19999999925494194
+    },
+    "sandbox.update.discovery": {
+      "average": 0.06363636390729384,
+      "count": 11,
+      "max": 0.10000000149011612,
+      "min": 0,
+      "total": 0.7000000029802322
+    },
+    "sandbox.update.total": {
+      "average": 1.036363636566834,
+      "count": 11,
+      "max": 1.300000000745058,
+      "min": 0.8999999985098839,
+      "total": 11.400000002235174
+    },
+    "sandbox.render.background.three": {
+      "average": 0.11818181858821349,
+      "count": 11,
+      "max": 0.20000000298023224,
+      "min": 0,
+      "total": 1.3000000044703484
+    },
+    "sandbox.render.background.starfield": {
+      "average": 0.018181818452748386,
+      "count": 11,
+      "max": 0.10000000149011612,
+      "min": 0,
+      "total": 0.20000000298023224
+    },
+    "sandbox.render.background": {
+      "average": 0.15454545481638474,
+      "count": 11,
+      "max": 0.29999999701976776,
+      "min": 0,
+      "total": 1.7000000029802322
+    },
+    "sandbox.render.nebulaRegions": {
+      "average": 0.1545454551550475,
+      "count": 11,
+      "max": 0.30000000074505806,
+      "min": 0,
+      "total": 1.7000000067055225
+    },
+    "sandbox.render.trajectoryPreview": {
+      "average": 0.4181818183172833,
+      "count": 11,
+      "max": 1,
+      "min": 0,
+      "total": 4.600000001490116
+    },
+    "sandbox.render.playerHud": {
+      "average": 0.02727272700179707,
+      "count": 11,
+      "max": 0.10000000149011612,
+      "min": 0,
+      "total": 0.29999999701976776
+    },
+    "sandbox.render.weaponMenu": {
+      "average": 0,
+      "count": 11,
+      "max": 0,
+      "min": 0,
+      "total": 0
+    },
+    "sandbox.render.minimap": {
+      "average": 0.2818181816149842,
+      "count": 11,
+      "max": 0.3999999985098839,
+      "min": 0.19999999925494194,
+      "total": 3.099999997764826
+    },
+    "sandbox.render.overlays": {
+      "average": 0.07272727211767976,
+      "count": 11,
+      "max": 0.10000000149011612,
+      "min": 0,
+      "total": 0.7999999932944775
+    },
+    "sandbox.render.total": {
+      "average": 1.1090909090231766,
+      "count": 11,
+      "max": 1.699999999254942,
+      "min": 0.5999999977648258,
+      "total": 12.199999999254942
+    },
+    "sandbox.render.fuelMetaballs": {
+      "average": 0,
+      "count": 11,
+      "max": 0,
+      "min": 0,
+      "total": 0
+    },
+    "sandbox.render.blackHoles": {
+      "average": 0.018181818452748386,
+      "count": 11,
+      "max": 0.10000000149011612,
+      "min": 0,
+      "total": 0.20000000298023224
+    },
+    "sandbox.render.effects": {
+      "average": 0.054545455358245155,
+      "count": 11,
+      "max": 0.10000000149011612,
+      "min": 0,
+      "total": 0.6000000089406967
+    }
+  },
+  "metadata": {
+    "artifactVersion": 1,
+    "git": {
+      "branch": "main",
+      "commit": "fa8bd4fecbc14981cf4103b597fd203a5904fc62",
+      "dirty": true
+    },
+    "granularity": "feature",
+    "machine": {
+      "arch": "x64",
+      "cpuModel": "Intel(R) Core(TM) i7-8750H CPU @ 2.20GHz",
+      "hostname": "MacBook-Pro-de-Diego.local",
+      "platform": "darwin",
+      "release": "24.6.0"
+    },
+    "pid": 13257,
+    "runMode": "milestone",
+    "scene": "sandbox",
+    "scenario": "free-flight-all-systems",
+    "suite": "sandbox-feature-cases",
+    "tags": [
+      "sandbox",
+      "background",
+      "hud",
+      "minimap"
+    ],
+    "timestamp": "2026-06-12T12:27:34.906Z",
+    "traceMode": "sample",
+    "viewport": {
+      "deviceScaleFactor": 1,
+      "height": 720,
+      "width": 1280
+    }
+  },
+  "metrics": {
+    "frame.averageDeltaMs": 169.73749999981374,
+    "frame.averageFps": 5.891450033145872,
+    "frame.durationMs": 1357.8999999985099,
+    "frame.frameCount": 9,
+    "frame.maxDeltaMs": 173.29999999701977,
+    "frame.minDeltaMs": 166,
+    "count.activeScenes": 1,
+    "count.asteroidAtlases": 10,
+    "count.canvases": 3,
+    "count.displayObjects": 359,
+    "count.graphics": 9,
+    "count.planetTextures": 2,
+    "count.visibleCanvases": 2,
+    "count.asteroids": 63,
+    "count.fuelBlobs": 0,
+    "count.particles": 0,
+    "count.planets": 64,
+    "count.projectiles": 0,
+    "markerAverage.sandbox.update.player": 0.05454545434225689,
+    "markerAverage.sandbox.update.world": 0.6454545455900106,
+    "markerAverage.sandbox.update.combat": 0.2545454546131871,
+    "markerAverage.sandbox.update.fuelBlobs": 0,
+    "markerAverage.sandbox.update.sceneState": 0.018181818114085632,
+    "markerAverage.sandbox.update.discovery": 0.06363636390729384,
+    "markerAverage.sandbox.update.total": 1.036363636566834,
+    "markerAverage.sandbox.render.background.three": 0.11818181858821349,
+    "markerAverage.sandbox.render.background.starfield": 0.018181818452748386,
+    "markerAverage.sandbox.render.background": 0.15454545481638474,
+    "markerAverage.sandbox.render.nebulaRegions": 0.1545454551550475,
+    "markerAverage.sandbox.render.trajectoryPreview": 0.4181818183172833,
+    "markerAverage.sandbox.render.playerHud": 0.02727272700179707,
+    "markerAverage.sandbox.render.weaponMenu": 0,
+    "markerAverage.sandbox.render.minimap": 0.2818181816149842,
+    "markerAverage.sandbox.render.overlays": 0.07272727211767976,
+    "markerAverage.sandbox.render.total": 1.1090909090231766,
+    "markerAverage.sandbox.render.fuelMetaballs": 0,
+    "markerAverage.sandbox.render.blackHoles": 0.018181818452748386,
+    "markerAverage.sandbox.render.effects": 0.054545455358245155,
+    "controlsEnabled": 1,
+    "playerDocked": 0
+  },
+  "notes": [],
+  "samples": {
+    "activeScenes": [
+      "sandbox"
+    ],
+    "canvases": [
+      {
+        "height": 509,
+        "visible": true,
+        "width": 845
+      },
+      {
+        "height": 848,
+        "visible": true,
+        "width": 1408
+      },
+      {
+        "height": 848,
+        "visible": false,
+        "width": 1408
+      }
+    ],
+    "displayObjects": 359,
+    "textures": {
+      "asteroidAtlases": 10,
+      "planetTextures": 2,
+      "total": 58
+    },
+    "graphics": [
+      {
+        "active": true,
+        "alpha": 1,
+        "commandBufferLength": 49,
+        "depth": 30,
+        "index": 6,
+        "name": "sandbox-player-fuel-base",
+        "sceneKey": "sandbox",
+        "visible": false,
+        "x": 48860,
+        "y": 47785
+      },
+      {
+        "active": true,
+        "alpha": 1,
+        "commandBufferLength": 49,
+        "depth": 30,
+        "index": 7,
+        "name": "sandbox-player-fuel-fill",
+        "sceneKey": "sandbox",
+        "visible": false,
+        "x": 48860,
+        "y": 47785
+      },
+      {
+        "active": true,
+        "alpha": 1,
+        "commandBufferLength": 0,
+        "depth": 0,
+        "index": 0,
+        "name": "sandbox-tractor-beam",
+        "sceneKey": "sandbox",
+        "visible": true,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "active": true,
+        "alpha": 1,
+        "commandBufferLength": 0,
+        "depth": 1.9,
+        "index": 1,
+        "name": "sandbox-planet-inspection-overlay",
+        "sceneKey": "sandbox",
+        "visible": true,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "active": true,
+        "alpha": 1,
+        "commandBufferLength": 0,
+        "depth": 4,
+        "index": 2,
+        "name": "sandbox-player-trajectory-preview",
+        "sceneKey": "sandbox",
+        "visible": true,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "active": true,
+        "alpha": 1,
+        "commandBufferLength": 0,
+        "depth": 5,
+        "index": 3,
+        "name": "sandbox-player-thruster",
+        "sceneKey": "sandbox",
+        "visible": false,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "active": true,
+        "alpha": 1,
+        "commandBufferLength": 0,
+        "depth": 8,
+        "index": 4,
+        "name": "sandbox-player-shield",
+        "sceneKey": "sandbox",
+        "visible": true,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "active": true,
+        "alpha": 1,
+        "commandBufferLength": 0,
+        "depth": 29,
+        "index": 5,
+        "name": "sandbox-biome-debug-overlay",
+        "sceneKey": "sandbox",
+        "visible": false,
+        "x": 0,
+        "y": 0
+      },
+      {
+        "active": true,
+        "alpha": 1,
+        "commandBufferLength": 0,
+        "depth": 90,
+        "index": 8,
+        "name": "weapon-menu",
+        "sceneKey": "sandbox",
+        "visible": true,
+        "x": 0,
+        "y": 0
+      }
+    ],
+    "controlsEnabled": true,
+    "counts": {
+      "asteroids": 63,
+      "fuelBlobs": 0,
+      "particles": 0,
+      "planets": 64,
+      "projectiles": 0
+    },
+    "playerDocked": false
+  },
+  "toggles": {
+    "biomeDebug": false,
+    "blackHoles": true,
+    "fuelMetaballs": true,
+    "grid": true,
+    "markers": true,
+    "minimap": true,
+    "nebulaRegions": true,
+    "playerHud": true,
+    "starfield": true,
+    "threeBackground": true,
+    "trajectoryPreview": true
+  },
+  "url": "http://127.0.0.1:9001/phaser-game.html"
+}
