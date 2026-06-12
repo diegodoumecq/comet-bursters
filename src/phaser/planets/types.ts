@@ -15,7 +15,7 @@ export type PlanetEntity = {
   rotationSpeed: number;
 };
 
-export type PlanetSpriteSource = {
+export type PlanetShapeSource = {
   altitudeVariations: number[];
   color: string;
   getRadius: () => number;

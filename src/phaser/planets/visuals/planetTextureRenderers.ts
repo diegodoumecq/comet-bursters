@@ -2,10 +2,11 @@ import Phaser from 'phaser';
 
 import { createCanvasTexture } from '../../core/canvasTextures';
 import type { PlanetTextureSizing } from '../textureSizing';
-import type { PlanetEntity, PlanetKind, PlanetSpriteSource } from '../types';
+import type { PlanetEntity, PlanetKind, PlanetShapeSource } from '../types';
 import { createGasPlanetShaderTexture } from './gasPlanetShader';
 import { createLavaPlanetShaderTexture } from './lavaPlanetShader';
-import { drawPlanetLightingLayer, drawPlanetSurfaceLayer } from './planetVisuals';
+import { drawPlanetLightingLayer } from './planetLighting';
+import { createTerrainPlanetShaderTexture } from './terrainPlanetShader';
 import { createToxicPlanetShaderTexture } from './toxicPlanetShader';
 
 export type PlanetTextureLayer = 'lighting' | 'surface';
@@ -17,9 +18,13 @@ type PlanetTextureRenderer = (
   sizing: PlanetTextureSizing,
 ) => boolean;
 
-const planetTextureRenderers: Partial<Record<PlanetKind, PlanetTextureRenderer>> = {
+const planetTextureRenderers: Record<PlanetKind, PlanetTextureRenderer> = {
+  crystal: renderTerrainPlanetTexture,
+  desert: renderTerrainPlanetTexture,
   gas: renderGasPlanetTexture,
+  ice: renderTerrainPlanetTexture,
   lava: renderLavaPlanetTexture,
+  lush: renderTerrainPlanetTexture,
   toxic: renderToxicPlanetTexture,
 };
 
@@ -31,17 +36,13 @@ export function renderPlanetTexture(
   layer: PlanetTextureLayer,
 ): void {
   if (layer === 'lighting') {
-    renderCanvasPlanetLayer(scene, textureKey, planet, sizing, layer);
+    renderPlanetLightingTexture(scene, textureKey, planet, sizing);
     return;
   }
 
   const renderer = planetTextureRenderers[planet.kind];
-  if (renderer) {
-    if (renderer(scene, textureKey, planet, sizing)) return;
-    throw new Error(`Unable to render ${planet.kind} planet shader texture`);
-  }
-
-  renderCanvasPlanetLayer(scene, textureKey, planet, sizing, layer);
+  if (renderer(scene, textureKey, planet, sizing)) return;
+  throw new Error(`Unable to render ${planet.kind} planet shader texture`);
 }
 
 function renderLavaPlanetTexture(
@@ -89,29 +90,39 @@ function renderToxicPlanetTexture(
   );
 }
 
-function renderCanvasPlanetLayer(
+function renderTerrainPlanetTexture(
   scene: Phaser.Scene,
   textureKey: string,
   planet: PlanetEntity,
   sizing: PlanetTextureSizing,
-  layer: PlanetTextureLayer,
+): boolean {
+  return createTerrainPlanetShaderTexture(
+    scene,
+    textureKey,
+    planet,
+    sizing.textureSize,
+    sizing.textureScale,
+  );
+}
+
+function renderPlanetLightingTexture(
+  scene: Phaser.Scene,
+  textureKey: string,
+  planet: PlanetEntity,
+  sizing: PlanetTextureSizing,
 ): boolean {
   createCanvasTexture(scene, textureKey, sizing.textureSize, sizing.textureSize, (ctx) => {
-    const spriteSource = toSpriteSource(planet, sizing.textureSize, sizing.textureScale);
-    if (layer === 'surface') {
-      drawPlanetSurfaceLayer(spriteSource, ctx);
-      return;
-    }
-    drawPlanetLightingLayer(spriteSource, ctx);
+    const shapeSource = toShapeSource(planet, sizing.textureSize, sizing.textureScale);
+    drawPlanetLightingLayer(shapeSource, ctx);
   });
   return true;
 }
 
-function toSpriteSource(
+function toShapeSource(
   planet: PlanetEntity,
   canvasSize: number,
   textureScale: number,
-): PlanetSpriteSource {
+): PlanetShapeSource {
   return {
     altitudeVariations: planet.altitudeVariations,
     color: planet.colorHex,

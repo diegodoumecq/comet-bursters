@@ -1,28 +1,9 @@
-import type { PlanetSpriteSource as Planet } from '../types';
+import type { PlanetShapeSource as Planet } from '../types';
 import { tracePlanetShape } from './planetShapes';
-import { drawPlanetSurface } from './planetSurfaces';
 
 const LIGHT_DIRECTION = { x: -0.58, y: -0.42 };
 const BODY_EXTENT_SCALE = 1.08;
 const BODY_FILL_SIZE = 2.16;
-
-export function drawPlanetSurfaceLayer(planet: Planet, ctx: CanvasRenderingContext2D): void {
-  const radius = planet.getRadius();
-
-  ctx.save();
-  ctx.translate(planet.x, planet.y);
-
-  tracePlanetShape(ctx, planet, radius);
-  ctx.fillStyle = planet.color;
-  ctx.fill();
-
-  ctx.save();
-  tracePlanetShape(ctx, planet, radius);
-  ctx.clip();
-  drawPlanetSurface(planet, ctx, radius);
-  ctx.restore();
-  ctx.restore();
-}
 
 export function drawPlanetLightingLayer(planet: Planet, ctx: CanvasRenderingContext2D): void {
   const radius = planet.getRadius();
@@ -71,14 +52,7 @@ export function drawPlanetLightingLayer(planet: Planet, ctx: CanvasRenderingCont
   ctx.fillStyle = highlight;
   fillPlanetLightingBounds(ctx, radius);
 
-  const limbShade = ctx.createRadialGradient(
-    0,
-    0,
-    radius * 0.48,
-    0,
-    0,
-    radius * BODY_EXTENT_SCALE,
-  );
+  const limbShade = ctx.createRadialGradient(0, 0, radius * 0.48, 0, 0, radius * BODY_EXTENT_SCALE);
   limbShade.addColorStop(0, 'rgba(0, 0, 0, 0)');
   limbShade.addColorStop(0.58, 'rgba(0, 0, 0, 0)');
   limbShade.addColorStop(0.86, 'rgba(0, 0, 0, 0.16)');

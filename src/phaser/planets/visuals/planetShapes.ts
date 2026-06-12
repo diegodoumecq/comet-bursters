@@ -1,4 +1,4 @@
-import type { PlanetSpriteSource as Planet, PlanetKind } from '../types';
+import type { PlanetShapeSource as Planet, PlanetKind } from '../types';
 
 type PlanetShapeStyle = {
   mode: 'ellipse' | 'segments';
