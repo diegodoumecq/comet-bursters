@@ -23,10 +23,12 @@ type AtmosphereStyle = {
 };
 
 type LightingStyle = {
+  hemisphereShadowAlpha: number;
   maxShadowAlpha: number;
   outerShadowAlpha: number;
   rimShadowAlpha: number;
   shadowColor: Vec3Uniform;
+  shadowCurvePower: number;
 };
 
 export type SphereLightingSample = {
@@ -54,17 +56,55 @@ const ATMOSPHERE_STYLES: Record<PlanetEntity['kind'], AtmosphereStyle> = {
 };
 
 const DEFAULT_LIGHTING_STYLE: LightingStyle = {
+  hemisphereShadowAlpha: 0,
   maxShadowAlpha: MAX_SHADOW_ALPHA,
   outerShadowAlpha: OUTER_SHADOW_ALPHA,
   rimShadowAlpha: RIM_SHADOW_ALPHA,
   shadowColor: defaultShadowColor(),
+  shadowCurvePower: 1.04,
 };
 
-const CRYSTAL_LIGHTING_STYLE: LightingStyle = {
-  maxShadowAlpha: 0.18,
-  outerShadowAlpha: 0.12,
-  rimShadowAlpha: 0.045,
-  shadowColor: hexToVec3Uniform('#6ecfff'),
+const MATERIAL_LIGHTING_STYLES: Partial<Record<PlanetEntity['kind'], LightingStyle>> = {
+  crystal: {
+    hemisphereShadowAlpha: 0,
+    maxShadowAlpha: 0.38,
+    outerShadowAlpha: 0.28,
+    rimShadowAlpha: 0.08,
+    shadowColor: hexToVec3Uniform('#0d355c'),
+    shadowCurvePower: 1.04,
+  },
+  gas: {
+    hemisphereShadowAlpha: 0.14,
+    maxShadowAlpha: 0.66,
+    outerShadowAlpha: 0.51,
+    rimShadowAlpha: 0.18,
+    shadowColor: hexToVec3Uniform('#080617'),
+    shadowCurvePower: 0.68,
+  },
+  lava: {
+    hemisphereShadowAlpha: 0.24,
+    maxShadowAlpha: 0.88,
+    outerShadowAlpha: 0.62,
+    rimShadowAlpha: 0.22,
+    shadowColor: hexToVec3Uniform('#050101'),
+    shadowCurvePower: 0.54,
+  },
+  toxic: {
+    hemisphereShadowAlpha: 0.18,
+    maxShadowAlpha: 0.76,
+    outerShadowAlpha: 0.54,
+    rimShadowAlpha: 0.18,
+    shadowColor: hexToVec3Uniform('#000d08'),
+    shadowCurvePower: 0.64,
+  },
+  lush: {
+    hemisphereShadowAlpha: 0.12,
+    maxShadowAlpha: 0.66,
+    outerShadowAlpha: 0.5,
+    rimShadowAlpha: 0.18,
+    shadowColor: defaultShadowColor(),
+    shadowCurvePower: 0.7,
+  },
 };
 
 const fragmentShader = `
@@ -76,11 +116,13 @@ uniform vec3 u_atmosphere_color;
 uniform float u_atmosphere_alpha;
 uniform float u_atmosphere_outer_radius;
 uniform vec3 u_light_direction;
+uniform float u_hemisphere_shadow_alpha;
 uniform float u_light_bands;
 uniform float u_max_shadow_alpha;
 uniform float u_outer_shadow_alpha;
 uniform float u_rim_shadow_alpha;
 uniform vec3 u_shadow_color;
+uniform float u_shadow_curve_power;
 
 float saturate(float value) {
   return clamp(value, 0.0, 1.0);
@@ -102,8 +144,11 @@ vec4 sampleQuantizedSphereLighting(vec3 normal) {
     return vec4(u_shadow_color, ambientRim);
   }
 
+  float hemisphereShadow =
+    smoothstep(0.0, 0.28, -signedLight) * u_hemisphere_shadow_alpha;
   float alpha = saturate(
-    pow(-signedLight, 1.04) * u_max_shadow_alpha +
+    hemisphereShadow +
+    pow(-signedLight, u_shadow_curve_power) * u_max_shadow_alpha +
     rimShadow +
     ambientRim
   );
@@ -167,10 +212,12 @@ export function createPlanetLightingShaderTexture(
       setFloatUniform(gl, program, 'u_radius', planet.radius * textureScale);
       setFloatUniform(gl, program, 'u_atmosphere_alpha', atmosphere.alpha);
       setFloatUniform(gl, program, 'u_atmosphere_outer_radius', atmosphere.outerRadius);
+      setFloatUniform(gl, program, 'u_hemisphere_shadow_alpha', lighting.hemisphereShadowAlpha);
       setFloatUniform(gl, program, 'u_light_bands', LIGHT_BANDS);
       setFloatUniform(gl, program, 'u_max_shadow_alpha', lighting.maxShadowAlpha);
       setFloatUniform(gl, program, 'u_outer_shadow_alpha', lighting.outerShadowAlpha);
       setFloatUniform(gl, program, 'u_rim_shadow_alpha', lighting.rimShadowAlpha);
+      setFloatUniform(gl, program, 'u_shadow_curve_power', lighting.shadowCurvePower);
       setVec3Uniform(gl, program, 'u_atmosphere_color', atmosphere.color);
       setVec3Uniform(gl, program, 'u_shadow_color', lighting.shadowColor);
       setVec2Uniform(gl, program, 'u_texture_size', textureSize, textureSize);
@@ -181,7 +228,12 @@ export function createPlanetLightingShaderTexture(
 
 export function sampleQuantizedSphereLighting(
   normal: Vec3,
-  style: Partial<Pick<LightingStyle, 'maxShadowAlpha' | 'rimShadowAlpha' | 'shadowColor'>> = {},
+  style: Partial<
+    Pick<
+      LightingStyle,
+      'hemisphereShadowAlpha' | 'maxShadowAlpha' | 'rimShadowAlpha' | 'shadowColor' | 'shadowCurvePower'
+    >
+  > = {},
 ): SphereLightingSample {
   const light = dot3(normal, LIGHT_DIRECTION);
   const banded = quantize((light + 1) * 0.5, LIGHT_BANDS);
@@ -200,9 +252,13 @@ export function sampleQuantizedSphereLighting(
     };
   }
 
+  const hemisphereShadow =
+    smoothstep(0, 0.28, -signedLight) * (style.hemisphereShadowAlpha ?? 0);
   return {
     alpha: clamp01(
-      Math.pow(-signedLight, 1.04) * (style.maxShadowAlpha ?? MAX_SHADOW_ALPHA) +
+      hemisphereShadow +
+        Math.pow(-signedLight, style.shadowCurvePower ?? 1.04) *
+          (style.maxShadowAlpha ?? MAX_SHADOW_ALPHA) +
         rimShadow +
         ambientRim,
     ),
@@ -212,9 +268,15 @@ export function sampleQuantizedSphereLighting(
   };
 }
 
+export function samplePlanetKindSphereLighting(
+  kind: PlanetEntity['kind'],
+  normal: Vec3,
+): SphereLightingSample {
+  return sampleQuantizedSphereLighting(normal, getLightingStyle(kind));
+}
+
 function getLightingStyle(kind: PlanetEntity['kind']): LightingStyle {
-  if (kind === 'crystal') return CRYSTAL_LIGHTING_STYLE;
-  return DEFAULT_LIGHTING_STYLE;
+  return MATERIAL_LIGHTING_STYLES[kind] ?? DEFAULT_LIGHTING_STYLE;
 }
 
 function defaultShadowColor(): Vec3Uniform {
@@ -240,6 +302,11 @@ function quantize(value: number, bands: number): number {
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
+}
+
+function smoothstep(edge0: number, edge1: number, value: number): number {
+  const normalized = clamp01((value - edge0) / (edge1 - edge0));
+  return normalized * normalized * (3 - 2 * normalized);
 }
 
 function normalize3(vector: Vec3): Vec3 {

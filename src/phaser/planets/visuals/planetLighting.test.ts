@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { sampleQuantizedSphereLighting } from './planetLighting';
+import { samplePlanetKindSphereLighting, sampleQuantizedSphereLighting } from './planetLighting';
 
 describe('planet sphere lighting', () => {
   it('keeps the lit side transparent and shadows the lower-right side', () => {
@@ -22,6 +22,35 @@ describe('planet sphere lighting', () => {
     expect(second.green).toBe(first.green);
     expect(second.blue).toBe(first.blue);
     expect(Math.abs(second.alpha - first.alpha)).toBeLessThan(0.001);
+  });
+
+  it('keeps emissive material planet shadows visible', () => {
+    const shadowed = normalize({ x: 0.7, y: 0.65, z: 0.2 });
+    const terminator = normalize({ x: 0.5, y: 0.5, z: 0.7 });
+    const lit = normalize({ x: -0.56, y: -0.52, z: 0.65 });
+
+    for (const kind of ['crystal', 'lava', 'toxic'] as const) {
+      const litSample = samplePlanetKindSphereLighting(kind, lit);
+      const shadowedSample = samplePlanetKindSphereLighting(kind, shadowed);
+
+      expect(shadowedSample.alpha).toBeGreaterThan(litSample.alpha + 0.2);
+      expect(shadowedSample.red + shadowedSample.green + shadowedSample.blue).toBeLessThan(180);
+    }
+
+    for (const kind of ['lava', 'toxic'] as const) {
+      const terminatorSample = samplePlanetKindSphereLighting(kind, terminator);
+
+      expect(terminatorSample.alpha).toBeGreaterThan(0.18);
+      expect(terminatorSample.red + terminatorSample.green + terminatorSample.blue).toBeLessThan(24);
+    }
+
+    for (const kind of ['gas', 'lush'] as const) {
+      const terminatorSample = samplePlanetKindSphereLighting(kind, terminator);
+      const shadowedSample = samplePlanetKindSphereLighting(kind, shadowed);
+
+      expect(terminatorSample.alpha).toBeGreaterThan(0.12);
+      expect(shadowedSample.alpha).toBeGreaterThan(0.48);
+    }
   });
 });
 
