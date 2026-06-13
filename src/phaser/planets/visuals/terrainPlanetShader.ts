@@ -187,6 +187,16 @@ float cartoonBandEdge(float band) {
   return smoothstep(0.22, 0.48, band) * (1.0 - smoothstep(0.62, 0.92, band));
 }
 
+vec3 screenBlend(vec3 base, vec3 blend) {
+  return 1.0 - (1.0 - base) * (1.0 - blend);
+}
+
+vec3 softLightBlend(vec3 base, vec3 blend) {
+  vec3 low = 2.0 * base * blend + base * base * (1.0 - 2.0 * blend);
+  vec3 high = sqrt(max(base, vec3(0.0))) * (2.0 * blend - 1.0) + 2.0 * base * (1.0 - blend);
+  return mix(low, high, step(vec3(0.5), blend));
+}
+
 vec4 sampleLushSurface(vec2 sphereUv, vec3 normal) {
   vec3 rotatedNormal = rotateY(u_rotation) * normal;
   vec3 seedOffset = vec3(u_seed * 0.017, u_seed * 0.023, u_seed * 0.013);
@@ -350,40 +360,45 @@ vec4 sampleDesertSurface(vec2 sphereUv, vec3 normal) {
 vec4 sampleIceSurface(vec2 sphereUv, vec3 normal) {
   vec3 rotatedNormal = rotateY(u_rotation) * normal;
   vec3 seedOffset = vec3(u_seed * 0.019, u_seed * 0.025, u_seed * 0.014);
-  vec3 basePosition = rotatedNormal * 3.35 + seedOffset;
+  vec3 basePosition = rotatedNormal * 2.95 + seedOffset;
   vec3 warp = vec3(
-    billowFbm(basePosition * 0.76 + vec3(1.9, 7.4, 4.6)),
-    fbm(basePosition * 0.96 + vec3(8.4, 2.8, 6.2)),
-    ridgedFbm(basePosition * 0.58 + vec3(3.2, 5.9, 1.7))
+    billowFbm(basePosition * 0.58 + vec3(1.9, 7.4, 4.6)),
+    fbm(basePosition * 0.72 + vec3(8.4, 2.8, 6.2)),
+    ridgedFbm(basePosition * 0.48 + vec3(3.2, 5.9, 1.7))
   ) - 0.5;
-  vec3 q = rotatedNormal * 4.6 + warp * 1.1 + seedOffset * 0.32;
+  vec3 q = rotatedNormal * 3.55 + warp * 0.78 + seedOffset * 0.26;
 
-  float frost = billowFbm(q * 0.84 + vec3(2.6, 8.1, 4.3));
-  float glaciers = ridgedFbm(q * 1.55 + warp * 0.78);
-  float blueIce = fbm(q * 2.7 + vec3(6.7, 1.5, 9.1));
-  float snowDust = billowFbm(q * 7.4 + warp * 1.8);
-  float fractures = crackNetwork(q * 1.08 + vec3(9.2, 4.7, 2.8));
-  float floes = 1.0 - smoothstep(0.1, 0.4, cellular(q * 3.7 + warp));
+  float frost = billowFbm(q * 0.68 + vec3(2.6, 8.1, 4.3));
+  float glaciers = ridgedFbm(q * 1.18 + warp * 0.52);
+  float blueIce = fbm(q * 1.74 + vec3(6.7, 1.5, 9.1));
+  float snowDust = billowFbm(q * 4.2 + warp * 1.05);
+  float fractures = crackNetwork(q * 0.92 + vec3(9.2, 4.7, 2.8));
+  float floes = 1.0 - smoothstep(0.08, 0.32, cellular(q * 2.5 + warp * 0.8));
 
-  float polarGlow = smoothstep(0.2, 0.88, abs(sphereUv.y - 0.5) * 2.0 + frost * 0.12);
+  float polarGlow = smoothstep(0.16, 0.72, abs(sphereUv.y - 0.5) * 2.0 + frost * 0.16);
   float windBands =
-    sin((sphereUv.y * 13.0 + sphereUv.x * 1.4 + snowDust * 0.22 + warp.x * 0.18) * TAU) * 0.5 + 0.5;
-  float snowfields = smoothstep(0.42, 0.88, frost * 0.36 + snowDust * 0.26 + polarGlow * 0.22);
-  float crevasses = smoothstep(0.46, 0.82, fractures * 0.58 + glaciers * 0.2 + windBands * 0.1);
-  float cyanDepth = smoothstep(0.5, 0.88, blueIce * 0.38 + (1.0 - frost) * 0.2 + floes * 0.18);
-  float sparkle = smoothstep(0.68, 0.95, snowDust * 0.42 + floes * 0.28 + glaciers * 0.1);
+    sin((sphereUv.y * 7.6 + sphereUv.x * 1.1 + snowDust * 0.12 + warp.x * 0.12) * TAU) * 0.5 + 0.5;
+  float snowSignal = frost * 0.42 + snowDust * 0.18 + polarGlow * 0.3 + windBands * 0.1;
+  float snowfields = smoothstep(0.48, 0.55, snowSignal);
+  float snowCaps = smoothstep(0.58, 0.62, snowSignal + floes * 0.1);
+  float bluePlateaus = smoothstep(0.46, 0.52, blueIce * 0.48 + (1.0 - frost) * 0.28 + floes * 0.16);
+  float shadowPatches = 1.0 - smoothstep(0.24, 0.31, glaciers * 0.38 + frost * 0.24 + blueIce * 0.18);
+  float fractureInk = smoothstep(0.48, 0.58, fractures * 0.72 + cartoonBandEdge(windBands) * 0.12);
+  float fractureGlow = smoothstep(0.64, 0.74, fractures * 0.44 + floes * 0.34 + snowDust * 0.1);
+  float stickerHighlights = smoothstep(0.74, 0.82, floes * 0.44 + snowDust * 0.2 + glaciers * 0.16);
 
-  vec3 deepBlue = mix(u_base_color, vec3(0.1, 0.36, 0.72), 0.42);
-  vec3 iceBlue = mix(u_secondary_color, vec3(0.66, 0.95, 1.0), 0.34);
-  vec3 snow = vec3(0.94, 0.98, 1.0);
-  vec3 crackBlue = vec3(0.02, 0.22, 0.44);
-  vec3 gleam = vec3(0.86, 1.0, 1.0);
+  vec3 deepBlue = mix(u_palette_shadow_color, vec3(0.08, 0.32, 0.66), 0.22);
+  vec3 iceBlue = mix(u_palette_mid_color, vec3(0.46, 0.9, 1.0), 0.34);
+  vec3 snow = mix(u_palette_light_color, u_palette_mid_color, 0.18);
+  vec3 crackBlue = u_palette_ink_color;
+  vec3 gleam = u_palette_accent_color;
 
-  vec3 color = mix(deepBlue, iceBlue, frost * 0.6 + cyanDepth * 0.12);
-  color = mix(color, snow, snowfields * 0.38);
-  color = mix(color, crackBlue, crevasses * 0.24);
-  color = mix(color, gleam, sparkle * 0.22);
-  color += gleam * sparkle * 0.06;
+  vec3 color = deepBlue;
+  color = mix(color, iceBlue, bluePlateaus * 0.82 + frost * 0.2);
+  color = mix(color, screenBlend(color, snow), snowfields * 0.46 + snowCaps * 0.18);
+  color = mix(color, crackBlue, fractureInk * 0.42 + shadowPatches * 0.1);
+  color = mix(color, screenBlend(color, gleam), fractureGlow * 0.12);
+  color = mix(color, softLightBlend(color, gleam), stickerHighlights * 0.34);
 
   return vec4(color, 1.0);
 }
@@ -510,16 +525,16 @@ const TERRAIN_PLANET_SHADER_STYLES: Record<TerrainPlanetKind, TerrainPlanetShade
     style: 1,
   },
   ice: {
-    accentColor: hexToVec3Uniform('#ffffff'),
+    accentColor: hexToVec3Uniform('#dffbff'),
     palette: {
-      accent: hexToVec3Uniform('#ffffff'),
-      base: hexToVec3Uniform('#87d8f5'),
-      ink: hexToVec3Uniform('#06345a'),
-      light: hexToVec3Uniform('#d7fbff'),
-      mid: hexToVec3Uniform('#52b5e8'),
-      shadow: hexToVec3Uniform('#185f9a'),
+      accent: hexToVec3Uniform('#dffbff'),
+      base: hexToVec3Uniform('#79dcff'),
+      ink: hexToVec3Uniform('#064b7f'),
+      light: hexToVec3Uniform('#c8f6ff'),
+      mid: hexToVec3Uniform('#35b7f4'),
+      shadow: hexToVec3Uniform('#1f74bd'),
     },
-    secondaryColor: hexToVec3Uniform('#b8f2ff'),
+    secondaryColor: hexToVec3Uniform('#a5efff'),
     seedOffset: 23.83,
     style: 2,
   },

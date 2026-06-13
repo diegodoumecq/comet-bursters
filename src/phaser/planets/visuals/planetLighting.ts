@@ -33,13 +33,13 @@ const ATMOSPHERE_STYLES: Record<
   PlanetEntity['kind'],
   { alpha: number; color: Vec3Uniform; outerRadius: number }
 > = {
-  crystal: { alpha: 0.34, color: hexToVec3Uniform('#b7f3ff'), outerRadius: 1.09 },
-  desert: { alpha: 0.18, color: hexToVec3Uniform('#f0b070'), outerRadius: 1.06 },
-  gas: { alpha: 0.38, color: hexToVec3Uniform('#bda8ff'), outerRadius: 1.11 },
-  ice: { alpha: 0.34, color: hexToVec3Uniform('#d7fbff'), outerRadius: 1.1 },
-  lava: { alpha: 0.18, color: hexToVec3Uniform('#ff6a33'), outerRadius: 1.06 },
-  lush: { alpha: 0.32, color: hexToVec3Uniform('#9cffc2'), outerRadius: 1.09 },
-  toxic: { alpha: 0.34, color: hexToVec3Uniform('#b4ff4d'), outerRadius: 1.09 },
+  crystal: { alpha: 0.58, color: hexToVec3Uniform('#b7f3ff'), outerRadius: 1.16 },
+  desert: { alpha: 0.34, color: hexToVec3Uniform('#f0b070'), outerRadius: 1.1 },
+  gas: { alpha: 0.66, color: hexToVec3Uniform('#bda8ff'), outerRadius: 1.18 },
+  ice: { alpha: 0.62, color: hexToVec3Uniform('#d7fbff'), outerRadius: 1.17 },
+  lava: { alpha: 0.36, color: hexToVec3Uniform('#ff6a33'), outerRadius: 1.1 },
+  lush: { alpha: 0.6, color: hexToVec3Uniform('#9cffc2'), outerRadius: 1.16 },
+  toxic: { alpha: 0.62, color: hexToVec3Uniform('#b4ff4d'), outerRadius: 1.16 },
 };
 
 const fragmentShader = `
@@ -114,11 +114,6 @@ void main() {
 
   if (outerShadow > lighting.a) {
     lighting = vec4(3.0 / 255.0, 6.0 / 255.0, 12.0 / 255.0, outerShadow);
-  }
-
-  float innerAtmosphere = smoothstep(0.88, 0.998, distanceFromCenter) * u_atmosphere_alpha * 0.55;
-  if (innerAtmosphere > lighting.a) {
-    lighting = vec4(u_atmosphere_color, innerAtmosphere);
   }
 
   gl_FragColor = vec4(lighting.rgb, lighting.a * bodyAlpha);
