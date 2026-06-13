@@ -33,7 +33,7 @@ const SANDBOX_PERF_TOGGLES: Array<{
 function readSandboxPerfToggles(): Record<SandboxPerfToggleKey, boolean> {
   const toggles = {} as Record<SandboxPerfToggleKey, boolean>;
   for (const toggle of SANDBOX_PERF_TOGGLES) {
-    const saved = window.sessionStorage.getItem(`comet-bursters-${toggle.key}`);
+    const saved = window.localStorage.getItem(`comet-bursters-${toggle.key}`);
     toggles[toggle.key] = saved === null ? toggle.defaultValue : saved !== 'false';
   }
   return toggles;
@@ -41,28 +41,28 @@ function readSandboxPerfToggles(): Record<SandboxPerfToggleKey, boolean> {
 
 export function LandingApp() {
   const [startingWave, setStartingWave] = useState(() => {
-    const saved = window.sessionStorage.getItem('comet-bursters-starting-wave');
+    const saved = window.localStorage.getItem('comet-bursters-starting-wave');
     const parsed = saved ? Number.parseInt(saved, 10) : 1;
     return Number.isFinite(parsed) ? Math.max(1, Math.min(50, parsed)) : 1;
   });
   const [fogEnabled, setFogEnabled] = useState(() => {
-    const saved = window.sessionStorage.getItem('comet-bursters-fog-enabled');
+    const saved = window.localStorage.getItem('comet-bursters-fog-enabled');
     return saved !== 'false';
   });
   const [gridEnabled, setGridEnabled] = useState(() => {
-    const saved = window.sessionStorage.getItem('comet-bursters-sandboxGrid');
+    const saved = window.localStorage.getItem('comet-bursters-sandboxGrid');
     return saved !== 'false';
   });
   const [arcadeRiftDebugEnabled, setArcadeRiftDebugEnabled] = useState(() => {
-    const saved = window.sessionStorage.getItem('comet-bursters-arcadeRiftDebug');
+    const saved = window.localStorage.getItem('comet-bursters-arcadeRiftDebug');
     return saved === 'true';
   });
   const [gameSetupOpen, setGameSetupOpen] = useState(() => {
-    const saved = window.sessionStorage.getItem('comet-bursters-game-setup-open');
+    const saved = window.localStorage.getItem('comet-bursters-game-setup-open');
     return saved !== 'false';
   });
   const [sandboxProfilingOpen, setSandboxProfilingOpen] = useState(() => {
-    const saved = window.sessionStorage.getItem('comet-bursters-sandbox-profiling-open');
+    const saved = window.localStorage.getItem('comet-bursters-sandbox-profiling-open');
     return saved === 'true';
   });
   const [sandboxPerfToggles, setSandboxPerfToggles] = useState(readSandboxPerfToggles);
@@ -70,39 +70,39 @@ export function LandingApp() {
   function updateStartingWave(value: number): void {
     const next = Math.max(1, Math.min(50, Math.round(value || 1)));
     setStartingWave(next);
-    window.sessionStorage.setItem('comet-bursters-starting-wave', String(next));
+    window.localStorage.setItem('comet-bursters-starting-wave', String(next));
   }
 
   function updateFogEnabled(checked: boolean): void {
     setFogEnabled(checked);
-    window.sessionStorage.setItem('comet-bursters-fog-enabled', String(checked));
+    window.localStorage.setItem('comet-bursters-fog-enabled', String(checked));
   }
 
   function updateGridEnabled(checked: boolean): void {
     setGridEnabled(checked);
-    window.sessionStorage.setItem('comet-bursters-sandboxGrid', String(checked));
+    window.localStorage.setItem('comet-bursters-sandboxGrid', String(checked));
   }
 
   function updateArcadeRiftDebugEnabled(checked: boolean): void {
     setArcadeRiftDebugEnabled(checked);
-    window.sessionStorage.setItem('comet-bursters-arcadeRiftDebug', String(checked));
+    window.localStorage.setItem('comet-bursters-arcadeRiftDebug', String(checked));
   }
 
   function updateSandboxPerfToggle(key: SandboxPerfToggleKey, checked: boolean): void {
     setSandboxPerfToggles((current) => ({ ...current, [key]: checked }));
-    window.sessionStorage.setItem(`comet-bursters-${key}`, String(checked));
+    window.localStorage.setItem(`comet-bursters-${key}`, String(checked));
   }
 
   function toggleGameSetup(): void {
     const next = !gameSetupOpen;
     setGameSetupOpen(next);
-    window.sessionStorage.setItem('comet-bursters-game-setup-open', String(next));
+    window.localStorage.setItem('comet-bursters-game-setup-open', String(next));
   }
 
   function toggleSandboxProfiling(): void {
     const next = !sandboxProfilingOpen;
     setSandboxProfilingOpen(next);
-    window.sessionStorage.setItem('comet-bursters-sandbox-profiling-open', String(next));
+    window.localStorage.setItem('comet-bursters-sandbox-profiling-open', String(next));
   }
 
   return (
