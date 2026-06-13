@@ -37,7 +37,10 @@ export function createPlanetShaderTexture(
   if (!gl) return false;
 
   const program = createProgram(gl, fragmentShader);
-  if (!program) return false;
+  if (!program) {
+    releaseOffscreenContext(gl);
+    return false;
+  }
 
   gl.viewport(0, 0, textureSize, textureSize);
   gl.clearColor(0, 0, 0, 0);
@@ -46,7 +49,7 @@ export function createPlanetShaderTexture(
 
   const positionBuffer = gl.createBuffer();
   if (!positionBuffer) {
-    gl.deleteProgram(program);
+    releaseOffscreenContext(gl, null, program);
     return false;
   }
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -64,8 +67,7 @@ export function createPlanetShaderTexture(
   canvas.height = textureSize;
   const context = canvas.getContext('2d');
   if (!context) {
-    gl.deleteBuffer(positionBuffer);
-    gl.deleteProgram(program);
+    releaseOffscreenContext(gl, positionBuffer, program);
     return false;
   }
   const pixels = new Uint8Array(textureSize * textureSize * 4);
@@ -74,10 +76,20 @@ export function createPlanetShaderTexture(
   flipFramebufferPixels(pixels, imageData.data, textureSize, textureSize);
   context.putImageData(imageData, 0, 0);
 
-  gl.deleteBuffer(positionBuffer);
-  gl.deleteProgram(program);
+  releaseOffscreenContext(gl, positionBuffer, program);
   scene.textures.addCanvas(textureKey, canvas);
   return true;
+}
+
+function releaseOffscreenContext(
+  gl: WebGLRenderingContext,
+  positionBuffer?: WebGLBuffer | null,
+  program?: WebGLProgram | null,
+): void {
+  if (positionBuffer) gl.deleteBuffer(positionBuffer);
+  if (program) gl.deleteProgram(program);
+  const loseContext = gl.getExtension('WEBGL_lose_context');
+  if (loseContext) loseContext.loseContext();
 }
 
 function flipFramebufferPixels(

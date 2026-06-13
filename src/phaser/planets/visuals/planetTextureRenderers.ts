@@ -1,11 +1,10 @@
 import Phaser from 'phaser';
 
-import { createCanvasTexture } from '../../core/canvasTextures';
 import type { PlanetTextureSizing } from '../textureSizing';
-import type { PlanetEntity, PlanetKind, PlanetShapeSource } from '../types';
+import type { PlanetEntity, PlanetKind } from '../types';
 import { createGasPlanetShaderTexture } from './gasPlanetShader';
 import { createLavaPlanetShaderTexture } from './lavaPlanetShader';
-import { drawPlanetLightingLayer } from './planetLighting';
+import { createPlanetLightingShaderTexture } from './planetLighting';
 import { createTerrainPlanetShaderTexture } from './terrainPlanetShader';
 import { createToxicPlanetShaderTexture } from './toxicPlanetShader';
 
@@ -111,25 +110,11 @@ function renderPlanetLightingTexture(
   planet: PlanetEntity,
   sizing: PlanetTextureSizing,
 ): boolean {
-  createCanvasTexture(scene, textureKey, sizing.textureSize, sizing.textureSize, (ctx) => {
-    const shapeSource = toShapeSource(planet, sizing.textureSize, sizing.textureScale);
-    drawPlanetLightingLayer(shapeSource, ctx);
-  });
-  return true;
-}
-
-function toShapeSource(
-  planet: PlanetEntity,
-  canvasSize: number,
-  textureScale: number,
-): PlanetShapeSource {
-  return {
-    altitudeVariations: planet.altitudeVariations,
-    color: planet.colorHex,
-    getRadius: () => planet.radius * textureScale,
-    kind: planet.kind,
-    rotation: 0,
-    x: canvasSize * 0.5,
-    y: canvasSize * 0.5,
-  };
+  return createPlanetLightingShaderTexture(
+    scene,
+    textureKey,
+    planet,
+    sizing.textureSize,
+    sizing.textureScale,
+  );
 }

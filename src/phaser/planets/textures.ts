@@ -4,7 +4,7 @@ import { getPlanetDisplaySizeForRadius, getPlanetTextureSizing } from './texture
 import type { PlanetEntity } from './types';
 import { renderPlanetTexture, type PlanetTextureLayer } from './visuals/planetTextureRenderers';
 
-const PLANET_TEXTURE_VERSION = 'v85-broad-staged-crescent-lighting';
+const PLANET_TEXTURE_VERSION = 'v92-visible-rim-atmosphere-shadow';
 const textureKeys = new Map<string, string>();
 
 export type PlanetTextureKeys = {
