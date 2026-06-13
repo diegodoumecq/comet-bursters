@@ -210,7 +210,8 @@ export class SandboxRenderer {
           nebulaRegions: this.sandboxNebulaRegions,
           planets: input.planets,
           player: input.player.position,
-          playerAim: input.player.lastAim,
+          playerRotation: input.player.rotation,
+          playerVelocity: input.player.velocity,
           viewportMode: 'wrapped',
           world: input.world,
         });

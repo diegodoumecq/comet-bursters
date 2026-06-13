@@ -52,7 +52,8 @@ export class DemoRenderer {
       camera: this.scene.cameras.main,
       planets: input.planets,
       player: input.player.position,
-      playerAim: input.player.lastAim,
+      playerRotation: input.player.rotation,
+      playerVelocity: input.player.velocity,
       viewportMode: 'bounded',
       world: this.world,
     });

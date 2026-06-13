@@ -93,7 +93,8 @@ export class Minimap {
     nebulaRegions?: MinimapNebulaRegion[];
     planets: PlanetEntity[];
     player: Vector;
-    playerAim: Vector;
+    playerRotation: number;
+    playerVelocity: Vector;
     viewportMode: 'bounded' | 'wrapped';
     world: WorldSize;
   }): void {
@@ -113,7 +114,14 @@ export class Minimap {
     } else {
       this.drawBoundedViewport(input.camera, scaleX, scaleY);
     }
-    this.drawPlayer(input.player, input.playerAim, input.world, scaleX, scaleY);
+    this.drawPlayer(
+      input.player,
+      input.playerVelocity,
+      input.playerRotation,
+      input.world,
+      scaleX,
+      scaleY,
+    );
     this.texture.refresh();
   }
 
@@ -138,12 +146,7 @@ export class Minimap {
     this.baseContext.strokeRect(0, 0, WIDTH, HEIGHT);
 
     if (input.fog) this.drawFog(this.baseContext, input.fog);
-    this.drawNebulaRegions(
-      this.baseContext,
-      input.nebulaRegions ?? [],
-      input.fog,
-      input.world,
-    );
+    this.drawNebulaRegions(this.baseContext, input.nebulaRegions ?? [], input.fog, input.world);
     this.drawBiomeRegions(this.baseContext, input.biomeRegions ?? [], input.world, scaleX, scaleY);
     this.drawGrid(this.baseContext);
     this.drawPlanets(this.baseContext, input.planets, input.fog, input.world, scaleX, scaleY);
@@ -164,7 +167,9 @@ export class Minimap {
     const fogKey = input.fog ? input.fog.version : 'none';
     const nebulaKey =
       input.nebulaRegions
-        ?.map((region) => `${region.alpha}:${region.points.length}:${getNebulaMinimapColor(region)}`)
+        ?.map(
+          (region) => `${region.alpha}:${region.points.length}:${getNebulaMinimapColor(region)}`,
+        )
         .join('|') ?? 'none';
     const planetKey = input.planets
       .map(
@@ -172,14 +177,9 @@ export class Minimap {
           `${planet.id}:${planet.position.x}:${planet.position.y}:${planet.radius}:${planet.color}`,
       )
       .join('|');
-    return [
-      input.world.width,
-      input.world.height,
-      biomeKey,
-      fogKey,
-      nebulaKey,
-      planetKey,
-    ].join(':');
+    return [input.world.width, input.world.height, biomeKey, fogKey, nebulaKey, planetKey].join(
+      ':',
+    );
   }
 
   private drawFog(context: CanvasRenderingContext2D, fog: MinimapFog): void {
@@ -190,12 +190,7 @@ export class Minimap {
       for (let col = 0; col < fog.columns; col += 1) {
         const index = row * fog.columns + col;
         if (fog.exploredCells[index] && !fog.visibleCells[index]) {
-          context.fillRect(
-            col * cellWidth,
-            row * cellHeight,
-            cellWidth + 0.5,
-            cellHeight + 0.5,
-          );
+          context.fillRect(col * cellWidth, row * cellHeight, cellWidth + 0.5, cellHeight + 0.5);
         }
       }
     }
@@ -204,12 +199,7 @@ export class Minimap {
       for (let col = 0; col < fog.columns; col += 1) {
         const index = row * fog.columns + col;
         if (fog.exploredCells[index] && fog.visibleCells[index]) {
-          context.fillRect(
-            col * cellWidth,
-            row * cellHeight,
-            cellWidth + 0.5,
-            cellHeight + 0.5,
-          );
+          context.fillRect(col * cellWidth, row * cellHeight, cellWidth + 0.5, cellHeight + 0.5);
         }
       }
     }
@@ -334,11 +324,7 @@ export class Minimap {
       const discovered = !fog || fog.exploredCells[coverageCell.fogIndex];
       if (discovered) {
         const visible = !fog || fog.visibleCells[coverageCell.fogIndex];
-        setFillStyle(
-          context,
-          coverageCell.color,
-          (visible ? 0.46 : 0.26) * coverageCell.alpha,
-        );
+        setFillStyle(context, coverageCell.color, (visible ? 0.46 : 0.26) * coverageCell.alpha);
         context.fillRect(
           coverageCell.col * cellWidth,
           coverageCell.row * cellHeight,
@@ -472,14 +458,15 @@ export class Minimap {
 
   private drawPlayer(
     player: Vector,
-    aim: Vector,
+    velocity: Vector,
+    fallbackRotation: number,
     world: WorldSize,
     scaleX: number,
     scaleY: number,
   ): void {
     const centerX = positiveModulo(player.x, world.width) * scaleX;
     const centerY = positiveModulo(player.y, world.height) * scaleY;
-    const angle = Math.atan2(aim.y, aim.x);
+    const angle = getMinimapPlayerHeading(velocity, fallbackRotation);
     const size = 6;
     setFillStyle(this.context, 0xe0f2fe, 1);
     this.context.beginPath();
@@ -499,6 +486,14 @@ export class Minimap {
 
 const MINIMAP_DEFAULT_COLUMNS = 44;
 const MINIMAP_DEFAULT_ROWS = 44;
+const MINIMAP_PLAYER_HEADING_SPEED_EPSILON = 0.001;
+
+export function getMinimapPlayerHeading(velocity: Vector, fallbackRotation: number): number {
+  if (Math.hypot(velocity.x, velocity.y) <= MINIMAP_PLAYER_HEADING_SPEED_EPSILON) {
+    return fallbackRotation;
+  }
+  return Math.atan2(velocity.y, velocity.x);
+}
 
 function setFillStyle(context: CanvasRenderingContext2D, color: number, alpha: number): void {
   context.fillStyle = colorToRgba(color, alpha);
