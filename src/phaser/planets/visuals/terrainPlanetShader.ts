@@ -187,6 +187,10 @@ float cartoonBandEdge(float band) {
   return smoothstep(0.22, 0.48, band) * (1.0 - smoothstep(0.62, 0.92, band));
 }
 
+float posterize(float value, float steps) {
+  return floor(clamp(value, 0.0, 1.0) * steps) / steps;
+}
+
 vec3 screenBlend(vec3 base, vec3 blend) {
   return 1.0 - (1.0 - base) * (1.0 - blend);
 }
@@ -406,41 +410,53 @@ vec4 sampleIceSurface(vec2 sphereUv, vec3 normal) {
 vec4 sampleCrystalSurface(vec2 sphereUv, vec3 normal) {
   vec3 rotatedNormal = rotateY(u_rotation) * normal;
   vec3 seedOffset = vec3(u_seed * 0.024, u_seed * 0.018, u_seed * 0.03);
-  vec3 q = rotatedNormal * 4.9 + seedOffset;
+  vec3 q = rotatedNormal * 3.15 + seedOffset;
   vec3 warp = vec3(
-    ridgedFbm(q * 0.52 + vec3(2.6, 7.3, 1.4)),
-    fbm(q * 0.68 + vec3(8.8, 1.9, 5.2)),
-    ridgedFbm(q * 0.44 + vec3(4.5, 6.1, 9.0))
+    ridgedFbm(q * 0.36 + vec3(2.6, 7.3, 1.4)),
+    fbm(q * 0.44 + vec3(8.8, 1.9, 5.2)),
+    ridgedFbm(q * 0.32 + vec3(4.5, 6.1, 9.0))
   ) - 0.5;
-  vec3 p = q + warp * 1.15;
+  vec3 p = q + warp * 0.55;
 
-  float facetsA = abs(sin(dot(p, normalize(vec3(1.0, 0.42, -0.3))) * 8.6 + u_seed * 0.03));
-  float facetsB = abs(sin(dot(p, normalize(vec3(-0.38, 1.0, 0.62))) * 10.4 + u_seed * 0.05));
-  float facetsC = abs(sin(dot(p, normalize(vec3(0.46, -0.54, 1.0))) * 12.0 + u_seed * 0.04));
-  float facetPlanes = smoothstep(0.18, 0.62, min(min(facetsA, facetsB), facetsC));
-  float prismNoise = ridgedFbm(p * 1.8 + warp * 0.8);
-  float inclusions = fbm(p * 5.8 + vec3(6.2, 1.7, 8.1));
-  float seams = crackNetwork(p * 1.2 + vec3(1.1, 9.3, 4.2));
-  float sparkCells = 1.0 - smoothstep(0.08, 0.26, cellular(p * 6.4 + warp * 1.4));
+  float facetsA = abs(sin(dot(p, normalize(vec3(1.0, 0.42, -0.3))) * 4.6 + u_seed * 0.03));
+  float facetsB = abs(sin(dot(p, normalize(vec3(-0.38, 1.0, 0.62))) * 5.4 + u_seed * 0.05));
+  float facetsC = abs(sin(dot(p, normalize(vec3(0.46, -0.54, 1.0))) * 6.2 + u_seed * 0.04));
+  float facetPlanes = smoothstep(0.22, 0.48, min(min(facetsA, facetsB), facetsC));
+  float prismBlocks = ridgedFbm(p * 0.92 + warp * 0.2);
+  float gemCells = 1.0 - smoothstep(0.1, 0.38, cellular(p * 3.0 + warp * 0.58));
+  float seams = crackNetwork(p * 0.62 + vec3(1.1, 9.3, 4.2));
+  float sparkCells = 1.0 - smoothstep(0.12, 0.32, cellular(p * 3.8 + warp * 0.72));
 
   float arcBands =
-    sin((sphereUv.y * 9.2 + sphereUv.x * 2.7 + prismNoise * 0.46 + warp.x * 0.16) * TAU) * 0.5 + 0.5;
-  float brightPlanes = smoothstep(0.46, 0.88, facetPlanes * 0.38 + prismNoise * 0.3 + arcBands * 0.16);
-  float innerGlow = smoothstep(0.54, 0.9, inclusions * 0.34 + (1.0 - facetPlanes) * 0.24 + sparkCells * 0.18);
-  float edgeLines = smoothstep(0.4, 0.78, seams * 0.52 + (1.0 - facetPlanes) * 0.16);
-  float glitter = smoothstep(0.7, 0.96, sparkCells * 0.5 + prismNoise * 0.22 + brightPlanes * 0.12);
+    sin((sphereUv.y * 5.4 + sphereUv.x * 1.5 + prismBlocks * 0.16 + warp.x * 0.06) * TAU) * 0.5 + 0.5;
+  float platePresence = smoothstep(
+    0.5,
+    0.78,
+    valueNoise(p * 0.82 + vec3(4.2, 1.7, 8.6)) * 0.58 + gemCells * 0.24 + prismBlocks * 0.18
+  );
+  float colorStep = posterize(facetPlanes * 0.58 + prismBlocks * 0.28 + arcBands * 0.14, 3.0);
+  float sparseColorStep = colorStep * mix(0.18, 1.0, platePresence);
+  float brightPlanes = smoothstep(0.56, 0.76, colorStep + gemCells * 0.16 + arcBands * 0.12) * platePresence;
+  float stickerHighlights =
+    smoothstep(0.66, 0.82, sparkCells * 0.42 + facetPlanes * 0.32 + arcBands * 0.14) * platePresence;
+  float edgeLines =
+    smoothstep(0.58, 0.88, seams * 0.32 + (1.0 - facetPlanes) * 0.1 + cartoonBandEdge(arcBands) * 0.05) *
+    platePresence;
+  float inkFlecks = smoothstep(0.84, 0.96, gemCells * 0.22 + seams * 0.1 + sparkCells * 0.08) * platePresence;
 
-  vec3 deep = mix(u_base_color, vec3(0.12, 0.18, 0.38), 0.28);
-  vec3 glass = mix(u_secondary_color, vec3(0.72, 0.98, 1.0), 0.32);
-  vec3 lavender = vec3(0.82, 0.66, 1.0);
-  vec3 white = vec3(0.96, 1.0, 1.0);
-  vec3 edge = vec3(0.08, 0.34, 0.56);
+  vec3 deep = u_palette_shadow_color;
+  vec3 candyBlue = u_palette_base_color;
+  vec3 mint = u_palette_mid_color;
+  vec3 lavender = u_palette_accent_color;
+  vec3 white = u_palette_light_color;
+  vec3 edge = mix(u_palette_light_color, u_palette_ink_color, 0.28);
 
-  vec3 color = mix(deep, glass, prismNoise * 0.54 + brightPlanes * 0.18);
-  color = mix(color, lavender, innerGlow * 0.26);
-  color = mix(color, edge, edgeLines * 0.18);
-  color = mix(color, white, glitter * 0.28 + brightPlanes * 0.08);
-  color += u_accent_color * innerGlow * 0.055 + white * glitter * 0.08;
+  vec3 color = deep;
+  color = mix(color, candyBlue, step(0.24, sparseColorStep) * 0.9);
+  color = mix(color, mint, step(0.49, sparseColorStep) * 0.78);
+  color = mix(color, lavender, step(0.74, sparseColorStep) * 0.42 + brightPlanes * 0.14);
+  color = mix(color, white, stickerHighlights * 0.34 + brightPlanes * 0.1);
+  color = mix(color, edge, edgeLines * 0.025 + inkFlecks * 0.006);
 
   return vec4(color, 1.0);
 }
@@ -539,16 +555,16 @@ const TERRAIN_PLANET_SHADER_STYLES: Record<TerrainPlanetKind, TerrainPlanetShade
     style: 2,
   },
   crystal: {
-    accentColor: hexToVec3Uniform('#e8d6ff'),
+    accentColor: hexToVec3Uniform('#ffd6ff'),
     palette: {
-      accent: hexToVec3Uniform('#e8d6ff'),
-      base: hexToVec3Uniform('#8edff5'),
-      ink: hexToVec3Uniform('#14578f'),
-      light: hexToVec3Uniform('#f5ffff'),
-      mid: hexToVec3Uniform('#a7ecff'),
-      shadow: hexToVec3Uniform('#304069'),
+      accent: hexToVec3Uniform('#f7a8ff'),
+      base: hexToVec3Uniform('#b8f4ff'),
+      ink: hexToVec3Uniform('#efffff'),
+      light: hexToVec3Uniform('#fff8ff'),
+      mid: hexToVec3Uniform('#ccf8eb'),
+      shadow: hexToVec3Uniform('#d2fbff'),
     },
-    secondaryColor: hexToVec3Uniform('#a7ecff'),
+    secondaryColor: hexToVec3Uniform('#8ff3d8'),
     seedOffset: 31.67,
     style: 3,
   },

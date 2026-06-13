@@ -50,8 +50,8 @@ const PLANET_SHAPE_STYLES: Record<PlanetKind, PlanetShapeStyle> = {
     mode: 'segments',
     xScale: 1,
     yScale: 1,
-    segments: 64,
-    variation: 0.035,
+    segments: 22,
+    variation: 0.11,
     rotationOffset: 0.1,
   },
 };
@@ -84,7 +84,7 @@ export function tracePlanetShape(
     const altitude = planet.altitudeVariations[i % planet.altitudeVariations.length];
     const wobble =
       planet.kind === 'crystal'
-        ? 0.985 + (altitude - 1) * 0.45 + ((i + 2) % 7 === 0 ? variation * 0.08 : 0)
+        ? 0.972 + (altitude - 1) * 0.62 + ((i + 2) % 5 === 0 ? variation * 0.14 : 0)
         : 1 + (altitude - 1) * (variation * 10);
     const x = Math.cos(angle) * xRadius * wobble;
     const y = Math.sin(angle) * yRadius * wobble;

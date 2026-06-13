@@ -4,7 +4,7 @@ import { getPlanetDisplaySizeForRadius, getPlanetTextureSizing } from './texture
 import type { PlanetEntity } from './types';
 import { renderPlanetTexture, type PlanetTextureLayer } from './visuals/planetTextureRenderers';
 
-const PLANET_TEXTURE_VERSION = 'v95-outer-atmosphere-shadow';
+const PLANET_TEXTURE_VERSION = 'v103-fewer-visible-small-crystal-plates';
 const textureKeys = new Map<string, string>();
 
 export type PlanetTextureKeys = {
