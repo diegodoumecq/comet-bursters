@@ -56,7 +56,10 @@ export class PhaserDemoScene extends BaseGameScene {
   create(): void {
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'demo');
     this.audioDirector.enter();
-    this.events.once('shutdown', () => this.audioDirector.exit());
+    this.events.once('shutdown', () => {
+      this.audioDirector.exit();
+      this.sceneRenderer.destroy();
+    });
     this.matter.world.setBounds(0, 0, WORLD.width, WORLD.height, 64, true, true, true, true);
     this.cameras.main.setBounds(0, 0, WORLD.width, WORLD.height);
     this.actions = new ActionReader(this);

@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import type { AsteroidEntity } from '../../asteroids/types';
 import { startPerformanceFrame } from '../../core/performance';
 import type { Vector, WorldSize } from '../../core/types';
+import { Minimap, type MinimapBiomeRegion } from '../../minimap/Minimap';
 import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import {
   getPlayerVisible,
@@ -16,7 +17,6 @@ import type { PlayerState } from '../../player/state';
 import { PLAYER_TURRET_TEXTURE_KEY } from '../../player/textures';
 import { buildPlayerTrajectoryPreview } from '../../player/trajectory';
 import { getSandboxPerfToggles } from '../../runtime/startup';
-import { Minimap } from '../../ui/Minimap';
 import { WeaponMenu } from '../../ui/WeaponMenu';
 import type { SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { drawTractorBeam } from '../../weapons/tractorBeam';
@@ -49,7 +49,8 @@ export class SandboxRenderer {
   private readonly playerThruster: Phaser.GameObjects.Graphics;
   private readonly playerTrajectoryPreview: Phaser.GameObjects.Graphics;
   private readonly weaponMenu: WeaponMenu;
-  private readonly minimap: Minimap;
+  private minimap: Minimap | null = null;
+  private readonly minimapGeneratedBiomeRegions: MinimapBiomeRegion[];
   private readonly planetOverlay: SandboxPlanetOverlay;
   private readonly perfToggles = getSandboxPerfToggles();
 
@@ -83,7 +84,12 @@ export class SandboxRenderer {
       .setName('sandbox-player-trajectory-preview')
       .setDepth(PLAYER_TRAJECTORY_PREVIEW_DEPTH);
     this.weaponMenu = new WeaponMenu(scene, weaponPolicy.allowedWeapons);
-    this.minimap = new Minimap(scene);
+    this.minimapGeneratedBiomeRegions = sandboxBiomes
+      .filter((biome) => biome.source === 'generated')
+      .map((biome) => ({
+        color: biome.profile.color,
+        points: biome.points,
+      }));
     this.planetOverlay = new SandboxPlanetOverlay(scene);
   }
 
@@ -183,27 +189,25 @@ export class SandboxRenderer {
         input.timeDilation,
       );
 
-      this.minimap.setVisible(this.perfToggles.minimap);
       if (this.perfToggles.minimap) {
         perf.startSection('sandbox.render.minimap');
-        this.minimap.render({
+        const minimap = this.getMinimap();
+        minimap.setVisible(true);
+        minimap.render({
           asteroids: input.asteroids,
-          biomeRegions: this.perfToggles.biomeDebug
-            ? this.sandboxBiomes
-                .filter((biome) => biome.source === 'generated')
-                .map((biome) => ({
-                  color: biome.profile.color,
-                  points: biome.points,
-                }))
-            : undefined,
+          biomeRegions: this.perfToggles.biomeDebug ? this.minimapGeneratedBiomeRegions : undefined,
           camera: this.scene.cameras.main,
           fog: input.fogEnabled
             ? {
                 columns: MINIMAP_COLUMNS,
+                dirtyCellIndices: input.discovery.dirtyCellIndices,
                 discoveredPlanetIds: input.discovery.discoveredPlanetIds,
+                exploredVersion: input.discovery.exploredVersion,
                 exploredCells: input.discovery.exploredCells,
+                planetDiscoveryVersion: input.discovery.planetDiscoveryVersion,
                 rows: MINIMAP_ROWS,
                 visibleCells: input.discovery.visibleCells,
+                visibleVersion: input.discovery.visibleVersion,
                 version: input.discovery.version,
               }
             : undefined,
@@ -215,6 +219,8 @@ export class SandboxRenderer {
           viewportMode: 'wrapped',
           world: input.world,
         });
+      } else {
+        this.destroyMinimap();
       }
 
       perf.startSection('sandbox.render.overlays');
@@ -228,6 +234,20 @@ export class SandboxRenderer {
     } finally {
       perf.end();
     }
+  }
+
+  private getMinimap(): Minimap {
+    this.minimap ??= new Minimap(this.scene);
+    return this.minimap;
+  }
+
+  destroy(): void {
+    this.destroyMinimap();
+  }
+
+  private destroyMinimap(): void {
+    this.minimap?.destroy();
+    this.minimap = null;
   }
 
   private renderPlayerTrajectoryPreview(

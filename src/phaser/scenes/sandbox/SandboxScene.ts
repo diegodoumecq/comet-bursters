@@ -984,6 +984,7 @@ export class PhaserSandboxScene extends BaseGameScene {
 
   private disposeRenderEffects(): void {
     this.audioDirector.exit();
+    this.sceneRenderer.destroy();
     this.renderEffects.dispose();
     this.disposeCanvasOverscan = null;
   }

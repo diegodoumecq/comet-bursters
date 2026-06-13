@@ -3,18 +3,18 @@ import Phaser from 'phaser';
 import type { AsteroidBodies } from '../../asteroids/bodies';
 import type { AsteroidEntity } from '../../asteroids/types';
 import type { MatterImage, WorldSize } from '../../core/types';
+import { Minimap } from '../../minimap/Minimap';
 import type { PlanetEntity } from '../../planets/types';
 import { renderPlayerFuel } from '../../player/rendering';
 import type { ShipState } from '../../player/shipState';
 import type { PlayerState } from '../../player/state';
-import { Minimap } from '../../ui/Minimap';
 
 export class DemoRenderer {
   private readonly playerFuelBase: Phaser.GameObjects.Graphics;
   private readonly playerFuelFill: Phaser.GameObjects.Graphics;
   private readonly playerFuelMask: Phaser.GameObjects.Graphics;
   private readonly collisionMasks: Phaser.GameObjects.Graphics;
-  private readonly minimap: Minimap;
+  private minimap: Minimap | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -27,7 +27,6 @@ export class DemoRenderer {
     this.playerFuelMask = scene.make.graphics({ x: 0, y: 0 }, false);
     this.playerFuelFill.setMask(this.playerFuelMask.createGeometryMask());
     this.collisionMasks = scene.add.graphics().setDepth(20);
-    this.minimap = new Minimap(scene);
   }
 
   render(input: {
@@ -47,7 +46,7 @@ export class DemoRenderer {
       true,
     );
     this.renderCollisionMasks(input);
-    this.minimap.render({
+    this.getMinimap().render({
       asteroids: input.asteroids,
       camera: this.scene.cameras.main,
       planets: input.planets,
@@ -57,6 +56,16 @@ export class DemoRenderer {
       viewportMode: 'bounded',
       world: this.world,
     });
+  }
+
+  private getMinimap(): Minimap {
+    this.minimap ??= new Minimap(this.scene);
+    return this.minimap;
+  }
+
+  destroy(): void {
+    this.minimap?.destroy();
+    this.minimap = null;
   }
 
   private renderCollisionMasks(input: {
