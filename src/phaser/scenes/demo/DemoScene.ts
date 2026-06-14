@@ -8,8 +8,12 @@ import { applyMatterBodySpec } from '../../core/matterBodySpec';
 import type { WorldSize } from '../../core/types';
 import { MAX_FUEL } from '../../fuel/rules';
 import { ActionReader } from '../../input/actions';
+import {
+  createFuelExtractionPlanet,
+  type FuelExtractionPlanetEntity,
+} from '../../planets/fuelExtraction';
+import { FuelExtractorViews } from '../../planets/fuelExtractorViews';
 import { createPlanet, PLANET_SPECS } from '../../planets/logic';
-import type { PlanetEntity } from '../../planets/types';
 import { PlanetViews } from '../../planets/views';
 import { PlayerBody } from '../../player/body';
 import { PLAYER_DEFINITIONS } from '../../player/definition';
@@ -41,10 +45,11 @@ export class PhaserDemoScene extends BaseGameScene {
   private actions!: ActionReader;
   private playerBody!: PlayerBody;
   private sceneRenderer!: DemoRenderer;
-  private planets: PlanetEntity[] = [];
+  private planets: FuelExtractionPlanetEntity[] = [];
   private asteroids: AsteroidEntity[] = [];
   private asteroidBodies!: AsteroidBodies;
   private planetViews!: PlanetViews;
+  private fuelExtractorViews!: FuelExtractorViews;
   private audioDirector!: SceneAudioDirector;
   private readonly playerState = new PlayerState();
   private readonly ship = new ShipState();
@@ -59,12 +64,14 @@ export class PhaserDemoScene extends BaseGameScene {
     this.events.once('shutdown', () => {
       this.audioDirector.exit();
       this.sceneRenderer.destroy();
+      this.fuelExtractorViews.destroy();
     });
     this.matter.world.setBounds(0, 0, WORLD.width, WORLD.height, 64, true, true, true, true);
     this.cameras.main.setBounds(0, 0, WORLD.width, WORLD.height);
     this.actions = new ActionReader(this);
     this.asteroidBodies = new AsteroidBodies(this);
     this.planetViews = new PlanetViews(this);
+    this.fuelExtractorViews = new FuelExtractorViews(this);
     this.createGrid();
     this.createTextures();
     this.createPlanets();
@@ -132,7 +139,7 @@ export class PhaserDemoScene extends BaseGameScene {
   private createPlanets(): void {
     let nextLeft = DEMO_PLANET_ROW_START.x;
     let nextTop = DEMO_PLANET_ROW_START.y;
-    this.planets = Object.values(PLANET_SPECS).map((spec) => {
+    this.planets = Object.values(PLANET_SPECS).map((spec, index) => {
       const rawX = nextLeft + spec.radius * 1.5;
       if (rawX + spec.radius > WORLD.width) {
         nextLeft = DEMO_PLANET_ROW_START.x;
@@ -143,7 +150,7 @@ export class PhaserDemoScene extends BaseGameScene {
       const planet = createPlanet(x, nextTop, spec);
       planet.rotation = DEMO_SHOWCASE_ROTATION;
       planet.rotationSpeed = DEMO_PLANET_ROTATION_SPEED;
-      return planet;
+      return createFuelExtractionPlanet(planet, createDemoFuelExtractorRandom(index));
     });
     for (const planet of this.planets) {
       this.planetViews.add(planet);
@@ -199,10 +206,27 @@ export class PhaserDemoScene extends BaseGameScene {
       planet.rotation += planet.rotationSpeed * deltaMs;
       this.planetViews.sync(planet);
     }
+    this.fuelExtractorViews.sync(this.planets, this.time.now);
   }
 }
 
 function getDemoAsteroidAngularVelocity(tier: AsteroidTier, visualVariant: number): number {
   const direction = visualVariant % 2 === 0 ? 1 : -1;
   return DEMO_ASTEROID_ROTATION_SPEED * DEMO_ASTEROID_TIER_ROTATION_SCALE[tier] * direction;
+}
+
+function createDemoFuelExtractorRandom(index: number) {
+  const topArcAngle = 0.66 + (index % 5) * 0.045;
+  const values = [topArcAngle, 0.72, (((index * 0.37 + 0.31) % 1) + 1) % 1];
+  let nextIndex = 0;
+  return {
+    between: (min: number) => min,
+    float: () => {
+      const value = values[nextIndex % values.length];
+      nextIndex += 1;
+      return value;
+    },
+    floatBetween: (min: number, max: number) => min + (max - min) * values[0],
+    pick: <T>(items: T[]) => items[index % items.length],
+  };
 }

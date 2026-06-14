@@ -4,8 +4,8 @@ import type { AsteroidEntity } from '../../asteroids/types';
 import type { Vector } from '../../core/types';
 import type { FuelBlobEntity } from '../../fuel/types';
 import type { ParticleEntity } from '../../particles/types';
+import type { FuelExtractionPlanetEntity } from '../../planets/fuelExtraction';
 import type { ProjectileEntity } from '../../projectiles/types';
-import type { SandboxPlanetEntity } from './planetFuel';
 import {
   positionSandboxWrappedWorldNearPlayer,
   rebaseSandboxWorldAtBounds,
@@ -142,7 +142,7 @@ function createParticle(position: Vector): ParticleEntity {
   };
 }
 
-function createPlanet(position: Vector): SandboxPlanetEntity {
+function createPlanet(position: Vector): FuelExtractionPlanetEntity {
   return {
     altitudeVariations: [],
     color: 0xffffff,

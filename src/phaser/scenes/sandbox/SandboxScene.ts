@@ -42,6 +42,12 @@ import { mainGameState } from '../../mainGame/state';
 import { updateParticles } from '../../particles/logic';
 import type { ParticleEntity } from '../../particles/types';
 import { ParticleViews } from '../../particles/views';
+import {
+  absorbFuelIntoExtractionPlanets,
+  collectFuelExtractorBlobs,
+  updateFuelExtractionPlanets,
+  type FuelExtractionPlanetEntity,
+} from '../../planets/fuelExtraction';
 import { getParticlesCollidingWithPlanets } from '../../planets/gravity';
 import { PlanetViews } from '../../planets/views';
 import { PlayerBody } from '../../player/body';
@@ -70,12 +76,6 @@ import {
   MOTHERSHIP_DOOR_SLIDE_DISTANCE,
   preloadMothershipTextures,
 } from './Mothership';
-import {
-  absorbFuelIntoPlanets,
-  collectExtractorFuel,
-  updatePlanetFuel,
-  type SandboxPlanetEntity,
-} from './planetFuel';
 import { SandboxRenderEffects } from './SandboxRenderEffects';
 import { SandboxRenderer } from './SandboxRenderer';
 import { createSandboxStartup } from './sandboxSpawns';
@@ -109,7 +109,7 @@ const PLANET_VIEW_PRELOAD_RADIUS = 3600;
 
 type PlanetCollision = {
   normal: Vector;
-  planet: SandboxPlanetEntity;
+  planet: FuelExtractionPlanetEntity;
   surface: Vector;
 };
 
@@ -132,7 +132,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private readonly discovery = new SandboxDiscovery();
   private readonly fogEnabled = getSandboxFogEnabled();
   private readonly perfToggles = getSandboxPerfToggles();
-  private planets: SandboxPlanetEntity[] = [];
+  private planets: FuelExtractionPlanetEntity[] = [];
   private mothership!: Mothership;
   private launchStartedAt = 0;
   private launchDoorOpened = false;
@@ -416,7 +416,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       false,
     ))
       this.removeProjectile(projectile);
-    updatePlanetFuel(this.planets, this.time.now, deltaSeconds);
+    updateFuelExtractionPlanets(this.planets, this.time.now, deltaSeconds);
     for (const planet of this.planets) this.planetViews.sync(planet);
     for (const particle of updateParticles(this.runtime.world.particles, deltaMs))
       this.removeParticle(particle);
@@ -446,7 +446,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     });
     this.ship.collectFuel(fuel.fuelGain);
     this.ship.collectFuel(
-      collectExtractorFuel(
+      collectFuelExtractorBlobs(
         this.planets,
         this.player.position,
         canCollectFuel,
@@ -455,7 +455,11 @@ export class PhaserSandboxScene extends BaseGameScene {
       ),
     );
     for (const blob of fuel.collected) this.removeFuelBlob(blob);
-    for (const blob of absorbFuelIntoPlanets(this.runtime.world.fuelBlobs, this.planets, WORLD))
+    for (const blob of absorbFuelIntoExtractionPlanets(
+      this.runtime.world.fuelBlobs,
+      this.planets,
+      WORLD,
+    ))
       this.removeFuelBlob(blob);
   }
 

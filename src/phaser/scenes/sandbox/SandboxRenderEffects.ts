@@ -2,16 +2,19 @@ import type Phaser from 'phaser';
 
 import { withPerformanceMeasure } from '../../core/performance';
 import type { Vector, WorldSize } from '../../core/types';
+import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../../fuel/definition';
 import type { FuelMetaball } from '../../fuel/metaballs';
 import { FuelMetaballRenderer } from '../../fuel/metaballs';
 import { addProjectedMetaballs, buildFuelBlobMetaballSamples } from '../../fuel/metaballSamples';
-import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../../fuel/definition';
 import type { FuelBlobEntity } from '../../fuel/types';
+import {
+  getFuelExtractorBlobPosition,
+  type FuelExtractionPlanetEntity,
+} from '../../planets/fuelExtraction';
 import { buildBlackHoleScreenSamples } from '../../projectiles/blackHoleSamples';
 import { BlackHoleShaderRenderer } from '../../projectiles/blackHoleShader';
 import type { ProjectileEntity } from '../../projectiles/types';
 import { getSandboxPerfToggles } from '../../runtime/startup';
-import { getExtractorBlobPosition, type SandboxPlanetEntity } from './planetFuel';
 import { createWrappedScreenProjector } from './screenWrapping';
 
 const FUEL_INSPECTION_BLOB_AMOUNT = FUEL_BLOB_AMOUNT * 10;
@@ -21,7 +24,7 @@ type SandboxRenderEffectsInput = {
   camera: Phaser.Cameras.Scene2D.Camera;
   fuelBlobs: FuelBlobEntity[];
   now: number;
-  planets: SandboxPlanetEntity[];
+  planets: FuelExtractionPlanetEntity[];
   playerPosition: Vector;
   projectiles: ProjectileEntity[];
   screen: WorldSize;
@@ -88,7 +91,7 @@ export class SandboxRenderEffects {
 }
 
 function buildSandboxPlanetMetaballSamples(
-  planets: SandboxPlanetEntity[],
+  planets: FuelExtractionPlanetEntity[],
   now: number,
   project: (position: Vector, radius: number) => Vector[],
 ): FuelMetaball[] {
@@ -98,7 +101,7 @@ function buildSandboxPlanetMetaballSamples(
       addProjectedMetaballs(
         metaballs,
         project,
-        getExtractorBlobPosition(planet, blob, now),
+        getFuelExtractorBlobPosition(planet, blob, now),
         FUEL_BLOB_RADIUS,
         blob.wobbleSeed,
       );

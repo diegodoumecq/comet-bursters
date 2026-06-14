@@ -2,10 +2,10 @@ import type { AsteroidEntity } from '../../asteroids/types';
 import type { Vector, WorldSize } from '../../core/types';
 import type { FuelBlobEntity } from '../../fuel/types';
 import type { ParticleEntity } from '../../particles/types';
+import type { FuelExtractionPlanetEntity } from '../../planets/fuelExtraction';
 import type { ProjectileEntity } from '../../projectiles/types';
 import { nearestWrappedPosition } from '../../world/geometry';
 import type { GameWorld } from '../../world/state';
-import type { SandboxPlanetEntity } from './planetFuel';
 
 type PositionableBody = {
   setPosition(x: number, y: number): void;
@@ -37,7 +37,7 @@ type ParticlePositioningViews = {
 };
 
 type PlanetPositioningViews = {
-  sync(planet: SandboxPlanetEntity): void;
+  sync(planet: FuelExtractionPlanetEntity): void;
 };
 
 type PlayerPositioningBody = {
@@ -63,7 +63,7 @@ type SandboxWorldPositioningBaseInput = {
   now: number;
   particleViews: ParticlePositioningViews;
   planetViews: PlanetPositioningViews;
-  planets: SandboxPlanetEntity[];
+  planets: FuelExtractionPlanetEntity[];
   player: PlayerPositioningState;
   projectileBodies: ProjectilePositioningBodies;
   runtime: SandboxPositioningRuntime;

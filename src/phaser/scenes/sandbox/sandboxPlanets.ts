@@ -1,22 +1,28 @@
 import Phaser from 'phaser';
 
 import type { WorldSize } from '../../core/types';
-import { createPlanet, getFuelReserveForPlanet } from '../../planets/logic';
+import {
+  createFuelExtractionPlanet,
+  type FuelExtractionPlanetEntity,
+} from '../../planets/fuelExtraction';
+import { createPlanet } from '../../planets/logic';
 import type { PlanetEntity } from '../../planets/types';
-import type { SandboxPlanetEntity } from './planetFuel';
 
 const PLANET_COUNT = 40;
 const PLANET_MARGIN = 2000;
 
-export function createSandboxPlanets(world: WorldSize): SandboxPlanetEntity[] {
-  const planets: SandboxPlanetEntity[] = [];
+export function createSandboxPlanets(world: WorldSize): FuelExtractionPlanetEntity[] {
+  const planets: FuelExtractionPlanetEntity[] = [];
   for (let index = 0; index < PLANET_COUNT; index += 1) {
     planets.push(createSeparatedPlanet(planets, world));
   }
   return planets;
 }
 
-function createSeparatedPlanet(existing: PlanetEntity[], world: WorldSize): SandboxPlanetEntity {
+function createSeparatedPlanet(
+  existing: PlanetEntity[],
+  world: WorldSize,
+): FuelExtractionPlanetEntity {
   for (let attempt = 0; attempt < 40; attempt += 1) {
     const candidate = withSandboxFuel(
       createPlanet(
@@ -39,16 +45,6 @@ function createSeparatedPlanet(existing: PlanetEntity[], world: WorldSize): Sand
   return withSandboxFuel(createPlanet(world.width * 0.5, world.height * 0.5));
 }
 
-function withSandboxFuel(planet: PlanetEntity): SandboxPlanetEntity {
-  return {
-    ...planet,
-    extractor: {
-      angle: Math.random() * Math.PI * 2,
-      blobs: [],
-      nextExtractAt: 0,
-    },
-    fuelReserve: getFuelReserveForPlanet(planet),
-    inspectedUntil: 0,
-    visualSeed: Math.random() * Math.PI * 2,
-  };
+function withSandboxFuel(planet: PlanetEntity): FuelExtractionPlanetEntity {
+  return createFuelExtractionPlanet(planet);
 }

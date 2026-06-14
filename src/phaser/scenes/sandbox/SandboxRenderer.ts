@@ -4,6 +4,7 @@ import type { AsteroidEntity } from '../../asteroids/types';
 import { startPerformanceFrame } from '../../core/performance';
 import type { Vector, WorldSize } from '../../core/types';
 import { Minimap, type MinimapBiomeRegion } from '../../minimap/Minimap';
+import type { FuelExtractionPlanetEntity } from '../../planets/fuelExtraction';
 import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import {
   getPlayerVisible,
@@ -25,7 +26,6 @@ import type { SandboxBiomeRegion } from './biomeGeneration';
 import { MINIMAP_COLUMNS, MINIMAP_ROWS, type SandboxDiscovery } from './discovery';
 import { NebulaRegionRenderer } from './NebulaRegionRenderer';
 import type { NebulaRegion } from './nebulaRegions';
-import type { SandboxPlanetEntity } from './planetFuel';
 import { SandboxBackground } from './SandboxBackground';
 import { SandboxBiomeDebugOverlay } from './SandboxBiomeDebugOverlay';
 import { SandboxPlanetOverlay } from './SandboxPlanetOverlay';
@@ -135,7 +135,7 @@ export class SandboxRenderer {
     inspectionProbes: number;
     discovery: SandboxDiscovery;
     fogEnabled: boolean;
-    planets: SandboxPlanetEntity[];
+    planets: FuelExtractionPlanetEntity[];
     world: WorldSize;
   }): void {
     const perf = startPerformanceFrame('sandbox.render.total', this.perfToggles.markers);
@@ -252,7 +252,7 @@ export class SandboxRenderer {
 
   private renderPlayerTrajectoryPreview(
     input: {
-      planets: SandboxPlanetEntity[];
+      planets: FuelExtractionPlanetEntity[];
       player: PlayerState;
       world: WorldSize;
     },

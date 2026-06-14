@@ -4,21 +4,24 @@ import { createSeededRandom, type RandomSource } from '../../core/random';
 import { overlapsAnySpawnCircle, spawnCirclesOverlap, type SpawnCircle } from '../../core/spawn';
 import type { Vector, WorldSize } from '../../core/types';
 import { PLANET_SPECS } from '../../planets/config';
-import { createPlanet, getFuelReserveForPlanet } from '../../planets/logic';
+import {
+  createFuelExtractionPlanet,
+  type FuelExtractionPlanetEntity,
+} from '../../planets/fuelExtraction';
+import { createPlanet } from '../../planets/logic';
 import type { PlanetEntity } from '../../planets/types';
 import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import { wrappedDelta } from '../../world/geometry';
 import { createSandboxBiomeSpawnPlan, type SandboxBiomeRegion } from './biomeGeneration';
 import { MOTHERSHIP_CARGO_BAY_OFFSET, MOTHERSHIP_WIDTH } from './Mothership';
 import type { NebulaRegion } from './nebulaRegions';
-import type { SandboxPlanetEntity } from './planetFuel';
 import { SANDBOX_WORLD_CONFIG, type SandboxWorldConfig } from './sandboxWorldConfig';
 
 export type SandboxStartup = {
   asteroids: AsteroidEntity[];
   biomes: SandboxBiomeRegion[];
   nebulaRegions: NebulaRegion[];
-  planets: SandboxPlanetEntity[];
+  planets: FuelExtractionPlanetEntity[];
   spawnPoint: Vector;
 };
 
@@ -94,7 +97,7 @@ function createStartupPlanets(
   plan: ReturnType<typeof createSandboxBiomeSpawnPlan>,
   random: RandomSource,
   planetCount: number,
-): SandboxPlanetEntity[] {
+): FuelExtractionPlanetEntity[] {
   const plannedPlanets = plan.planets
     .map((planned) => ({
       planet: withSandboxFuel(
@@ -119,8 +122,8 @@ function createFallbackPlanets(
   reservations: SpawnCircle[],
   random: RandomSource,
   planetCount: number,
-): SandboxPlanetEntity[] {
-  const planets: SandboxPlanetEntity[] = [];
+): FuelExtractionPlanetEntity[] {
+  const planets: FuelExtractionPlanetEntity[] = [];
   for (let index = 0; index < planetCount; index += 1) {
     const planet = createSeparatedPlanet(planets, world, playerSpawn, reservations, random);
     planets.push(planet);
@@ -134,7 +137,7 @@ function createSeparatedPlanet(
   playerSpawn: Vector,
   reservations: SpawnCircle[],
   random: RandomSource,
-): SandboxPlanetEntity {
+): FuelExtractionPlanetEntity {
   const allReservations = [
     ...reservations,
     ...existingPlanets.map((planet) => ({ position: planet.position, radius: planet.radius })),
@@ -159,8 +162,8 @@ function createGridSeparatedPlanet(
   world: WorldSize,
   playerSpawn: Vector,
   random: RandomSource,
-): SandboxPlanetEntity {
-  let bestCandidate: SandboxPlanetEntity | null = null;
+): FuelExtractionPlanetEntity {
+  let bestCandidate: FuelExtractionPlanetEntity | null = null;
   let y = PLANET_MARGIN;
   while (!bestCandidate && y <= world.height - PLANET_MARGIN) {
     let x = PLANET_MARGIN;
@@ -178,7 +181,7 @@ function createGridSeparatedPlanet(
 }
 
 function planetPlacementIsValid(
-  planet: SandboxPlanetEntity,
+  planet: FuelExtractionPlanetEntity,
   reservations: SpawnCircle[],
   playerSpawn: Vector,
   world: WorldSize,
@@ -278,16 +281,6 @@ function getCargoBayPosition(mothershipPosition: Vector): Vector {
   };
 }
 
-function withSandboxFuel(planet: PlanetEntity, random: RandomSource): SandboxPlanetEntity {
-  return {
-    ...planet,
-    extractor: {
-      angle: random.float() * Math.PI * 2,
-      blobs: [],
-      nextExtractAt: 0,
-    },
-    fuelReserve: getFuelReserveForPlanet(planet, random),
-    inspectedUntil: 0,
-    visualSeed: random.float() * Math.PI * 2,
-  };
+function withSandboxFuel(planet: PlanetEntity, random: RandomSource): FuelExtractionPlanetEntity {
+  return createFuelExtractionPlanet(planet, random);
 }
