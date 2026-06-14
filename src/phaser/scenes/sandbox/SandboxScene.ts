@@ -37,7 +37,7 @@ import { spawnAsteroidFuelDrops, spawnFuelBlobs, spawnShipFuelDrops } from '../.
 import { FuelBodies } from '../../fuel/bodies';
 import { MAX_FUEL, SHIELD_RADIUS } from '../../fuel/rules';
 import type { FuelBlobEntity } from '../../fuel/types';
-import { ActionReader } from '../../input/actions';
+import { ActionReader, type ActionState } from '../../input/actions';
 import { mainGameState } from '../../mainGame/state';
 import { updateParticles } from '../../particles/logic';
 import type { ParticleEntity } from '../../particles/types';
@@ -220,18 +220,15 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.cameras.main.startFollow(this.playerBody.body, false, 1, 1);
   }
 
-  protected readFrameInput(): ReturnType<ActionReader['read']> {
+  protected readFrameInput(): ActionState {
     return this.actions.read(this.player.position);
   }
 
-  protected updateState(
-    action: ReturnType<ActionReader['read']>,
-    time: number,
-    delta: number,
-  ): void {
+  protected updateState(action: ActionState, time: number, delta: number): void {
     const perf = startPerformanceFrame('sandbox.update.total', this.perfToggles.markers);
     try {
-      const timeScale = getTimeScale(action.timeDilation);
+      const timeDilation = action.timeDilation;
+      const timeScale = getTimeScale(timeDilation);
       this.matter.world.engine.timing.timeScale = timeScale;
       const deltaSeconds = (delta / 1000) * timeScale;
 
@@ -260,7 +257,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     }
   }
 
-  protected renderState(action: ReturnType<ActionReader['read']>, time: number): void {
+  protected renderState(action: ActionState, time: number): void {
     this.syncProjectileVisualsToCamera();
     this.audioDirector.update({
       listenerPosition: this.player.position,
@@ -300,13 +297,15 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   private updatePlayer(
-    action: ReturnType<ActionReader['read']>,
+    action: ActionState,
     now: number,
     deltaSeconds: number,
   ): void {
+    const timeDilation = action.timeDilation;
     this.player.updateAim(normalize(action.aim));
     const controlsEnabled = this.controlsEnabled;
-    const move = !controlsEnabled || action.timeDilation ? { x: 0, y: 0 } : normalize(action.move);
+    const move =
+      !controlsEnabled || timeDilation ? { x: 0, y: 0 } : normalize(action.move);
     this.player.updateThrust(move, false);
     if (this.player.visible && controlsEnabled) {
       const motion = updatePlayerMotion({
@@ -331,7 +330,7 @@ export class PhaserSandboxScene extends BaseGameScene {
         firePrimary: controlsEnabled && action.firePrimary,
         fireSecondary: controlsEnabled && action.fireSecondary,
         playerActive: controlsEnabled && this.player.visible,
-        timeDilation: action.timeDilation,
+        timeDilation,
       },
       deltaSeconds,
       nextProjectileId: this.nextProjectileId,
@@ -622,11 +621,16 @@ export class PhaserSandboxScene extends BaseGameScene {
     return this.player.visible && this.time.now >= this.player.invulnerableUntil;
   }
 
-  private isShieldActive(action: ReturnType<ActionReader['read']>): boolean {
-    return this.controlsEnabled && action.shield && this.player.visible && this.ship.fuel > 0;
+  private isShieldActive(action: ActionState): boolean {
+    return (
+      this.controlsEnabled &&
+      action.shield &&
+      this.player.visible &&
+      this.ship.fuel > 0
+    );
   }
 
-  private updatePlayerCollisionFilters(action: ReturnType<ActionReader['read']>): void {
+  private updatePlayerCollisionFilters(action: ActionState): void {
     if (this.shipCollisionsDisabledForIntro) {
       this.playerBody.setCollisionEnabled(false);
       this.playerBody.updateShieldSensor(false, false);
@@ -776,7 +780,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.sceneRenderer.setPlayerDocked(true);
   }
 
-  private getTractorActive(action: ReturnType<ActionReader['read']>): boolean {
+  private getTractorActive(action: ActionState): boolean {
     if (!this.controlsEnabled) return false;
     return isTractorActive(this.weaponPolicy, this.ship, {
       firePrimary: action.firePrimary,

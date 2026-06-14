@@ -45,7 +45,7 @@ export class PortalSceneCapture {
     this.resize(frame.size);
     this.renderTexture.clear();
     this.drawBackgroundCanvases(frame);
-    this.renderTexture.draw(this.getCaptureEntries(frame), -frame.origin.x, -frame.origin.y);
+    this.drawCaptureEntries(frame);
     this.drawOverlayCanvases(frame);
     return this.textureKey;
   }
@@ -68,6 +68,20 @@ export class PortalSceneCapture {
 
   private drawOverlayCanvases(frame: ScreenCaptureFrame): void {
     this.drawCanvasLayer(this.getOverlayCanvases(), frame);
+  }
+
+  private drawCaptureEntries(frame: ScreenCaptureFrame): void {
+    const entries = this.getCaptureEntries(frame);
+    if (entries.length === 0) return;
+
+    const camera = this.renderTexture.camera;
+    const previousScroll = { x: camera.scrollX, y: camera.scrollY };
+    const previousZoom = camera.zoom;
+    camera.setScroll(frame.origin.x, frame.origin.y);
+    camera.setZoom(frame.zoom);
+    this.renderTexture.draw(entries);
+    camera.setScroll(previousScroll.x, previousScroll.y);
+    camera.setZoom(previousZoom);
   }
 
   private drawCanvasLayer(canvases: HTMLCanvasElement[], frame: ScreenCaptureFrame): void {

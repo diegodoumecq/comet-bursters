@@ -10,10 +10,7 @@ import { PlayerState } from '../../player/state';
 import { createPlayerTexture } from '../../player/textures';
 import { normalize } from '../../world/geometry';
 import { BaseGameScene } from '../BaseGameScene';
-import {
-  buildShipInteriorCollision,
-  renderShipInteriorLayers,
-} from './interiorLevelView';
+import { buildShipInteriorCollision, renderShipInteriorLayers } from './interiorLevelView';
 import { loadShipInteriorLevel } from './levelAdapter';
 
 const PLAYER_SPEED = 4.5;

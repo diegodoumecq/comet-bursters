@@ -1,5 +1,6 @@
 import { useState } from 'react';
 
+import { InputRemappingPanel } from './InputRemappingPanel';
 import { CollapsibleSection } from './ui/components/CollapsibleSection';
 import { Switch } from './ui/components/Switch';
 
@@ -65,6 +66,10 @@ export function LandingApp() {
     const saved = window.localStorage.getItem('comet-bursters-sandbox-profiling-open');
     return saved === 'true';
   });
+  const [controlsOpen, setControlsOpen] = useState(() => {
+    const saved = window.localStorage.getItem('comet-bursters-controls-open');
+    return saved === 'true';
+  });
   const [sandboxPerfToggles, setSandboxPerfToggles] = useState(readSandboxPerfToggles);
 
   function updateStartingWave(value: number): void {
@@ -103,6 +108,12 @@ export function LandingApp() {
     const next = !sandboxProfilingOpen;
     setSandboxProfilingOpen(next);
     window.localStorage.setItem('comet-bursters-sandbox-profiling-open', String(next));
+  }
+
+  function toggleControls(): void {
+    const next = !controlsOpen;
+    setControlsOpen(next);
+    window.localStorage.setItem('comet-bursters-controls-open', String(next));
   }
 
   return (
@@ -177,6 +188,12 @@ export function LandingApp() {
                   Arcade rift T spawn
                 </label>
               </div>
+            </CollapsibleSection>
+          </div>
+
+          <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-1">
+            <CollapsibleSection title="Controls" isOpen={controlsOpen} onToggle={toggleControls}>
+              <InputRemappingPanel />
             </CollapsibleSection>
           </div>
 

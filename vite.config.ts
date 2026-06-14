@@ -2,7 +2,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig, type Plugin } from 'vite';
+import { type Plugin } from 'vite';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 function createEditorSavePlugin(): Plugin {
   return {
@@ -238,5 +239,8 @@ export default defineConfig({
         spriteEditor: path.resolve(__dirname, 'sprite-editor.html'),
       },
     },
+  },
+  test: {
+    exclude: [...configDefaults.exclude, 'playwright/**'],
   },
 });

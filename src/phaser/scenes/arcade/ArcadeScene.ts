@@ -50,7 +50,7 @@ import { FuelBodies } from '../../fuel/bodies';
 import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../../fuel/definition';
 import { MAX_FUEL, SHIELD_RADIUS } from '../../fuel/rules';
 import type { FuelBlobEntity } from '../../fuel/types';
-import { ActionReader } from '../../input/actions';
+import { ActionReader, type ActionState } from '../../input/actions';
 import { updateParticles } from '../../particles/logic';
 import type { ParticleEntity } from '../../particles/types';
 import { ParticleViews } from '../../particles/views';
@@ -119,8 +119,6 @@ export class PhaserArcadeScene extends BaseGameScene {
   private readonly riftDebugScenario = getArcadeRiftDebugScenario();
   private readonly dimensionDebugEnabled = getArcadeDimensionDebugEnabled();
   private riftDebugScenarioStarted = false;
-  private testCameraRiftKey: Phaser.Input.Keyboard.Key | null = null;
-  private testWindowRiftKey: Phaser.Input.Keyboard.Key | null = null;
   private readonly weaponPolicy: SceneWeaponPolicy = { allowedWeapons: ALL_WEAPONS };
 
   constructor() {
@@ -186,24 +184,14 @@ export class PhaserArcadeScene extends BaseGameScene {
       this.renderEffects.getCaptureCanvases(),
     );
     this.events.once('shutdown', this.disposeRenderEffects, this);
-    if (this.riftDebug) {
-      this.testWindowRiftKey =
-        this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.T) ?? null;
-      this.testCameraRiftKey =
-        this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.G) ?? null;
-    }
     this.scale.on('resize', this.handleResize, this);
   }
 
-  protected readFrameInput(): ReturnType<ActionReader['read']> {
+  protected readFrameInput(): ActionState {
     return this.actions.read(this.getPlayerActionOrigin());
   }
 
-  protected updateState(
-    action: ReturnType<ActionReader['read']>,
-    time: number,
-    delta: number,
-  ): void {
+  protected updateState(action: ActionState, time: number, delta: number): void {
     if (
       this.session.lives <= 0 &&
       this.gameOverAt > 0 &&
@@ -213,11 +201,12 @@ export class PhaserArcadeScene extends BaseGameScene {
       this.scene.restart();
       return;
     }
-    const timeScale = getTimeScale(action.timeDilation);
+    const timeDilation = action.timeDilation;
+    const timeScale = getTimeScale(timeDilation);
     this.matter.world.engine.timing.timeScale = timeScale;
     this.riftSpaceScene?.setTimeScale(timeScale);
     const deltaSeconds = (delta / 1000) * timeScale;
-    this.updateDebugRiftInput();
+    this.updateDebugRiftInput(action);
     this.updateDimensionPortalLifecycle(time);
     this.updatePlayerActions(action, deltaSeconds, time);
     this.updateWorldState(delta, deltaSeconds);
@@ -231,19 +220,19 @@ export class PhaserArcadeScene extends BaseGameScene {
       playerSpeed: Math.hypot(this.session.player.velocity.x, this.session.player.velocity.y),
       riftVisible: this.dimensionCoordinator.getActiveViewSpace(time) === 'rift',
       threatLevel: this.session.burstCount,
-      timeDilation: action.timeDilation,
+      timeDilation,
     });
   }
 
   private updatePlayerActions(
-    action: ReturnType<ActionReader['read']>,
+    action: ActionState,
     deltaSeconds: number,
     time: number,
   ): void {
     const playerInRift = this.session.player.membership.space === 'rift';
-    const aim = action.aim;
-    this.session.player.updateAim(normalize(aim));
-    const move = action.timeDilation ? { x: 0, y: 0 } : normalize(action.move);
+    const timeDilation = action.timeDilation;
+    this.session.player.updateAim(normalize(action.aim));
+    const move = timeDilation ? { x: 0, y: 0 } : normalize(action.move);
     this.session.player.updateThrust(move, false);
     if (this.playerIsAlive()) this.updatePlayer(move, deltaSeconds, time);
     const weaponResult = updateWeapons({
@@ -251,7 +240,7 @@ export class PhaserArcadeScene extends BaseGameScene {
         firePrimary: action.firePrimary,
         fireSecondary: action.fireSecondary,
         playerActive: this.playerIsAlive(),
-        timeDilation: action.timeDilation,
+        timeDilation,
       },
       deltaSeconds,
       nextProjectileId: this.session.nextProjectileId,
@@ -343,7 +332,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.applyPortalBridgeTractorBeam(tractorActive);
   }
 
-  private getTractorActive(action: ReturnType<ActionReader['read']>): boolean {
+  private getTractorActive(action: ActionState): boolean {
     return isTractorActive(this.weaponPolicy, this.session.ship, {
       firePrimary: action.firePrimary,
       fireSecondary: action.fireSecondary,
@@ -406,7 +395,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.updateRiftDirector(time);
   }
 
-  protected renderState(action: ReturnType<ActionReader['read']>, time: number): void {
+  protected renderState(action: ActionState, time: number): void {
     const activePortal = this.dimensionCoordinator.getActivePortal();
     const renderablePortals = activePortal ? [activePortal] : [];
     const activeViewSpace = this.dimensionCoordinator.getActiveViewSpace(time);
@@ -499,9 +488,10 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.audioDirector.emit({ position: plan.portal.position, type: 'portalOpened' });
   }
 
-  private updateDebugRiftInput(): void {
+  private updateDebugRiftInput(action: ActionState): void {
+    if (!this.riftDebug) return;
+
     if (
-      this.riftDebug &&
       this.riftDebugScenario !== null &&
       ['asteroidCrossing', 'blackHoleCrossing'].includes(this.riftDebugScenario) &&
       !this.riftDebugScenarioStarted &&
@@ -510,18 +500,10 @@ export class PhaserArcadeScene extends BaseGameScene {
       this.riftDebugScenarioStarted = true;
       this.openDebugCrossingRift(this.time.now, this.riftDebugScenario);
     }
-    if (
-      this.testWindowRiftKey &&
-      this.riftWorldIsReady() &&
-      Phaser.Input.Keyboard.JustDown(this.testWindowRiftKey)
-    ) {
+    if (this.riftWorldIsReady() && action.debugRiftWindowJustPressed) {
       this.openRiftBurst(this.time.now, 'window');
     }
-    if (
-      this.testCameraRiftKey &&
-      this.riftWorldIsReady() &&
-      Phaser.Input.Keyboard.JustDown(this.testCameraRiftKey)
-    ) {
+    if (this.riftWorldIsReady() && action.debugRiftCameraJustPressed) {
       this.openRiftBurst(this.time.now, 'cameraTransfer');
     }
   }
@@ -1344,8 +1326,6 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.lastThrusterAt = 0;
     this.nextPortalId = 1;
     this.riftSpaceScene = null;
-    this.testCameraRiftKey = null;
-    this.testWindowRiftKey = null;
   }
 
   private handleResize(gameSize: Phaser.Structs.Size): void {

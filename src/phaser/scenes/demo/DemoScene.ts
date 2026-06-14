@@ -8,7 +8,7 @@ import { applyMatterBodySpec } from '../../core/matterBodySpec';
 import type { WorldSize } from '../../core/types';
 import type { PortalEntity } from '../../dimensions/types';
 import { MAX_FUEL } from '../../fuel/rules';
-import { ActionReader } from '../../input/actions';
+import { ActionReader, type ActionState } from '../../input/actions';
 import {
   createFuelExtractionPlanet,
   type FuelExtractionPlanetEntity,
@@ -124,15 +124,11 @@ export class PhaserDemoScene extends BaseGameScene {
     this.cameras.main.startFollow(this.playerBody.body, false, 1, 1);
   }
 
-  protected readFrameInput(): ReturnType<ActionReader['read']> {
+  protected readFrameInput(): ActionState {
     return this.actions.read(this.playerState.position);
   }
 
-  protected updateState(
-    action: ReturnType<ActionReader['read']>,
-    _time: number,
-    delta: number,
-  ): void {
+  protected updateState(action: ActionState, _time: number, delta: number): void {
     const move = normalize(action.move);
     this.playerState.updateAim(normalize(action.aim));
     updatePlayerMotion({
@@ -153,7 +149,7 @@ export class PhaserDemoScene extends BaseGameScene {
     this.updatePlanets(delta);
   }
 
-  protected renderState(_action: ReturnType<ActionReader['read']>, time: number): void {
+  protected renderState(_action: ActionState, time: number): void {
     this.audioDirector.update({
       playerSpeed: Math.hypot(this.playerState.velocity.x, this.playerState.velocity.y),
     });

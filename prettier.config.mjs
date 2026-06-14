@@ -3,25 +3,17 @@
 
 /** @type { PrettierConfig | SortImportsConfig | TailwindConfig  } */
 const config = {
-  arrowParens: "always",
+  arrowParens: 'always',
   printWidth: 100,
   singleQuote: true,
   jsxSingleQuote: false,
   semi: true,
-  trailingComma: "all",
+  trailingComma: 'all',
   tabWidth: 2,
-  plugins: [
-    "@ianvs/prettier-plugin-sort-imports",
-  ],
-  importOrder: [
-    "<THIRD_PARTY_MODULES>",
-    "",
-    "^@/",
-    "^[../]",
-    "^[./]",
-  ],
-  importOrderParserPlugins: ["typescript", "decorators-legacy"],
-  importOrderTypeScriptVersion: "4.4.0",
+  plugins: ['@ianvs/prettier-plugin-sort-imports'],
+  importOrder: ['<THIRD_PARTY_MODULES>', '', '^@/', '^[../]', '^[./]'],
+  importOrderParserPlugins: ['typescript', 'jsx', 'decorators-legacy'],
+  importOrderTypeScriptVersion: '4.4.0',
 };
 
 export default config;
