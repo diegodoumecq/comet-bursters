@@ -79,7 +79,7 @@ export class PhaserDemoScene extends BaseGameScene {
     this.playerBody = new PlayerBody(this, { x: 620, y: 760 }, this.playerState);
     applyMatterBodySpec(this.playerBody.body, PLAYER_DEFINITIONS.demo.body);
     this.sceneRenderer = new DemoRenderer(this, this.playerBody.body, this.asteroidBodies, WORLD);
-    this.cameras.main.startFollow(this.playerBody.body, true, 1, 1);
+    this.cameras.main.startFollow(this.playerBody.body, false, 1, 1);
   }
 
   protected readFrameInput(): ReturnType<ActionReader['read']> {

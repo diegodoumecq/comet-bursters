@@ -217,7 +217,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.startLaunchSequence(this.time.now);
     this.sceneRenderer.setPlayerDocked(true);
     this.addAsteroids(startup.asteroids);
-    this.cameras.main.startFollow(this.playerBody.body, true, 1, 1);
+    this.cameras.main.startFollow(this.playerBody.body, false, 1, 1);
   }
 
   protected readFrameInput(): ReturnType<ActionReader['read']> {
