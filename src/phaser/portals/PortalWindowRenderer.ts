@@ -1,4 +1,5 @@
 import type { PortalEntity } from '../dimensions/types';
+import { getStaticCaptureFrame, type ScreenCaptureFrame } from '../world/screenProjection';
 import { PortalMetaballRenderer } from './PortalMetaballRenderer';
 import { getPortalVisualScale } from './portalVisualScale';
 
@@ -8,14 +9,16 @@ const WINDOW_PORTAL_TINT = { b: 1, g: 0.72, r: 0.12 };
 
 export class PortalWindowRenderer {
   private destinationTextureKeyProvider: () => string | null = () => null;
-  private metaballRenderer: PortalMetaballRenderer;
+  private captureFrame: ScreenCaptureFrame;
+  private readonly metaballRenderers: PortalMetaballRenderer[] = [];
   private readonly portals: PortalEntity[] = [];
 
   constructor(
-    scene: Phaser.Scene,
-    private readonly screen: { height: number; width: number },
+    private readonly scene: Phaser.Scene,
+    screen: ScreenCaptureFrame['size'],
+    private frame: ScreenCaptureFrame = getStaticCaptureFrame(screen),
   ) {
-    this.metaballRenderer = new PortalMetaballRenderer(scene);
+    this.captureFrame = this.frame;
   }
 
   setDestinationTextureKeyProvider(provider: () => string | null): void {
@@ -31,51 +34,87 @@ export class PortalWindowRenderer {
     this.portals.push(...portals);
   }
 
-  render(now: number): void {
-    const portal = this.portals[0] ?? null;
-    if (!portal) {
-      this.hidePortal();
-      return;
-    }
+  setCaptureFrame(frame: ScreenCaptureFrame): void {
+    this.captureFrame = frame;
+  }
 
-    const scale = getPortalVisualScale(portal, now);
-    if (scale <= 0) {
-      this.hidePortal();
+  render(now: number): void {
+    if (this.portals.length === 0) {
+      this.hidePortals();
       return;
     }
 
     const destinationTextureKey = this.destinationTextureKeyProvider();
     if (destinationTextureKey === null) {
-      this.metaballRenderer.setVisible(false);
+      this.hidePortals();
       return;
     }
-    this.metaballRenderer.render({
-      alpha: 1,
-      depth: PORTAL_CAPTURE_DEPTH,
-      destinationTextureKey,
-      now,
-      portal,
-      scale,
-      screen: this.screen,
-      tint: getPortalTint(portal),
-    });
+
+    for (let index = 0; index < this.portals.length; index += 1) {
+      const portal = this.portals[index];
+      const scale = getPortalVisualScale(portal, now);
+      const renderer = this.getRenderer(index);
+      if (scale > 0) {
+        renderer.render({
+          alpha: 1,
+          captureFrame: this.captureFrame,
+          depth: PORTAL_CAPTURE_DEPTH + index * 0.001,
+          destinationTextureKey,
+          now,
+          portal,
+          scale,
+          tint: getPortalTint(portal),
+          visibleFrame: this.frame,
+        });
+      } else {
+        renderer.setVisible(false);
+      }
+    }
+
+    for (let index = this.portals.length; index < this.metaballRenderers.length; index += 1) {
+      this.metaballRenderers[index].setVisible(false);
+    }
   }
 
-  resize(screen: { height: number; width: number }): void {
-    this.screen.width = screen.width;
-    this.screen.height = screen.height;
+  resize(frame: ScreenCaptureFrame): void;
+  resize(screen: { height: number; width: number }, origin?: ScreenCaptureFrame['origin']): void;
+  resize(
+    frameOrScreen: ScreenCaptureFrame | { height: number; width: number },
+    origin?: ScreenCaptureFrame['origin'],
+  ): void {
+    if ('visibleOrigin' in frameOrScreen) {
+      this.frame = frameOrScreen;
+      this.captureFrame = frameOrScreen;
+      return;
+    }
+    this.frame = {
+      ...getStaticCaptureFrame(frameOrScreen),
+      origin: origin ?? { x: 0, y: 0 },
+      visibleOrigin: origin ?? { x: 0, y: 0 },
+    };
+    this.captureFrame = this.frame;
   }
 
   setVisible(visible: boolean): void {
-    this.metaballRenderer.setVisible(visible);
+    for (const renderer of this.metaballRenderers) renderer.setVisible(visible);
   }
 
   destroy(): void {
-    this.metaballRenderer.destroy();
+    for (const renderer of this.metaballRenderers) renderer.destroy();
+    this.metaballRenderers.length = 0;
   }
 
-  private hidePortal(): void {
-    this.metaballRenderer.setVisible(false);
+  private getRenderer(index: number): PortalMetaballRenderer {
+    let renderer = this.metaballRenderers[index];
+    if (!renderer) {
+      renderer = new PortalMetaballRenderer(this.scene);
+      this.metaballRenderers[index] = renderer;
+    }
+    return renderer;
+  }
+
+  private hidePortals(): void {
+    for (const renderer of this.metaballRenderers) renderer.setVisible(false);
   }
 }
 

@@ -33,6 +33,13 @@ export type SceneTelemetry = {
     x: number;
     y: number;
   }>;
+  renderTextures: Array<{
+    height: number;
+    name: string;
+    sceneKey: string;
+    visible: boolean;
+    width: number;
+  }>;
   textures: {
     asteroidAtlases: number;
     planetTextures: number;
@@ -85,7 +92,14 @@ const menuClickByScene: Record<Exclude<PerformanceScene, 'global'>, { x: number;
   sandbox: { x: 640, y: 484 },
 };
 
-export async function openDemoGame(page: Page, settleMs = 1200): Promise<void> {
+export async function openDemoGame(
+  page: Page,
+  settleMs = 1200,
+  options: { markers?: boolean } = {},
+): Promise<void> {
+  await page.addInitScript((markers) => {
+    window.sessionStorage.setItem('comet-bursters-sandboxPerfMarkers', String(markers));
+  }, options.markers === true);
   await page.goto('/phaser-game.html', { waitUntil: 'networkidle' });
   const canvas = page.locator('canvas').first();
   await canvas.waitFor({ state: 'visible' });
@@ -161,7 +175,15 @@ export async function collectSceneTelemetry(page: Page): Promise<SceneTelemetry>
   const graphics = (await collectGraphicsSummary(page)) as SceneTelemetry['graphics'];
   const runtime = await page.evaluate(() => {
     type SceneLike = {
-      children?: { list?: unknown[] };
+      children?: {
+        list?: Array<{
+          height?: number;
+          name?: string;
+          type?: string;
+          visible?: boolean;
+          width?: number;
+        }>;
+      };
       scene: { key: string };
     };
     type TextureManagerLike = {
@@ -187,12 +209,27 @@ export async function collectSceneTelemetry(page: Page): Promise<SceneTelemetry>
         width: canvas.width,
       })),
       displayObjects: scenes.reduce((sum, scene) => sum + (scene.children?.list?.length ?? 0), 0),
+      renderTextures: scenes.flatMap((scene) =>
+        (scene.children?.list ?? [])
+          .filter((child) => child.type === 'RenderTexture')
+          .map((child) => ({
+            height: readFiniteRuntimeNumber(child.height),
+            name: child.name || '(unnamed)',
+            sceneKey: scene.scene.key,
+            visible: child.visible !== false,
+            width: readFiniteRuntimeNumber(child.width),
+          })),
+      ),
       textures: {
         asteroidAtlases: textureKeys.filter((key) => key.startsWith('phaser-asteroid-')).length,
         planetTextures: textureKeys.filter((key) => key.startsWith('phaser-planet-')).length,
         total: textureKeys.length,
       },
     };
+
+    function readFiniteRuntimeNumber(value: unknown): number {
+      return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+    }
   });
   return {
     ...runtime,
@@ -438,9 +475,22 @@ export function sceneTelemetryCounts(telemetry: SceneTelemetry): Record<string, 
     canvases: telemetry.canvases.length,
     displayObjects: telemetry.displayObjects,
     graphics: telemetry.graphics.length,
+    largestCanvasPixels: maxPixels(telemetry.canvases),
+    largestRenderTexturePixels: maxPixels(telemetry.renderTextures),
     planetTextures: telemetry.textures.planetTextures,
+    renderTextures: telemetry.renderTextures.length,
+    totalCanvasPixels: sumPixels(telemetry.canvases),
+    totalRenderTexturePixels: sumPixels(telemetry.renderTextures),
     visibleCanvases: telemetry.canvases.filter((canvas) => canvas.visible).length,
   };
+}
+
+function sumPixels(surfaces: Array<{ height: number; width: number }>): number {
+  return surfaces.reduce((sum, surface) => sum + surface.width * surface.height, 0);
+}
+
+function maxPixels(surfaces: Array<{ height: number; width: number }>): number {
+  return surfaces.reduce((max, surface) => Math.max(max, surface.width * surface.height), 0);
 }
 
 export function sandboxFeatureCounts(summary: SandboxFeatureSummary): Record<string, number> {

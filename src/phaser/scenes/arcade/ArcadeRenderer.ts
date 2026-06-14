@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { createArcadeGameOverText, updateCameraShake } from '../../arcade/visuals';
 import { withPerformanceMeasure } from '../../core/performance';
 import type { MatterImage, Vector, WorldSize } from '../../core/types';
 import type { PortalEntity } from '../../dimensions/types';
@@ -21,7 +22,6 @@ import { drawTractorBeam } from '../../weapons/tractorBeam';
 import type { WeaponKind } from '../../weapons/types';
 import type { ArcadeRunState } from './arcadeRunState';
 import { ArcadeSpaceBackground } from './ArcadeSpaceBackground';
-import { createArcadeGameOverText, updateCameraShake } from './arcadeVisuals';
 
 export class ArcadeRenderer {
   private readonly background: ArcadeSpaceBackground;

@@ -15,7 +15,7 @@ import { buildBlackHoleScreenSamples } from '../../projectiles/blackHoleSamples'
 import { BlackHoleShaderRenderer } from '../../projectiles/blackHoleShader';
 import type { ProjectileEntity } from '../../projectiles/types';
 import { getSandboxPerfToggles } from '../../runtime/startup';
-import { createWrappedScreenProjector } from './screenWrapping';
+import { createWrappedScreenProjector } from '../../world/screenProjection';
 
 const FUEL_INSPECTION_BLOB_AMOUNT = FUEL_BLOB_AMOUNT * 10;
 const MAX_INTERNAL_FUEL_METABALLS_PER_PLANET = 14;

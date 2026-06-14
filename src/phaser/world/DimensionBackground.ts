@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
+import { getArcadeNebulaPalette } from '../arcade/nebulaPalette';
 import type { Vector, WorldSize } from '../core/types';
-import { getArcadeNebulaPalette } from '../scenes/arcade/arcadeNebulaPalette';
 import {
   SpaceBackgroundRenderer,
   type SpaceBackgroundColor,

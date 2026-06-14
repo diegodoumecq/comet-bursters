@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
 
+import { getArcadeNebulaPalette } from '../../arcade/nebulaPalette';
 import { withPerformanceMeasure } from '../../core/performance';
 import type { Vector, WorldSize } from '../../core/types';
 import { SpaceBackgroundRenderer } from '../../world/SpaceBackgroundRenderer';
 import { Starfield } from '../../world/Starfield';
-import { getArcadeNebulaPalette } from './arcadeNebulaPalette';
 
 const GRID_DEPTH = -100;
 const GRID_SPACING = 240;

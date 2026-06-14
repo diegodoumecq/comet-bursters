@@ -3,12 +3,12 @@ import type { WorldSize } from '../../core/types';
 import { FuelMetaballRenderer } from '../../fuel/metaballs';
 import { buildFuelBlobMetaballSamples } from '../../fuel/metaballSamples';
 import { renderBlackHoleCaptureCanvas } from '../../projectiles/blackHoleCaptureCanvas';
+import { buildWrappedBlackHoleScreenSamples } from '../../projectiles/blackHoleSamples';
 import {
   BlackHoleShaderRenderer,
   type BlackHoleScreenSample,
 } from '../../projectiles/blackHoleShader';
 import { getSandboxPerfToggles } from '../../runtime/startup';
-import { buildArcadeBlackHoleScreenSamples } from './arcadeBlackHoles';
 import type { ArcadeRunState } from './arcadeRunState';
 
 export class ArcadeRenderEffects {
@@ -113,7 +113,7 @@ export class ArcadeRenderEffects {
     session: ArcadeRunState,
     screen: WorldSize,
   ): BlackHoleScreenSample[] {
-    return buildArcadeBlackHoleScreenSamples(session.world.projectiles, screen, {
+    return buildWrappedBlackHoleScreenSamples(session.world.projectiles, screen, {
       height: this.sourceCanvas.height,
       width: this.sourceCanvas.width,
     });

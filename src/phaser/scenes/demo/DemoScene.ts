@@ -6,6 +6,7 @@ import { getGameAudio } from '../../audio/AudioManager';
 import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
 import { applyMatterBodySpec } from '../../core/matterBodySpec';
 import type { WorldSize } from '../../core/types';
+import type { PortalEntity } from '../../dimensions/types';
 import { MAX_FUEL } from '../../fuel/rules';
 import { ActionReader } from '../../input/actions';
 import {
@@ -21,6 +22,15 @@ import { updatePlayerMotion } from '../../player/motion';
 import { ShipState } from '../../player/shipState';
 import { PlayerState } from '../../player/state';
 import { createPlayerTexture } from '../../player/textures';
+import {
+  BLACK_HOLE_GROWTH_DURATION_MS,
+  BLACK_HOLE_MATURE_AFTER_MS,
+  BLACK_HOLE_MATURE_RADIUS,
+  BLACK_HOLE_RADIUS,
+  BLACK_HOLE_SOURCE_OVERSCAN,
+} from '../../projectiles/definition';
+import type { ProjectileEntity } from '../../projectiles/types';
+import { enableCanvasOverscan } from '../../runtime/canvasOverscan';
 import { normalize } from '../../world/geometry';
 import { BaseGameScene } from '../BaseGameScene';
 import { DemoRenderer } from './DemoRenderer';
@@ -33,6 +43,8 @@ const DEMO_PLANET_GAP = 110;
 const DEMO_SHOWCASE_ROTATION = 0;
 const DEMO_ASTEROID_ROTATION_SPEED = 0.00072;
 const DEMO_PLANET_ROTATION_SPEED = 0.00008;
+const DEMO_BLACK_HOLE_AGE_MS = BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS;
+const DEMO_BLACK_HOLE_LIFETIME_MS = Number.MAX_SAFE_INTEGER;
 
 const DEMO_ASTEROID_TIER_ROTATION_SCALE: Record<AsteroidTier, number> = {
   big: 0.68,
@@ -41,16 +53,41 @@ const DEMO_ASTEROID_TIER_ROTATION_SCALE: Record<AsteroidTier, number> = {
   small: 1.12,
 };
 
+const DEMO_BLACK_HOLE_LAYOUTS: Array<{ id: number; mass: number; x: number; y: number }> = [
+  { id: 1, mass: 1, x: 320, y: 520 },
+  { id: 2, mass: 1.7, x: 820, y: 560 },
+  { id: 3, mass: 2.4, x: 1160, y: 860 },
+  { id: 4, mass: 1.3, x: 520, y: 1060 },
+  { id: 5, mass: 2.1, x: 1420, y: 420 },
+  { id: 6, mass: 1.5, x: 1900, y: 1320 },
+  { id: 7, mass: 2.7, x: 2940, y: 2320 },
+  { id: 8, mass: 1.9, x: 4040, y: 3520 },
+];
+
+const DEMO_PORTAL_LAYOUTS: Array<{
+  id: number;
+  normal: { x: number; y: number };
+  viewPolicy: PortalEntity['viewPolicy'];
+  x: number;
+  y: number;
+}> = [
+  { id: 1, normal: { x: 1, y: 0.18 }, viewPolicy: 'window', x: 980, y: 620 },
+  { id: 2, normal: { x: -0.38, y: 1 }, viewPolicy: 'cameraTransfer', x: 1120, y: 980 },
+];
+
 export class PhaserDemoScene extends BaseGameScene {
   private actions!: ActionReader;
   private playerBody!: PlayerBody;
   private sceneRenderer!: DemoRenderer;
   private planets: FuelExtractionPlanetEntity[] = [];
   private asteroids: AsteroidEntity[] = [];
+  private blackHoles: ProjectileEntity[] = [];
+  private portals: PortalEntity[] = [];
   private asteroidBodies!: AsteroidBodies;
   private planetViews!: PlanetViews;
   private fuelExtractorViews!: FuelExtractorViews;
   private audioDirector!: SceneAudioDirector;
+  private disposeCanvasOverscan: (() => void) | null = null;
   private readonly playerState = new PlayerState();
   private readonly ship = new ShipState();
 
@@ -59,9 +96,12 @@ export class PhaserDemoScene extends BaseGameScene {
   }
 
   create(): void {
+    this.disposeCanvasOverscan = enableCanvasOverscan(this.game, BLACK_HOLE_SOURCE_OVERSCAN);
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'demo');
     this.audioDirector.enter();
     this.events.once('shutdown', () => {
+      this.disposeCanvasOverscan?.();
+      this.disposeCanvasOverscan = null;
       this.audioDirector.exit();
       this.sceneRenderer.destroy();
       this.fuelExtractorViews.destroy();
@@ -76,6 +116,8 @@ export class PhaserDemoScene extends BaseGameScene {
     this.createTextures();
     this.createPlanets();
     this.createAsteroids();
+    this.createBlackHoles();
+    this.createPortals();
     this.playerBody = new PlayerBody(this, { x: 620, y: 760 }, this.playerState);
     applyMatterBodySpec(this.playerBody.body, PLAYER_DEFINITIONS.demo.body);
     this.sceneRenderer = new DemoRenderer(this, this.playerBody.body, this.asteroidBodies, WORLD);
@@ -117,9 +159,11 @@ export class PhaserDemoScene extends BaseGameScene {
     });
     this.sceneRenderer.render({
       asteroids: this.asteroids,
+      blackHoles: this.blackHoles,
       now: time,
       player: this.playerState,
       planets: this.planets,
+      portals: this.portals,
       ship: this.ship,
     });
   }
@@ -190,6 +234,33 @@ export class PhaserDemoScene extends BaseGameScene {
     });
   }
 
+  private createBlackHoles(): void {
+    this.blackHoles = DEMO_BLACK_HOLE_LAYOUTS.map((layout) => createPermanentDemoBlackHole(layout));
+    for (const blackHole of this.blackHoles) {
+      const radius = BLACK_HOLE_MATURE_RADIUS * Math.sqrt(blackHole.blackHoleMass ?? 1);
+      this.add
+        .text(blackHole.position.x, blackHole.position.y + radius + 18, 'black hole', {
+          color: '#d8b4fe',
+          fontFamily: 'monospace',
+          fontSize: '16px',
+        })
+        .setOrigin(0.5);
+    }
+  }
+
+  private createPortals(): void {
+    this.portals = DEMO_PORTAL_LAYOUTS.map((layout) => createPermanentDemoPortal(layout));
+    for (const portal of this.portals) {
+      this.add
+        .text(portal.position.x, portal.position.y + portal.visualRadiusY + 20, 'portal', {
+          color: portal.viewPolicy === 'cameraTransfer' ? '#93c5fd' : '#fbbf24',
+          fontFamily: 'monospace',
+          fontSize: '16px',
+        })
+        .setOrigin(0.5);
+    }
+  }
+
   private updateAsteroids(deltaMs: number): void {
     for (const asteroid of this.asteroids) {
       const angularVelocity = asteroid.angularVelocity;
@@ -208,6 +279,56 @@ export class PhaserDemoScene extends BaseGameScene {
     }
     this.fuelExtractorViews.sync(this.planets, this.time.now);
   }
+}
+
+function createPermanentDemoBlackHole(input: {
+  id: number;
+  mass: number;
+  x: number;
+  y: number;
+}): ProjectileEntity {
+  return {
+    absorbedFuel: 0,
+    ageMs: DEMO_BLACK_HOLE_AGE_MS,
+    angle: 0,
+    airResistance: 0,
+    baseSpeed: 0,
+    blackHoleMass: input.mass,
+    collapseStartedAt: null,
+    createdAt: 0,
+    damage: 0,
+    id: 10_000 + input.id,
+    impact: 0,
+    kind: 'blackHole',
+    lifetimeMs: DEMO_BLACK_HOLE_LIFETIME_MS,
+    position: { x: input.x, y: input.y },
+    radius: BLACK_HOLE_RADIUS,
+    velocity: { x: 0, y: 0 },
+  };
+}
+
+function createPermanentDemoPortal(input: {
+  id: number;
+  normal: { x: number; y: number };
+  viewPolicy: PortalEntity['viewPolicy'];
+  x: number;
+  y: number;
+}): PortalEntity {
+  return {
+    activeDurationMs: DEMO_BLACK_HOLE_LIFETIME_MS,
+    aperture: { radiusX: 116, radiusY: 168 },
+    closeStartedAt: null,
+    closingDurationMs: 1,
+    id: 20_000 + input.id,
+    lifecycle: 'active',
+    normal: normalize(input.normal),
+    openedAt: -1000,
+    openingDurationMs: 1,
+    position: { x: input.x, y: input.y },
+    viewPolicy: input.viewPolicy,
+    visualRadiusX: 116,
+    visualRadiusY: 168,
+  };
 }
 
 function getDemoAsteroidAngularVelocity(tier: AsteroidTier, visualVariant: number): number {

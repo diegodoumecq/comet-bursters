@@ -43,12 +43,6 @@ vec4 sampleSource(vec2 uv) {
 
 void main() {
   vec2 pixelPos = vUv * u_resolution;
-  vec4 color = sampleSource(vUv);
-
-  if (!u_sourceReady) {
-    color = vec4(0.0, 0.0, 0.0, 0.0);
-  }
-
   vec2 currentPos = pixelPos;
   float replacementAlpha = 0.0;
   float tintAmount = 0.0;
@@ -108,7 +102,7 @@ void main() {
   }
 
   vec2 distortedUV = currentPos / u_resolution;
-  color = sampleSource(distortedUV);
+  vec4 color = sampleSource(distortedUV);
   if (!u_sourceReady) {
     color = vec4(0.0, 0.0, 0.0, 0.0);
   }
@@ -133,10 +127,20 @@ export class BlackHoleShaderRenderer {
     private readonly sourceCanvas: HTMLCanvasElement,
     private readonly getUnderlayCanvases: () => HTMLCanvasElement[] = () => [],
     private readonly getOverlayCanvases: () => HTMLCanvasElement[] = () => [],
-    private readonly options: { wrapSourceSampling?: boolean } = {},
+    private readonly options: {
+      includeSourceCanvas?: boolean;
+      wrapSourceSampling?: boolean;
+    } = {},
   ) {}
 
   render(blackHoles: BlackHoleScreenSample[]): void {
+    const count = Math.min(blackHoles.length, MAX_BLACK_HOLE_RENDER_SAMPLES);
+    if (count === 0) {
+      if (this.canvas) this.canvas.style.display = 'none';
+      this.renderer?.clear();
+      return;
+    }
+
     this.ensureInitialized();
     if (
       !this.renderer ||
@@ -150,13 +154,7 @@ export class BlackHoleShaderRenderer {
       return;
 
     this.resize(this.sourceCanvas.width, this.sourceCanvas.height);
-    const count = Math.min(blackHoles.length, MAX_BLACK_HOLE_RENDER_SAMPLES);
     this.material.uniforms.u_blackHoleCount.value = count;
-    if (count === 0) {
-      this.canvas.style.display = 'none';
-      this.renderer.clear();
-      return;
-    }
     this.canvas.style.display = 'block';
     this.material.uniforms.u_sourceReady.value = this.updateCompositeSource();
 
@@ -214,7 +212,10 @@ export class BlackHoleShaderRenderer {
       canvas: this.canvas,
       alpha: true,
       antialias: false,
-      preserveDrawingBuffer: true,
+      depth: false,
+      powerPreference: 'high-performance',
+      preserveDrawingBuffer: false,
+      stencil: false,
     });
     this.renderer.setPixelRatio(1);
 
@@ -223,6 +224,7 @@ export class BlackHoleShaderRenderer {
     this.compositeCanvas = document.createElement('canvas');
     this.compositeContext = this.compositeCanvas.getContext('2d');
     this.texture = new THREE.CanvasTexture(this.compositeCanvas);
+    this.texture.generateMipmaps = false;
     this.texture.minFilter = THREE.LinearFilter;
     this.texture.magFilter = THREE.LinearFilter;
 
@@ -234,6 +236,7 @@ export class BlackHoleShaderRenderer {
       THREE.RGBAFormat,
       THREE.FloatType,
     );
+    this.dataTexture.generateMipmaps = false;
     this.dataTexture.needsUpdate = true;
 
     this.material = new THREE.ShaderMaterial({
@@ -293,13 +296,15 @@ export class BlackHoleShaderRenderer {
           this.compositeCanvas.height,
         );
       }
-      this.compositeContext.drawImage(
-        this.sourceCanvas,
-        0,
-        0,
-        this.compositeCanvas.width,
-        this.compositeCanvas.height,
-      );
+      if (this.options.includeSourceCanvas !== false) {
+        this.compositeContext.drawImage(
+          this.sourceCanvas,
+          0,
+          0,
+          this.compositeCanvas.width,
+          this.compositeCanvas.height,
+        );
+      }
     } catch {
       return false;
     }

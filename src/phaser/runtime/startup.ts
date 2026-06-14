@@ -1,11 +1,13 @@
+const STORAGE_PREFIX = 'comet-bursters-';
+
 export function getStartingWave(): number {
-  const raw = window.sessionStorage.getItem('comet-bursters-starting-wave');
+  const raw = getStoredStartupValue('starting-wave');
   const parsed = Number.parseInt(raw ?? '', 10);
   return Number.isFinite(parsed) ? Math.max(1, Math.min(50, parsed)) : 1;
 }
 
 export function getSandboxFogEnabled(): boolean {
-  return window.sessionStorage.getItem('comet-bursters-fog-enabled') !== 'false';
+  return getBooleanStoredStartupFlag('fog-enabled', true);
 }
 
 export function getArcadeRiftDebugEnabled(): boolean {
@@ -53,7 +55,20 @@ export function getSandboxPerfToggles(): SandboxPerfToggles {
 
 function getBooleanStartupFlag(name: string, defaultValue: boolean): boolean {
   const search = new URLSearchParams(window.location.search);
-  const raw = search.get(name) ?? window.sessionStorage.getItem(`comet-bursters-${name}`);
+  const raw = search.get(name) ?? getStoredStartupValue(name);
   if (raw === null) return defaultValue;
   return raw !== 'false' && raw !== '0';
+}
+
+function getBooleanStoredStartupFlag(name: string, defaultValue: boolean): boolean {
+  const raw = getStoredStartupValue(name);
+  if (raw === null) return defaultValue;
+  return raw !== 'false' && raw !== '0';
+}
+
+function getStoredStartupValue(name: string): string | null {
+  const storageKey = `${STORAGE_PREFIX}${name}`;
+  const sessionValue = window.sessionStorage.getItem(storageKey);
+  if (sessionValue !== null) return sessionValue;
+  return window.localStorage.getItem(storageKey);
 }

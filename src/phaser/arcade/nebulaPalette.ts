@@ -1,4 +1,4 @@
-import type { SpaceNebulaPalette } from '../../world/SpaceBackgroundRenderer';
+import type { SpaceNebulaPalette } from '../world/SpaceBackgroundRenderer';
 
 const ARCADE_NEBULA_PALETTES: SpaceNebulaPalette[] = [
   {

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { createArcadeGameOverText, createArcadeTextures } from '../../../arcade/visuals';
 import { AsteroidBodies } from '../../../asteroids/bodies';
 import { getGameAudio } from '../../../audio/AudioManager';
 import type { SceneAudioDirector } from '../../../audio/SceneAudioDirector';
@@ -7,6 +8,7 @@ import { MatterContacts } from '../../../combat/matterContacts';
 import { applyMatterBodySpec } from '../../../core/matterBodySpec';
 import type { Vector, WorldSize } from '../../../core/types';
 import { DimensionDebugOverlay } from '../../../dimensions/DimensionDebugOverlay';
+import type { RiftSpaceSceneBridge } from '../../../dimensions/RiftSpaceSceneBridge';
 import { getDimensionCoordinator } from '../../../dimensions/runtime';
 import type { PortalEntity } from '../../../dimensions/types';
 import { FuelBodies } from '../../../fuel/bodies';
@@ -35,9 +37,8 @@ import { getSandboxPerfToggles } from '../../../runtime/startup';
 import { DimensionBackground } from '../../../world/DimensionBackground';
 import { SpaceRenderEffects } from '../../../world/SpaceRenderEffects';
 import { SpaceWorldRuntime } from '../../../world/SpaceWorldRuntime';
-import { createArcadeGameOverText, createArcadeTextures } from '../arcadeVisuals';
 
-export class PhaserRiftSpaceScene extends Phaser.Scene {
+export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceSceneBridge {
   private background!: DimensionBackground;
   private destinationTextureKeyProvider: () => string | null = () => null;
   private portalRenderer!: PortalWindowRenderer;

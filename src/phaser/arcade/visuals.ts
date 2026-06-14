@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 
-import { createAsteroidTextures } from '../../asteroids/textures';
-import type { WorldSize } from '../../core/types';
-import { createPlayerTexture } from '../../player/textures';
+import { createAsteroidTextures } from '../asteroids/textures';
+import type { WorldSize } from '../core/types';
+import { createPlayerTexture } from '../player/textures';
 
 export function createArcadeTextures(scene: Phaser.Scene): void {
   createPlayerTexture(scene);

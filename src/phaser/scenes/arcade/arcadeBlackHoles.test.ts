@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { buildWrappedBlackHoleScreenSamples } from '../../projectiles/blackHoleSamples';
 import {
   BLACK_HOLE_MATURE_AFTER_MS,
   BLACK_HOLE_MATURE_RADIUS,
@@ -7,15 +8,14 @@ import {
   MAX_BLACK_HOLES,
 } from '../../projectiles/definition';
 import type { ProjectileEntity } from '../../projectiles/types';
-import { buildArcadeBlackHoleScreenSamples } from './arcadeBlackHoles';
 
 vi.mock('phaser', () => ({ default: {} }));
 
 const screen = { width: 900, height: 700 };
 
-describe('arcade black hole rendering', () => {
+describe('wrapped black hole rendering', () => {
   it('returns one sample when the black hole influence is fully inside the screen', () => {
-    const samples = buildArcadeBlackHoleScreenSamples(
+    const samples = buildWrappedBlackHoleScreenSamples(
       [createBlackHole({ ageMs: 0, position: { x: 450, y: 350 } })],
       screen,
     );
@@ -24,7 +24,7 @@ describe('arcade black hole rendering', () => {
   });
 
   it('duplicates across the opposite horizontal edge when the influence overlaps the left edge', () => {
-    const samples = buildArcadeBlackHoleScreenSamples(
+    const samples = buildWrappedBlackHoleScreenSamples(
       [createBlackHole({ ageMs: 0, position: { x: 160, y: 350 } })],
       screen,
     );
@@ -34,7 +34,7 @@ describe('arcade black hole rendering', () => {
   });
 
   it('duplicates corner samples when the influence overlaps two edges', () => {
-    const samples = buildArcadeBlackHoleScreenSamples(
+    const samples = buildWrappedBlackHoleScreenSamples(
       [createBlackHole({ ageMs: 0, position: { x: 160, y: 140 } })],
       screen,
     );
@@ -47,7 +47,7 @@ describe('arcade black hole rendering', () => {
   });
 
   it('uses the render target period for scaled wrapped samples', () => {
-    const samples = buildArcadeBlackHoleScreenSamples(
+    const samples = buildWrappedBlackHoleScreenSamples(
       [createBlackHole({ ageMs: 0, position: { x: 180, y: 350 } })],
       screen,
       { width: 1800, height: 1400 },
@@ -59,7 +59,7 @@ describe('arcade black hole rendering', () => {
   });
 
   it('duplicates mature black holes across every edge when their distortion covers the screen', () => {
-    const samples = buildArcadeBlackHoleScreenSamples(
+    const samples = buildWrappedBlackHoleScreenSamples(
       [createBlackHole({ position: { x: 450, y: 350 } })],
       screen,
     );
@@ -76,13 +76,13 @@ describe('arcade black hole rendering', () => {
       }),
     );
 
-    const samples = buildArcadeBlackHoleScreenSamples(projectiles, screen);
+    const samples = buildWrappedBlackHoleScreenSamples(projectiles, screen);
 
     expect(samples.length).toBeGreaterThan(MAX_BLACK_HOLES);
   });
 
   it('renders whatever black holes belong to the runtime being sampled', () => {
-    const samples = buildArcadeBlackHoleScreenSamples(
+    const samples = buildWrappedBlackHoleScreenSamples(
       [
         createBlackHole({
           membership: { portalId: 3, space: 'rift' },

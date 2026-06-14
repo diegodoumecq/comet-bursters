@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { createArcadeTextures } from '../../arcade/visuals';
 import { AsteroidBodies } from '../../asteroids/bodies';
 import { ASTEROIDS } from '../../asteroids/logic';
 import { updateAsteroidSplitCollisions } from '../../asteroids/splitCollisions';
@@ -41,6 +42,7 @@ import { DimensionDebugOverlay } from '../../dimensions/DimensionDebugOverlay';
 import { createPortalAsteroidSpawn } from '../../dimensions/PortalAsteroidSpawner';
 import { PortalDirector } from '../../dimensions/PortalDirector';
 import { portalApertureContainsCenter } from '../../dimensions/portalGeometry';
+import type { RiftSpaceSceneBridge } from '../../dimensions/RiftSpaceSceneBridge';
 import { resetDimensionCoordinator } from '../../dimensions/runtime';
 import type { DimensionCommand, PortalViewPolicy, SpaceId } from '../../dimensions/types';
 import { isFuelBlobCollectable, spawnFuelBlobs, spawnShipFuelDrops } from '../../fuel/blobLogic';
@@ -89,8 +91,6 @@ import {
   chooseSafePlayerPositionWithExclusions,
   getBlackHoleSpawnExclusions,
 } from './arcadeSpawns';
-import { createArcadeTextures } from './arcadeVisuals';
-import type { PhaserRiftSpaceScene } from './rift/RiftSpaceScene';
 
 const GAME_OVER_RESTART_DELAY_MS = 3000;
 
@@ -114,7 +114,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   private gameOverAt = 0;
   private lastThrusterAt = 0;
   private nextPortalId = 1;
-  private riftSpaceScene: PhaserRiftSpaceScene | null = null;
+  private riftSpaceScene: RiftSpaceSceneBridge | null = null;
   private readonly riftDebug = getArcadeRiftDebugEnabled();
   private readonly riftDebugScenario = getArcadeRiftDebugScenario();
   private readonly dimensionDebugEnabled = getArcadeDimensionDebugEnabled();
@@ -592,7 +592,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   private startRiftSpaceScene(): void {
-    const riftScene = this.scene.get('rift-space') as PhaserRiftSpaceScene;
+    const riftScene = this.scene.get('rift-space') as unknown as RiftSpaceSceneBridge;
     if (this.scene.isActive('rift-space')) {
       this.bindRiftSpaceScene(riftScene);
       return;
@@ -601,7 +601,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.scene.launch('rift-space');
   }
 
-  private bindRiftSpaceScene(riftScene: PhaserRiftSpaceScene): void {
+  private bindRiftSpaceScene(riftScene: RiftSpaceSceneBridge): void {
     this.riftSpaceScene = riftScene;
     riftScene.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
       this.handleRiftSpaceShutdown(riftScene),
@@ -1363,7 +1363,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.renderEffects.dispose();
   }
 
-  private handleRiftSpaceShutdown(scene: PhaserRiftSpaceScene): void {
+  private handleRiftSpaceShutdown(scene: RiftSpaceSceneBridge): void {
     if (this.riftSpaceScene === scene) {
       this.riftSpaceScene = null;
     }

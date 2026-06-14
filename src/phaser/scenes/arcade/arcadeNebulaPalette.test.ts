@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getArcadeNebulaPalette } from './arcadeNebulaPalette';
+import { getArcadeNebulaPalette } from '../../arcade/nebulaPalette';
 
 describe('arcade nebula palettes', () => {
   it('keeps burst one on the default blue palette', () => {
