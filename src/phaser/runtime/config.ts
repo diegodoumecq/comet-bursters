@@ -21,7 +21,7 @@ export function createPhaserConfig(parent: string): Phaser.Types.Core.GameConfig
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
     input: {
-      gamepad: true,
+      gamepad: false,
     },
     render: {
       premultipliedAlpha: false,
