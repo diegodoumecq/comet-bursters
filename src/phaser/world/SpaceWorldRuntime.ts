@@ -14,6 +14,8 @@ import type { PlayerState } from '../player/state';
 import type { ProjectileBodies } from '../projectiles/bodies';
 import { updateProjectiles } from '../projectiles/logic';
 import type { ProjectileEntity } from '../projectiles/types';
+import type { EntityBodies } from '../entities/bodies';
+import type { GameEntity } from '../entities/types';
 import { GameWorld } from './state';
 
 type RuntimeAttachments = {
@@ -24,6 +26,7 @@ type RuntimeAttachments = {
   particleViews: ParticleViews;
   persistentPlayerBody?: boolean;
   projectileBodies: ProjectileBodies;
+  entityBodies: EntityBodies;
 };
 
 export type DetachedSpaceEntity =
@@ -31,7 +34,8 @@ export type DetachedSpaceEntity =
   | { entity: FuelBlobEntity; kind: 'fuelBlob' }
   | { entity: ParticleEntity; kind: 'particle' }
   | { entity: PlayerState; kind: 'player' }
-  | { entity: ProjectileEntity; kind: 'projectile' };
+  | { entity: ProjectileEntity; kind: 'projectile' }
+  | { entity: GameEntity; kind: 'entity' };
 
 export class SpaceWorldRuntime {
   readonly world: GameWorld;
@@ -96,6 +100,14 @@ export class SpaceWorldRuntime {
     this.destroyAsteroidInRuntime(asteroid);
   }
 
+  addEntities(entities: GameEntity[]): void {
+    for (const entity of entities) this.addEntityToRuntime(entity);
+  }
+
+  removeEntity(entity: GameEntity): void {
+    this.destroyEntityInRuntime(entity);
+  }
+
   addProjectile(projectile: ProjectileEntity): void {
     projectile.membership = { space: this.space };
     this.world.projectiles.push(projectile);
@@ -150,6 +162,9 @@ export class SpaceWorldRuntime {
     for (const projectile of this.world.projectiles) {
       this.rememberPreviousPosition(`projectile:${projectile.id}`, projectile.position);
     }
+    for (const entity of this.world.entities) {
+      this.rememberPreviousPosition(`entity:${entity.id}`, entity.position);
+    }
     for (const blob of this.world.fuelBlobs) {
       this.rememberPreviousPosition(`fuelBlob:${blob.id}`, blob.position);
     }
@@ -179,6 +194,18 @@ export class SpaceWorldRuntime {
         previousPosition: this.getPreviousPosition(
           `projectile:${projectile.id}`,
           projectile.position,
+        ),
+      });
+    }
+    for (const entity of this.world.entities) {
+      snapshots.push({
+        id: entity.id,
+        kind: 'entity',
+        membership: entity.membership ?? { space: this.space },
+        position: entity.position,
+        previousPosition: this.getPreviousPosition(
+          `entity:${entity.id}`,
+          entity.position,
         ),
       });
     }
@@ -216,6 +243,7 @@ export class SpaceWorldRuntime {
   clearNonShipEntities(): void {
     for (const asteroid of [...this.world.asteroids]) this.removeAsteroid(asteroid);
     for (const projectile of [...this.world.projectiles]) this.removeProjectile(projectile);
+    for (const entity of [...this.world.entities]) this.removeEntity(entity);
     for (const blob of [...this.world.fuelBlobs]) this.removeFuelBlob(blob);
     for (const particle of [...this.world.particles]) this.removeParticle(particle);
   }
@@ -244,6 +272,10 @@ export class SpaceWorldRuntime {
     return this.attachments.projectileBodies;
   }
 
+  getEntityBodies(): EntityBodies {
+    return this.attachments.entityBodies;
+  }
+
   updateSceneEntities(input: {
     deltaMs: number;
     deltaSeconds: number;
@@ -251,7 +283,12 @@ export class SpaceWorldRuntime {
   }): void {
     this.syncAttachedPlayerToState();
     this.attachments.asteroidBodies.syncToroidalAll(this.world.asteroids, input.worldSize);
+    this.attachments.entityBodies.syncToroidalAll(this.world.entities, input.worldSize);
     this.attachments.contacts.syncAsteroids(this.world.asteroids, this.attachments.asteroidBodies);
+    this.attachments.contacts.syncEntities(
+      this.world.entities,
+      this.attachments.entityBodies,
+    );
     updateAsteroidSplitCollisions(this.world.asteroids, this.attachments.asteroidBodies);
     for (const projectile of updateProjectiles(
       this.world.projectiles,
@@ -293,6 +330,13 @@ export class SpaceWorldRuntime {
       this.removeProjectile(projectile);
       return { entity: projectile, kind: 'projectile' };
     }
+    if (snapshot.kind === 'entity') {
+      const entity = this.world.entities.find((candidate) => candidate.id === snapshot.id);
+      if (!entity) return null;
+      this.attachments.entityBodies.sync(entity);
+      this.detachEntityFromRuntimeForTransfer(entity);
+      return { entity: entity, kind: 'entity' };
+    }
     if (snapshot.kind === 'fuelBlob') {
       const blob = this.world.fuelBlobs.find((candidate) => candidate.id === snapshot.id);
       if (!blob) return null;
@@ -321,6 +365,8 @@ export class SpaceWorldRuntime {
       this.addFuelBlobs([detached.entity]);
     } else if (detached.kind === 'particle') {
       this.addParticles([detached.entity]);
+    } else if (detached.kind === 'entity') {
+      this.attachEntityToRuntimeForTransfer(detached.entity);
     } else {
       this.attachPlayer(detached.entity);
     }
@@ -332,6 +378,36 @@ export class SpaceWorldRuntime {
     this.attachments.asteroidBodies.attach(asteroid);
     this.attachments.contacts.addAsteroid(asteroid, this.attachments.asteroidBodies);
     this.rememberPreviousPosition(`asteroid:${asteroid.id}`, asteroid.position);
+  }
+
+  private addEntityToRuntime(entity: GameEntity): void {
+    this.world.addEntities([entity]);
+    entity.membership = { space: this.space };
+    this.attachments.entityBodies.attach(entity);
+    this.attachments.contacts.addEntity(entity, this.attachments.entityBodies);
+    this.rememberPreviousPosition(`entity:${entity.id}`, entity.position);
+  }
+
+  private attachEntityToRuntimeForTransfer(entity: GameEntity): void {
+    this.world.addEntities([entity]);
+    entity.membership = { space: this.space };
+    this.attachments.entityBodies.attach(entity);
+    this.attachments.contacts.addEntity(entity, this.attachments.entityBodies);
+    this.rememberPreviousPosition(`entity:${entity.id}`, entity.position);
+  }
+
+  private detachEntityFromRuntimeForTransfer(entity: GameEntity): void {
+    this.attachments.contacts.removeEntity(entity);
+    this.attachments.entityBodies.detach(entity);
+    this.world.removeEntity(entity);
+    this.previousPositions.delete(`entity:${entity.id}`);
+  }
+
+  private destroyEntityInRuntime(entity: GameEntity): void {
+    this.attachments.contacts.removeEntity(entity);
+    this.attachments.entityBodies.destroy(entity);
+    this.world.removeEntity(entity);
+    this.previousPositions.delete(`entity:${entity.id}`);
   }
 
   private attachAsteroidToRuntimeForTransfer(asteroid: AsteroidEntity): void {

@@ -6,6 +6,8 @@ import type { FuelBodies } from '../fuel/bodies';
 import type { FuelBlobEntity } from '../fuel/types';
 import type { ProjectileBodies } from '../projectiles/bodies';
 import type { ProjectileEntity } from '../projectiles/types';
+import type { EntityBodies } from '../entities/bodies';
+import type { GameEntity } from '../entities/types';
 import { MatterContacts } from './matterContacts';
 
 type CollisionHandler = (event: {
@@ -38,6 +40,17 @@ function fuelBlob(): FuelBlobEntity {
   };
 }
 
+function entity(): GameEntity {
+  return {
+    angularVelocity: 0,
+    id: 1,
+    kind: 'monolith',
+    position: { x: 0, y: 0 },
+    rotation: 0,
+    velocity: { x: 0, y: 0 },
+  };
+}
+
 function projectile(): ProjectileEntity {
   return {
     absorbedFuel: 0,
@@ -63,6 +76,12 @@ function runtimeWithBodyIds(bodyIds: number[]): AsteroidBodies {
   return {
     getBodyIds: () => bodyIds,
   } as unknown as AsteroidBodies;
+}
+
+function entityRuntimeWithBodyIds(bodyIds: number[]): EntityBodies {
+  return {
+    getBodyIds: () => bodyIds,
+  } as unknown as EntityBodies;
 }
 
 function fuelRuntimeWithBodyId(bodyId: number): FuelBodies {
@@ -183,5 +202,18 @@ describe('MatterContacts', () => {
     emitCollision({ pairs: [{ bodyA: body(40), bodyB: body(30) }] });
 
     expect(contacts.consumeProjectileFuelBlobs()).toEqual([{ blob: target, projectile: shot }]);
+  });
+
+  it('captures projectile entity contacts independently from asteroids', () => {
+    const { contacts, emitCollision } = createContacts();
+    const target = entity();
+    const shot = projectile();
+    contacts.addEntity(target, entityRuntimeWithBodyIds([30]));
+    contacts.addProjectile(shot, projectileRuntimeWithBodyId(40));
+
+    emitCollision({ pairs: [{ bodyA: body(40), bodyB: body(30) }] });
+
+    expect(contacts.consumeProjectileGameEntities()).toEqual([{ projectile: shot, entity: target }]);
+    expect(contacts.consumeProjectileAsteroids()).toEqual([]);
   });
 });

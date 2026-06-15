@@ -80,6 +80,9 @@ import {
 import { ALL_WEAPONS, type SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { applyTractorBeam } from '../../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../../weapons/use';
+import { EntityBodies } from '../../entities/bodies';
+import { resolveProjectileGameEntityContactCombat } from '../../entities/combat';
+import { createEntityTextures } from '../../entities/textures';
 import { normalize, wrappedDelta } from '../../world/geometry';
 import { applyWorldGravity } from '../../world/gravity';
 import { SpaceWorldRuntime } from '../../world/SpaceWorldRuntime';
@@ -102,6 +105,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   private session!: ArcadeRunState;
   private contacts!: MatterContacts;
   private asteroidBodies!: AsteroidBodies;
+  private entityBodies!: EntityBodies;
   private projectileBodies!: ProjectileBodies;
   private fuelBodies!: FuelBodies;
   private particleViews!: ParticleViews;
@@ -135,6 +139,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.worldSize = { width: this.scale.width, height: this.scale.height };
     this.actions = new ActionReader(this);
     createArcadeTextures(this);
+    createEntityTextures(this);
     this.playerBody = new PlayerBody(
       this,
       { x: this.worldSize.width / 2, y: this.worldSize.height / 2 },
@@ -143,6 +148,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     applyMatterBodySpec(this.playerBody.body, PLAYER_DEFINITIONS.arcade.body);
     this.contacts = new MatterContacts(this);
     this.asteroidBodies = new AsteroidBodies(this);
+    this.entityBodies = new EntityBodies(this);
     this.projectileBodies = new ProjectileBodies(this);
     this.fuelBodies = new FuelBodies(this);
     this.particleViews = new ParticleViews(this);
@@ -156,6 +162,7 @@ export class PhaserArcadeScene extends BaseGameScene {
         particleViews: this.particleViews,
         persistentPlayerBody: true,
         projectileBodies: this.projectileBodies,
+        entityBodies: this.entityBodies,
       },
       this.session.world,
     );
@@ -362,7 +369,9 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private updateWorldState(deltaMs: number, deltaSeconds: number): void {
     this.asteroidBodies.syncToroidalAll(this.session.world.asteroids, this.worldSize);
+    this.entityBodies.syncToroidalAll(this.session.world.entities, this.worldSize);
     this.contacts.syncAsteroids(this.session.world.asteroids, this.asteroidBodies);
+    this.contacts.syncEntities(this.session.world.entities, this.entityBodies);
     updateAsteroidSplitCollisions(this.session.world.asteroids, this.asteroidBodies);
     this.removeExpiredParticles(deltaMs);
     for (const projectile of updateProjectiles(
@@ -646,6 +655,22 @@ export class PhaserArcadeScene extends BaseGameScene {
   private applyRuntimeProjectileCombat(runtime: SpaceWorldRuntime): void {
     this.applyRuntimeProjectileFuelBlobCombat(runtime);
     const activeProjectiles = new Set(runtime.world.projectiles);
+    for (const event of resolveProjectileGameEntityContactCombat(
+      runtime
+        .getContacts()
+        .consumeProjectileGameEntities()
+        .filter((contact) => activeProjectiles.has(contact.projectile)),
+      runtime.getEntityBodies(),
+    )) {
+      if (event.type === 'projectileHitEntity') {
+        runtime.removeProjectile(event.projectile);
+      } else {
+        runtime.addParticles(
+          createExplosionBurst(event.entity.position, event.entity.velocity, 0.85).particles,
+        );
+        runtime.removeEntity(event.entity);
+      }
+    }
     for (const event of resolveProjectileContactCombat(
       runtime
         .getContacts()
@@ -726,6 +751,11 @@ export class PhaserArcadeScene extends BaseGameScene {
           .getProjectileBodies()
           .get(projectile)
           .setVelocity(projectile.velocity.x, projectile.velocity.y),
+      onEntityVelocityChanged: (entity) =>
+        runtime
+          .getEntityBodies()
+          .get(entity)
+          .setVelocity(entity.velocity.x, entity.velocity.y),
       particles: runtime.world.particles,
       player: {
         active:
@@ -736,6 +766,7 @@ export class PhaserArcadeScene extends BaseGameScene {
         velocity: this.session.player.velocity,
       },
       projectiles: runtime.world.projectiles,
+      entities: runtime.world.entities,
       world: this.worldSize,
     });
     updateBlackHoles({
@@ -990,7 +1021,15 @@ export class PhaserArcadeScene extends BaseGameScene {
           .setVelocity(asteroid.velocity.x, asteroid.velocity.y),
       onFuelBlobVelocityChanged: (blob) =>
         targetRuntime.getFuelBodies().setVelocity(blob, blob.velocity),
+      onEntityVelocityChanged: (entity) =>
+        targetRuntime
+          .getEntityBodies()
+          .get(entity)
+          .setVelocity(entity.velocity.x, entity.velocity.y),
       particles: targetRuntime.world.particles.filter((candidate) =>
+        portalApertureContainsCenter(portal, candidate.position),
+      ),
+      entities: targetRuntime.world.entities.filter((candidate) =>
         portalApertureContainsCenter(portal, candidate.position),
       ),
       world: this.worldSize,

@@ -4,6 +4,7 @@ import { ASTEROIDS } from '../asteroids/config';
 import type { AsteroidTier } from '../asteroids/types';
 import type { Vector, WorldSize } from '../core/types';
 import { getActiveCanvasOverscan } from '../runtime/canvasOverscan';
+import { ENTITIES, type EntityKind } from '../entities/config';
 import {
   getBoundedViewportRect,
   getMinimapPlayerHeading,
@@ -73,6 +74,7 @@ type AsteroidMarkerLayerState = {
   asteroidCount: number;
   fogCellVersion: string;
   nextUpdateAt: number;
+  entityCount: number;
   worldHeight: number;
   worldWidth: number;
 };
@@ -556,6 +558,20 @@ export class Minimap {
         );
       }
     }
+    for (const entity of input.entities ?? []) {
+      const visible = isVisibleOnMinimap(entity.position, input.fog, input.world);
+      if (visible) {
+        const point = projectWorldPoint(entity.position, input.world, scale);
+        const radius = getEntityMarkerRadius(entity.kind, scale);
+        this.asteroidMarkerDrawGraphics.fillStyle(ENTITIES[entity.kind].lineColor, 0.9);
+        this.asteroidMarkerDrawGraphics.fillRect(
+          point.x - radius,
+          point.y - radius,
+          radius * 2,
+          radius * 2,
+        );
+      }
+    }
     this.asteroidMarkerTexture.clear();
     this.asteroidMarkerTexture.draw(this.asteroidMarkerDrawGraphics);
     this.asteroidMarkerDrawGraphics.clear();
@@ -563,6 +579,7 @@ export class Minimap {
       asteroidCount: input.asteroids?.length ?? 0,
       fogCellVersion: getFogCellVersion(input.fog),
       nextUpdateAt: now + MARKER_LAYER_UPDATE_MS,
+      entityCount: input.entities?.length ?? 0,
       worldHeight: input.world.height,
       worldWidth: input.world.width,
     };
@@ -575,6 +592,7 @@ export class Minimap {
       this.asteroidMarkerLayerState.worldHeight !== input.world.height ||
       this.asteroidMarkerLayerState.fogCellVersion !== getFogCellVersion(input.fog) ||
       this.asteroidMarkerLayerState.asteroidCount !== (input.asteroids?.length ?? 0) ||
+      this.asteroidMarkerLayerState.entityCount !== (input.entities?.length ?? 0) ||
       now >= this.asteroidMarkerLayerState.nextUpdateAt
     );
   }
@@ -637,6 +655,10 @@ export class Minimap {
 
 function getAsteroidMarkerRadius(tier: AsteroidTier, scale: MinimapScale): number {
   return Math.max(2, ASTEROIDS[tier].collisionRadius * scale.x);
+}
+
+function getEntityMarkerRadius(kind: EntityKind, scale: MinimapScale): number {
+  return Math.max(2, ENTITIES[kind].collisionRadius * scale.x);
 }
 
 function getFogCellVersion(fog: MinimapFog | undefined): string {

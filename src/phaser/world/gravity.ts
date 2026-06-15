@@ -6,6 +6,7 @@ import type { PlanetEntity } from '../planets/types';
 import { getMatureBlackHoleRadius, isMatureBlackHole } from '../projectiles/blackHoles';
 import { BLACK_HOLE_GRAVITY_STRENGTH } from '../projectiles/definition';
 import type { ProjectileEntity } from '../projectiles/types';
+import type { GameEntity } from '../entities/types';
 import { wrappedDelta } from './geometry';
 
 type GravityPlayer = {
@@ -27,10 +28,12 @@ type WorldGravityInput = {
   onFuelBlobVelocityChanged?: (blob: FuelBlobEntity) => void;
   onPlayerVelocityChanged?: (player: GravityPlayer) => void;
   onProjectileVelocityChanged?: (projectile: ProjectileEntity) => void;
+  onEntityVelocityChanged?: (entity: GameEntity) => void;
   particles?: ParticleEntity[];
   planets?: PlanetEntity[];
   player?: GravityPlayer;
   projectiles?: ProjectileEntity[];
+  entities?: GameEntity[];
   world: WorldSize;
 };
 
@@ -87,6 +90,19 @@ export function applyWorldGravity(input: WorldGravityInput): void {
       })
     ) {
       input.onProjectileVelocityChanged?.(projectile);
+    }
+  }
+
+  for (const entity of input.entities ?? []) {
+    if (
+      applyGravityToTarget({
+        getDelta,
+        sources,
+        target: entity,
+        timeScale,
+      })
+    ) {
+      input.onEntityVelocityChanged?.(entity);
     }
   }
 

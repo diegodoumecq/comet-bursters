@@ -31,6 +31,11 @@ import {
 } from '../../projectiles/definition';
 import type { ProjectileEntity } from '../../projectiles/types';
 import { enableCanvasOverscan } from '../../runtime/canvasOverscan';
+import { EntityBodies } from '../../entities/bodies';
+import { createMonolith } from '../../entities/logic';
+import { ENTITIES } from '../../entities/config';
+import { createEntityTextures } from '../../entities/textures';
+import type { GameEntity } from '../../entities/types';
 import { normalize } from '../../world/geometry';
 import { BaseGameScene } from '../BaseGameScene';
 import { DemoRenderer } from './DemoRenderer';
@@ -81,9 +86,11 @@ export class PhaserDemoScene extends BaseGameScene {
   private sceneRenderer!: DemoRenderer;
   private planets: FuelExtractionPlanetEntity[] = [];
   private asteroids: AsteroidEntity[] = [];
+  private entities: GameEntity[] = [];
   private blackHoles: ProjectileEntity[] = [];
   private portals: PortalEntity[] = [];
   private asteroidBodies!: AsteroidBodies;
+  private entityBodies!: EntityBodies;
   private planetViews!: PlanetViews;
   private fuelExtractorViews!: FuelExtractorViews;
   private audioDirector!: SceneAudioDirector;
@@ -110,6 +117,7 @@ export class PhaserDemoScene extends BaseGameScene {
     this.cameras.main.setBounds(0, 0, WORLD.width, WORLD.height);
     this.actions = new ActionReader(this);
     this.asteroidBodies = new AsteroidBodies(this);
+    this.entityBodies = new EntityBodies(this);
     this.planetViews = new PlanetViews(this);
     this.fuelExtractorViews = new FuelExtractorViews(this);
     this.createGrid();
@@ -117,10 +125,17 @@ export class PhaserDemoScene extends BaseGameScene {
     this.createPlanets();
     this.createAsteroids();
     this.createBlackHoles();
+    this.createEntities();
     this.createPortals();
     this.playerBody = new PlayerBody(this, { x: 620, y: 760 }, this.playerState);
     applyMatterBodySpec(this.playerBody.body, PLAYER_DEFINITIONS.demo.body);
-    this.sceneRenderer = new DemoRenderer(this, this.playerBody.body, this.asteroidBodies, WORLD);
+    this.sceneRenderer = new DemoRenderer(
+      this,
+      this.playerBody.body,
+      this.asteroidBodies,
+      this.entityBodies,
+      WORLD,
+    );
     this.cameras.main.startFollow(this.playerBody.body, false, 1, 1);
   }
 
@@ -146,6 +161,7 @@ export class PhaserDemoScene extends BaseGameScene {
     });
     this.ship.setFuel(MAX_FUEL);
     this.updateAsteroids(delta);
+    this.updateEntities(delta);
     this.updatePlanets(delta);
   }
 
@@ -161,6 +177,7 @@ export class PhaserDemoScene extends BaseGameScene {
       planets: this.planets,
       portals: this.portals,
       ship: this.ship,
+      entities: this.entities,
     });
   }
 
@@ -174,6 +191,7 @@ export class PhaserDemoScene extends BaseGameScene {
   private createTextures(): void {
     createPlayerTexture(this);
     createAsteroidTextures(this);
+    createEntityTextures(this);
   }
 
   private createPlanets(): void {
@@ -244,6 +262,26 @@ export class PhaserDemoScene extends BaseGameScene {
     }
   }
 
+  private createEntities(): void {
+    const entity = createMonolith({ x: 100, y: 980 }, { x: 0, y: 0 });
+    entity.rotation = DEMO_SHOWCASE_ROTATION;
+    entity.angularVelocity = DEMO_ASTEROID_ROTATION_SPEED * 0.9;
+    this.entities = [entity];
+    this.entityBodies.add(entity);
+    this.add
+      .text(
+        entity.position.x,
+        entity.position.y + ENTITIES[entity.kind].size * 0.5 + 18,
+        'monolith',
+        {
+          color: '#ffffff',
+          fontFamily: 'monospace',
+          fontSize: '16px',
+        },
+      )
+      .setOrigin(0.5);
+  }
+
   private createPortals(): void {
     this.portals = DEMO_PORTAL_LAYOUTS.map((layout) => createPermanentDemoPortal(layout));
     for (const portal of this.portals) {
@@ -265,6 +303,17 @@ export class PhaserDemoScene extends BaseGameScene {
       body.setRotation(asteroid.rotation);
       this.asteroidBodies.sync(asteroid);
       asteroid.angularVelocity = angularVelocity;
+    }
+  }
+
+  private updateEntities(deltaMs: number): void {
+    for (const entity of this.entities) {
+      const angularVelocity = entity.angularVelocity;
+      entity.rotation += angularVelocity * deltaMs;
+      const body = this.entityBodies.get(entity);
+      body.setRotation(entity.rotation);
+      this.entityBodies.sync(entity);
+      entity.angularVelocity = angularVelocity;
     }
   }
 

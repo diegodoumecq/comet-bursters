@@ -22,6 +22,8 @@ import {
 } from '../../projectiles/blackHoleShader';
 import type { ProjectileEntity } from '../../projectiles/types';
 import { getSandboxPerfToggles } from '../../runtime/startup';
+import type { EntityBodies } from '../../entities/bodies';
+import type { GameEntity } from '../../entities/types';
 import {
   createBoundedScreenProjector,
   getCameraCaptureFrame,
@@ -52,6 +54,7 @@ export class DemoRenderer {
     private readonly scene: Phaser.Scene,
     private readonly player: Phaser.Physics.Matter.Image,
     private readonly asteroidBodies: AsteroidBodies,
+    private readonly entityBodies: EntityBodies,
     private readonly world: WorldSize,
   ) {
     this.playerFuelBase = scene.add.graphics().setDepth(2);
@@ -81,6 +84,7 @@ export class DemoRenderer {
     planets: PlanetEntity[];
     portals: PortalEntity[];
     ship: ShipState;
+    entities: GameEntity[];
   }): void {
     renderPlayerFuel(
       this.playerFuelBase,
@@ -106,6 +110,7 @@ export class DemoRenderer {
         player: input.player.position,
         playerRotation: input.player.rotation,
         playerVelocity: input.player.velocity,
+        entities: input.entities,
         viewportMode: 'bounded',
         world: this.world,
       });
@@ -128,12 +133,16 @@ export class DemoRenderer {
   private renderCollisionMasks(input: {
     asteroids: AsteroidEntity[];
     planets: PlanetEntity[];
+    entities: GameEntity[];
   }): void {
     this.collisionMasks.clear();
     this.collisionMasks.lineStyle(2, 0xffffff, 0.9);
     this.strokeMatterBody(this.player as MatterImage);
     for (const asteroid of input.asteroids) {
       this.strokeMatterBody(this.asteroidBodies.get(asteroid));
+    }
+    for (const entity of input.entities) {
+      this.strokeMatterBody(this.entityBodies.get(entity));
     }
     for (const planet of input.planets) {
       this.collisionMasks.strokeCircle(planet.position.x, planet.position.y, planet.radius);

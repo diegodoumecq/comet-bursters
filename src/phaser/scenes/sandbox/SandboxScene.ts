@@ -63,6 +63,10 @@ import { updateProjectiles } from '../../projectiles/logic';
 import type { ProjectileEntity } from '../../projectiles/types';
 import { enableCanvasOverscan } from '../../runtime/canvasOverscan';
 import { getSandboxFogEnabled, getSandboxPerfToggles } from '../../runtime/startup';
+import { EntityBodies } from '../../entities/bodies';
+import { resolveProjectileGameEntityContactCombat } from '../../entities/combat';
+import { createEntityTextures } from '../../entities/textures';
+import type { GameEntity } from '../../entities/types';
 import { SANDBOX_WEAPONS, type SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { applyTractorBeam } from '../../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../../weapons/use';
@@ -118,6 +122,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private sceneRenderer!: SandboxRenderer;
   private playerBody!: PlayerBody;
   private asteroidBodies!: AsteroidBodies;
+  private entityBodies!: EntityBodies;
   private projectileBodies!: ProjectileBodies;
   private fuelBodies!: FuelBodies;
   private particleViews!: ParticleViews;
@@ -167,7 +172,11 @@ export class PhaserSandboxScene extends BaseGameScene {
     withPerformanceMeasure('sandbox.startup.textures.asteroids', perfMarkers, () => {
       createAsteroidTextures(this);
     });
+    withPerformanceMeasure('sandbox.startup.textures.entities', perfMarkers, () => {
+      createEntityTextures(this);
+    });
     this.asteroidBodies = new AsteroidBodies(this);
+    this.entityBodies = new EntityBodies(this);
     this.projectileBodies = new ProjectileBodies(this);
     this.fuelBodies = new FuelBodies(this);
     this.particleViews = new ParticleViews(this);
@@ -179,6 +188,7 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.fuelBodies,
       this.particleViews,
       this.contacts,
+      this.entityBodies,
     );
     const startup = withPerformanceMeasure('sandbox.startup.world', perfMarkers, () =>
       createSandboxStartup(WORLD, INITIAL_ASTEROIDS),
@@ -395,6 +405,10 @@ export class PhaserSandboxScene extends BaseGameScene {
         this.projectileBodies
           .get(projectile)
           .setVelocity(projectile.velocity.x, projectile.velocity.y),
+      onEntityVelocityChanged: (entity) =>
+        this.entityBodies
+          .get(entity)
+          .setVelocity(entity.velocity.x, entity.velocity.y),
       particles: this.runtime.world.particles,
       planets: this.planets,
       player: {
@@ -403,9 +417,12 @@ export class PhaserSandboxScene extends BaseGameScene {
         velocity: this.player.velocity,
       },
       projectiles: this.runtime.world.projectiles,
+      entities: this.runtime.world.entities,
       world: WORLD,
     });
     this.asteroidBodies.syncAll(this.runtime.world.asteroids);
+    this.entityBodies.syncAll(this.runtime.world.entities);
+    this.contacts.syncEntities(this.runtime.world.entities, this.entityBodies);
     updateAsteroidSplitCollisions(this.runtime.world.asteroids, this.asteroidBodies);
     for (const projectile of updateProjectiles(
       this.runtime.world.projectiles,
@@ -517,6 +534,18 @@ export class PhaserSandboxScene extends BaseGameScene {
   private resolveProjectileCombat(): void {
     this.resolveProjectileFuelBlobCombat();
     const activeProjectiles = new Set(this.runtime.world.projectiles);
+    for (const event of resolveProjectileGameEntityContactCombat(
+      this.contacts
+        .consumeProjectileGameEntities()
+        .filter((contact) => activeProjectiles.has(contact.projectile)),
+      this.entityBodies,
+    )) {
+      if (event.type === 'projectileHitEntity') {
+        this.removeProjectile(event.projectile);
+      } else {
+        this.destroyEntity(event.entity);
+      }
+    }
     for (const event of resolveProjectileContactCombat(
       this.contacts
         .consumeProjectileAsteroids()
@@ -740,6 +769,11 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.addFuelBlobs(spawnAsteroidFuelDrops(fuelDropSource));
     }
     this.removeAsteroid(asteroid);
+  }
+
+  private destroyEntity(entity: GameEntity): void {
+    this.applyEffect(createExplosionBurst(entity.position, entity.velocity, 0.85));
+    this.removeEntity(entity);
   }
 
   private killPlayer(now: number, planetCollision?: PlanetCollision): void {
@@ -976,6 +1010,10 @@ export class PhaserSandboxScene extends BaseGameScene {
 
   private removeAsteroid(asteroid: AsteroidEntity): void {
     this.runtime.removeAsteroid(asteroid);
+  }
+
+  private removeEntity(entity: GameEntity): void {
+    this.runtime.removeEntity(entity);
   }
 
   private removeProjectile(projectile: ProjectileEntity): void {

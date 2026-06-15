@@ -2,12 +2,14 @@ import type { AsteroidEntity } from '../asteroids/types';
 import type { FuelBlobEntity } from '../fuel/types';
 import type { ParticleEntity } from '../particles/types';
 import type { ProjectileEntity } from '../projectiles/types';
+import type { GameEntity } from '../entities/types';
 
 export class GameWorld {
   asteroids: AsteroidEntity[] = [];
   fuelBlobs: FuelBlobEntity[] = [];
   particles: ParticleEntity[] = [];
   projectiles: ProjectileEntity[] = [];
+  entities: GameEntity[] = [];
 
   addAsteroids(asteroids: AsteroidEntity[]): void {
     this.asteroids.push(...asteroids);
@@ -19,6 +21,10 @@ export class GameWorld {
 
   addParticles(particles: ParticleEntity[]): void {
     this.particles.push(...particles);
+  }
+
+  addEntities(entities: GameEntity[]): void {
+    this.entities.push(...entities);
   }
 
   removeProjectile(projectile: ProjectileEntity): void {
@@ -39,5 +45,10 @@ export class GameWorld {
   removeParticle(particle: ParticleEntity): void {
     const index = this.particles.indexOf(particle);
     if (index !== -1) this.particles.splice(index, 1);
+  }
+
+  removeEntity(entity: GameEntity): void {
+    const index = this.entities.indexOf(entity);
+    if (index !== -1) this.entities.splice(index, 1);
   }
 }

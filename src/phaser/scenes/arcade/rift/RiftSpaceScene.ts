@@ -34,6 +34,8 @@ import { PortalSceneCapture } from '../../../portals/PortalSceneCapture';
 import { PortalWindowRenderer } from '../../../portals/PortalWindowRenderer';
 import { ProjectileBodies } from '../../../projectiles/bodies';
 import { getSandboxPerfToggles } from '../../../runtime/startup';
+import { EntityBodies } from '../../../entities/bodies';
+import { createEntityTextures } from '../../../entities/textures';
 import { DimensionBackground } from '../../../world/DimensionBackground';
 import { SpaceRenderEffects } from '../../../world/SpaceRenderEffects';
 import { SpaceWorldRuntime } from '../../../world/SpaceWorldRuntime';
@@ -69,6 +71,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'rift-space');
     this.worldSize = { width: this.scale.width, height: this.scale.height };
     createArcadeTextures(this);
+    createEntityTextures(this);
     this.runtime = new SpaceWorldRuntime('rift', {
       asteroidBodies: new AsteroidBodies(this),
       contacts: new MatterContacts(this),
@@ -76,6 +79,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
       fuelBodies: new FuelBodies(this),
       particleViews: new ParticleViews(this),
       projectileBodies: new ProjectileBodies(this),
+      entityBodies: new EntityBodies(this),
     });
     getDimensionCoordinator().registerWorld(this.runtime);
     this.background = new DimensionBackground(this, this.worldSize, 'rift');

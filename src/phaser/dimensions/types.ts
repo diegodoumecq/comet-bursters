@@ -48,7 +48,13 @@ export type PortalCrossing = {
   toSpace: SpaceId;
 };
 
-export type TransferableEntityKind = 'asteroid' | 'fuelBlob' | 'particle' | 'player' | 'projectile';
+export type TransferableEntityKind =
+  | 'asteroid'
+  | 'fuelBlob'
+  | 'particle'
+  | 'player'
+  | 'projectile'
+  | 'entity';
 
 export type TransferableEntitySnapshot = {
   id: number | string;

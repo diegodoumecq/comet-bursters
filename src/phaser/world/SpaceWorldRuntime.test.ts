@@ -8,6 +8,8 @@ import type { PlayerBody } from '../player/body';
 import { PlayerState } from '../player/state';
 import type { ProjectileBodies } from '../projectiles/bodies';
 import type { ProjectileEntity } from '../projectiles/types';
+import type { EntityBodies } from '../entities/bodies';
+import type { GameEntity } from '../entities/types';
 import { SpaceWorldRuntime } from './SpaceWorldRuntime';
 
 describe('SpaceWorldRuntime player transfer authority', () => {
@@ -160,6 +162,44 @@ describe('SpaceWorldRuntime projectile transfer authority', () => {
   });
 });
 
+describe('SpaceWorldRuntime entity transfer authority', () => {
+  it('preserves entity rotation and spin through detach and attach', () => {
+    const entity = createEntity('arcade');
+    const sourceBodies = createEntityBodiesSync({
+      angularVelocity: 0.018,
+      position: { x: 75, y: 85 },
+      rotation: 0.9,
+      velocity: { x: -2, y: 4 },
+    });
+    const source = createRuntime('arcade', { entityBodies: sourceBodies });
+    source.addEntities([entity]);
+
+    const detached = source.detachTransferEntity({
+      id: entity.id,
+      kind: 'entity',
+      membership: { space: 'arcade' },
+      position: entity.position,
+      previousPosition: { x: 40, y: 85 },
+    });
+
+    if (!detached || detached.kind !== 'entity') throw new Error('Expected entity detach');
+    expect(detached.entity.position).toEqual({ x: 75, y: 85 });
+    expect(detached.entity.velocity).toEqual({ x: -2, y: 4 });
+    expect(detached.entity.rotation).toBe(0.9);
+    expect(detached.entity.angularVelocity).toBe(0.018);
+
+    const destinationBodies = createEntityBodiesSync();
+    const destination = createRuntime('rift', { entityBodies: destinationBodies });
+    destination.attachTransferredEntity(detached);
+
+    expect(destinationBodies.addedEntity?.rotation).toBe(0.9);
+    expect(destinationBodies.addedEntity?.angularVelocity).toBe(0.018);
+    expect(sourceBodies.detach).toHaveBeenCalledWith(entity);
+    expect(sourceBodies.destroy).not.toHaveBeenCalled();
+    expect(destinationBodies.attach).toHaveBeenCalledWith(entity);
+  });
+});
+
 function createRuntime(
   space: SpaceId,
   overrides: Partial<ConstructorParameters<typeof SpaceWorldRuntime>[1]> = {},
@@ -169,15 +209,19 @@ function createRuntime(
     contacts: {
       addAsteroid: vi.fn(),
       addProjectile: vi.fn(),
+      addEntity: vi.fn(),
       removeAsteroid: vi.fn(),
       removeProjectile: vi.fn(),
+      removeEntity: vi.fn(),
       setPlayer: vi.fn(),
       setShield: vi.fn(),
+      syncEntities: vi.fn(),
     } as never,
     fuelBodies: {} as never,
     particleViews: {} as never,
     persistentPlayerBody: true,
     projectileBodies: {} as never,
+    entityBodies: {} as EntityBodies,
     ...overrides,
   });
 }
@@ -220,6 +264,18 @@ function createProjectile(space: SpaceId): ProjectileEntity {
     membership: { space },
     position: { x: 10, y: 20 },
     radius: 6,
+    velocity: { x: 1, y: 2 },
+  };
+}
+
+function createEntity(space: SpaceId): GameEntity {
+  return {
+    angularVelocity: 0,
+    id: 12,
+    kind: 'monolith',
+    membership: { space },
+    position: { x: 10, y: 20 },
+    rotation: 0,
     velocity: { x: 1, y: 2 },
   };
 }
@@ -283,6 +339,42 @@ function createProjectileBodiesSync(
     }),
     syncVisualsRelativeToCamera: vi.fn(),
   } as unknown as ProjectileBodies;
+}
+
+function createEntityBodiesSync(
+  state: {
+    angularVelocity: number;
+    position: { x: number; y: number };
+    rotation: number;
+    velocity: { x: number; y: number };
+  } = {
+    angularVelocity: 0,
+    position: { x: 0, y: 0 },
+    rotation: 0,
+    velocity: { x: 0, y: 0 },
+  },
+): EntityBodies & {
+  addedEntity: GameEntity | null;
+} {
+  const bodies = {
+    addedEntity: null as GameEntity | null,
+    add: vi.fn((entity: GameEntity) => {
+      bodies.addedEntity = entity;
+    }),
+    attach: vi.fn((entity: GameEntity) => {
+      bodies.addedEntity = entity;
+    }),
+    destroy: vi.fn(),
+    detach: vi.fn(),
+    remove: vi.fn(),
+    sync: vi.fn((entity: GameEntity) => {
+      entity.position = { ...state.position };
+      entity.velocity = { ...state.velocity };
+      entity.rotation = state.rotation;
+      entity.angularVelocity = state.angularVelocity;
+    }),
+  };
+  return bodies as unknown as EntityBodies & { addedEntity: GameEntity | null };
 }
 
 function createPlayerBodySync(

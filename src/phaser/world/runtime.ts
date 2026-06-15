@@ -7,6 +7,8 @@ import type { ParticleEntity } from '../particles/types';
 import type { ParticleViews } from '../particles/views';
 import type { ProjectileBodies } from '../projectiles/bodies';
 import type { ProjectileEntity } from '../projectiles/types';
+import type { EntityBodies } from '../entities/bodies';
+import type { GameEntity } from '../entities/types';
 import { GameWorld } from './state';
 
 export class GameWorldRuntime {
@@ -18,6 +20,7 @@ export class GameWorldRuntime {
     private readonly fuelBodies: FuelBodies,
     private readonly particleViews: ParticleViews,
     private readonly contacts: MatterContacts,
+    private readonly entityBodies?: EntityBodies,
     world = new GameWorld(),
   ) {
     this.world = world;
@@ -50,6 +53,15 @@ export class GameWorldRuntime {
     for (const particle of particles) this.particleViews.add(particle);
   }
 
+  addEntities(entities: GameEntity[]): void {
+    if (!this.entityBodies) throw new Error('Entity bodies are not configured');
+    this.world.addEntities(entities);
+    for (const entity of entities) {
+      this.entityBodies.add(entity);
+      this.contacts.addEntity(entity, this.entityBodies);
+    }
+  }
+
   removeAsteroid(asteroid: AsteroidEntity): void {
     this.contacts.removeAsteroid(asteroid);
     this.asteroidBodies.remove(asteroid);
@@ -73,6 +85,13 @@ export class GameWorldRuntime {
     this.world.removeParticle(particle);
   }
 
+  removeEntity(entity: GameEntity): void {
+    if (!this.entityBodies) throw new Error('Entity bodies are not configured');
+    this.contacts.removeEntity(entity);
+    this.entityBodies.remove(entity);
+    this.world.removeEntity(entity);
+  }
+
   syncFuelBlobs(): void {
     for (const blob of this.world.fuelBlobs) this.fuelBodies.sync(blob);
   }
@@ -83,5 +102,10 @@ export class GameWorldRuntime {
 
   syncParticles(): void {
     for (const particle of this.world.particles) this.particleViews.sync(particle);
+  }
+
+  getEntityBodies(): EntityBodies {
+    if (!this.entityBodies) throw new Error('Entity bodies are not configured');
+    return this.entityBodies;
   }
 }
