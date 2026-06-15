@@ -78,20 +78,7 @@ describe('createMonolithCubeTexture', () => {
     vi.unstubAllGlobals();
   });
 
-  it('removes the shared texture when the owning scene shuts down', () => {
-    const textures = createTextureManager();
-    const scene = createScene(textures);
-
-    createMonolithCubeTexture(scene);
-    createMonolithCubeTexture(scene);
-    scene.emitShutdown();
-
-    expect(textures.createCanvas).toHaveBeenCalledTimes(MONOLITH_CUBE_FRAME_COUNT);
-    expect(textures.remove).toHaveBeenCalledTimes(MONOLITH_CUBE_FRAME_COUNT);
-    expect(textures.exists('entity-monolith')).toBe(false);
-  });
-
-  it('keeps the shared texture until every owning scene shuts down', () => {
+  it('bakes shared monolith frames once per texture manager', () => {
     const textures = createTextureManager();
     const firstScene = createScene(textures);
     const secondScene = createScene(textures);
@@ -99,15 +86,24 @@ describe('createMonolithCubeTexture', () => {
     createMonolithCubeTexture(firstScene);
     createMonolithCubeTexture(secondScene);
     firstScene.emitShutdown();
+    secondScene.emitShutdown();
 
     expect(textures.createCanvas).toHaveBeenCalledTimes(MONOLITH_CUBE_FRAME_COUNT);
     expect(textures.remove).not.toHaveBeenCalled();
     expect(textures.exists('entity-monolith')).toBe(true);
+  });
 
-    secondScene.emitShutdown();
+  it('rebuilds the shared frame set when it is incomplete', () => {
+    const textures = createTextureManager();
+    const scene = createScene(textures);
 
-    expect(textures.remove).toHaveBeenCalledTimes(MONOLITH_CUBE_FRAME_COUNT);
-    expect(textures.exists('entity-monolith')).toBe(false);
+    createMonolithCubeTexture(scene);
+    textures.remove('entity-monolith-12');
+    createMonolithCubeTexture(scene);
+
+    expect(textures.createCanvas).toHaveBeenCalledTimes(MONOLITH_CUBE_FRAME_COUNT * 2);
+    expect(textures.remove).toHaveBeenCalledWith('entity-monolith');
+    expect(textures.exists('entity-monolith-12')).toBe(true);
   });
 });
 

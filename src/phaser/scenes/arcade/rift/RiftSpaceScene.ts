@@ -35,10 +35,14 @@ import { PortalWindowRenderer } from '../../../portals/PortalWindowRenderer';
 import { ProjectileBodies } from '../../../projectiles/bodies';
 import { getSandboxPerfToggles } from '../../../runtime/startup';
 import { EntityBodies } from '../../../entities/bodies';
+import { createMonolith } from '../../../entities/logic';
 import { createEntityTextures } from '../../../entities/textures';
+import type { GameEntity } from '../../../entities/types';
 import { DimensionBackground } from '../../../world/DimensionBackground';
 import { SpaceRenderEffects } from '../../../world/SpaceRenderEffects';
 import { SpaceWorldRuntime } from '../../../world/SpaceWorldRuntime';
+
+const RIFT_MONOLITH_ID = 700_001;
 
 export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceSceneBridge {
   private background!: DimensionBackground;
@@ -61,6 +65,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
   private activeView = false;
   private timeScale = 1;
   private worldSize!: WorldSize;
+  private riftMonolith: GameEntity | null = null;
   private readonly perfToggles = getSandboxPerfToggles();
 
   constructor() {
@@ -129,6 +134,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
   }
 
   update(time: number, delta: number): void {
+    this.ensureRiftMonolith();
     this.runtime.updateSceneEntities({
       deltaMs: delta * this.timeScale,
       deltaSeconds: (delta / 1000) * this.timeScale,
@@ -153,6 +159,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
   }
 
   captureTextureKey(): string {
+    this.ensureRiftMonolith();
     this.prepareBackgroundForCapture();
     this.renderEffects.prepareCaptureCanvases(this.runtime.world, this.time.now, this.worldSize);
     const textureKey = this.sceneCapture.capture();
@@ -257,6 +264,37 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
       starfield: this.perfToggles.starfield,
       threeBackground: this.perfToggles.threeBackground,
     });
+  }
+
+  private ensureRiftMonolith(): void {
+    const monolith = this.getRiftMonolith();
+    const attached = this.runtime.world.entities.includes(monolith);
+    if (!attached) {
+      this.placeRiftMonolithAtSpawn(monolith);
+      this.runtime.addEntities([monolith]);
+    }
+  }
+
+  private getRiftMonolith(): GameEntity {
+    if (!this.riftMonolith) {
+      const position = this.getRiftMonolithPosition();
+      this.riftMonolith = {
+        ...createMonolith(position, { x: 0, y: 0 }),
+        id: RIFT_MONOLITH_ID,
+        membership: { space: 'rift' },
+      };
+    }
+    return this.riftMonolith;
+  }
+
+  private placeRiftMonolithAtSpawn(monolith: GameEntity): void {
+    const position = this.getRiftMonolithPosition();
+    monolith.position = position;
+    monolith.velocity = { x: 0, y: 0 };
+  }
+
+  private getRiftMonolithPosition(): Vector {
+    return { x: this.worldSize.width * 0.5, y: this.worldSize.height * 0.5 };
   }
 
   private handleResize(gameSize: Phaser.Structs.Size): void {

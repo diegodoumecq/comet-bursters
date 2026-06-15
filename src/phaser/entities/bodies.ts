@@ -37,7 +37,6 @@ export class EntityBodies {
   }
 
   attach(entity: GameEntity): MatterImage {
-    this.enforceEntityRotation(entity);
     const existing = this.bodies.get(entity.id);
     if (existing) {
       this.attached.add(entity.id);
@@ -78,7 +77,8 @@ export class EntityBodies {
     const body = this.get(entity);
     entity.position = { x: body.x, y: body.y };
     entity.velocity = { x: body.body.velocity.x, y: body.body.velocity.y };
-    this.enforceEntityRotation(entity);
+    entity.rotation = this.getBodyRotation(body);
+    entity.angularVelocity = body.body.angularVelocity;
     for (const current of this.getAllVisuals(entity)) {
       current.body.setVisible(false);
       current.visual.setVisible(false);
@@ -147,7 +147,8 @@ export class EntityBodies {
     const body = this.get(entity);
     entity.position = { x: body.x, y: body.y };
     entity.velocity = { x: body.body.velocity.x, y: body.body.velocity.y };
-    this.enforceBodyRotation(body, entity);
+    entity.rotation = this.getBodyRotation(body);
+    entity.angularVelocity = body.body.angularVelocity;
     this.syncVisual(this.getVisual(entity), entity);
   }
 
@@ -188,8 +189,8 @@ export class EntityBodies {
       x: authority.body.body.velocity.x,
       y: authority.body.body.velocity.y,
     };
-    const rotation = 0;
-    const angularVelocity = 0;
+    const rotation = this.getBodyRotation(authority.body);
+    const angularVelocity = authority.body.body.angularVelocity;
     entity.position = position;
     entity.velocity = velocity;
     entity.rotation = rotation;
@@ -207,7 +208,6 @@ export class EntityBodies {
   }
 
   private prepareToroidalCopies(entity: GameEntity, world: WorldSize): void {
-    this.enforceEntityRotation(entity);
     const copies = this.ensureToroidalCopies(entity);
     const activeOffsets = getToroidalOffsets(
       entity.position,
@@ -295,7 +295,8 @@ export class EntityBodies {
     applyMatterBodySpec(body, config.body);
     body.body.collisionFilter.category = ASTEROID_COLLISION_CATEGORY;
     body.setVelocity(entity.velocity.x, entity.velocity.y);
-    this.enforceBodyRotation(body, entity);
+    body.setRotation(entity.rotation);
+    body.setAngularVelocity(entity.angularVelocity);
     body.setVisible(false);
     return body;
   }
@@ -360,14 +361,14 @@ export class EntityBodies {
     visual.setPosition(position.x, position.y);
     visual.setVisible(active);
     this.syncVisualFrame(visual, entity);
-    visual.setRotation(0);
+    visual.setRotation(rotation);
     visual.setDisplaySize(ENTITIES[entity.kind].size, ENTITIES[entity.kind].size);
   }
 
   private syncVisual(visual: Phaser.GameObjects.Image, entity: GameEntity): void {
     this.syncVisualFrame(visual, entity);
     visual.setPosition(entity.position.x, entity.position.y);
-    visual.setRotation(0);
+    visual.setRotation(entity.rotation);
     visual.setDisplaySize(ENTITIES[entity.kind].size, ENTITIES[entity.kind].size);
   }
 
@@ -376,15 +377,8 @@ export class EntityBodies {
     if (visual.texture.key !== textureKey) visual.setTexture(textureKey);
   }
 
-  private enforceBodyRotation(body: MatterImage, entity: GameEntity): void {
-    this.enforceEntityRotation(entity);
-    body.setRotation(entity.rotation);
-    body.setAngularVelocity(entity.angularVelocity);
-  }
-
-  private enforceEntityRotation(entity: GameEntity): void {
-    entity.rotation = 0;
-    entity.angularVelocity = 0;
+  private getBodyRotation(body: MatterImage): number {
+    return body.body.angle;
   }
 }
 

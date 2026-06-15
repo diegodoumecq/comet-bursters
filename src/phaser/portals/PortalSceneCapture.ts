@@ -22,7 +22,7 @@ export class PortalSceneCapture {
   private readonly backgroundTextureKey = `portal-scene-capture-background-${nextCaptureId++}`;
   private readonly backgroundCopyCanvas = document.createElement('canvas');
   private captureEntries: Phaser.GameObjects.GameObject[] = [];
-  private captureEntryChildCount = -1;
+  private captureEntryChildren: Phaser.GameObjects.GameObject[] = [];
   private renderTexture: Phaser.GameObjects.RenderTexture;
 
   constructor(
@@ -144,14 +144,14 @@ export class PortalSceneCapture {
 
   private getCaptureEntries(frame: ScreenCaptureFrame): Phaser.GameObjects.GameObject[] {
     const children = this.scene.children.getChildren();
-    if (children.length !== this.captureEntryChildCount) {
+    if (captureEntryChildrenChanged(this.captureEntryChildren, children)) {
       this.captureEntries = children.filter(
         (entry): entry is Phaser.GameObjects.GameObject =>
           entry instanceof Phaser.GameObjects.GameObject &&
           entry !== this.renderTexture &&
           entry.getData(CAPTURE_EXCLUDE_KEY) !== true,
       );
-      this.captureEntryChildCount = children.length;
+      this.captureEntryChildren = [...children];
     }
 
     const captureRect = getCaptureRect(frame);
@@ -166,6 +166,17 @@ export class PortalSceneCapture {
     if (visible === false) return false;
     return captureEntryIntersectsRect(entry, captureRect);
   }
+}
+
+function captureEntryChildrenChanged(
+  previous: Phaser.GameObjects.GameObject[],
+  current: Phaser.GameObjects.GameObject[],
+): boolean {
+  if (previous.length !== current.length) return true;
+  for (let index = 0; index < current.length; index += 1) {
+    if (previous[index] !== current[index]) return true;
+  }
+  return false;
 }
 
 export function markPortalCaptureExcluded(gameObject: Phaser.GameObjects.GameObject): void {

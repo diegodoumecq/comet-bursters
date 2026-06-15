@@ -12,14 +12,8 @@ const MONOLITH_CUBE_HALF_SIZE = 0.75;
 export const MONOLITH_CUBE_TEXTURE_KEY = 'entity-monolith';
 export const MONOLITH_CUBE_ANIMATION_FRAME_MS = 72;
 
-const textureRefCounts = new WeakMap<Phaser.Textures.TextureManager, Map<string, number>>();
-const sceneTextureKeys = new WeakMap<Phaser.Scene, Set<string>>();
-
 export function createMonolithCubeTexture(scene: Phaser.Scene): void {
   if (!hasMonolithCubeTextures(scene)) bakeMonolithCubeTextures(scene);
-  for (let frameIndex = 0; frameIndex < MONOLITH_CUBE_FRAME_COUNT; frameIndex += 1) {
-    acquireSceneTexture(scene, getMonolithCubeTextureKey(frameIndex));
-  }
 }
 
 export function getMonolithCubeTextureKey(frameIndex: number): string {
@@ -59,68 +53,6 @@ function bakeMonolithCubeTextures(scene: Phaser.Scene): void {
   } finally {
     renderer.dispose();
   }
-}
-
-function acquireSceneTexture(scene: Phaser.Scene, key: string): boolean {
-  const sceneKeys = getSceneTextureKeys(scene);
-  if (sceneKeys.has(key)) return false;
-
-  sceneKeys.add(key);
-  incrementTextureRef(scene.textures, key);
-  scene.events.once('shutdown', () => releaseSceneTexture(scene, key));
-  return true;
-}
-
-function releaseSceneTexture(scene: Phaser.Scene, key: string): void {
-  const sceneKeys = getSceneTextureKeys(scene);
-  sceneKeys.delete(key);
-
-  const remainingRefs = decrementTextureRef(scene.textures, key);
-  if (remainingRefs === 0 && scene.textures.exists(key)) {
-    scene.textures.remove(key);
-  }
-}
-
-function getSceneTextureKeys(scene: Phaser.Scene): Set<string> {
-  const existing = sceneTextureKeys.get(scene);
-  if (existing) return existing;
-
-  const keys = new Set<string>();
-  sceneTextureKeys.set(scene, keys);
-  return keys;
-}
-
-function incrementTextureRef(
-  textureManager: Phaser.Textures.TextureManager,
-  key: string,
-): void {
-  const refCounts = getTextureRefCounts(textureManager);
-  refCounts.set(key, (refCounts.get(key) ?? 0) + 1);
-}
-
-function decrementTextureRef(
-  textureManager: Phaser.Textures.TextureManager,
-  key: string,
-): number {
-  const refCounts = getTextureRefCounts(textureManager);
-  const remainingRefs = Math.max(0, (refCounts.get(key) ?? 1) - 1);
-  if (remainingRefs === 0) {
-    refCounts.delete(key);
-  } else {
-    refCounts.set(key, remainingRefs);
-  }
-  return remainingRefs;
-}
-
-function getTextureRefCounts(
-  textureManager: Phaser.Textures.TextureManager,
-): Map<string, number> {
-  const existing = textureRefCounts.get(textureManager);
-  if (existing) return existing;
-
-  const refCounts = new Map<string, number>();
-  textureRefCounts.set(textureManager, refCounts);
-  return refCounts;
 }
 
 class MonolithCubeTextureRenderer {
