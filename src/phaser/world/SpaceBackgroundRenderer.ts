@@ -87,12 +87,27 @@ void main() {
     fbmPeriodic(p + vec2(5.0, 1.0), basePeriod)
   );
   vec2 q = p + (warp - 0.5) * 0.62 + curve * 0.22;
-  float broad = fbmPeriodic(q + vec2(1.0, 2.0), basePeriod);
-  float cloud = fbmPeriodic(q + warp * 0.65 + vec2(6.0, 4.0), basePeriod);
+  vec2 broadPoint = q + vec2(1.0, 2.0);
+  vec2 cloudPoint = q + warp * 0.65 + vec2(6.0, 4.0);
+  vec2 colorPoint = q * 2.0 + 11.0;
+  float broad = mix(
+    fbmPeriodic(broadPoint, basePeriod),
+    fbmPeriodic(broadPoint + basePeriod * vec2(0.37, 0.61) + vec2(1.7, 2.3), basePeriod),
+    0.28
+  );
+  float cloud = mix(
+    fbmPeriodic(cloudPoint, basePeriod),
+    fbmPeriodic(cloudPoint + basePeriod * vec2(0.53, 0.29) + vec2(4.1, 1.9), basePeriod),
+    0.24
+  );
   float detail = fbmPeriodic(q * 4.0 + warp * 2.0, basePeriod * 4.0);
   float filamentA = fbmPeriodic(q * vec2(4.0, 2.0) + curve * 2.0, basePeriod * vec2(4.0, 2.0));
   float filamentB = fbmPeriodic(q * vec2(2.0, 4.0) - curve * 2.0, basePeriod * vec2(2.0, 4.0));
-  float colorNoise = fbmPeriodic(q * 2.0 + 11.0, basePeriod * 2.0);
+  float colorNoise = mix(
+    fbmPeriodic(colorPoint, basePeriod * 2.0),
+    fbmPeriodic(colorPoint + basePeriod * vec2(1.22, 0.74) + vec2(3.5, 5.7), basePeriod * 2.0),
+    0.18
+  );
   float ribbon = sin((tileUv.x * waveCycles.x + tileUv.y) * TAU + warp.x * 0.35 + detail * 0.12) * 0.5 + 0.5;
   float ridge = 1.0 - abs(detail * 2.0 - 1.0);
   float cloudMass = broad * 0.62 + cloud * 0.38;
