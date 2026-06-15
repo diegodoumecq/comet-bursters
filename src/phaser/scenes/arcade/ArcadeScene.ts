@@ -45,6 +45,12 @@ import { portalApertureContainsCenter } from '../../dimensions/portalGeometry';
 import type { RiftSpaceSceneBridge } from '../../dimensions/RiftSpaceSceneBridge';
 import { resetDimensionCoordinator } from '../../dimensions/runtime';
 import type { DimensionCommand, PortalViewPolicy, SpaceId } from '../../dimensions/types';
+import { EntityBodies } from '../../entities/bodies';
+import {
+  getBlackHoleEntityCollisionBlockers,
+  resolveProjectileGameEntityContactCombat,
+} from '../../entities/combat';
+import { createEntityTextures } from '../../entities/textures';
 import { isFuelBlobCollectable, spawnFuelBlobs, spawnShipFuelDrops } from '../../fuel/blobLogic';
 import { FuelBodies } from '../../fuel/bodies';
 import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../../fuel/definition';
@@ -59,6 +65,7 @@ import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import { PLAYER_DEFINITIONS } from '../../player/definition';
 import { updatePlayerMotion } from '../../player/motion';
 import {
+  blackHoleOverlapsCollisionBlocker,
   getBlackHoleMass,
   getBlackHoleRenderRadius,
   isMatureBlackHole,
@@ -80,9 +87,6 @@ import {
 import { ALL_WEAPONS, type SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { applyTractorBeam } from '../../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../../weapons/use';
-import { EntityBodies } from '../../entities/bodies';
-import { resolveProjectileGameEntityContactCombat } from '../../entities/combat';
-import { createEntityTextures } from '../../entities/textures';
 import { normalize, wrappedDelta } from '../../world/geometry';
 import { applyWorldGravity } from '../../world/gravity';
 import { SpaceWorldRuntime } from '../../world/SpaceWorldRuntime';
@@ -771,6 +775,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     });
     updateBlackHoles({
       asteroids: runtime.world.asteroids,
+      collisionBlockers: getBlackHoleEntityCollisionBlockers(runtime.world.entities),
       distance: (fromX, fromY, toX, toY) => {
         const delta = getDelta(fromX, fromY, toX, toY);
         return Math.hypot(delta.x, delta.y);
@@ -1036,9 +1041,41 @@ export class PhaserArcadeScene extends BaseGameScene {
     });
 
     for (const blackHole of blackHoles) {
-      this.absorbBridgeBlackHoleTargets(blackHole, targetRuntime);
-      this.absorbBridgeBlackHolePlayer(blackHole, targetRuntime);
+      const removed = this.removeBridgeBlackHoleCollidingWithEntityBlocker(
+        blackHole,
+        sourceRuntime,
+        targetRuntime,
+      );
+      if (!removed) {
+        this.absorbBridgeBlackHoleTargets(blackHole, targetRuntime);
+        this.absorbBridgeBlackHolePlayer(blackHole, targetRuntime);
+      }
     }
+  }
+
+  private removeBridgeBlackHoleCollidingWithEntityBlocker(
+    blackHole: ProjectileEntity,
+    sourceRuntime: SpaceWorldRuntime,
+    targetRuntime: SpaceWorldRuntime,
+  ): boolean {
+    const portal = this.dimensionCoordinator.getActivePortal();
+    if (!portal) return false;
+    const blockers = getBlackHoleEntityCollisionBlockers(
+      targetRuntime.world.entities.filter((entity) =>
+        portalApertureContainsCenter(portal, entity.position),
+      ),
+    );
+    const overlaps = blackHoleOverlapsCollisionBlocker(
+      blackHole,
+      blockers,
+      (fromX, fromY, toX, toY) =>
+        this.getWrappedDistance({ x: fromX, y: fromY }, { x: toX, y: toY }),
+    );
+    if (overlaps) {
+      sourceRuntime.removeProjectile(blackHole);
+      return true;
+    }
+    return false;
   }
 
   private absorbBridgeBlackHoleTargets(

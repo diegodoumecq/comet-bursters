@@ -33,6 +33,13 @@ import { applyMatterBodySpec } from '../../core/matterBodySpec';
 import { startPerformanceFrame, withPerformanceMeasure } from '../../core/performance';
 import { getTimeScale } from '../../core/time';
 import type { Vector, WorldSize } from '../../core/types';
+import { EntityBodies } from '../../entities/bodies';
+import {
+  getBlackHoleEntityCollisionBlockers,
+  resolveProjectileGameEntityContactCombat,
+} from '../../entities/combat';
+import { createEntityTextures } from '../../entities/textures';
+import type { GameEntity } from '../../entities/types';
 import { spawnAsteroidFuelDrops, spawnFuelBlobs, spawnShipFuelDrops } from '../../fuel/blobLogic';
 import { FuelBodies } from '../../fuel/bodies';
 import { MAX_FUEL, SHIELD_RADIUS } from '../../fuel/rules';
@@ -63,10 +70,6 @@ import { updateProjectiles } from '../../projectiles/logic';
 import type { ProjectileEntity } from '../../projectiles/types';
 import { enableCanvasOverscan } from '../../runtime/canvasOverscan';
 import { getSandboxFogEnabled, getSandboxPerfToggles } from '../../runtime/startup';
-import { EntityBodies } from '../../entities/bodies';
-import { resolveProjectileGameEntityContactCombat } from '../../entities/combat';
-import { createEntityTextures } from '../../entities/textures';
-import type { GameEntity } from '../../entities/types';
 import { SANDBOX_WEAPONS, type SceneWeaponPolicy } from '../../weapons/scenePolicy';
 import { applyTractorBeam } from '../../weapons/tractorBeam';
 import { isTractorActive, updateWeapons } from '../../weapons/use';
@@ -485,6 +488,7 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.resolvePlanetCollisions();
     updateBlackHoles({
       asteroids: this.runtime.world.asteroids,
+      collisionBlockers: getBlackHoleEntityCollisionBlockers(this.runtime.world.entities),
       distance: (fromX, fromY, toX, toY) =>
         getWrappedDistance({ x: fromX, y: fromY }, { x: toX, y: toY }, WORLD),
       fuelBlobs: this.runtime.world.fuelBlobs,

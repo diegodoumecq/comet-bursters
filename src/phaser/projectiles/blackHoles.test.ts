@@ -8,6 +8,7 @@ import {
   getBlackHoleInfluenceRadius,
   getBlackHoleRenderRadius,
   updateBlackHoles,
+  type BlackHoleCollisionBlocker,
   type BlackHolePlanetAbsorptionEvent,
 } from './blackHoles';
 import type { ProjectileBodies } from './bodies';
@@ -83,6 +84,16 @@ function createAsteroid(): AsteroidEntity {
   };
 }
 
+function createCollisionBlocker(
+  input: Partial<BlackHoleCollisionBlocker> = {},
+): BlackHoleCollisionBlocker {
+  return {
+    position: { x: 100, y: 0 },
+    radius: 39,
+    ...input,
+  };
+}
+
 function createPlanet(): PlanetEntity {
   return {
     altitudeVariations: [],
@@ -126,6 +137,8 @@ function update(input: {
   asteroid?: AsteroidEntity;
   asteroids?: AsteroidEntity[];
   blackHole: ProjectileEntity;
+  collisionBlocker?: BlackHoleCollisionBlocker;
+  collisionBlockers?: BlackHoleCollisionBlocker[];
   fuelBlob?: FuelBlobEntity;
   fuelBlobs?: FuelBlobEntity[];
   onBlackHoleAbsorbedByPlanet?: (event: BlackHolePlanetAbsorptionEvent) => void;
@@ -146,6 +159,8 @@ function update(input: {
   const projectiles = input.projectiles ?? [input.blackHole];
   updateBlackHoles({
     asteroids,
+    collisionBlockers:
+      input.collisionBlockers ?? (input.collisionBlocker ? [input.collisionBlocker] : []),
     distance: (fromX, fromY, toX, toY) => Math.hypot(toX - fromX, toY - fromY),
     fuelBlobs: input.fuelBlobs ?? (input.fuelBlob ? [input.fuelBlob] : []),
     now: input.blackHole.ageMs,
@@ -406,6 +421,30 @@ describe('black-hole fuel absorption', () => {
     expect(immatureBlackHole.absorbedFuel).toBe(0);
     expect(collapsingBlackHole.absorbedFuel).toBe(0);
     expect(onFuelBlobAbsorbed).not.toHaveBeenCalled();
+  });
+});
+
+describe('black-hole collision blockers', () => {
+  it('destroys black holes that overlap a blocker', () => {
+    const blackHole = createBlackHole({ ageMs: 0 });
+    const collisionBlocker = createCollisionBlocker();
+    const onBlackHoleRemoved = vi.fn();
+
+    const result = update({ asteroids: [], blackHole, collisionBlocker, onBlackHoleRemoved });
+
+    expect(onBlackHoleRemoved).toHaveBeenCalledWith(blackHole);
+    expect(result.projectiles).toEqual([]);
+  });
+
+  it('keeps black holes outside blocker collision radii', () => {
+    const blackHole = createBlackHole({ ageMs: 0 });
+    const collisionBlocker = createCollisionBlocker({ position: { x: 170, y: 0 } });
+    const onBlackHoleRemoved = vi.fn();
+
+    const result = update({ asteroids: [], blackHole, collisionBlocker, onBlackHoleRemoved });
+
+    expect(onBlackHoleRemoved).not.toHaveBeenCalled();
+    expect(result.projectiles).toEqual([blackHole]);
   });
 });
 

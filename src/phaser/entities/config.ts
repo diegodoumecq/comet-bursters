@@ -28,7 +28,7 @@ export const ENTITY_DEFINITIONS: Record<EntityKind, EntityDefinition> = {
       mass: 20,
     },
     gameplay: {
-      hits: ASTEROIDS.medium.hits,
+      hits: 30000000000,
     },
     render: {
       color: 0x000000,

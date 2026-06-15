@@ -21,6 +21,7 @@ import type { ProjectileEntity } from './types';
 
 export type BlackHoleLifecycleOptions = {
   asteroids: AsteroidEntity[];
+  collisionBlockers?: BlackHoleCollisionBlocker[];
   distance: (fromX: number, fromY: number, toX: number, toY: number) => number;
   fuelBlobs?: FuelBlobEntity[];
   now: number;
@@ -42,6 +43,11 @@ export type BlackHoleLifecycleOptions = {
   };
   projectileBodies: ProjectileBodies;
   projectiles: ProjectileEntity[];
+};
+
+export type BlackHoleCollisionBlocker = {
+  position: Vector;
+  radius: number;
 };
 
 export type BlackHolePlanetAbsorptionEvent = {
@@ -87,6 +93,7 @@ export function getBlackHoleInfluenceRadius(radius: number): number {
 
 export function updateBlackHoles(input: BlackHoleLifecycleOptions): void {
   removeBlackHolesCollidingWithPlanets(input);
+  removeBlackHolesCollidingWithBlockers(input);
   mergeBlackHoles(input);
   absorbFuelBlobs(input);
   absorbProjectiles(input);
@@ -98,6 +105,20 @@ export function updateBlackHoles(input: BlackHoleLifecycleOptions): void {
 
 export function getBlackHoleMass(blackHole: ProjectileEntity): number {
   return blackHole.blackHoleMass ?? 1;
+}
+
+export function blackHoleOverlapsCollisionBlocker(
+  blackHole: ProjectileEntity,
+  blockers: BlackHoleCollisionBlocker[],
+  distance: BlackHoleLifecycleOptions['distance'],
+): boolean {
+  return blockers.some((blocker) =>
+    circlesOverlap(
+      distance(blackHole.position.x, blackHole.position.y, blocker.position.x, blocker.position.y),
+      getBlackHoleRenderRadius(blackHole),
+      blocker.radius,
+    ),
+  );
 }
 
 function getActiveBlackHoles(projectiles: ProjectileEntity[]): ProjectileEntity[] {
@@ -157,6 +178,22 @@ function getPlanetSurfaceNormal(position: Vector, planetPosition: Vector): Vecto
   const distance = Math.hypot(delta.x, delta.y);
   if (distance <= 0) return { x: 1, y: 0 };
   return { x: delta.x / distance, y: delta.y / distance };
+}
+
+function removeBlackHolesCollidingWithBlockers(input: BlackHoleLifecycleOptions): void {
+  const blockers = input.collisionBlockers ?? [];
+  if (blockers.length === 0) return;
+
+  for (const projectile of [...input.projectiles]) {
+    if (
+      projectile.kind === 'blackHole' &&
+      projectile.collapseStartedAt === null &&
+      input.projectiles.includes(projectile) &&
+      blackHoleOverlapsCollisionBlocker(projectile, blockers, input.distance)
+    ) {
+      input.onBlackHoleRemoved(projectile);
+    }
+  }
 }
 
 function mergeBlackHoles(input: BlackHoleLifecycleOptions): void {

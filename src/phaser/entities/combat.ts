@@ -1,7 +1,8 @@
+import type { BlackHoleCollisionBlocker } from '../projectiles/blackHoles';
+import type { ProjectileEntity } from '../projectiles/types';
 import type { EntityBodies } from './bodies';
 import { ENTITIES } from './config';
 import type { GameEntity } from './types';
-import type { ProjectileEntity } from '../projectiles/types';
 
 export function applyProjectileGameEntityImpulse(
   projectile: ProjectileEntity,
@@ -28,6 +29,15 @@ export function damageGameEntity(projectile: ProjectileEntity, entity: GameEntit
 export function damageGameEntityByAmount(entity: GameEntity, damage: number): boolean {
   entity.hits = (entity.hits ?? 1) - damage;
   return (entity.hits ?? 0) <= 0;
+}
+
+export function getBlackHoleEntityCollisionBlockers(
+  entities: GameEntity[],
+): BlackHoleCollisionBlocker[] {
+  return entities.map((entity) => ({
+    position: entity.position,
+    radius: ENTITIES[entity.kind].collisionRadius,
+  }));
 }
 
 export type ProjectileGameEntityCombatEvent =
