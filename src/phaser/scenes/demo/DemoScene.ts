@@ -30,7 +30,7 @@ import {
   BLACK_HOLE_SOURCE_OVERSCAN,
 } from '../../projectiles/definition';
 import type { ProjectileEntity } from '../../projectiles/types';
-import { enableCanvasOverscan } from '../../runtime/canvasOverscan';
+import { enableCanvasOverscan, getActiveCanvasOverscan } from '../../runtime/canvasOverscan';
 import { EntityBodies } from '../../entities/bodies';
 import { createMonolith } from '../../entities/logic';
 import { ENTITIES } from '../../entities/config';
@@ -50,6 +50,7 @@ const DEMO_ASTEROID_ROTATION_SPEED = 0.00072;
 const DEMO_PLANET_ROTATION_SPEED = 0.00008;
 const DEMO_BLACK_HOLE_AGE_MS = BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS;
 const DEMO_BLACK_HOLE_LIFETIME_MS = Number.MAX_SAFE_INTEGER;
+const DEMO_WORLD_BOUND_THICKNESS = 64;
 
 const DEMO_ASTEROID_TIER_ROTATION_SCALE: Record<AsteroidTier, number> = {
   big: 0.68,
@@ -113,8 +114,22 @@ export class PhaserDemoScene extends BaseGameScene {
       this.sceneRenderer.destroy();
       this.fuelExtractorViews.destroy();
     });
-    this.matter.world.setBounds(0, 0, WORLD.width, WORLD.height, 64, true, true, true, true);
     this.cameras.main.setBounds(0, 0, WORLD.width, WORLD.height);
+    const worldBounds = getVisibleDemoWorldBounds(
+      WORLD,
+      getActiveCanvasOverscan() / Math.max(this.cameras.main.zoom, 0.000001),
+    );
+    this.matter.world.setBounds(
+      worldBounds.x,
+      worldBounds.y,
+      worldBounds.width,
+      worldBounds.height,
+      DEMO_WORLD_BOUND_THICKNESS,
+      true,
+      true,
+      true,
+      true,
+    );
     this.actions = new ActionReader(this);
     this.asteroidBodies = new AsteroidBodies(this);
     this.entityBodies = new EntityBodies(this);
@@ -161,7 +176,7 @@ export class PhaserDemoScene extends BaseGameScene {
     });
     this.ship.setFuel(MAX_FUEL);
     this.updateAsteroids(delta);
-    this.updateEntities(delta);
+    this.updateEntities();
     this.updatePlanets(delta);
   }
 
@@ -264,8 +279,6 @@ export class PhaserDemoScene extends BaseGameScene {
 
   private createEntities(): void {
     const entity = createMonolith({ x: 100, y: 980 }, { x: 0, y: 0 });
-    entity.rotation = DEMO_SHOWCASE_ROTATION;
-    entity.angularVelocity = DEMO_ASTEROID_ROTATION_SPEED * 0.9;
     this.entities = [entity];
     this.entityBodies.add(entity);
     this.add
@@ -306,14 +319,9 @@ export class PhaserDemoScene extends BaseGameScene {
     }
   }
 
-  private updateEntities(deltaMs: number): void {
+  private updateEntities(): void {
     for (const entity of this.entities) {
-      const angularVelocity = entity.angularVelocity;
-      entity.rotation += angularVelocity * deltaMs;
-      const body = this.entityBodies.get(entity);
-      body.setRotation(entity.rotation);
       this.entityBodies.sync(entity);
-      entity.angularVelocity = angularVelocity;
     }
   }
 
@@ -394,5 +402,18 @@ function createDemoFuelExtractorRandom(index: number) {
     },
     floatBetween: (min: number, max: number) => min + (max - min) * values[0],
     pick: <T>(items: T[]) => items[index % items.length],
+  };
+}
+
+function getVisibleDemoWorldBounds(
+  world: WorldSize,
+  overscanWorldMargin: number,
+): { height: number; width: number; x: number; y: number } {
+  const inset = Math.max(0, overscanWorldMargin);
+  return {
+    height: Math.max(1, world.height - inset * 2),
+    width: Math.max(1, world.width - inset * 2),
+    x: inset,
+    y: inset,
   };
 }

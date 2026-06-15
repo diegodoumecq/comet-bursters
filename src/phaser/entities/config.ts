@@ -23,6 +23,7 @@ export const ENTITY_DEFINITIONS: Record<EntityKind, EntityDefinition> = {
     body: {
       bounce: 1,
       collisionRadius: ASTEROIDS.medium.collisionRadius,
+      fixedRotation: true,
       frictionAir: 0,
       mass: 20,
     },
