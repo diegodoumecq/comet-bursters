@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 describe('generated texture scopes', () => {
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.useRealTimers();
     vi.resetModules();
   });
@@ -17,12 +18,38 @@ describe('generated texture scopes', () => {
       'asteroids',
       'entities',
     ]);
+    expect(getGeneratedTextureGroupsForScope('rift-space').map((group) => group.key)).toEqual([
+      'asteroids',
+      'entities',
+    ]);
+    expect(getGeneratedTextureGroupsForScope('demo').map((group) => group.key)).toEqual([
+      'asteroids',
+      'entities',
+    ]);
+    expect(getGeneratedTextureGroupsForScope('sandbox').map((group) => group.key)).toEqual([
+      'asteroids',
+    ]);
     expect(getGeneratedTextureGroupsForScope('ship-interior')).toEqual([]);
     expect(
       getAllGeneratedTextureCacheEntries().some((entry) =>
         entry.textureKey.startsWith('phaser-asteroid-'),
       ),
     ).toBe(true);
+    expect(
+      getAllGeneratedTextureCacheEntries().some((entry) =>
+        entry.textureKey.startsWith('entity-monolith'),
+      ),
+    ).toBe(true);
+  });
+
+  it('keeps focused demo profile scopes asteroid-only without changing pruning entries', async () => {
+    vi.stubGlobal('window', { __demoPerfTechnique: 'planet-texture-cache' });
+    const { getAllGeneratedTextureCacheEntries, getGeneratedTextureGroupsForScope } =
+      await import('./generatedTextureScopes');
+
+    expect(getGeneratedTextureGroupsForScope('demo').map((group) => group.key)).toEqual([
+      'asteroids',
+    ]);
     expect(
       getAllGeneratedTextureCacheEntries().some((entry) =>
         entry.textureKey.startsWith('entity-monolith'),
@@ -77,6 +104,39 @@ describe('generated texture scopes', () => {
     expect(
       getGeneratedTextureRuntimeStats(scene).groups.filter((group) => group.refCount === 1).length,
     ).toBe(2);
+  });
+
+  it('registers and unloads only asteroid textures for sandbox', async () => {
+    vi.useFakeTimers();
+    const {
+      getGeneratedTextureGroupsForScope,
+      getGeneratedTextureRuntimeStats,
+      registerGeneratedTextureScope,
+    } = await import('./generatedTextureScopes');
+    const { collectGeneratedTextureKeys } = await import('../core/generatedTextureRegistry');
+    const sandboxTextureKeys = collectGeneratedTextureKeys(
+      getGeneratedTextureGroupsForScope('sandbox'),
+    );
+    const scene = createScene(sandboxTextureKeys);
+
+    registerGeneratedTextureScope(scene, 'sandbox');
+    expect(
+      getGeneratedTextureRuntimeStats(scene).groups.filter((group) => group.refCount === 1),
+    ).toEqual([
+      expect.objectContaining({
+        groupKey: 'asteroids',
+        loadedTextures: sandboxTextureKeys.length,
+        textureCount: sandboxTextureKeys.length,
+      }),
+    ]);
+
+    scene.emitShutdown();
+    await vi.runOnlyPendingTimersAsync();
+
+    expect(scene.removedTextureKeys.sort()).toEqual([...sandboxTextureKeys].sort());
+    expect(
+      scene.removedTextureKeys.some((textureKey) => textureKey.startsWith('entity-monolith')),
+    ).toBe(false);
   });
 });
 
