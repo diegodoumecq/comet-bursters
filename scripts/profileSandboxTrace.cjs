@@ -33,10 +33,10 @@ async function main() {
       window.__profileSandboxFuelMetaballs = toggles.fuelMetaballs;
       window.__profileSandboxGrid = toggles.grid;
       window.__profileSandboxMinimap = toggles.minimap;
+      window.__profileSandboxNebulaBackground = toggles.nebulaBackground;
       window.__profileSandboxNebulaRegions = toggles.nebulaRegions;
       window.__profileSandboxPlayerHud = toggles.playerHud;
       window.__profileSandboxStarfield = toggles.starfield;
-      window.__profileSandboxThreeBackground = toggles.threeBackground;
       window.__profileSandboxTrajectoryPreview = toggles.trajectoryPreview;
     }, getProfileToggles());
 
@@ -52,15 +52,15 @@ async function main() {
       sessionStorage.setItem('comet-bursters-sandboxGrid', window.__profileSandboxGrid);
       sessionStorage.setItem('comet-bursters-sandboxMinimap', window.__profileSandboxMinimap);
       sessionStorage.setItem(
+        'comet-bursters-sandboxNebulaBackground',
+        window.__profileSandboxNebulaBackground,
+      );
+      sessionStorage.setItem(
         'comet-bursters-sandboxNebulaRegions',
         window.__profileSandboxNebulaRegions,
       );
       sessionStorage.setItem('comet-bursters-sandboxPlayerHud', window.__profileSandboxPlayerHud);
       sessionStorage.setItem('comet-bursters-sandboxStarfield', window.__profileSandboxStarfield);
-      sessionStorage.setItem(
-        'comet-bursters-sandboxThreeBackground',
-        window.__profileSandboxThreeBackground,
-      );
       sessionStorage.setItem(
         'comet-bursters-sandboxTrajectoryPreview',
         window.__profileSandboxTrajectoryPreview,
@@ -234,10 +234,13 @@ function getProfileToggles() {
     fuelMetaballs: getBooleanEnv('SANDBOX_FUEL_METABALLS', true),
     grid: getBooleanEnv('SANDBOX_GRID', true),
     minimap: getBooleanEnv('SANDBOX_MINIMAP', true),
+    nebulaBackground: getBooleanEnvCandidates(
+      ['SANDBOX_NEBULA_BACKGROUND', 'SANDBOX_THREE_BACKGROUND'],
+      true,
+    ),
     nebulaRegions: getBooleanEnv('SANDBOX_NEBULA_REGIONS', true),
     playerHud: getBooleanEnv('SANDBOX_PLAYER_HUD', true),
     starfield: getBooleanEnv('SANDBOX_STARFIELD', true),
-    threeBackground: getBooleanEnv('SANDBOX_THREE_BACKGROUND', true),
     trajectoryPreview: getBooleanEnv('SANDBOX_TRAJECTORY_PREVIEW', true),
   };
 }
@@ -251,6 +254,14 @@ function getBooleanEnv(name, defaultValue) {
   const raw = process.env[name];
   if (raw === undefined) return String(defaultValue);
   return raw !== 'false' && raw !== '0' ? 'true' : 'false';
+}
+
+function getBooleanEnvCandidates(names, defaultValue) {
+  for (const name of names) {
+    const raw = process.env[name];
+    if (raw !== undefined) return raw !== 'false' && raw !== '0' ? 'true' : 'false';
+  }
+  return String(defaultValue);
 }
 
 function summarizeDurations(events, getKey) {

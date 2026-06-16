@@ -11,14 +11,15 @@ type SandboxPerfToggleKey =
   | 'sandboxBlackHoles'
   | 'sandboxFuelMetaballs'
   | 'sandboxMinimap'
+  | 'sandboxNebulaBackground'
   | 'sandboxNebulaRegions'
-  | 'sandboxStarfield'
-  | 'sandboxThreeBackground';
+  | 'sandboxStarfield';
 
 const SANDBOX_PERF_TOGGLES: Array<{
   defaultValue: boolean;
   key: SandboxPerfToggleKey;
   label: string;
+  legacyKey?: string;
 }> = [
   { defaultValue: false, key: 'arcadeDimensionDebug', label: 'Rift ownership rings' },
   { defaultValue: false, key: 'sandboxPerfMarkers', label: 'Perf markers' },
@@ -26,15 +27,22 @@ const SANDBOX_PERF_TOGGLES: Array<{
   { defaultValue: true, key: 'sandboxBlackHoles', label: 'Black holes' },
   { defaultValue: true, key: 'sandboxFuelMetaballs', label: 'Fuel metaballs' },
   { defaultValue: true, key: 'sandboxMinimap', label: 'Minimap' },
+  {
+    defaultValue: true,
+    key: 'sandboxNebulaBackground',
+    label: 'Nebula background',
+    legacyKey: 'sandboxThreeBackground',
+  },
   { defaultValue: true, key: 'sandboxNebulaRegions', label: 'Nebula regions' },
   { defaultValue: true, key: 'sandboxStarfield', label: 'Starfield' },
-  { defaultValue: true, key: 'sandboxThreeBackground', label: 'Three background' },
 ];
 
 function readSandboxPerfToggles(): Record<SandboxPerfToggleKey, boolean> {
   const toggles = {} as Record<SandboxPerfToggleKey, boolean>;
   for (const toggle of SANDBOX_PERF_TOGGLES) {
-    const saved = window.localStorage.getItem(`comet-bursters-${toggle.key}`);
+    const saved =
+      window.localStorage.getItem(`comet-bursters-${toggle.key}`) ??
+      (toggle.legacyKey ? window.localStorage.getItem(`comet-bursters-${toggle.legacyKey}`) : null);
     toggles[toggle.key] = saved === null ? toggle.defaultValue : saved !== 'false';
   }
   return toggles;

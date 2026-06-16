@@ -139,8 +139,8 @@ export class SandboxRenderer {
       this.background.render(input.world, {
         grid: this.perfToggles.grid,
         markers: this.perfToggles.markers,
+        nebulaBackground: this.perfToggles.nebulaBackground,
         starfield: this.perfToggles.starfield,
-        threeBackground: this.perfToggles.threeBackground,
       });
 
       perf.startSection('sandbox.render.nebulaRegions');

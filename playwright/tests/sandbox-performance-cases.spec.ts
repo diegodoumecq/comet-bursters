@@ -42,8 +42,8 @@ const SANDBOX_PERF_CASES: SandboxPerfCase[] = [
       biomeDebug: true,
       blackHoles: false,
       fuelMetaballs: false,
+      nebulaBackground: false,
       nebulaRegions: true,
-      threeBackground: false,
     },
   },
   {

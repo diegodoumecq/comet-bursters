@@ -30,6 +30,7 @@ export type SandboxPerfToggles = {
   grid: boolean;
   markers: boolean;
   minimap: boolean;
+  nebulaBackground: boolean;
   nebulaRegions: boolean;
   playerHud: boolean;
   starfield: boolean;
@@ -38,6 +39,10 @@ export type SandboxPerfToggles = {
 };
 
 export function getSandboxPerfToggles(): SandboxPerfToggles {
+  const nebulaBackground = getBooleanStartupFlagCandidates(
+    ['sandboxNebulaBackground', 'sandboxThreeBackground'],
+    true,
+  );
   return {
     biomeDebug: getBooleanStartupFlag('sandboxBiomeDebug', false),
     blackHoles: getBooleanStartupFlag('sandboxBlackHoles', true),
@@ -45,19 +50,30 @@ export function getSandboxPerfToggles(): SandboxPerfToggles {
     grid: getBooleanStartupFlag('sandboxGrid', true),
     markers: getBooleanStartupFlag('sandboxPerfMarkers', false),
     minimap: getBooleanStartupFlag('sandboxMinimap', true),
+    nebulaBackground,
     nebulaRegions: getBooleanStartupFlag('sandboxNebulaRegions', true),
     playerHud: getBooleanStartupFlag('sandboxPlayerHud', true),
     starfield: getBooleanStartupFlag('sandboxStarfield', true),
-    threeBackground: getBooleanStartupFlag('sandboxThreeBackground', true),
+    threeBackground: nebulaBackground,
     trajectoryPreview: getBooleanStartupFlag('sandboxTrajectoryPreview', true),
   };
 }
 
 function getBooleanStartupFlag(name: string, defaultValue: boolean): boolean {
+  return getBooleanStartupFlagCandidates([name], defaultValue);
+}
+
+function getBooleanStartupFlagCandidates(names: string[], defaultValue: boolean): boolean {
   const search = new URLSearchParams(window.location.search);
-  const raw = search.get(name) ?? getStoredStartupValue(name);
-  if (raw === null) return defaultValue;
-  return raw !== 'false' && raw !== '0';
+  for (const name of names) {
+    const raw = search.get(name);
+    if (raw !== null) return raw !== 'false' && raw !== '0';
+  }
+  for (const name of names) {
+    const raw = getStoredStartupValue(name);
+    if (raw !== null) return raw !== 'false' && raw !== '0';
+  }
+  return defaultValue;
 }
 
 function getBooleanStoredStartupFlag(name: string, defaultValue: boolean): boolean {

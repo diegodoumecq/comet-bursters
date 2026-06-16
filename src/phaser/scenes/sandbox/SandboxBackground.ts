@@ -14,8 +14,8 @@ const SANDBOX_STAR_DEPTH_SHIFT = -70;
 type SandboxBackgroundRenderOptions = {
   grid: boolean;
   markers: boolean;
+  nebulaBackground: boolean;
   starfield: boolean;
-  threeBackground: boolean;
 };
 
 export class SandboxBackground {
@@ -50,8 +50,8 @@ export class SandboxBackground {
     this.lastRenderAt = now;
     const camera = this.scene.cameras.main;
     camera.preRender();
-    if (options.threeBackground) {
-      withPerformanceMeasure('sandbox.render.background.three', options.markers, () => {
+    if (options.nebulaBackground) {
+      withPerformanceMeasure('sandbox.render.background.nebula', options.markers, () => {
         this.nebula.render(camera, world, true);
       });
     } else {

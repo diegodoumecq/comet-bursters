@@ -30,9 +30,9 @@ async function main() {
       sessionStorage.setItem('comet-bursters-sandboxBlackHoles', 'true');
       sessionStorage.setItem('comet-bursters-sandboxFuelMetaballs', 'true');
       sessionStorage.setItem('comet-bursters-sandboxMinimap', 'true');
+      sessionStorage.setItem('comet-bursters-sandboxNebulaBackground', 'true');
       sessionStorage.setItem('comet-bursters-sandboxNebulaRegions', 'true');
       sessionStorage.setItem('comet-bursters-sandboxStarfield', 'true');
-      sessionStorage.setItem('comet-bursters-sandboxThreeBackground', 'true');
     });
 
     await page.reload({ waitUntil: 'networkidle' });
