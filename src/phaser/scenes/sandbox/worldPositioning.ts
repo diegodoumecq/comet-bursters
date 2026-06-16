@@ -7,12 +7,12 @@ import type { ProjectileEntity } from '../../projectiles/types';
 import { nearestWrappedPosition } from '../../world/geometry';
 import type { GameWorld } from '../../world/state';
 
-type PositionableBody = {
-  setPosition(x: number, y: number): void;
+type AsteroidPositioningBodies = {
+  setPosition(asteroid: AsteroidEntity, position: Vector): void;
 };
 
-type AsteroidPositioningBodies = {
-  get(asteroid: AsteroidEntity): PositionableBody;
+type PositionableBody = {
+  setPosition(x: number, y: number): void;
 };
 
 type FuelPositioningBodies = {
@@ -126,9 +126,10 @@ function rebasePlanets(input: SandboxWorldPositioningBaseInput, shift: Vector): 
 
 function rebaseAsteroids(input: SandboxWorldPositioningBaseInput, shift: Vector): void {
   for (const asteroid of input.runtime.world.asteroids) {
-    asteroid.position.x += shift.x;
-    asteroid.position.y += shift.y;
-    input.asteroidBodies.get(asteroid).setPosition(asteroid.position.x, asteroid.position.y);
+    input.asteroidBodies.setPosition(asteroid, {
+      x: asteroid.position.x + shift.x,
+      y: asteroid.position.y + shift.y,
+    });
   }
 }
 
@@ -172,8 +173,7 @@ function positionPlanetsNearPlayer(input: SandboxWorldPositioningBaseInput): voi
 function positionAsteroidsNearPlayer(input: SandboxWorldPositioningBaseInput): void {
   for (const asteroid of input.runtime.world.asteroids) {
     const position = nearestWrappedPosition(input.player.position, asteroid.position, input.world);
-    asteroid.position = position;
-    input.asteroidBodies.get(asteroid).setPosition(position.x, position.y);
+    input.asteroidBodies.setPosition(asteroid, position);
   }
 }
 

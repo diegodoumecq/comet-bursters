@@ -165,6 +165,21 @@ export class AsteroidBodies {
     }
   }
 
+  setPosition(asteroid: AsteroidEntity, position: Vector): void {
+    asteroid.position = { ...position };
+    this.placeBody(
+      this.get(asteroid),
+      this.getVisual(asteroid),
+      asteroid,
+      asteroid.position,
+      asteroid.velocity,
+      asteroid.rotation,
+      asteroid.angularVelocity,
+      this.attached.has(asteroid.id),
+    );
+    this.snapshots.delete(asteroid.id);
+  }
+
   private reconcileToroidal(asteroid: AsteroidEntity, world: WorldSize): void {
     const primary = this.get(asteroid);
     const snapshot = this.snapshots.get(asteroid.id) ?? {
