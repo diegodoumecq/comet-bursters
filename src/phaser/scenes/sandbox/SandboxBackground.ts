@@ -3,8 +3,8 @@ import Phaser from 'phaser';
 import { withPerformanceMeasure } from '../../core/performance';
 import type { Vector, WorldSize } from '../../core/types';
 import { wrappedDelta } from '../../world/geometry';
-import { SpaceBackgroundRenderer } from '../../world/SpaceBackgroundRenderer';
 import { Starfield } from '../../world/Starfield';
+import { SandboxNebulaBackground } from './SandboxNebulaBackground';
 
 const GRID_DEPTH = -100;
 const GRID_TILE_SIZE = 240;
@@ -21,13 +21,13 @@ type SandboxBackgroundRenderOptions = {
 export class SandboxBackground {
   private readonly grid: Phaser.GameObjects.TileSprite;
   private readonly gridTextureKey = `sandbox-grid-${Phaser.Math.RND.uuid()}`;
-  private readonly shader: SpaceBackgroundRenderer;
+  private readonly nebula: SandboxNebulaBackground;
   private readonly starfield: Starfield;
   private lastCameraScroll: Vector | null = null;
   private lastRenderAt = 0;
 
   constructor(private readonly scene: Phaser.Scene) {
-    this.shader = new SpaceBackgroundRenderer(scene.game.canvas, scene.game.canvas.parentElement);
+    this.nebula = new SandboxNebulaBackground(scene);
     this.starfield = new Starfield(
       scene,
       { width: scene.scale.width, height: scene.scale.height },
@@ -43,29 +43,19 @@ export class SandboxBackground {
       .setDepth(GRID_DEPTH);
   }
 
-  render(playerPosition: Vector, world: WorldSize, options: SandboxBackgroundRenderOptions): void {
+  render(world: WorldSize, options: SandboxBackgroundRenderOptions): void {
     const now = this.scene.time.now;
     const deltaMs =
       this.lastRenderAt === 0 ? 0 : Math.min(50, Math.max(0, now - this.lastRenderAt));
     this.lastRenderAt = now;
     const camera = this.scene.cameras.main;
     camera.preRender();
-    this.shader.setVisible(options.threeBackground);
     if (options.threeBackground) {
       withPerformanceMeasure('sandbox.render.background.three', options.markers, () => {
-        this.shader.render({
-          mode: 'sandbox',
-          now,
-          cameraScroll: {
-            x: camera.worldView.x,
-            y: camera.worldView.y,
-          },
-          cameraZoom: camera.zoom,
-          playerPosition,
-          screen: { width: this.scene.scale.width, height: this.scene.scale.height },
-          world,
-        });
+        this.nebula.render(camera, world, true);
       });
+    } else {
+      this.nebula.render(camera, world, false);
     }
     this.starfield.setVisible(options.starfield);
     if (options.starfield) {
@@ -74,10 +64,6 @@ export class SandboxBackground {
       });
     }
     this.renderGrid(camera, options.grid);
-  }
-
-  getCanvas(): HTMLCanvasElement | null {
-    return this.shader.getCanvas();
   }
 
   private getStarParallax(camera: Phaser.Cameras.Scene2D.Camera, world: WorldSize): Vector {
@@ -122,8 +108,9 @@ export class SandboxBackground {
 
   private dispose(): void {
     this.grid.destroy();
-    if (this.scene.textures.exists(this.gridTextureKey)) this.scene.textures.remove(this.gridTextureKey);
-    this.shader.dispose();
+    if (this.scene.textures.exists(this.gridTextureKey))
+      this.scene.textures.remove(this.gridTextureKey);
+    this.nebula.destroy();
     this.starfield.destroy();
   }
 }

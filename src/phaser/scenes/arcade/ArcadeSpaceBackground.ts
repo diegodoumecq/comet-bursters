@@ -27,7 +27,6 @@ export class ArcadeSpaceBackground {
   private lastRenderAt = 0;
   private nextDirectionChangeAt = 0;
   private readonly paletteIndex = Phaser.Math.Between(1, 64);
-  private shaderOffset: Vector = { x: 0, y: 0 };
   private readonly starfield: Starfield;
   private targetDrift: Vector = { x: -NEBULA_DRIFT_SPEED, y: NEBULA_DRIFT_SPEED * 0.45 };
 
@@ -47,16 +46,11 @@ export class ArcadeSpaceBackground {
       this.lastRenderAt === 0 ? 0 : Math.min(MAX_DELTA_MS, Math.max(0, now - this.lastRenderAt));
     this.lastRenderAt = now;
     this.updateNebulaDrift(now);
-    this.shaderOffset.x += this.drift.x * deltaMs;
-    this.shaderOffset.y += this.drift.y * deltaMs;
     this.shader.setVisible(options.threeBackground);
     if (options.threeBackground) {
       withPerformanceMeasure('arcade.render.background.three', options.markers, () => {
         this.shader.render({
-          mode: 'arcade',
           nebulaPalette: getArcadeNebulaPalette(this.paletteIndex),
-          now,
-          playerPosition: this.shaderOffset,
           screen: this.screen,
         });
       });

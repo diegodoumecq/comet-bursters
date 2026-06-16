@@ -97,11 +97,6 @@ export class SandboxRenderer {
     return this.weaponMenu.getSelected(aim);
   }
 
-  getBackgroundCanvas(): HTMLCanvasElement | null {
-    if (!this.perfToggles.threeBackground) return null;
-    return this.background.getCanvas();
-  }
-
   setPlayerDocked(docked: boolean): void {
     if (docked) {
       this.playerThruster.setDepth(-4);
@@ -141,7 +136,7 @@ export class SandboxRenderer {
     const perf = startPerformanceFrame('sandbox.render.total', this.perfToggles.markers);
     try {
       perf.startSection('sandbox.render.background');
-      this.background.render(input.player.position, input.world, {
+      this.background.render(input.world, {
         grid: this.perfToggles.grid,
         markers: this.perfToggles.markers,
         starfield: this.perfToggles.starfield,
