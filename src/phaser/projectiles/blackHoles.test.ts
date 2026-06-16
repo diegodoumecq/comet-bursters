@@ -8,6 +8,7 @@ import {
   getBlackHoleInfluenceRadius,
   getBlackHoleRenderRadius,
   updateBlackHoles,
+  type BlackHoleBlockerImpactEvent,
   type BlackHoleCollisionBlocker,
   type BlackHolePlanetAbsorptionEvent,
 } from './blackHoles';
@@ -141,6 +142,7 @@ function update(input: {
   collisionBlockers?: BlackHoleCollisionBlocker[];
   fuelBlob?: FuelBlobEntity;
   fuelBlobs?: FuelBlobEntity[];
+  onBlackHoleBlocked?: (event: BlackHoleBlockerImpactEvent) => void;
   onBlackHoleAbsorbedByPlanet?: (event: BlackHolePlanetAbsorptionEvent) => void;
   onBlackHoleRemoved?: (blackHole: ProjectileEntity) => void;
   onFuelBlobAbsorbed?: (blob: FuelBlobEntity) => void;
@@ -166,6 +168,7 @@ function update(input: {
     now: input.blackHole.ageMs,
     onAsteroidAbsorbed: vi.fn(),
     onAsteroidRemoved: vi.fn(),
+    onBlackHoleBlocked: input.onBlackHoleBlocked,
     onBlackHoleAbsorbedByPlanet: input.onBlackHoleAbsorbedByPlanet,
     onBlackHoleRemoved: (blackHole) => {
       input.onBlackHoleRemoved?.(blackHole);
@@ -426,23 +429,47 @@ describe('black-hole fuel absorption', () => {
 
 describe('black-hole collision blockers', () => {
   it('destroys black holes that overlap a blocker', () => {
-    const blackHole = createBlackHole({ ageMs: 0 });
+    const blackHole = createBlackHole({ ageMs: 0, position: { x: 130, y: 0 } });
     const collisionBlocker = createCollisionBlocker();
+    const onBlackHoleBlocked = vi.fn();
     const onBlackHoleRemoved = vi.fn();
 
-    const result = update({ asteroids: [], blackHole, collisionBlocker, onBlackHoleRemoved });
+    const result = update({
+      asteroids: [],
+      blackHole,
+      collisionBlocker,
+      onBlackHoleBlocked,
+      onBlackHoleRemoved,
+    });
 
+    expect(onBlackHoleBlocked).toHaveBeenCalledWith({
+      blackHole,
+      blocker: collisionBlocker,
+      normal: { x: 1, y: 0 },
+      position: { x: 143, y: 0 },
+    });
     expect(onBlackHoleRemoved).toHaveBeenCalledWith(blackHole);
+    expect(onBlackHoleBlocked.mock.invocationCallOrder[0]).toBeLessThan(
+      onBlackHoleRemoved.mock.invocationCallOrder[0],
+    );
     expect(result.projectiles).toEqual([]);
   });
 
   it('keeps black holes outside blocker collision radii', () => {
     const blackHole = createBlackHole({ ageMs: 0 });
     const collisionBlocker = createCollisionBlocker({ position: { x: 170, y: 0 } });
+    const onBlackHoleBlocked = vi.fn();
     const onBlackHoleRemoved = vi.fn();
 
-    const result = update({ asteroids: [], blackHole, collisionBlocker, onBlackHoleRemoved });
+    const result = update({
+      asteroids: [],
+      blackHole,
+      collisionBlocker,
+      onBlackHoleBlocked,
+      onBlackHoleRemoved,
+    });
 
+    expect(onBlackHoleBlocked).not.toHaveBeenCalled();
     expect(onBlackHoleRemoved).not.toHaveBeenCalled();
     expect(result.projectiles).toEqual([blackHole]);
   });

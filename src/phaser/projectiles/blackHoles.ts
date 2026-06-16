@@ -27,6 +27,7 @@ export type BlackHoleLifecycleOptions = {
   now: number;
   onAsteroidAbsorbed: (asteroid: AsteroidEntity) => void;
   onAsteroidRemoved: (asteroid: AsteroidEntity) => void;
+  onBlackHoleBlocked?: (event: BlackHoleBlockerImpactEvent) => void;
   onBlackHoleAbsorbedByPlanet?: (event: BlackHolePlanetAbsorptionEvent) => void;
   onBlackHoleRemoved: (blackHole: ProjectileEntity) => void;
   onFuelBurst: (blackHole: ProjectileEntity) => void;
@@ -48,6 +49,13 @@ export type BlackHoleLifecycleOptions = {
 export type BlackHoleCollisionBlocker = {
   position: Vector;
   radius: number;
+};
+
+export type BlackHoleBlockerImpactEvent = {
+  blackHole: ProjectileEntity;
+  blocker: BlackHoleCollisionBlocker;
+  normal: Vector;
+  position: Vector;
 };
 
 export type BlackHolePlanetAbsorptionEvent = {
@@ -112,13 +120,7 @@ export function blackHoleOverlapsCollisionBlocker(
   blockers: BlackHoleCollisionBlocker[],
   distance: BlackHoleLifecycleOptions['distance'],
 ): boolean {
-  return blockers.some((blocker) =>
-    circlesOverlap(
-      distance(blackHole.position.x, blackHole.position.y, blocker.position.x, blocker.position.y),
-      getBlackHoleRenderRadius(blackHole),
-      blocker.radius,
-    ),
-  );
+  return getBlackHoleBlockerImpact(blackHole, blockers, distance) !== null;
 }
 
 function getActiveBlackHoles(projectiles: ProjectileEntity[]): ProjectileEntity[] {
@@ -188,12 +190,48 @@ function removeBlackHolesCollidingWithBlockers(input: BlackHoleLifecycleOptions)
     if (
       projectile.kind === 'blackHole' &&
       projectile.collapseStartedAt === null &&
-      input.projectiles.includes(projectile) &&
-      blackHoleOverlapsCollisionBlocker(projectile, blockers, input.distance)
+      input.projectiles.includes(projectile)
     ) {
-      input.onBlackHoleRemoved(projectile);
+      const impact = getBlackHoleBlockerImpact(projectile, blockers, input.distance);
+      if (impact) {
+        input.onBlackHoleBlocked?.(impact);
+        input.onBlackHoleRemoved(projectile);
+      }
     }
   }
+}
+
+function getBlackHoleBlockerImpact(
+  blackHole: ProjectileEntity,
+  blockers: BlackHoleCollisionBlocker[],
+  distance: BlackHoleLifecycleOptions['distance'],
+): BlackHoleBlockerImpactEvent | null {
+  for (const blocker of blockers) {
+    if (
+      circlesOverlap(
+        distance(
+          blackHole.position.x,
+          blackHole.position.y,
+          blocker.position.x,
+          blocker.position.y,
+        ),
+        getBlackHoleRenderRadius(blackHole),
+        blocker.radius,
+      )
+    ) {
+      const normal = getPlanetSurfaceNormal(blackHole.position, blocker.position);
+      return {
+        blackHole,
+        blocker,
+        normal,
+        position: {
+          x: blocker.position.x + normal.x * (blocker.radius + 4),
+          y: blocker.position.y + normal.y * (blocker.radius + 4),
+        },
+      };
+    }
+  }
+  return null;
 }
 
 function mergeBlackHoles(input: BlackHoleLifecycleOptions): void {

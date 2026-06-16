@@ -18,6 +18,7 @@ import {
 import {
   createAsteroidExplosion,
   createAsteroidImpactDebris,
+  createBlackHoleBlockerImpact,
   createBlackHolePlanetAbsorption,
   createExplosionBurst,
   createShipExplosion,
@@ -788,6 +789,16 @@ export class PhaserArcadeScene extends BaseGameScene {
       onAsteroidRemoved: (asteroid) => runtime.removeAsteroid(asteroid),
       onBlackHoleAbsorbedByPlanet: (event) => {
         const effect = createBlackHolePlanetAbsorption({
+          blackHole: event.blackHole,
+          normal: event.normal,
+          position: event.position,
+        });
+        runtime.addParticles(effect.particles);
+        if (effect.shakeDurationMs > 0)
+          this.startShake(effect.shakeIntensity, effect.shakeDurationMs);
+      },
+      onBlackHoleBlocked: (event) => {
+        const effect = createBlackHoleBlockerImpact({
           blackHole: event.blackHole,
           normal: event.normal,
           position: event.position,

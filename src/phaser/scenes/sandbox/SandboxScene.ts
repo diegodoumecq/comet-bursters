@@ -17,6 +17,7 @@ import {
   createAsteroidExplosion,
   createAsteroidImpactDebris,
   createAsteroidPlanetImpactDebris,
+  createBlackHoleBlockerImpact,
   createBlackHolePlanetAbsorption,
   createExplosionBurst,
   createShipExplosion,
@@ -496,6 +497,14 @@ export class PhaserSandboxScene extends BaseGameScene {
       onBlackHoleAbsorbedByPlanet: (event) =>
         this.applyEffect(
           createBlackHolePlanetAbsorption({
+            blackHole: event.blackHole,
+            normal: event.normal,
+            position: event.position,
+          }),
+        ),
+      onBlackHoleBlocked: (event) =>
+        this.applyEffect(
+          createBlackHoleBlockerImpact({
             blackHole: event.blackHole,
             normal: event.normal,
             position: event.position,

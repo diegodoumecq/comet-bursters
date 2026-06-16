@@ -5,6 +5,7 @@ import {
   createAsteroidExplosion,
   createAsteroidImpactDebris,
   createAsteroidPlanetImpactDebris,
+  createBlackHoleBlockerImpact,
   createBlackHolePlanetAbsorption,
   createExplosionBurst,
   createShipExplosion,
@@ -93,6 +94,38 @@ describe('combat particle effects', () => {
     );
     expect(effect.particles.some((particle) => particle.kind === 'panel')).toBe(false);
     expect(effect.particles.some((particle) => particle.kind === 'wing')).toBe(false);
+    expect(effect.shakeDurationMs).toBeGreaterThan(0);
+  });
+
+  it('creates black-hole blocker impact particles for monolith collisions', () => {
+    const effect = createBlackHoleBlockerImpact({
+      blackHole: {
+        absorbedFuel: 0,
+        ageMs: 4000,
+        airResistance: 0.01,
+        angle: 0,
+        baseSpeed: 2,
+        blackHoleMass: 1,
+        collapseStartedAt: null,
+        createdAt: 0,
+        damage: 0,
+        id: 1,
+        impact: 0,
+        kind: 'blackHole',
+        lifetimeMs: 10000,
+        position: { x: 100, y: 100 },
+        radius: 6,
+        velocity: { x: -4, y: 1 },
+      },
+      normal: { x: 1, y: 0 },
+      position: { x: 300, y: 100 },
+    });
+
+    expect(effect.particles.length).toBeGreaterThan(25);
+    expect(new Set(effect.particles.map((particle) => particle.kind))).toEqual(
+      new Set(['core', 'shockwave', 'smoke', 'spark']),
+    );
+    expect(effect.particles.every((particle) => particle.gravityScale === 0)).toBe(true);
     expect(effect.shakeDurationMs).toBeGreaterThan(0);
   });
 
