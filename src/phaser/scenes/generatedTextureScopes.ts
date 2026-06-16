@@ -36,6 +36,7 @@ const DEMAND_SPACE_GENERATED_TEXTURE_GROUPS = [
   ASTEROID_GENERATED_TEXTURE_GROUP,
   ENTITY_GENERATED_TEXTURE_GROUP,
 ] as const;
+const DEMO_FOCUSED_GENERATED_TEXTURE_GROUPS = [ASTEROID_GENERATED_TEXTURE_GROUP] as const;
 
 const SCENE_GENERATED_TEXTURE_GROUPS: Record<
   SceneGeneratedTextureScope,
@@ -63,6 +64,8 @@ const scenesWithReleaseHooks = new WeakSet<Phaser.Scene>();
 export function getGeneratedTextureGroupsForScope(
   scope: SceneGeneratedTextureScope,
 ): readonly GeneratedTextureGroup[] {
+  if (scope === 'demo' && isFocusedDemoTechniqueActive())
+    return DEMO_FOCUSED_GENERATED_TEXTURE_GROUPS;
   return SCENE_GENERATED_TEXTURE_GROUPS[scope];
 }
 
@@ -171,5 +174,17 @@ function unloadGeneratedTextureGroup(scene: Phaser.Scene, group: GeneratedTextur
 
   for (const textureKey of collectGeneratedTextureKeys([group])) {
     if (scene.textures.exists(textureKey)) scene.textures.remove(textureKey);
+  }
+}
+
+function isFocusedDemoTechniqueActive(): boolean {
+  if (typeof window === 'undefined') return false;
+  const raw = window.__demoPerfTechnique;
+  return raw === 'asteroid-atlas-rotation' || raw === 'planet-texture-cache';
+}
+
+declare global {
+  interface Window {
+    __demoPerfTechnique?: string;
   }
 }

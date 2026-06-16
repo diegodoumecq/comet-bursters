@@ -37,6 +37,7 @@ import { enableCanvasOverscan, getActiveCanvasOverscan } from '../../runtime/can
 import { normalize } from '../../world/geometry';
 import { BaseGameScene } from '../BaseGameScene';
 import { registerGeneratedTextureScope } from '../generatedTextureScopes';
+import { isFocusedDemoTechniqueActive } from './demoPerfTechnique';
 import { DemoRenderer } from './DemoRenderer';
 
 const WORLD: WorldSize = { width: 5000, height: 5000 };
@@ -138,9 +139,11 @@ export class PhaserDemoScene extends BaseGameScene {
     this.createGrid();
     this.createPlanets();
     this.createAsteroids();
-    this.createBlackHoles();
-    this.createEntities();
-    this.createPortals();
+    if (!isFocusedDemoTechniqueActive()) {
+      this.createBlackHoles();
+      this.createEntities();
+      this.createPortals();
+    }
     this.playerBody = new PlayerBody(this, { x: 620, y: 760 }, this.playerState);
     applyMatterBodySpec(this.playerBody.body, PLAYER_DEFINITIONS.demo.body);
     this.sceneRenderer = new DemoRenderer(
@@ -220,13 +223,15 @@ export class PhaserDemoScene extends BaseGameScene {
     });
     for (const planet of this.planets) {
       this.planetViews.add(planet);
-      this.add
-        .text(planet.position.x, planet.position.y + planet.radius * 1.1, planet.kind, {
-          color: '#ffffff',
-          fontFamily: 'monospace',
-          fontSize: '16px',
-        })
-        .setOrigin(0.5);
+      if (!isFocusedDemoTechniqueActive()) {
+        this.add
+          .text(planet.position.x, planet.position.y + planet.radius * 1.1, planet.kind, {
+            color: '#ffffff',
+            fontFamily: 'monospace',
+            fontSize: '16px',
+          })
+          .setOrigin(0.5);
+      }
     }
   }
 
@@ -245,13 +250,15 @@ export class PhaserDemoScene extends BaseGameScene {
       asteroid.rotation = DEMO_SHOWCASE_ROTATION;
       asteroid.angularVelocity = getDemoAsteroidAngularVelocity(tier, visualVariant);
       this.asteroidBodies.add(asteroid).setStatic(true);
-      this.add
-        .text(x, y + ASTEROIDS[tier].radius + 18, `${tier} / variant ${visualVariant}`, {
-          color: '#ffffff',
-          fontFamily: 'monospace',
-          fontSize: '16px',
-        })
-        .setOrigin(0.5);
+      if (!isFocusedDemoTechniqueActive()) {
+        this.add
+          .text(x, y + ASTEROIDS[tier].radius + 18, `${tier} / variant ${visualVariant}`, {
+            color: '#ffffff',
+            fontFamily: 'monospace',
+            fontSize: '16px',
+          })
+          .setOrigin(0.5);
+      }
       return asteroid;
     });
   }

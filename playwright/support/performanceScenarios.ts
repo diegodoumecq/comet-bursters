@@ -95,11 +95,21 @@ const menuClickByScene: Record<Exclude<PerformanceScene, 'global'>, { x: number;
 export async function openDemoGame(
   page: Page,
   settleMs = 1200,
-  options: { markers?: boolean } = {},
+  options: {
+    demoTechnique?: 'asteroid-atlas-rotation' | 'planet-texture-cache';
+    markers?: boolean;
+  } = {},
 ): Promise<void> {
-  await page.addInitScript((markers) => {
-    window.sessionStorage.setItem('comet-bursters-sandboxPerfMarkers', String(markers));
-  }, options.markers === true);
+  await page.addInitScript(
+    ({ demoTechnique, markers }) => {
+      window.sessionStorage.setItem('comet-bursters-sandboxPerfMarkers', String(markers));
+      if (demoTechnique) {
+        (window as typeof window & { __demoPerfTechnique?: string }).__demoPerfTechnique =
+          demoTechnique;
+      }
+    },
+    { demoTechnique: options.demoTechnique, markers: options.markers === true },
+  );
   await page.goto('/phaser-game.html', { waitUntil: 'networkidle' });
   const canvas = page.locator('canvas').first();
   await canvas.waitFor({ state: 'visible' });
