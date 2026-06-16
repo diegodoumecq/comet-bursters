@@ -1,10 +1,9 @@
 import type Phaser from 'phaser';
 
 import {
-  addGeneratedAtlasTexture,
-  readGeneratedAtlasTexture,
-  writeGeneratedAtlasTexture,
+  ensureGeneratedAtlasTexture,
   type GeneratedAssetCacheEntry,
+  type GeneratedAtlasTextureRender,
 } from '../core/generatedAssetCache';
 import type { GeneratedTextureGroup } from '../core/generatedTextureRegistry';
 import {
@@ -52,13 +51,6 @@ type AsteroidAtlasLayout = {
   startFrame: number;
   textureKey: string;
   width: number;
-};
-
-type AsteroidAtlasRender = {
-  atlasJson: {
-    frames: Record<string, AtlasFrameData>;
-  };
-  canvas: HTMLCanvasElement;
 };
 
 type AtlasFrameData = {
@@ -457,30 +449,32 @@ async function ensureAsteroidTextureAtlas(
   const layouts = createAtlasLayouts(tier, recipe.key, frameCount, textureSize);
   if (layouts.every((layout) => scene.textures.exists(layout.textureKey))) return;
 
+  let outputs: readonly ShaderCanvasOutput[] | null = null;
+  const getOutputs = (): readonly ShaderCanvasOutput[] => {
+    if (!outputs) {
+      const inputs = createAsteroidShaderTextureInputs(
+        tier,
+        recipe,
+        variantIndex,
+        frameCount,
+        textureSize,
+      );
+      outputs = createShaderCanvases(fragmentShader, inputs);
+      if (!outputs) throw new Error('Unable to create asteroid shader textures');
+    }
+    return outputs;
+  };
+
   await Promise.all(
     layouts.map((layout) =>
-      ensureCachedAsteroidAtlasPage(scene, tier, recipe, layout, textureSize),
+      ensureGeneratedAtlasTexture(scene, {
+        key: layout.textureKey,
+        renderAtlas: () =>
+          renderAsteroidAtlasPage(tier, recipe.key, layout, textureSize, getOutputs()),
+        version: createAsteroidAtlasCacheVersion(tier, recipe, layout, textureSize),
+      }),
     ),
   );
-
-  const missingLayouts = layouts.filter((layout) => !scene.textures.exists(layout.textureKey));
-  if (missingLayouts.length === 0) return;
-
-  const inputs = createAsteroidShaderTextureInputs(
-    tier,
-    recipe,
-    variantIndex,
-    frameCount,
-    textureSize,
-  );
-  const outputs = createShaderCanvases(fragmentShader, inputs);
-  if (!outputs) throw new Error('Unable to create asteroid shader textures');
-
-  for (const layout of missingLayouts) {
-    const render = renderAsteroidAtlasPage(tier, recipe.key, layout, textureSize, outputs);
-    addAsteroidAtlasPage(scene, layout.textureKey, render);
-    await cacheAsteroidAtlasPage(tier, recipe, layout, render);
-  }
 }
 
 function createAsteroidShaderTextureInputs(
@@ -513,7 +507,7 @@ function renderAsteroidAtlasPage(
   layout: AsteroidAtlasLayout,
   textureSize: number,
   outputs: readonly ShaderCanvasOutput[],
-): AsteroidAtlasRender {
+): GeneratedAtlasTextureRender {
   const atlasCanvas = document.createElement('canvas');
   atlasCanvas.width = layout.width;
   atlasCanvas.height = layout.height;
@@ -537,57 +531,6 @@ function renderAsteroidAtlasPage(
   }
 
   return { atlasJson: { frames }, canvas: atlasCanvas };
-}
-
-function addAsteroidAtlasPage(
-  scene: Phaser.Scene,
-  textureKey: string,
-  render: AsteroidAtlasRender,
-): void {
-  const atlas = scene.textures.addAtlasJSONHash(
-    textureKey,
-    render.canvas as unknown as HTMLImageElement,
-    render.atlasJson,
-  );
-  if (!atlas) throw new Error(`Unable to create asteroid atlas ${textureKey}`);
-}
-
-async function ensureCachedAsteroidAtlasPage(
-  scene: Phaser.Scene,
-  tier: AsteroidTier,
-  recipe: SurfaceRecipe,
-  layout: AsteroidAtlasLayout,
-  textureSize: number,
-): Promise<void> {
-  if (scene.textures.exists(layout.textureKey)) return;
-
-  const cached = await readGeneratedAtlasTexture(
-    layout.textureKey,
-    createAsteroidAtlasCacheVersion(tier, recipe, layout, textureSize),
-  );
-  if (cached && !scene.textures.exists(layout.textureKey)) {
-    await addGeneratedAtlasTexture(scene, layout.textureKey, cached);
-  }
-}
-
-async function cacheAsteroidAtlasPage(
-  tier: AsteroidTier,
-  recipe: SurfaceRecipe,
-  layout: AsteroidAtlasLayout,
-  render: AsteroidAtlasRender,
-): Promise<void> {
-  const blob = await new Promise<Blob | null>((resolve) => {
-    render.canvas.toBlob((nextBlob) => resolve(nextBlob), 'image/png');
-  });
-  if (!blob) return;
-  await writeGeneratedAtlasTexture(
-    layout.textureKey,
-    createAsteroidAtlasCacheVersion(tier, recipe, layout, render.canvas.width / layout.columns),
-    {
-      atlasJson: render.atlasJson,
-      blob,
-    },
-  );
 }
 
 function createAsteroidAtlasCacheVersion(

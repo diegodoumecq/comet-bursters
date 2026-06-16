@@ -20,7 +20,7 @@ export type GeneratedAssetCacheEntry = {
   version: string;
 };
 
-export type GeneratedAssetCacheStatsEntry = {
+type GeneratedAssetCacheStatsEntry = {
   bytes: number;
   cacheKey: string;
   kind: 'atlas' | 'image';
@@ -48,7 +48,24 @@ export type GeneratedCanvasTextureRecipe = {
   width: number;
 };
 
-export type GeneratedAtlasTexture = {
+type GeneratedImageTextureRecipe = {
+  key: string;
+  renderCanvas: () => HTMLCanvasElement;
+  version: string;
+};
+
+export type GeneratedAtlasTextureRender = {
+  atlasJson: object | object[];
+  canvas: HTMLCanvasElement;
+};
+
+type GeneratedAtlasTextureRecipe = {
+  key: string;
+  renderAtlas: () => GeneratedAtlasTextureRender;
+  version: string;
+};
+
+type GeneratedAtlasTexture = {
   atlasJson: object | object[];
   blob: Blob;
 };
@@ -63,6 +80,17 @@ export async function ensureGeneratedCanvasTexture(
   scene: Phaser.Scene,
   recipe: GeneratedCanvasTextureRecipe,
 ): Promise<void> {
+  await ensureGeneratedImageTexture(scene, {
+    key: recipe.key,
+    renderCanvas: () => renderCanvasRecipe(recipe),
+    version: recipe.version,
+  });
+}
+
+export async function ensureGeneratedImageTexture(
+  scene: Phaser.Scene,
+  recipe: GeneratedImageTextureRecipe,
+): Promise<void> {
   if (scene.textures.exists(recipe.key)) return;
 
   const cachedBlob = await readGeneratedImageTexture(recipe.key, recipe.version);
@@ -73,13 +101,38 @@ export async function ensureGeneratedCanvasTexture(
 
   if (scene.textures.exists(recipe.key)) return;
 
-  const canvas = renderCanvasRecipe(recipe);
+  const canvas = recipe.renderCanvas();
   scene.textures.addCanvas(recipe.key, canvas);
   const blob = await canvasToPngBlob(canvas);
   if (blob) await writeGeneratedImageTexture(recipe.key, recipe.version, blob);
 }
 
-export async function readGeneratedImageTexture(
+export async function ensureGeneratedAtlasTexture(
+  scene: Phaser.Scene,
+  recipe: GeneratedAtlasTextureRecipe,
+): Promise<void> {
+  if (scene.textures.exists(recipe.key)) return;
+
+  const cachedAtlas = await readGeneratedAtlasTexture(recipe.key, recipe.version);
+  if (cachedAtlas && !scene.textures.exists(recipe.key)) {
+    const loaded = await addGeneratedAtlasTexture(scene, recipe.key, cachedAtlas);
+    if (loaded) return;
+  }
+
+  if (scene.textures.exists(recipe.key)) return;
+
+  const render = recipe.renderAtlas();
+  addGeneratedAtlasCanvas(scene, recipe.key, render);
+  const blob = await canvasToPngBlob(render.canvas);
+  if (blob) {
+    await writeGeneratedAtlasTexture(recipe.key, recipe.version, {
+      atlasJson: render.atlasJson,
+      blob,
+    });
+  }
+}
+
+async function readGeneratedImageTexture(
   textureKey: string,
   version: string,
 ): Promise<Blob | null> {
@@ -87,7 +140,7 @@ export async function readGeneratedImageTexture(
   return record?.kind === 'image' ? record.blob : null;
 }
 
-export async function writeGeneratedImageTexture(
+async function writeGeneratedImageTexture(
   textureKey: string,
   version: string,
   blob: Blob,
@@ -95,7 +148,7 @@ export async function writeGeneratedImageTexture(
   await writeGeneratedAssetRecord(textureKey, version, { blob, kind: 'image' });
 }
 
-export async function addGeneratedImageTexture(
+async function addGeneratedImageTexture(
   scene: Phaser.Scene,
   textureKey: string,
   blob: Blob,
@@ -103,7 +156,7 @@ export async function addGeneratedImageTexture(
   return addBlobTexture(scene, textureKey, blob);
 }
 
-export async function readGeneratedAtlasTexture(
+async function readGeneratedAtlasTexture(
   textureKey: string,
   version: string,
 ): Promise<GeneratedAtlasTexture | null> {
@@ -112,7 +165,7 @@ export async function readGeneratedAtlasTexture(
   return { atlasJson: record.atlasJson, blob: record.blob };
 }
 
-export async function writeGeneratedAtlasTexture(
+async function writeGeneratedAtlasTexture(
   textureKey: string,
   version: string,
   atlas: GeneratedAtlasTexture,
@@ -124,7 +177,7 @@ export async function writeGeneratedAtlasTexture(
   });
 }
 
-export async function addGeneratedAtlasTexture(
+async function addGeneratedAtlasTexture(
   scene: Phaser.Scene,
   textureKey: string,
   atlas: GeneratedAtlasTexture,
@@ -135,6 +188,19 @@ export async function addGeneratedAtlasTexture(
 
   const texture = scene.textures.addAtlasJSONHash(textureKey, image, atlas.atlasJson);
   return !!texture;
+}
+
+function addGeneratedAtlasCanvas(
+  scene: Phaser.Scene,
+  textureKey: string,
+  render: GeneratedAtlasTextureRender,
+): void {
+  const texture = scene.textures.addAtlasJSONHash(
+    textureKey,
+    render.canvas as unknown as HTMLImageElement,
+    render.atlasJson,
+  );
+  if (!texture) throw new Error(`Unable to create generated atlas ${textureKey}`);
 }
 
 export async function pruneGeneratedAssetCache(

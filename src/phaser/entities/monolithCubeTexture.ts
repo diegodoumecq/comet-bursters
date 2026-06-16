@@ -2,9 +2,7 @@ import type Phaser from 'phaser';
 import * as THREE from 'three';
 
 import {
-  addGeneratedImageTexture,
-  readGeneratedImageTexture,
-  writeGeneratedImageTexture,
+  ensureGeneratedImageTexture,
   type GeneratedAssetCacheEntry,
 } from '../core/generatedAssetCache';
 import { ENTITIES } from './config';
@@ -22,29 +20,23 @@ export const MONOLITH_CUBE_ANIMATION_FRAME_MS = 72;
 export async function ensureMonolithCubeTextures(scene: Phaser.Scene): Promise<void> {
   if (hasMonolithCubeTextures(scene)) return;
 
-  await Promise.all(
-    getMonolithCubeFrameIndices().map((frameIndex) => loadCachedFrame(scene, frameIndex)),
-  );
-
-  const missingFrameIndices = getMonolithCubeFrameIndices().filter(
-    (frameIndex) => !scene.textures.exists(getMonolithCubeTextureKey(frameIndex)),
-  );
-  if (missingFrameIndices.length === 0) return;
-
   const size = ENTITIES.monolith.size;
-  const renderer = new MonolithCubeTextureRenderer(size);
+  const renderState: { renderer: MonolithCubeTextureRenderer | null } = { renderer: null };
   try {
-    for (const frameIndex of missingFrameIndices) {
-      const textureKey = getMonolithCubeTextureKey(frameIndex);
-      const canvas = renderer.renderCanvas(frameIndex / MONOLITH_CUBE_FRAME_COUNT);
-      scene.textures.addCanvas(textureKey, canvas);
-      const blob = await canvasToPngBlob(canvas);
-      if (blob) {
-        await writeGeneratedImageTexture(textureKey, createMonolithFrameCacheVersion(), blob);
-      }
-    }
+    await Promise.all(
+      getMonolithCubeFrameIndices().map((frameIndex) =>
+        ensureGeneratedImageTexture(scene, {
+          key: getMonolithCubeTextureKey(frameIndex),
+          renderCanvas: () => {
+            renderState.renderer ??= new MonolithCubeTextureRenderer(size);
+            return renderState.renderer.renderCanvas(frameIndex / MONOLITH_CUBE_FRAME_COUNT);
+          },
+          version: createMonolithFrameCacheVersion(),
+        }),
+      ),
+    );
   } finally {
-    renderer.dispose();
+    renderState.renderer?.dispose();
   }
 }
 
@@ -76,16 +68,6 @@ function hasMonolithCubeTextures(scene: Phaser.Scene): boolean {
   return true;
 }
 
-async function loadCachedFrame(scene: Phaser.Scene, frameIndex: number): Promise<void> {
-  const textureKey = getMonolithCubeTextureKey(frameIndex);
-  if (scene.textures.exists(textureKey)) return;
-
-  const cachedBlob = await readGeneratedImageTexture(textureKey, createMonolithFrameCacheVersion());
-  if (cachedBlob && !scene.textures.exists(textureKey)) {
-    await addGeneratedImageTexture(scene, textureKey, cachedBlob);
-  }
-}
-
 function getMonolithCubeFrameIndices(): number[] {
   return Array.from({ length: MONOLITH_CUBE_FRAME_COUNT }, (_, frameIndex) => frameIndex);
 }
@@ -102,12 +84,6 @@ function createMonolithFrameCacheVersion(): string {
     MONOLITH_TILT_Z,
     MONOLITH_CUBE_HALF_SIZE,
   ].join(':');
-}
-
-function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => resolve(blob), 'image/png');
-  });
 }
 
 class MonolithCubeTextureRenderer {

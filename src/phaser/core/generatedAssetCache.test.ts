@@ -136,18 +136,40 @@ describe('generated asset cache', () => {
     expect(scene.textures.addCanvas).not.toHaveBeenCalled();
   });
 
-  it('returns null for cold atlas misses and reads stored atlas records after writing', async () => {
+  it('generates cold atlas records and stores them after adding the Phaser texture', async () => {
+    const scene = createScene();
     const records = new Map<string, StoredRecord>();
     const atlasJson = { frames: { idle: { frame: { h: 8, w: 8, x: 0, y: 0 } } } };
-    const blob = new Blob(['atlas'], { type: PNG_CONTENT_TYPE });
+    installCanvasStub(new Blob(['atlas'], { type: PNG_CONTENT_TYPE }));
     installIndexedDb(records);
 
-    const { readGeneratedAtlasTexture, writeGeneratedAtlasTexture } =
-      await import('./generatedAssetCache');
+    const { ensureGeneratedAtlasTexture } = await import('./generatedAssetCache');
+    const renderAtlas = vi.fn(() => ({
+      atlasJson,
+      canvas: document.createElement('canvas') as HTMLCanvasElement,
+    }));
 
-    await expect(readGeneratedAtlasTexture('atlas', 'v1')).resolves.toBeNull();
-    await writeGeneratedAtlasTexture('atlas', 'v1', { atlasJson, blob });
-    await expect(readGeneratedAtlasTexture('atlas', 'v1')).resolves.toEqual({ atlasJson, blob });
+    await ensureGeneratedAtlasTexture(scene, {
+      key: 'atlas',
+      renderAtlas,
+      version: 'v1',
+    });
+
+    expect(renderAtlas).toHaveBeenCalledTimes(1);
+    expect(scene.textures.addAtlasJSONHash).toHaveBeenCalledWith(
+      'atlas',
+      expect.anything(),
+      atlasJson,
+    );
+    expect(records.get('atlas@v1')).toEqual(
+      expect.objectContaining({
+        atlasJson,
+        cacheKey: 'atlas@v1',
+        contentType: PNG_CONTENT_TYPE,
+        kind: 'atlas',
+        version: 'v1',
+      }),
+    );
   });
 
   it('loads warm atlas records into Phaser without regenerating atlas pages', async () => {
@@ -172,14 +194,19 @@ describe('generated asset cache', () => {
       ]),
     );
 
-    const { addGeneratedAtlasTexture, readGeneratedAtlasTexture } =
-      await import('./generatedAssetCache');
+    const { ensureGeneratedAtlasTexture } = await import('./generatedAssetCache');
+    const renderAtlas = vi.fn(() => ({
+      atlasJson,
+      canvas: document.createElement('canvas') as HTMLCanvasElement,
+    }));
 
-    const atlas = await readGeneratedAtlasTexture('warm-atlas', 'v1');
-    expect(atlas).toEqual({ atlasJson, blob });
-    expect(atlas).not.toBeNull();
-    if (atlas) await addGeneratedAtlasTexture(scene, 'warm-atlas', atlas);
+    await ensureGeneratedAtlasTexture(scene, {
+      key: 'warm-atlas',
+      renderAtlas,
+      version: 'v1',
+    });
 
+    expect(renderAtlas).not.toHaveBeenCalled();
     expect(scene.textures.addAtlasJSONHash).toHaveBeenCalledWith(
       'warm-atlas',
       expect.anything(),
