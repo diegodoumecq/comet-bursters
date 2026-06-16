@@ -6,6 +6,11 @@ import { applyMatterBodySpec } from '../../core/matterBodySpec';
 import { ActionReader, type ActionState } from '../../input/actions';
 import { PlayerBody } from '../../player/body';
 import { PLAYER_DEFINITIONS } from '../../player/definition';
+import {
+  createPlayerHullVisual,
+  renderPlayerHull,
+  type PlayerHullVisual,
+} from '../../player/rendering';
 import { PlayerState } from '../../player/state';
 import { normalize } from '../../world/geometry';
 import { BaseGameScene } from '../BaseGameScene';
@@ -20,6 +25,7 @@ export class PhaserShipInteriorScene extends BaseGameScene {
   private loadStatus: 'loading' | 'ready' | 'error' = 'loading';
   private loadError = '';
   private playerBody: PlayerBody | null = null;
+  private playerHull: PlayerHullVisual | null = null;
   private audioDirector!: SceneAudioDirector;
   private readonly player = new PlayerState();
   private statusText!: Phaser.GameObjects.Text;
@@ -31,7 +37,11 @@ export class PhaserShipInteriorScene extends BaseGameScene {
   create(): void {
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'ship-interior');
     this.audioDirector.enter();
-    this.events.once('shutdown', () => this.audioDirector.exit());
+    this.events.once('shutdown', () => {
+      this.audioDirector.exit();
+      this.playerHull?.current.destroy();
+      this.playerHull?.next.destroy();
+    });
     this.actions = new ActionReader(this);
     this.statusText = this.add
       .text(this.scale.width * 0.5, this.scale.height * 0.5, 'Loading ship interior...', {
@@ -61,6 +71,9 @@ export class PhaserShipInteriorScene extends BaseGameScene {
     if (this.loadStatus === 'error') {
       this.statusText.setText(`Failed to load ship interior\n${this.loadError}`);
     }
+    if (this.loadStatus === 'ready' && this.playerBody && this.playerHull) {
+      renderPlayerHull(this.playerBody.body, this.playerHull, true);
+    }
   }
 
   private async loadLevel(): Promise<void> {
@@ -68,6 +81,12 @@ export class PhaserShipInteriorScene extends BaseGameScene {
       const level = await loadShipInteriorLevel();
       renderShipInteriorLayers(this, level, false, 0);
       this.playerBody = new PlayerBody(this, level.playerSpawn ?? FALLBACK_SPAWN, this.player);
+      this.playerHull = createPlayerHullVisual(
+        this,
+        this.playerBody.body.x,
+        this.playerBody.body.y,
+        10,
+      );
       this.playerBody.body.setDepth(10);
       applyMatterBodySpec(this.playerBody.body, PLAYER_DEFINITIONS.shipInterior.body);
       buildShipInteriorCollision(this, level);

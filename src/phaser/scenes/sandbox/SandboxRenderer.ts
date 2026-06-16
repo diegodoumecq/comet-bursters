@@ -7,11 +7,13 @@ import { Minimap, type MinimapBiomeRegion } from '../../minimap/Minimap';
 import type { FuelExtractionPlanetEntity } from '../../planets/fuelExtraction';
 import { PLAYER_COLLISION_RADIUS } from '../../player/config';
 import {
+  createPlayerHullVisual,
   getPlayerVisible,
   renderPlayerFuel,
   renderPlayerShield,
   renderPlayerThruster,
   renderPlayerTurret,
+  type PlayerHullVisual,
 } from '../../player/rendering';
 import type { ShipState } from '../../player/shipState';
 import type { PlayerState } from '../../player/state';
@@ -41,6 +43,7 @@ export class SandboxRenderer {
   private readonly beam: Phaser.GameObjects.Graphics;
   private readonly biomeDebug: SandboxBiomeDebugOverlay;
   private readonly nebulaRegions: NebulaRegionRenderer;
+  private readonly playerHull: PlayerHullVisual;
   private readonly playerTurret: Phaser.GameObjects.Image;
   private readonly playerShield: Phaser.GameObjects.Graphics;
   private readonly playerFuelBase: Phaser.GameObjects.Graphics;
@@ -65,6 +68,7 @@ export class SandboxRenderer {
     this.biomeDebug = new SandboxBiomeDebugOverlay(scene);
     this.nebulaRegions = new NebulaRegionRenderer(scene);
     this.beam = scene.add.graphics().setName('sandbox-tractor-beam');
+    this.playerHull = createPlayerHullVisual(scene, player.x, player.y, 6);
     this.playerTurret = scene.add.image(player.x, player.y, PLAYER_TURRET_TEXTURE_KEY).setDepth(3);
     this.playerShield = scene.add.graphics().setName('sandbox-player-shield');
     this.playerFuelBase = scene.add
@@ -101,6 +105,8 @@ export class SandboxRenderer {
     if (docked) {
       this.playerThruster.setDepth(-4);
       this.player.setDepth(-3.5);
+      this.playerHull.current.setDepth(-3);
+      this.playerHull.next.setDepth(-3);
       this.playerFuelBase.setDepth(PLAYER_FUEL_HUD_DEPTH);
       this.playerFuelFill.setDepth(PLAYER_FUEL_HUD_DEPTH);
       this.playerTurret.setDepth(-2.5);
@@ -109,6 +115,8 @@ export class SandboxRenderer {
       return;
     }
     this.player.setDepth(6);
+    this.playerHull.current.setDepth(6);
+    this.playerHull.next.setDepth(6);
     this.playerThruster.setDepth(5);
     this.playerFuelBase.setDepth(PLAYER_FUEL_HUD_DEPTH);
     this.playerFuelFill.setDepth(PLAYER_FUEL_HUD_DEPTH);
@@ -237,6 +245,8 @@ export class SandboxRenderer {
   }
 
   destroy(): void {
+    this.playerHull.current.destroy();
+    this.playerHull.next.destroy();
     this.destroyMinimap();
   }
 
@@ -304,6 +314,7 @@ export class SandboxRenderer {
       );
       renderPlayerTurret(
         this.player,
+        this.playerHull,
         this.playerTurret,
         input.player.lastAim,
         input.ship.primaryWeapon,
@@ -329,7 +340,9 @@ export class SandboxRenderer {
       return;
     }
 
-    this.player.setVisible(visible);
+    this.player.setVisible(false);
+    this.playerHull.current.setVisible(false);
+    this.playerHull.next.setVisible(false);
     this.playerTurret.setVisible(visible);
     this.playerFuelBase.setVisible(false);
     this.playerFuelFill.setVisible(false);

@@ -20,11 +20,13 @@ import { ParticleViews } from '../../../particles/views';
 import { PlayerBody } from '../../../player/body';
 import { PLAYER_DEFINITIONS } from '../../../player/definition';
 import {
+  createPlayerHullVisual,
   getPlayerVisible,
   renderPlayerFuel,
   renderPlayerShield,
   renderPlayerThruster,
   renderPlayerTurret,
+  type PlayerHullVisual,
 } from '../../../player/rendering';
 import type { ShipState } from '../../../player/shipState';
 import type { PlayerState } from '../../../player/state';
@@ -59,6 +61,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
   private playerShield!: Phaser.GameObjects.Graphics;
   private playerArcadeSilhouette!: Phaser.GameObjects.Graphics;
   private playerThruster!: Phaser.GameObjects.Graphics;
+  private playerHull!: PlayerHullVisual;
   private playerTurret!: Phaser.GameObjects.Image;
   private gameOverText: Phaser.GameObjects.Text | null = null;
   private activeView = false;
@@ -107,6 +110,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
       height: this.worldSize.height,
       width: this.worldSize.width,
     });
+    this.playerHull = createPlayerHullVisual(this, 0, 0, 2);
     this.playerTurret = this.add.image(0, 0, PLAYER_TURRET_TEXTURE_KEY).setDepth(3);
     this.playerShield = this.add.graphics();
     this.playerFuelBase = this.add.graphics().setDepth(2);
@@ -192,6 +196,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
     );
     renderPlayerTurret(
       playerBody.body,
+      this.playerHull,
       this.playerTurret,
       input.player.lastAim,
       input.ship.primaryWeapon,
@@ -308,6 +313,8 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
     this.runtime.clearNonShipEntities();
     this.portalRenderer.destroy();
     this.dimensionDebug.destroy();
+    this.playerHull.current.destroy();
+    this.playerHull.next.destroy();
     this.playerTurret.destroy();
     this.playerShield.destroy();
     this.playerFuelBase.destroy();
@@ -321,6 +328,8 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
   }
 
   private setPlayerOverlayVisible(visible: boolean): void {
+    this.playerHull.current.setVisible(visible);
+    this.playerHull.next.setVisible(visible);
     this.playerTurret.setVisible(visible);
     this.playerShield.setVisible(visible);
     this.playerFuelBase.setVisible(visible);

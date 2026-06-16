@@ -9,7 +9,12 @@ import type { EntityBodies } from '../../entities/bodies';
 import type { GameEntity } from '../../entities/types';
 import { Minimap } from '../../minimap/Minimap';
 import type { PlanetEntity } from '../../planets/types';
-import { renderPlayerFuel } from '../../player/rendering';
+import {
+  createPlayerHullVisual,
+  renderPlayerFuel,
+  renderPlayerHull,
+  type PlayerHullVisual,
+} from '../../player/rendering';
 import type { ShipState } from '../../player/shipState';
 import type { PlayerState } from '../../player/state';
 import { getPortalShaderWorldBounds } from '../../portals/PortalMetaballRenderer';
@@ -36,6 +41,7 @@ const DEMO_PORTAL_CAPTURE_PADDING = 96;
 
 export class DemoRenderer {
   private readonly blackHoleCaptureSamples: BlackHoleScreenSample[] = [];
+  private readonly playerHull: PlayerHullVisual;
   private readonly playerFuelBase: Phaser.GameObjects.Graphics;
   private readonly playerFuelFill: Phaser.GameObjects.Graphics;
   private readonly playerFuelMask: Phaser.GameObjects.Graphics;
@@ -58,6 +64,7 @@ export class DemoRenderer {
     private readonly entityBodies: EntityBodies,
     private readonly world: WorldSize,
   ) {
+    this.playerHull = createPlayerHullVisual(scene, player.x, player.y, 2);
     this.playerFuelBase = scene.add.graphics().setDepth(2);
     this.playerFuelFill = scene.add.graphics().setDepth(2);
     this.playerFuelMask = scene.make.graphics({ x: 0, y: 0 }, false);
@@ -74,6 +81,7 @@ export class DemoRenderer {
     ship: ShipState;
     entities: GameEntity[];
   }): void {
+    renderPlayerHull(this.player, this.playerHull, true);
     renderPlayerFuel(
       this.playerFuelBase,
       this.playerFuelFill,
@@ -113,6 +121,8 @@ export class DemoRenderer {
   }
 
   destroy(): void {
+    this.playerHull.current.destroy();
+    this.playerHull.next.destroy();
     this.blackHoleShader?.dispose();
     this.portalRenderer?.destroy();
     this.portalCapture?.destroy();

@@ -6,11 +6,13 @@ import type { MatterImage, Vector, WorldSize } from '../../core/types';
 import type { PortalEntity } from '../../dimensions/types';
 import type { ActionState } from '../../input/actions';
 import {
+  createPlayerHullVisual,
   getPlayerVisible,
   renderPlayerFuel,
   renderPlayerShield,
   renderPlayerThruster,
   renderPlayerTurret,
+  type PlayerHullVisual,
 } from '../../player/rendering';
 import { fillPlayerHull, PLAYER_TURRET_TEXTURE_KEY, strokePlayerHull } from '../../player/textures';
 import { PortalSceneCapture } from '../../portals/PortalSceneCapture';
@@ -26,6 +28,7 @@ import { ArcadeSpaceBackground } from './ArcadeSpaceBackground';
 export class ArcadeRenderer {
   private readonly background: ArcadeSpaceBackground;
   private readonly beam: Phaser.GameObjects.Graphics;
+  private readonly playerHull: PlayerHullVisual;
   private readonly playerTurret: Phaser.GameObjects.Image;
   private readonly playerShield: Phaser.GameObjects.Graphics;
   private readonly playerFuelBase: Phaser.GameObjects.Graphics;
@@ -51,6 +54,7 @@ export class ArcadeRenderer {
   ) {
     this.background = new ArcadeSpaceBackground(scene, world);
     this.beam = scene.add.graphics();
+    this.playerHull = createPlayerHullVisual(scene, player.x, player.y, 2);
     this.playerTurret = scene.add.image(player.x, player.y, PLAYER_TURRET_TEXTURE_KEY).setDepth(3);
     this.playerShield = scene.add.graphics();
     this.playerFuelBase = scene.add.graphics().setDepth(2);
@@ -141,6 +145,7 @@ export class ArcadeRenderer {
     );
     renderPlayerTurret(
       this.player,
+      this.playerHull,
       this.playerTurret,
       session.player.lastAim,
       session.ship.primaryWeapon,
@@ -216,6 +221,8 @@ export class ArcadeRenderer {
   }
 
   destroy(): void {
+    this.playerHull.current.destroy();
+    this.playerHull.next.destroy();
     this.riftRenderer.destroy();
     this.sceneCapture.destroy();
   }

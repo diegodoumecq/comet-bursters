@@ -3,7 +3,14 @@ import Phaser from 'phaser';
 import type { Vector } from '../core/types';
 import { MAX_FUEL, SHIELD_RADIUS } from '../fuel/rules';
 import type { WeaponKind } from '../weapons/types';
-import { drawFuelContour, getPlayerTurretTextureKey, PLAYER_VISUAL_SIZE } from './textures';
+import {
+  drawFuelContour,
+  getPlayerHullTextureBlend,
+  getPlayerTurretTextureKey,
+  PLAYER_HULL_DEFAULT_FRAME_KEY,
+  PLAYER_TEXTURE_KEY,
+  PLAYER_VISUAL_SIZE,
+} from './textures';
 
 type PlayerRenderTarget = {
   rotation: number;
@@ -11,6 +18,15 @@ type PlayerRenderTarget = {
   setVisible(visible: boolean): unknown;
   x: number;
   y: number;
+};
+
+type PlayerHullRenderTarget = PlayerRenderTarget & {
+  setVisible(visible: boolean): unknown;
+};
+
+export type PlayerHullVisual = {
+  current: Phaser.GameObjects.Image;
+  next: Phaser.GameObjects.Image;
 };
 
 export function getPlayerVisible(
@@ -24,18 +40,66 @@ export function getPlayerVisible(
 }
 
 export function renderPlayerTurret(
-  player: PlayerRenderTarget,
+  player: PlayerHullRenderTarget,
+  hull: PlayerHullVisual,
   turret: Phaser.GameObjects.Image,
   aim: Vector,
   primaryWeapon: WeaponKind,
   visible: boolean,
 ): void {
-  player.setVisible(visible);
+  renderPlayerHull(player, hull, visible);
   turret.setVisible(visible);
   turret.setTexture(getPlayerTurretTextureKey(primaryWeapon));
   turret.setPosition(player.x, player.y);
   turret.setRotation(Math.atan2(aim.y, aim.x));
   turret.setScale(player.scale ?? 1);
+}
+
+export function createPlayerHullVisual(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  depth: number,
+): PlayerHullVisual {
+  return {
+    current: scene.add
+      .image(x, y, PLAYER_TEXTURE_KEY, PLAYER_HULL_DEFAULT_FRAME_KEY)
+      .setDepth(depth),
+    next: scene.add
+      .image(x, y, PLAYER_TEXTURE_KEY, PLAYER_HULL_DEFAULT_FRAME_KEY)
+      .setAlpha(0)
+      .setDepth(depth),
+  };
+}
+
+export function renderPlayerHull(
+  player: PlayerHullRenderTarget,
+  hull: PlayerHullVisual,
+  visible: boolean,
+): void {
+  player.setVisible(false);
+  hull.current.setVisible(visible);
+  hull.next.setVisible(false);
+  if (!visible) return;
+
+  const blend = getPlayerHullTextureBlend(player.rotation);
+  applyHullFrame(hull.current, player, blend.current, 1);
+  applyHullFrame(hull.next, player, blend.next, blend.nextAlpha);
+  hull.next.setVisible(blend.nextAlpha > 0.001);
+}
+
+function applyHullFrame(
+  image: Phaser.GameObjects.Image,
+  player: PlayerRenderTarget,
+  frame: { frameAngle: number; frameKey: string; textureKey: string },
+  alpha: number,
+): void {
+  if (image.texture.key !== frame.textureKey || image.frame.name !== frame.frameKey)
+    image.setTexture(frame.textureKey, frame.frameKey);
+  image.setPosition(player.x, player.y);
+  image.setScale(player.scale ?? 1);
+  image.setRotation(Phaser.Math.Angle.Wrap(player.rotation - frame.frameAngle));
+  image.setAlpha(alpha);
 }
 
 export function renderPlayerShield(

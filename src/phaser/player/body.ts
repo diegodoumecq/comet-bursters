@@ -5,6 +5,7 @@ import type { MatterImage, Vector } from '../core/types';
 import { SHIELD_RADIUS } from '../fuel/rules';
 import { setPlayerCollisionCircle } from './collision';
 import type { PlayerState } from './state';
+import { PLAYER_HULL_DEFAULT_FRAME_KEY, PLAYER_TEXTURE_KEY } from './textures';
 
 export class PlayerBody {
   readonly body: MatterImage;
@@ -16,7 +17,12 @@ export class PlayerBody {
     position: Vector,
     private readonly state: PlayerState,
   ) {
-    this.body = scene.matter.add.image(position.x, position.y, 'phaser-ship') as MatterImage;
+    this.body = scene.matter.add.image(
+      position.x,
+      position.y,
+      PLAYER_TEXTURE_KEY,
+      PLAYER_HULL_DEFAULT_FRAME_KEY,
+    ) as MatterImage;
     setPlayerCollisionCircle(this.body, this.scale);
     this.body.setPosition(position.x, position.y);
     this.shieldSensor = scene.matter.add.image(position.x, position.y, '__DEFAULT') as MatterImage;
