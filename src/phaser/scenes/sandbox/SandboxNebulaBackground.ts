@@ -3,304 +3,164 @@ import Phaser from 'phaser';
 import type { WorldSize } from '../../core/types';
 
 const NEBULA_DEPTH = -120;
-const NEBULA_PARALLAX = 0.25;
-const TARGET_CHUNK_SIZE = 1000;
-const CHUNK_TEXTURE_SIZE = 320;
-const MAX_CACHED_CHUNKS = 64;
-const MAX_VISIBLE_CHUNK_COLUMNS = 8;
-const MAX_VISIBLE_CHUNK_ROWS = 8;
-const TEXTURE_PREFIX = 'sandbox-nebula-background';
+const TEXTURE_KEY_PREFIX = 'sandbox-nebula-background';
+const TILE_TEXTURE_SIZE = 1536;
 const TAU = Math.PI * 2;
+const SEED = 37.171;
+const BASE_WRAP_CYCLES = 32;
 
-type NebulaLayout = {
-  chunkHeight: number;
-  chunkWidth: number;
-  columns: number;
-  height: number;
-  rows: number;
-  width: number;
+type NebulaLayerConfig = {
+  alpha: number;
+  cyclesX: number;
+  cyclesY: number;
+  offsetX: number;
+  offsetY: number;
+  scale: number;
+  tint: number;
 };
 
-type CachedTexture = {
-  lastUsed: number;
-  textureKey: string;
-};
+const LAYERS: NebulaLayerConfig[] = [
+  {
+    alpha: 0.55,
+    cyclesX: BASE_WRAP_CYCLES,
+    cyclesY: BASE_WRAP_CYCLES,
+    offsetX: 0,
+    offsetY: 0,
+    scale: 1,
+    tint: 0x9ab8ff,
+  },
+  {
+    alpha: 0.32,
+    cyclesX: BASE_WRAP_CYCLES / 2,
+    cyclesY: BASE_WRAP_CYCLES / 2,
+    offsetX: 431,
+    offsetY: 173,
+    scale: 2,
+    tint: 0x8ff2ff,
+  },
+  {
+    alpha: 0.2,
+    cyclesX: BASE_WRAP_CYCLES / 4,
+    cyclesY: BASE_WRAP_CYCLES / 4,
+    offsetX: 947,
+    offsetY: 661,
+    scale: 4,
+    tint: 0xd1a6ff,
+  },
+];
 
 export class SandboxNebulaBackground {
-  private readonly blankTextureKey = `${TEXTURE_PREFIX}-blank-${Phaser.Math.RND.uuid()}`;
-  private readonly texturePrefix = `${TEXTURE_PREFIX}-${Phaser.Math.RND.uuid()}`;
-  private readonly textureCache = new Map<string, CachedTexture>();
-  private readonly images: Phaser.GameObjects.Image[] = [];
-  private layout: NebulaLayout | null = null;
-  private renderIndex = 0;
+  private readonly layers: Phaser.GameObjects.TileSprite[];
+  private readonly textureKey = `${TEXTURE_KEY_PREFIX}-${Phaser.Math.RND.uuid()}`;
   private visible = false;
 
   constructor(private readonly scene: Phaser.Scene) {
-    this.createBlankTexture();
+    this.createNebulaTexture();
+    this.layers = LAYERS.map((layer, index) =>
+      scene.add
+        .tileSprite(0, 0, scene.scale.width, scene.scale.height, this.textureKey)
+        .setName(`sandbox-nebula-background-layer-${index}`)
+        .setOrigin(0)
+        .setScrollFactor(0)
+        .setDepth(NEBULA_DEPTH + index)
+        .setAlpha(layer.alpha)
+        .setTint(layer.tint)
+        .setTileScale(layer.scale, layer.scale)
+        .setVisible(false),
+    );
   }
 
   render(camera: Phaser.Cameras.Scene2D.Camera, world: WorldSize, visible: boolean): void {
     if (!visible) {
-      this.hideAllImages();
+      this.setVisible(false);
       return;
     }
 
-    this.visible = true;
-    const zoom = Math.max(camera.zoom, 0.001);
-    const viewWidth = camera.worldView.width || this.scene.scale.width / zoom;
-    const viewHeight = camera.worldView.height || this.scene.scale.height / zoom;
-    const layout = this.getLayout(world, { height: viewHeight, width: viewWidth });
-    const parallaxX = camera.worldView.x * NEBULA_PARALLAX;
-    const parallaxY = camera.worldView.y * NEBULA_PARALLAX;
-    const scrollX = positiveModulo(parallaxX, layout.width);
-    const scrollY = positiveModulo(parallaxY, layout.height);
-    const startColumn = Math.floor(scrollX / layout.chunkWidth);
-    const startRow = Math.floor(scrollY / layout.chunkHeight);
-    const localX = scrollX - startColumn * layout.chunkWidth;
-    const localY = scrollY - startRow * layout.chunkHeight;
-    const columns = Math.ceil(viewWidth / layout.chunkWidth) + 2;
-    const rows = Math.ceil(viewHeight / layout.chunkHeight) + 2;
-    const visibleChunkCount = rows * columns;
-    const activeTextureKeys =
-      this.textureCache.size + visibleChunkCount > MAX_CACHED_CHUNKS ? new Set<string>() : null;
-    let imageIndex = 0;
-
-    for (let row = 0; row < rows; row += 1) {
-      for (let column = 0; column < columns; column += 1) {
-        const chunkColumn = positiveModuloInteger(startColumn + column, layout.columns);
-        const chunkRow = positiveModuloInteger(startRow + row, layout.rows);
-        const textureKey = this.getChunkTexture(layout, chunkColumn, chunkRow);
-        if (activeTextureKeys) activeTextureKeys.add(textureKey);
-        this.renderChunkImage({
-          displayHeight: layout.chunkHeight,
-          displayWidth: layout.chunkWidth,
-          imageIndex,
-          textureKey,
-          x: parallaxX + column * layout.chunkWidth - localX,
-          y: parallaxY + row * layout.chunkHeight - localY,
-        });
-        imageIndex += 1;
-      }
+    this.setVisible(true);
+    const cameraX = positiveModulo(camera.worldView.x, world.width);
+    const cameraY = positiveModulo(camera.worldView.y, world.height);
+    for (let index = 0; index < this.layers.length; index += 1) {
+      const layer = this.layers[index];
+      const config = LAYERS[index];
+      layer.setSize(this.scene.scale.width, this.scene.scale.height);
+      layer.tilePositionX = getTilePosition(cameraX, world.width, config.cyclesX, config.offsetX);
+      layer.tilePositionY = getTilePosition(cameraY, world.height, config.cyclesY, config.offsetY);
     }
-
-    this.hideUnusedImages(imageIndex);
-    if (activeTextureKeys) this.pruneTextureCache(activeTextureKeys);
   }
 
   destroy(): void {
-    for (const image of this.images) image.destroy();
-    this.images.length = 0;
-    for (const cached of this.textureCache.values()) this.removeTexture(cached.textureKey);
-    this.textureCache.clear();
-    this.removeTexture(this.blankTextureKey);
+    for (const layer of this.layers) layer.destroy();
+    if (this.scene.textures.exists(this.textureKey)) this.scene.textures.remove(this.textureKey);
   }
 
-  private createBlankTexture(): void {
+  private createNebulaTexture(): void {
+    if (this.scene.textures.exists(this.textureKey)) return;
+
     const canvas = document.createElement('canvas');
-    canvas.width = 1;
-    canvas.height = 1;
-    this.scene.textures.addCanvas(this.blankTextureKey, canvas);
-  }
-
-  private getLayout(world: WorldSize, view: WorldSize): NebulaLayout {
-    const width = Math.max(TARGET_CHUNK_SIZE, world.width * NEBULA_PARALLAX);
-    const height = Math.max(TARGET_CHUNK_SIZE, world.height * NEBULA_PARALLAX);
-    const minChunkWidth = Math.max(TARGET_CHUNK_SIZE, view.width / (MAX_VISIBLE_CHUNK_COLUMNS - 2));
-    const minChunkHeight = Math.max(TARGET_CHUNK_SIZE, view.height / (MAX_VISIBLE_CHUNK_ROWS - 2));
-    const columns = Math.max(1, Math.floor(width / minChunkWidth));
-    const rows = Math.max(1, Math.floor(height / minChunkHeight));
-    const chunkWidth = width / columns;
-    const chunkHeight = height / rows;
-    const nextLayout = { chunkHeight, chunkWidth, columns, height, rows, width };
-    if (!this.layout) this.layout = nextLayout;
-    if (
-      this.layout.width !== width ||
-      this.layout.height !== height ||
-      this.layout.columns !== columns ||
-      this.layout.rows !== rows
-    ) {
-      this.clearChunkTextures();
-      this.layout = nextLayout;
-    }
-    return this.layout;
-  }
-
-  private getChunkTexture(layout: NebulaLayout, column: number, row: number): string {
-    const cacheKey = `${column}:${row}`;
-    const cached = this.textureCache.get(cacheKey);
-    this.renderIndex += 1;
-    if (cached) {
-      cached.lastUsed = this.renderIndex;
-      return cached.textureKey;
-    }
-
-    const textureKey = `${this.texturePrefix}-${column}-${row}`;
-    this.createChunkTexture(layout, column, row, textureKey);
-    this.textureCache.set(cacheKey, { lastUsed: this.renderIndex, textureKey });
-    return textureKey;
-  }
-
-  private createChunkTexture(
-    layout: NebulaLayout,
-    column: number,
-    row: number,
-    textureKey: string,
-  ): void {
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(Math.min(layout.chunkWidth, CHUNK_TEXTURE_SIZE)));
-    canvas.height = Math.max(1, Math.round(Math.min(layout.chunkHeight, CHUNK_TEXTURE_SIZE)));
+    canvas.width = TILE_TEXTURE_SIZE;
+    canvas.height = TILE_TEXTURE_SIZE;
     const context = canvas.getContext('2d');
     if (context) {
-      const imageData = context.createImageData(canvas.width, canvas.height);
-      paintNebulaChunk(imageData, layout, column, row);
+      const imageData = context.createImageData(TILE_TEXTURE_SIZE, TILE_TEXTURE_SIZE);
+      paintNebulaTile(imageData);
       context.putImageData(imageData, 0, 0);
     }
-    this.scene.textures.addCanvas(textureKey, canvas);
+    this.scene.textures.addCanvas(this.textureKey, canvas);
   }
 
-  private renderChunkImage(input: {
-    displayHeight: number;
-    displayWidth: number;
-    imageIndex: number;
-    textureKey: string;
-    x: number;
-    y: number;
-  }): void {
-    const displayWidth = Math.ceil(input.displayWidth) + 1;
-    const displayHeight = Math.ceil(input.displayHeight) + 1;
-    let image = this.images[input.imageIndex];
-    if (!image) {
-      image = this.scene.add
-        .image(input.x, input.y, input.textureKey)
-        .setName('sandbox-nebula-background-chunk')
-        .setOrigin(0)
-        .setScrollFactor(NEBULA_PARALLAX)
-        .setDepth(NEBULA_DEPTH);
-      this.images[input.imageIndex] = image;
-    } else {
-      image.setTexture(input.textureKey);
-      image.setPosition(input.x, input.y);
-    }
-    image.setDisplaySize(displayWidth, displayHeight);
-    image.setVisible(true);
-  }
-
-  private hideUnusedImages(firstUnusedIndex: number): void {
-    for (let index = firstUnusedIndex; index < this.images.length; index += 1) {
-      const image = this.images[index];
-      image.setVisible(false);
-      image.setTexture(this.blankTextureKey);
-    }
-  }
-
-  private hideAllImages(): void {
-    if (this.visible) {
-      this.visible = false;
-      for (const image of this.images) {
-        image.setVisible(false);
-        image.setTexture(this.blankTextureKey);
-      }
-    }
-  }
-
-  private pruneTextureCache(activeTextureKeys: Set<string>): void {
-    if (this.textureCache.size <= MAX_CACHED_CHUNKS) return;
-    const staleTextures = [...this.textureCache.entries()]
-      .filter(([, cached]) => !activeTextureKeys.has(cached.textureKey))
-      .sort(([, left], [, right]) => left.lastUsed - right.lastUsed);
-    const removeCount = Math.max(0, this.textureCache.size - MAX_CACHED_CHUNKS);
-    for (let index = 0; index < removeCount && index < staleTextures.length; index += 1) {
-      const [cacheKey, cached] = staleTextures[index];
-      this.removeTexture(cached.textureKey);
-      this.textureCache.delete(cacheKey);
-    }
-  }
-
-  private clearChunkTextures(): void {
-    this.hideUnusedImages(0);
-    for (const cached of this.textureCache.values()) this.removeTexture(cached.textureKey);
-    this.textureCache.clear();
-  }
-
-  private removeTexture(textureKey: string): void {
-    if (this.scene.textures.exists(textureKey)) this.scene.textures.remove(textureKey);
+  private setVisible(visible: boolean): void {
+    if (this.visible === visible) return;
+    this.visible = visible;
+    for (const layer of this.layers) layer.setVisible(visible);
   }
 }
 
-function paintNebulaChunk(
-  imageData: ImageData,
-  layout: NebulaLayout,
-  column: number,
-  row: number,
-): void {
+function paintNebulaTile(imageData: ImageData): void {
   const pixels = imageData.data;
-  const xScale = layout.chunkWidth / Math.max(1, imageData.width - 1);
-  const yScale = layout.chunkHeight / Math.max(1, imageData.height - 1);
   for (let y = 0; y < imageData.height; y += 1) {
+    const v = y / imageData.height;
     for (let x = 0; x < imageData.width; x += 1) {
-      const worldX = column * layout.chunkWidth + x * xScale;
-      const worldY = row * layout.chunkHeight + y * yScale;
-      const color = sampleNebula(worldX / layout.width, worldY / layout.height);
+      const u = x / imageData.width;
+      const color = sampleNebula(u, v);
       const offset = (y * imageData.width + x) * 4;
       pixels[offset] = color.r;
       pixels[offset + 1] = color.g;
       pixels[offset + 2] = color.b;
-      pixels[offset + 3] = 255;
+      pixels[offset + 3] = color.a;
     }
   }
 }
 
-function sampleNebula(u: number, v: number): { b: number; g: number; r: number } {
-  const warpX = fbmPeriodic(u * 5 + 8.3, v * 5 + 2.1, 5, 5, 4) - 0.5;
-  const warpY = fbmPeriodic(u * 5 + 1.7, v * 5 + 9.6, 5, 5, 4) - 0.5;
-  const bendX = Math.sin((u * 2 + v * 3) * TAU) * 0.018;
-  const bendY = Math.cos((u * 3 - v * 2) * TAU) * 0.018;
-  const curvedU = u + warpX * 0.085 + bendX;
-  const curvedV = v + warpY * 0.085 + bendY;
-  const broad = fbmPeriodic(curvedU * 6, curvedV * 6, 6, 6, 4);
-  const cloud = fbmPeriodic(curvedU * 12 + 4.5, curvedV * 12 + 7.1, 12, 12, 3);
-  const grain = fbmPeriodic(curvedU * 32 + warpX * 3.5, curvedV * 32 + warpY * 3.5, 32, 32, 2);
-  const dust = fbmPeriodic(curvedU * 72 + warpY * 5, curvedV * 72 - warpX * 5, 72, 72, 1);
-  const colorNoise = fbmPeriodic(curvedU * 9 + 12.4, curvedV * 9 + 3.7, 9, 9, 3);
-  const ribbonA =
-    Math.sin((curvedU * 5 + curvedV * 2 + warpX * 0.95 + warpY * 0.35) * TAU) * 0.5 + 0.5;
-  const ribbonB =
-    Math.cos((curvedU * 2 - curvedV * 6 + warpY * 0.9 - warpX * 0.25) * TAU) * 0.5 + 0.5;
-  const grainRidge = 1 - Math.abs(grain * 2 - 1);
-  const dustRidge = 1 - Math.abs(dust * 2 - 1);
-  const cloudShape = broad * 0.52 + cloud * 0.34 + grainRidge * 0.14;
-  const darkLane = smoothstep(0.5, 0.86, (1 - broad) * 0.46 + ribbonB * 0.24 + grain * 0.3);
-  const cloudMass = smoothstep(0.3, 0.82, cloudShape);
-  const smoky = smoothstep(0.38, 0.86, cloud * 0.42 + grainRidge * 0.34 + ribbonA * 0.24);
-  const thread = smoothstep(0.72, 0.985, grainRidge * 0.48 + dustRidge * 0.38 + ribbonA * 0.14);
-  const pin = smoothstep(0.9, 0.995, dustRidge * 0.62 + grainRidge * 0.28 + ribbonA * 0.1);
-  const density = Phaser.Math.Clamp(
-    cloudMass * 0.68 + smoky * 0.22 + thread * 0.18 + pin * 0.08 - darkLane * 0.36,
-    0,
-    1,
-  );
-  const base = { r: 2, g: 5, b: 17 };
-  const blue = { r: 18, g: 54, b: 116 };
-  const indigo = { r: 46, g: 38, b: 118 };
-  const violet = { r: 92, g: 46, b: 132 };
-  const teal = { r: 30, g: 114, b: 138 };
-  const pearl = { r: 150, g: 156, b: 176 };
-  const coldMix = mixColor(blue, indigo, smoothstep(0.18, 0.74, colorNoise));
-  const warmMix = mixColor(violet, teal, smoothstep(0.42, 0.88, cloud));
-  const gasColor = mixColor(coldMix, warmMix, smoothstep(0.36, 0.9, smoky));
-  const highlight = mixColor(gasColor, pearl, thread * 0.2 + pin * 0.18);
-  const laneShade = 1 - darkLane * 0.48;
-  const localTexture = Phaser.Math.Clamp(
-    0.72 + grainRidge * 0.18 + dustRidge * 0.14 + thread * 0.18 + pin * 0.14,
-    0.56,
-    1.18,
-  );
-  const glow = density * 0.9 + smoky * 0.12 + thread * 0.16 + pin * 0.12;
+function sampleNebula(u: number, v: number): { a: number; b: number; g: number; r: number } {
+  const warpX = fbmPeriodic(u * 4 + 1.7, v * 4 + 7.2, 4, 4, 4) - 0.5;
+  const warpY = fbmPeriodic(u * 4 + 8.9, v * 4 + 2.4, 4, 4, 4) - 0.5;
+  const ribbonA = Math.sin((u * 3 + v * 2 + warpX * 0.85 + SEED * 0.03) * TAU) * 0.5 + 0.5;
+  const ribbonB = Math.cos((u * 2 - v * 4 + warpY * 0.75 + SEED * 0.05) * TAU) * 0.5 + 0.5;
+  const curvedU = u + warpX * 0.11 + Math.sin((u + v * 2) * TAU) * 0.012;
+  const curvedV = v + warpY * 0.11 + Math.cos((u * 2 - v) * TAU) * 0.012;
+  const broad = fbmPeriodic(curvedU * 5, curvedV * 5, 5, 5, 5);
+  const cloud = fbmPeriodic(curvedU * 10 + 3.3, curvedV * 10 + 5.7, 10, 10, 4);
+  const detail = fbmPeriodic(curvedU * 28 + warpY * 2.6, curvedV * 28 - warpX * 2.6, 28, 28, 3);
+  const colorNoise = fbmPeriodic(curvedU * 8 + 9.1, curvedV * 8 + 4.2, 8, 8, 3);
+  const ridge = 1 - Math.abs(detail * 2 - 1);
+  const lane = smoothstep(0.58, 0.91, (1 - broad) * 0.52 + ribbonB * 0.22 + detail * 0.2);
+  const mass = smoothstep(0.34, 0.86, broad * 0.54 + cloud * 0.34 + ridge * 0.12);
+  const veil = smoothstep(0.28, 0.78, cloud * 0.46 + ribbonA * 0.28 + ridge * 0.16);
+  const thread = smoothstep(0.75, 0.99, ridge * 0.62 + ribbonA * 0.18 + cloud * 0.12);
+  const density = clamp(mass * 0.58 + veil * 0.22 + thread * 0.12 - lane * 0.32, 0, 1);
+  const cold = mixColor({ r: 34, g: 70, b: 148 }, { r: 58, g: 48, b: 130 }, colorNoise);
+  const warm = mixColor({ r: 92, g: 54, b: 136 }, { r: 28, g: 128, b: 146 }, cloud);
+  const gas = mixColor(cold, warm, smoothstep(0.28, 0.88, veil));
+  const pearl = { r: 158, g: 168, b: 190 };
+  const highlight = mixColor(gas, pearl, thread * 0.18);
+  const shade = 1 - lane * 0.42;
+  const glow = density * 0.86 + thread * 0.12;
 
   return {
-    b: clampByte((base.b + highlight.b * glow) * laneShade * localTexture),
-    g: clampByte((base.g + highlight.g * glow) * laneShade * localTexture),
-    r: clampByte((base.r + highlight.r * glow) * laneShade * localTexture),
+    a: clampByte(8 + density * 90 + veil * 30 + thread * 18),
+    b: clampByte(highlight.b * glow * shade),
+    g: clampByte(highlight.g * glow * shade),
+    r: clampByte(highlight.r * glow * shade),
   };
 }
 
@@ -345,7 +205,22 @@ function noisePeriodic(x: number, y: number, periodX: number, periodY: number): 
 function hashGrid(x: number, y: number, periodX: number, periodY: number): number {
   const wrappedX = positiveModuloInteger(x, periodX);
   const wrappedY = positiveModuloInteger(y, periodY);
-  return Math.abs(Math.sin((wrappedX + 1) * 127.1 + (wrappedY + 1) * 311.7) * 43758.5453) % 1;
+  return (
+    Math.abs(Math.sin((wrappedX + 1) * 127.1 + (wrappedY + 1) * 311.7 + SEED) * 43758.5453) % 1
+  );
+}
+
+function getTilePosition(
+  camera: number,
+  worldSize: number,
+  cycles: number,
+  offset: number,
+): number {
+  if (worldSize <= 0) return offset;
+  return positiveModulo(
+    (camera / worldSize) * TILE_TEXTURE_SIZE * cycles + offset,
+    TILE_TEXTURE_SIZE,
+  );
 }
 
 function mixColor(
@@ -361,7 +236,7 @@ function mixColor(
 }
 
 function smoothstep(edge0: number, edge1: number, value: number): number {
-  const t = Phaser.Math.Clamp((value - edge0) / (edge1 - edge0), 0, 1);
+  const t = clamp((value - edge0) / (edge1 - edge0), 0, 1);
   return t * t * (3 - 2 * t);
 }
 
@@ -369,8 +244,12 @@ function lerp(from: number, to: number, amount: number): number {
   return from + (to - from) * amount;
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
 function clampByte(value: number): number {
-  return Math.max(0, Math.min(255, Math.round(value)));
+  return clamp(Math.round(value), 0, 255);
 }
 
 function positiveModulo(value: number, divisor: number): number {
