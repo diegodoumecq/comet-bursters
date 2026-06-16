@@ -15,7 +15,7 @@ export const ENTITY_TEXTURE_KEYS: Record<EntityKind, string> = {
   monolith: MONOLITH_CUBE_TEXTURE_KEY,
 };
 
-export async function ensureEntityTextures(scene: Phaser.Scene): Promise<void> {
+async function ensureEntityTextures(scene: Phaser.Scene): Promise<void> {
   await ensureMonolithCubeTextures(scene);
 }
 

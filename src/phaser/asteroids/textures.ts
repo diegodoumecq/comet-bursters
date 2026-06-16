@@ -328,7 +328,7 @@ void main() {
 }
 `;
 
-export async function ensureAsteroidTextures(scene: Phaser.Scene): Promise<void> {
+async function ensureAsteroidTextures(scene: Phaser.Scene): Promise<void> {
   for (const tier of Object.keys(ASTEROIDS) as AsteroidTier[]) {
     const frameCount = TIER_ROTATION_FRAME_COUNTS[tier];
     await Promise.all(
