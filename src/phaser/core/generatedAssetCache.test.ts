@@ -29,7 +29,10 @@ type TransactionStub = {
 };
 
 type StoreStub = {
+  clear: () => RequestStub;
+  delete: (key: string) => RequestStub;
   get: (key: string) => RequestStub;
+  getAllKeys: () => RequestStub;
   put: (record: StoredRecord) => RequestStub;
 };
 
@@ -184,6 +187,74 @@ describe('generated asset cache', () => {
     );
     expect(scene.textures.addCanvas).not.toHaveBeenCalled();
   });
+
+  it('prunes cached records that are not declared valid', async () => {
+    const records = new Map<string, StoredRecord>([
+      ['keep@v2', createStoredRecord('keep', 'v2')],
+      ['stale@v1', createStoredRecord('stale', 'v1')],
+      ['old@v1', createStoredRecord('old', 'v1')],
+    ]);
+    installIndexedDb(records);
+
+    const { createGeneratedAssetCacheKey, pruneGeneratedAssetCache } =
+      await import('./generatedAssetCache');
+
+    expect(createGeneratedAssetCacheKey({ textureKey: 'keep', version: 'v2' })).toBe('keep@v2');
+    await pruneGeneratedAssetCache([{ textureKey: 'keep', version: 'v2' }]);
+
+    expect([...records.keys()].sort()).toEqual(['keep@v2']);
+  });
+
+  it('clears all generated cache records for visual generator iteration', async () => {
+    const records = new Map<string, StoredRecord>([
+      ['first@v1', createStoredRecord('first', 'v1')],
+      ['second@v1', createStoredRecord('second', 'v1')],
+    ]);
+    installIndexedDb(records);
+
+    const { clearGeneratedAssetCache } = await import('./generatedAssetCache');
+    await clearGeneratedAssetCache();
+
+    expect(records.size).toBe(0);
+  });
+
+  it('reports generated cache stats and marks undeclared records stale', async () => {
+    const records = new Map<string, StoredRecord>([
+      ['keep@v2', createStoredRecord('keep', 'v2', 'image', 4)],
+      ['atlas@v3', createStoredRecord('atlas', 'v3', 'atlas', 7)],
+      ['stale@v1', createStoredRecord('stale', 'v1', 'image', 5)],
+    ]);
+    installIndexedDb(records);
+
+    const { getGeneratedAssetCacheStats } = await import('./generatedAssetCache');
+    const stats = await getGeneratedAssetCacheStats([
+      { textureKey: 'keep', version: 'v2' },
+      { textureKey: 'atlas', version: 'v3' },
+    ]);
+
+    expect(stats.totalEntries).toBe(3);
+    expect(stats.validEntries).toBe(2);
+    expect(stats.staleEntries).toBe(1);
+    expect(stats.totalBytes).toBe(16);
+    expect(stats.validBytes).toBe(11);
+    expect(stats.staleBytes).toBe(5);
+    expect(stats.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          cacheKey: 'atlas@v3',
+          kind: 'atlas',
+          textureKey: 'atlas',
+          valid: true,
+          version: 'v3',
+        }),
+        expect.objectContaining({
+          cacheKey: 'stale@v1',
+          textureKey: 'stale',
+          valid: false,
+        }),
+      ]),
+    );
+  });
 });
 
 function createScene(): Phaser.Scene {
@@ -276,10 +347,36 @@ function createDatabase(records: Map<string, StoredRecord>): IDBDatabase {
 
 function createStore(records: Map<string, StoredRecord>, transaction?: TransactionStub): StoreStub {
   return {
+    clear: () => {
+      const request: RequestStub = {};
+      queueMicrotask(() => {
+        records.clear();
+        request.onsuccess?.();
+        transaction?.oncomplete?.();
+      });
+      return request;
+    },
+    delete: (key: string) => {
+      const request: RequestStub = {};
+      queueMicrotask(() => {
+        records.delete(key);
+        request.onsuccess?.();
+        transaction?.oncomplete?.();
+      });
+      return request;
+    },
     get: (key: string) => {
       const request: RequestStub = {};
       queueMicrotask(() => {
         request.result = records.get(key);
+        request.onsuccess?.();
+      });
+      return request;
+    },
+    getAllKeys: () => {
+      const request: RequestStub = {};
+      queueMicrotask(() => {
+        request.result = [...records.keys()];
         request.onsuccess?.();
       });
       return request;
@@ -293,5 +390,22 @@ function createStore(records: Map<string, StoredRecord>, transaction?: Transacti
       });
       return request;
     },
+  };
+}
+
+function createStoredRecord(
+  textureKey: string,
+  version: string,
+  kind: StoredRecord['kind'] = 'image',
+  bytes?: number,
+): StoredRecord {
+  const content = bytes ? 'x'.repeat(bytes) : textureKey;
+  return {
+    blob: new Blob([content], { type: PNG_CONTENT_TYPE }),
+    cacheKey: `${textureKey}@${version}`,
+    contentType: PNG_CONTENT_TYPE,
+    kind,
+    storedAt: 1,
+    version,
   };
 }

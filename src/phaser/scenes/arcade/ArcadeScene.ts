@@ -89,6 +89,7 @@ import { normalize, wrappedDelta } from '../../world/geometry';
 import { applyWorldGravity } from '../../world/gravity';
 import { SpaceWorldRuntime } from '../../world/SpaceWorldRuntime';
 import { BaseGameScene } from '../BaseGameScene';
+import { registerGeneratedTextureScope } from '../generatedTextureScopes';
 import { ArcadeRenderEffects } from './ArcadeRenderEffects';
 import { ArcadeRenderer } from './ArcadeRenderer';
 import { ArcadeRunState } from './arcadeRunState';
@@ -132,6 +133,7 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   create(): void {
+    registerGeneratedTextureScope(this, 'arcade');
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'arcade');
     this.audioDirector.enter();
     this.resetRunFields();
@@ -231,11 +233,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     });
   }
 
-  private updatePlayerActions(
-    action: ActionState,
-    deltaSeconds: number,
-    time: number,
-  ): void {
+  private updatePlayerActions(action: ActionState, deltaSeconds: number, time: number): void {
     const playerInRift = this.session.player.membership.space === 'rift';
     const timeDilation = action.timeDilation;
     this.session.player.updateAim(normalize(action.aim));
@@ -752,10 +750,7 @@ export class PhaserArcadeScene extends BaseGameScene {
           .get(projectile)
           .setVelocity(projectile.velocity.x, projectile.velocity.y),
       onEntityVelocityChanged: (entity) =>
-        runtime
-          .getEntityBodies()
-          .get(entity)
-          .setVelocity(entity.velocity.x, entity.velocity.y),
+        runtime.getEntityBodies().get(entity).setVelocity(entity.velocity.x, entity.velocity.y),
       particles: runtime.world.particles,
       player: {
         active:

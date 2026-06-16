@@ -11,6 +11,9 @@ import { DimensionDebugOverlay } from '../../../dimensions/DimensionDebugOverlay
 import type { RiftSpaceSceneBridge } from '../../../dimensions/RiftSpaceSceneBridge';
 import { getDimensionCoordinator } from '../../../dimensions/runtime';
 import type { PortalEntity } from '../../../dimensions/types';
+import { EntityBodies } from '../../../entities/bodies';
+import { createMonolith } from '../../../entities/logic';
+import type { GameEntity } from '../../../entities/types';
 import { FuelBodies } from '../../../fuel/bodies';
 import type { ActionState } from '../../../input/actions';
 import { ParticleViews } from '../../../particles/views';
@@ -34,12 +37,10 @@ import { PortalSceneCapture } from '../../../portals/PortalSceneCapture';
 import { PortalWindowRenderer } from '../../../portals/PortalWindowRenderer';
 import { ProjectileBodies } from '../../../projectiles/bodies';
 import { getSandboxPerfToggles } from '../../../runtime/startup';
-import { EntityBodies } from '../../../entities/bodies';
-import { createMonolith } from '../../../entities/logic';
-import type { GameEntity } from '../../../entities/types';
 import { DimensionBackground } from '../../../world/DimensionBackground';
 import { SpaceRenderEffects } from '../../../world/SpaceRenderEffects';
 import { SpaceWorldRuntime } from '../../../world/SpaceWorldRuntime';
+import { registerGeneratedTextureScope } from '../../generatedTextureScopes';
 
 const RIFT_MONOLITH_ID = 700_001;
 
@@ -72,6 +73,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
   }
 
   create(): void {
+    registerGeneratedTextureScope(this, 'rift-space');
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'rift-space');
     this.worldSize = { width: this.scale.width, height: this.scale.height };
     this.runtime = new SpaceWorldRuntime('rift', {

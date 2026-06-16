@@ -1,8 +1,19 @@
 import Phaser from 'phaser';
 
-import { initializeGameAudio } from '../../audio/AudioManager';
 import { preloadAudioAssets } from '../../audio/audioLoader';
+import { initializeGameAudio } from '../../audio/AudioManager';
+import {
+  clearGeneratedAssetCache,
+  getGeneratedAssetCacheStats,
+  pruneGeneratedAssetCache,
+  type GeneratedAssetCacheStats,
+} from '../../core/generatedAssetCache';
 import type { GeneratedTextureGroupProgress } from '../../core/generatedTextureRegistry';
+import {
+  getAllGeneratedTextureCacheEntries,
+  getGeneratedTextureRuntimeStats,
+  type GeneratedTextureRuntimeStats,
+} from '../generatedTextureScopes';
 import { ensureBootGeneratedTextures } from './generatedTextures';
 
 const PROGRESS_BAR_WIDTH = 420;
@@ -24,6 +35,16 @@ export class BootScene extends Phaser.Scene {
   async create(): Promise<void> {
     initializeGameAudio(this);
     this.createLoadingView();
+    this.installGeneratedAssetDebugApi();
+    if (shouldClearGeneratedAssetCache()) {
+      await this.runCacheMaintenance('Clearing generated texture cache', () =>
+        clearGeneratedAssetCache(),
+      );
+    }
+    await this.runCacheMaintenance('Cleaning stale generated textures', () =>
+      pruneGeneratedAssetCache(getAllGeneratedTextureCacheEntries()),
+    );
+    if (shouldDebugGeneratedAssetCache()) await this.logGeneratedAssetCacheStats('after cleanup');
     await ensureBootGeneratedTextures(this, {
       onGroupComplete: async (progress) => {
         this.updateGeneratedTextureProgress(progress, 'Created');
@@ -34,6 +55,7 @@ export class BootScene extends Phaser.Scene {
         await waitForBrowserPaint();
       },
     });
+    if (shouldDebugGeneratedAssetCache()) await this.logGeneratedAssetCacheStats('after boot');
     this.statusLabel.setText('Created generated textures');
     this.progressLabel.setText('Ready');
     this.progressFill.setSize(PROGRESS_BAR_WIDTH, PROGRESS_BAR_HEIGHT);
@@ -91,10 +113,58 @@ export class BootScene extends Phaser.Scene {
       PROGRESS_BAR_HEIGHT,
     );
   }
+
+  private async runCacheMaintenance(label: string, task: () => Promise<void>): Promise<void> {
+    this.statusLabel.setText(label);
+    this.progressLabel.setText('Cache maintenance');
+    await waitForBrowserPaint();
+    await task();
+    await waitForBrowserPaint();
+  }
+
+  private installGeneratedAssetDebugApi(): void {
+    window.__cometBurstersGeneratedAssets = {
+      clear: () => clearGeneratedAssetCache(),
+      prune: () => pruneGeneratedAssetCache(getAllGeneratedTextureCacheEntries()),
+      runtime: () => getGeneratedTextureRuntimeStats(this),
+      stats: () => getGeneratedAssetCacheStats(getAllGeneratedTextureCacheEntries()),
+    };
+  }
+
+  private async logGeneratedAssetCacheStats(label: string): Promise<void> {
+    const stats = await getGeneratedAssetCacheStats(getAllGeneratedTextureCacheEntries());
+    console.info('[generated-assets]', label, {
+      indexedDb: stats,
+      runtime: getGeneratedTextureRuntimeStats(this),
+    });
+  }
 }
 
 function waitForBrowserPaint(): Promise<void> {
   return new Promise((resolve) => {
     requestAnimationFrame(() => resolve());
   });
+}
+
+function shouldClearGeneratedAssetCache(): boolean {
+  return new URLSearchParams(window.location.search).get('clearGeneratedAssetCache') === 'true';
+}
+
+function shouldDebugGeneratedAssetCache(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  return (
+    params.get('debugGeneratedAssetCache') === 'true' ||
+    params.get('generatedAssetCacheDebug') === 'true'
+  );
+}
+
+declare global {
+  interface Window {
+    __cometBurstersGeneratedAssets?: {
+      clear: () => Promise<void>;
+      prune: () => Promise<void>;
+      runtime: () => GeneratedTextureRuntimeStats;
+      stats: () => Promise<GeneratedAssetCacheStats>;
+    };
+  }
 }

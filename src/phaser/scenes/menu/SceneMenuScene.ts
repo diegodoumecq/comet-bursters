@@ -2,22 +2,33 @@ import Phaser from 'phaser';
 
 import { getGameAudio } from '../../audio/AudioManager';
 import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
+import {
+  ensureGeneratedTexturesForScope,
+  type SceneGeneratedTextureScope,
+} from '../generatedTextureScopes';
 
 const MENU_ITEMS = [
   { key: 'demo', label: 'Demo Scene' },
   { key: 'arcade', label: 'Arcade Scene' },
   { key: 'sandbox', label: 'Sandbox Scene' },
   { key: 'ship-interior', label: 'Ship Interior' },
-] as const;
+] as const satisfies readonly { key: SceneGeneratedTextureScope; label: string }[];
+
+type MenuItem = (typeof MENU_ITEMS)[number];
 
 export class SceneMenuScene extends Phaser.Scene {
   private audioDirector!: SceneAudioDirector;
+  private buttons: Phaser.GameObjects.Text[] = [];
+  private loadingScene = false;
+  private statusLabel!: Phaser.GameObjects.Text;
 
   constructor() {
     super('scene-menu');
   }
 
   create(): void {
+    this.buttons = [];
+    this.loadingScene = false;
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'scene-menu');
     this.audioDirector.enter();
     this.events.once('shutdown', () => this.audioDirector.exit());
@@ -49,9 +60,42 @@ export class SceneMenuScene extends Phaser.Scene {
         button.setStyle({ backgroundColor: '#111827', color: '#bae6fd' }),
       );
       button.on('pointerdown', () => {
-        this.audioDirector.emit({ type: 'uiSelect' });
-        this.scene.start(item.key);
+        void this.startScene(item);
       });
+      this.buttons.push(button);
     });
+
+    this.statusLabel = this.add
+      .text(centerX, centerY + 286, '', {
+        color: '#94a3b8',
+        fontFamily: 'monospace',
+        fontSize: '15px',
+      })
+      .setOrigin(0.5);
+  }
+
+  private async startScene(item: MenuItem): Promise<void> {
+    if (this.loadingScene) return;
+
+    this.loadingScene = true;
+    this.buttons.forEach((button) => button.disableInteractive());
+    this.statusLabel.setText(`Preparing ${item.label}`);
+    this.audioDirector.emit({ type: 'uiSelect' });
+    try {
+      await ensureGeneratedTexturesForScope(this, item.key, {
+        onGroupComplete: ({ group, index, total }) => {
+          this.statusLabel.setText(`Ready ${group.label} (${index + 1} / ${total})`);
+        },
+        onGroupStart: ({ group, index, total }) => {
+          this.statusLabel.setText(`Creating ${group.label} (${index + 1} / ${total})`);
+        },
+      });
+      this.scene.start(item.key);
+    } catch (error) {
+      console.error('[generated-assets] Unable to prepare scene textures', error);
+      this.statusLabel.setText('Unable to prepare generated textures');
+      this.buttons.forEach((button) => button.setInteractive({ useHandCursor: true }));
+      this.loadingScene = false;
+    }
   }
 }

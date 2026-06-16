@@ -46,6 +46,7 @@ uniform vec3 u_nebula_accent;
 uniform vec3 u_nebula_base;
 uniform vec3 u_nebula_secondary;
 uniform vec3 u_nebula_thread;
+uniform float u_seed;
 
 varying vec2 vUv;
 
@@ -202,6 +203,7 @@ export class SpaceBackgroundRenderer {
         u_nebula_secondary: { value: colorVector(this.nebulaPalette.secondary) },
         u_nebula_thread: { value: colorVector(this.nebulaPalette.thread) },
         u_resolution: { value: new THREE.Vector2(1, 1) },
+        u_seed: { value: 17.73 },
       },
       vertexShader,
       fragmentShader: arcadeFragmentShader,

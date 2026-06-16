@@ -3,6 +3,7 @@ import type Phaser from 'phaser';
 import {
   createGeneratedCanvasTexture,
   ensureGeneratedCanvasTexture,
+  type GeneratedAssetCacheEntry,
   type GeneratedCanvasTextureRecipe,
 } from '../core/generatedAssetCache';
 import type { GeneratedTextureGroup } from '../core/generatedTextureRegistry';
@@ -56,9 +57,11 @@ export async function ensurePlayerTextures(scene: Phaser.Scene): Promise<void> {
 }
 
 export const PLAYER_GENERATED_TEXTURE_GROUP = {
+  cacheEntries: getPlayerTextureCacheEntries,
   ensure: ensurePlayerTextures,
   key: 'player',
   label: 'Player sprites',
+  textureKeys: getPlayerTextureKeys,
 } satisfies GeneratedTextureGroup;
 
 export function getPlayerTurretTextureKey(weapon: WeaponKind): string {
@@ -90,6 +93,17 @@ function createPlayerTextureRecipes(): GeneratedCanvasTextureRecipe[] {
       createPlayerTurretTextureRecipe(weapon),
     ),
   ];
+}
+
+function getPlayerTextureCacheEntries(): GeneratedAssetCacheEntry[] {
+  return createPlayerTextureRecipes().map((recipe) => ({
+    textureKey: recipe.key,
+    version: recipe.version,
+  }));
+}
+
+function getPlayerTextureKeys(): string[] {
+  return createPlayerTextureRecipes().map((recipe) => recipe.key);
 }
 
 function createPlayerTurretTextureRecipe(weapon: WeaponKind): GeneratedCanvasTextureRecipe {

@@ -4,6 +4,7 @@ import {
   addGeneratedAtlasTexture,
   readGeneratedAtlasTexture,
   writeGeneratedAtlasTexture,
+  type GeneratedAssetCacheEntry,
 } from '../core/generatedAssetCache';
 import type { GeneratedTextureGroup } from '../core/generatedTextureRegistry';
 import {
@@ -355,9 +356,11 @@ export async function ensureAsteroidTextures(scene: Phaser.Scene): Promise<void>
 }
 
 export const ASTEROID_GENERATED_TEXTURE_GROUP = {
+  cacheEntries: getAsteroidTextureCacheEntries,
   ensure: ensureAsteroidTextures,
   key: 'asteroids',
   label: 'Asteroid atlases',
+  textureKeys: getAsteroidTextureKeys,
 } satisfies GeneratedTextureGroup;
 
 export function getAsteroidTextureFrameRef(
@@ -434,6 +437,10 @@ function createTextureKeys(tier: AsteroidTier): readonly string[] {
   return ASTEROID_SURFACE_VARIANTS.map((variant) => createAtlasTextureKey(tier, variant, 0));
 }
 
+function getAsteroidTextureKeys(): string[] {
+  return getAsteroidTextureCacheEntries().map((entry) => entry.textureKey);
+}
+
 function createAsteroidTextureAtlas(
   scene: Phaser.Scene,
   tier: AsteroidTier,
@@ -462,6 +469,19 @@ function createAsteroidTextureAtlas(
       void cacheAsteroidAtlasPage(layout, render);
     }
   }
+}
+
+function getAsteroidTextureCacheEntries(): GeneratedAssetCacheEntry[] {
+  return (Object.keys(ASTEROIDS) as AsteroidTier[]).flatMap((tier) => {
+    const frameCount = TIER_ROTATION_FRAME_COUNTS[tier];
+    const textureSize = getAsteroidTextureSize(tier);
+    return SURFACE_RECIPES.flatMap((recipe) =>
+      createAtlasLayouts(tier, recipe.key, frameCount, textureSize).map((layout) => ({
+        textureKey: layout.textureKey,
+        version: createAsteroidAtlasCacheVersion(layout, textureSize),
+      })),
+    );
+  });
 }
 
 async function ensureAsteroidTextureAtlas(
@@ -602,10 +622,7 @@ async function cacheAsteroidAtlasPage(
   );
 }
 
-function createAsteroidAtlasCacheVersion(
-  layout: AsteroidAtlasLayout,
-  textureSize: number,
-): string {
+function createAsteroidAtlasCacheVersion(layout: AsteroidAtlasLayout, textureSize: number): string {
   return [
     'asteroid-atlas-v1',
     layout.startFrame,

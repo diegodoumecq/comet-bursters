@@ -3,6 +3,7 @@ import * as THREE from 'three';
 
 import {
   addGeneratedImageTexture,
+  type GeneratedAssetCacheEntry,
   readGeneratedImageTexture,
   writeGeneratedImageTexture,
 } from '../core/generatedAssetCache';
@@ -45,6 +46,13 @@ export async function ensureMonolithCubeTextures(scene: Phaser.Scene): Promise<v
   } finally {
     renderer.dispose();
   }
+}
+
+export function getMonolithCubeTextureCacheEntries(): GeneratedAssetCacheEntry[] {
+  return getMonolithCubeFrameIndices().map((frameIndex) => ({
+    textureKey: getMonolithCubeTextureKey(frameIndex),
+    version: createMonolithFrameCacheVersion(),
+  }));
 }
 
 export function getMonolithCubeTextureKey(frameIndex: number): string {

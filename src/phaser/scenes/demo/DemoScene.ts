@@ -7,6 +7,10 @@ import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
 import { applyMatterBodySpec } from '../../core/matterBodySpec';
 import type { WorldSize } from '../../core/types';
 import type { PortalEntity } from '../../dimensions/types';
+import { EntityBodies } from '../../entities/bodies';
+import { ENTITIES } from '../../entities/config';
+import { createMonolith } from '../../entities/logic';
+import type { GameEntity } from '../../entities/types';
 import { MAX_FUEL } from '../../fuel/rules';
 import { ActionReader, type ActionState } from '../../input/actions';
 import {
@@ -30,12 +34,9 @@ import {
 } from '../../projectiles/definition';
 import type { ProjectileEntity } from '../../projectiles/types';
 import { enableCanvasOverscan, getActiveCanvasOverscan } from '../../runtime/canvasOverscan';
-import { EntityBodies } from '../../entities/bodies';
-import { createMonolith } from '../../entities/logic';
-import { ENTITIES } from '../../entities/config';
-import type { GameEntity } from '../../entities/types';
 import { normalize } from '../../world/geometry';
 import { BaseGameScene } from '../BaseGameScene';
+import { registerGeneratedTextureScope } from '../generatedTextureScopes';
 import { DemoRenderer } from './DemoRenderer';
 
 const WORLD: WorldSize = { width: 5000, height: 5000 };
@@ -102,6 +103,7 @@ export class PhaserDemoScene extends BaseGameScene {
   }
 
   create(): void {
+    registerGeneratedTextureScope(this, 'demo');
     this.disposeCanvasOverscan = enableCanvasOverscan(this.game, BLACK_HOLE_SOURCE_OVERSCAN);
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'demo');
     this.audioDirector.enter();

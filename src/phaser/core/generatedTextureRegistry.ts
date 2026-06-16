@@ -1,9 +1,13 @@
 import type Phaser from 'phaser';
 
+import type { GeneratedAssetCacheEntry } from './generatedAssetCache';
+
 export type GeneratedTextureGroup = {
+  cacheEntries?: () => readonly GeneratedAssetCacheEntry[];
   ensure: (scene: Phaser.Scene) => Promise<void> | void;
   key: string;
   label: string;
+  textureKeys?: () => readonly string[];
 };
 
 export type GeneratedTextureGroupProgress = {
@@ -29,4 +33,18 @@ export async function ensureGeneratedTextureGroups(
     await group.ensure(scene);
     await options.onGroupComplete?.(progress);
   }
+}
+
+export function collectGeneratedTextureCacheEntries(
+  groups: readonly GeneratedTextureGroup[],
+): GeneratedAssetCacheEntry[] {
+  return groups.flatMap((group) => [...(group.cacheEntries?.() ?? [])]);
+}
+
+export function collectGeneratedTextureKeys(groups: readonly GeneratedTextureGroup[]): string[] {
+  return groups.flatMap((group) => {
+    const explicitKeys = group.textureKeys?.();
+    if (explicitKeys) return [...explicitKeys];
+    return (group.cacheEntries?.() ?? []).map((entry) => entry.textureKey);
+  });
 }
