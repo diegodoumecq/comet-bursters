@@ -22,7 +22,6 @@ export class DimensionBackground {
   private readonly starfield: Starfield;
   private drift: Vector = { x: NEBULA_DRIFT_SPEED * 0.35, y: -NEBULA_DRIFT_SPEED };
   private lastRenderAt = 0;
-  private shaderOffset: Vector = { x: 0, y: 0 };
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -43,15 +42,10 @@ export class DimensionBackground {
     const deltaMs =
       this.lastRenderAt === 0 ? 0 : Math.min(MAX_DELTA_MS, Math.max(0, now - this.lastRenderAt));
     this.lastRenderAt = now;
-    this.shaderOffset.x += this.drift.x * deltaMs;
-    this.shaderOffset.y += this.drift.y * deltaMs;
     this.shader.setVisible(options.threeBackground);
     if (options.threeBackground) {
       this.shader.render({
-        mode: this.mode,
         nebulaPalette: this.getNebulaPalette(),
-        now,
-        playerPosition: this.shaderOffset,
         screen: this.screen,
       });
     }

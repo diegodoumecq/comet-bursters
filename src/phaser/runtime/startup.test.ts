@@ -50,6 +50,7 @@ describe('phaser startup settings', () => {
         'comet-bursters-arcadeRiftDebug': 'true',
         'comet-bursters-fog-enabled': 'false',
         'comet-bursters-sandboxMinimap': 'false',
+        'comet-bursters-sandboxNebulaBackground': 'false',
         'comet-bursters-sandboxNebulaRegions': '0',
         'comet-bursters-starting-wave': '12',
       },
@@ -60,7 +61,22 @@ describe('phaser startup settings', () => {
     expect(getArcadeRiftDebugEnabled()).toBe(true);
     expect(getSandboxPerfToggles()).toMatchObject({
       minimap: false,
+      nebulaBackground: false,
       nebulaRegions: false,
+      threeBackground: false,
+    });
+  });
+
+  it('keeps the old sandboxThreeBackground key as a nebula background alias', () => {
+    stubStartupWindow({
+      localStorage: {
+        'comet-bursters-sandboxThreeBackground': 'false',
+      },
+    });
+
+    expect(getSandboxPerfToggles()).toMatchObject({
+      nebulaBackground: false,
+      threeBackground: false,
     });
   });
 

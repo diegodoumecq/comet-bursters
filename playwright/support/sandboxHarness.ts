@@ -11,10 +11,10 @@ export type SandboxProfileToggles = {
   grid: boolean;
   markers: boolean;
   minimap: boolean;
+  nebulaBackground: boolean;
   nebulaRegions: boolean;
   playerHud: boolean;
   starfield: boolean;
-  threeBackground: boolean;
   trajectoryPreview: boolean;
 };
 
@@ -124,10 +124,10 @@ const storageKeyByToggle: Record<keyof SandboxProfileToggles, string> = {
   grid: 'sandboxGrid',
   markers: 'sandboxPerfMarkers',
   minimap: 'sandboxMinimap',
+  nebulaBackground: 'sandboxNebulaBackground',
   nebulaRegions: 'sandboxNebulaRegions',
   playerHud: 'sandboxPlayerHud',
   starfield: 'sandboxStarfield',
-  threeBackground: 'sandboxThreeBackground',
   trajectoryPreview: 'sandboxTrajectoryPreview',
 };
 
@@ -138,10 +138,10 @@ const defaultSandboxProfileToggles: SandboxProfileToggles = {
   grid: true,
   markers: true,
   minimap: true,
+  nebulaBackground: true,
   nebulaRegions: true,
   playerHud: true,
   starfield: true,
-  threeBackground: true,
   trajectoryPreview: true,
 };
 
@@ -152,10 +152,10 @@ const envByToggle: Record<keyof SandboxProfileToggles, string> = {
   grid: 'SANDBOX_GRID',
   markers: 'SANDBOX_PERF_MARKERS',
   minimap: 'SANDBOX_MINIMAP',
+  nebulaBackground: 'SANDBOX_NEBULA_BACKGROUND',
   nebulaRegions: 'SANDBOX_NEBULA_REGIONS',
   playerHud: 'SANDBOX_PLAYER_HUD',
   starfield: 'SANDBOX_STARFIELD',
-  threeBackground: 'SANDBOX_THREE_BACKGROUND',
   trajectoryPreview: 'SANDBOX_TRAJECTORY_PREVIEW',
 };
 
@@ -166,10 +166,10 @@ const arcadeEnvByToggle: Record<keyof SandboxProfileToggles, string> = {
   grid: 'ARCADE_GRID',
   markers: 'ARCADE_PERF_MARKERS',
   minimap: 'ARCADE_MINIMAP',
+  nebulaBackground: 'ARCADE_THREE_BACKGROUND',
   nebulaRegions: 'ARCADE_NEBULA_REGIONS',
   playerHud: 'ARCADE_PLAYER_HUD',
   starfield: 'ARCADE_STARFIELD',
-  threeBackground: 'ARCADE_THREE_BACKGROUND',
   trajectoryPreview: 'ARCADE_TRAJECTORY_PREVIEW',
 };
 
@@ -184,7 +184,7 @@ export function getSandboxProfileTogglesFromEnv(
   return Object.fromEntries(
     Object.entries(defaults).map(([key, value]) => [
       key,
-      readBooleanEnv(envByToggle[key as keyof SandboxProfileToggles], value),
+      readBooleanEnvCandidates(getSandboxEnvCandidates(key as keyof SandboxProfileToggles), value),
     ]),
   ) as SandboxProfileToggles;
 }
@@ -198,12 +198,17 @@ export function getArcadeProfileTogglesFromEnv(
       readBooleanEnvCandidates(
         [
           arcadeEnvByToggle[key as keyof SandboxProfileToggles],
-          envByToggle[key as keyof SandboxProfileToggles],
+          ...getSandboxEnvCandidates(key as keyof SandboxProfileToggles),
         ],
         value,
       ),
     ]),
   ) as SandboxProfileToggles;
+}
+
+function getSandboxEnvCandidates(key: keyof SandboxProfileToggles): string[] {
+  if (key === 'nebulaBackground') return [envByToggle.nebulaBackground, 'SANDBOX_THREE_BACKGROUND'];
+  return [envByToggle[key]];
 }
 
 export async function openSandboxGame(

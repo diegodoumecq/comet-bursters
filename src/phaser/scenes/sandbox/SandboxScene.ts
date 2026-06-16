@@ -218,14 +218,7 @@ export class PhaserSandboxScene extends BaseGameScene {
           startup.biomes,
         ),
     );
-    this.renderEffects = new SandboxRenderEffects(
-      this.game.canvas,
-      this.game.canvas.parentElement,
-      () => {
-        const canvas = this.sceneRenderer.getBackgroundCanvas();
-        return canvas ? [canvas] : [];
-      },
-    );
+    this.renderEffects = new SandboxRenderEffects(this.game.canvas, this.game.canvas.parentElement);
     this.events.once('shutdown', this.disposeRenderEffects, this);
     this.startLaunchSequence(this.time.now);
     this.sceneRenderer.setPlayerDocked(true);
@@ -309,16 +302,11 @@ export class PhaserSandboxScene extends BaseGameScene {
     });
   }
 
-  private updatePlayer(
-    action: ActionState,
-    now: number,
-    deltaSeconds: number,
-  ): void {
+  private updatePlayer(action: ActionState, now: number, deltaSeconds: number): void {
     const timeDilation = action.timeDilation;
     this.player.updateAim(normalize(action.aim));
     const controlsEnabled = this.controlsEnabled;
-    const move =
-      !controlsEnabled || timeDilation ? { x: 0, y: 0 } : normalize(action.move);
+    const move = !controlsEnabled || timeDilation ? { x: 0, y: 0 } : normalize(action.move);
     this.player.updateThrust(move, false);
     if (this.player.visible && controlsEnabled) {
       const motion = updatePlayerMotion({
@@ -409,9 +397,7 @@ export class PhaserSandboxScene extends BaseGameScene {
           .get(projectile)
           .setVelocity(projectile.velocity.x, projectile.velocity.y),
       onEntityVelocityChanged: (entity) =>
-        this.entityBodies
-          .get(entity)
-          .setVelocity(entity.velocity.x, entity.velocity.y),
+        this.entityBodies.get(entity).setVelocity(entity.velocity.x, entity.velocity.y),
       particles: this.runtime.world.particles,
       planets: this.planets,
       player: {
@@ -655,12 +641,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   private isShieldActive(action: ActionState): boolean {
-    return (
-      this.controlsEnabled &&
-      action.shield &&
-      this.player.visible &&
-      this.ship.fuel > 0
-    );
+    return this.controlsEnabled && action.shield && this.player.visible && this.ship.fuel > 0;
   }
 
   private updatePlayerCollisionFilters(action: ActionState): void {

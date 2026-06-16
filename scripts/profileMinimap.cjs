@@ -64,11 +64,11 @@ async function runScenario(browser, options) {
         sandboxFuelMetaballs: false,
         sandboxGrid: true,
         sandboxMinimap: minimap,
+        sandboxNebulaBackground: false,
         sandboxNebulaRegions: true,
         sandboxPerfMarkers: true,
         sandboxPlayerHud: true,
         sandboxStarfield: true,
-        sandboxThreeBackground: false,
         sandboxTrajectoryPreview: true,
       };
       for (const [key, value] of Object.entries(toggles)) {

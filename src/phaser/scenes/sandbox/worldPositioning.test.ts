@@ -32,7 +32,7 @@ describe('sandbox world positioning', () => {
     };
 
     positionSandboxWrappedWorldNearPlayer({
-      asteroidBodies: { get: vi.fn() },
+      asteroidBodies: { setPosition: vi.fn() },
       fuelBodies,
       mothership: { keepNear: vi.fn(), sync: vi.fn() },
       now: 1000,
@@ -63,7 +63,11 @@ describe('sandbox world positioning', () => {
       wobbleSeed: 0,
     };
     const particle = createParticle({ x: 110, y: 120 });
-    const asteroidBody = { setPosition: vi.fn() };
+    const asteroidBodies = {
+      setPosition: vi.fn((target: AsteroidEntity, position: AsteroidEntity['position']) => {
+        target.position = { ...position };
+      }),
+    };
     const fuelBodies = {
       setPosition: vi.fn((target: FuelBlobEntity, position: FuelBlobEntity['position']) => {
         target.position = { ...position };
@@ -71,7 +75,7 @@ describe('sandbox world positioning', () => {
       sync: vi.fn(),
     };
     const input = {
-      asteroidBodies: { get: vi.fn(() => asteroidBody) },
+      asteroidBodies,
       fuelBodies,
       mothership: { moveBy: vi.fn(), sync: vi.fn() },
       now: 1000,
@@ -109,7 +113,7 @@ describe('sandbox world positioning', () => {
     expect(projectile.position).toEqual({ x: -930, y: 80 });
     expect(blob.position).toEqual({ x: -910, y: 100 });
     expect(particle.position).toEqual({ x: -890, y: 120 });
-    expect(asteroidBody.setPosition).toHaveBeenCalledWith(-950, 60);
+    expect(asteroidBodies.setPosition).toHaveBeenCalledWith(asteroid, { x: -950, y: 60 });
     expect(fuelBodies.sync).toHaveBeenCalledWith(blob);
     expect(input.mothership.moveBy).toHaveBeenCalledWith({ x: -1000, y: 0 });
   });

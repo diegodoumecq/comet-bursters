@@ -36,16 +36,16 @@ export class SandboxRenderEffects {
   private readonly fuelMetaballs: FuelMetaballRenderer | null;
   private readonly perfToggles = getSandboxPerfToggles();
 
-  constructor(
-    sourceCanvas: HTMLCanvasElement,
-    parent: HTMLElement | null,
-    getBackgroundCanvases: () => HTMLCanvasElement[],
-  ) {
+  constructor(sourceCanvas: HTMLCanvasElement, parent: HTMLElement | null) {
     this.fuelMetaballs = parent ? new FuelMetaballRenderer(parent) : null;
-    this.blackHoleShader = new BlackHoleShaderRenderer(sourceCanvas, getBackgroundCanvases, () => {
-      const canvas = this.fuelMetaballs?.getCanvas();
-      return canvas ? [canvas] : [];
-    });
+    this.blackHoleShader = new BlackHoleShaderRenderer(
+      sourceCanvas,
+      () => [],
+      () => {
+        const canvas = this.fuelMetaballs?.getCanvas();
+        return canvas ? [canvas] : [];
+      },
+    );
   }
 
   render(input: SandboxRenderEffectsInput): void {
