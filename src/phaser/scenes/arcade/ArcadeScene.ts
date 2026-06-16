@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 
-import { createArcadeTextures } from '../../arcade/visuals';
 import { AsteroidBodies } from '../../asteroids/bodies';
 import { ASTEROIDS } from '../../asteroids/logic';
 import { updateAsteroidSplitCollisions } from '../../asteroids/splitCollisions';
@@ -50,7 +49,6 @@ import {
   getBlackHoleEntityCollisionBlockers,
   resolveProjectileGameEntityContactCombat,
 } from '../../entities/combat';
-import { createEntityTextures } from '../../entities/textures';
 import { isFuelBlobCollectable, spawnFuelBlobs, spawnShipFuelDrops } from '../../fuel/blobLogic';
 import { FuelBodies } from '../../fuel/bodies';
 import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../../fuel/definition';
@@ -142,8 +140,6 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.riftDirector = new PortalDirector(startingIntensity);
     this.worldSize = { width: this.scale.width, height: this.scale.height };
     this.actions = new ActionReader(this);
-    createArcadeTextures(this);
-    createEntityTextures(this);
     this.playerBody = new PlayerBody(
       this,
       { x: this.worldSize.width / 2, y: this.worldSize.height / 2 },

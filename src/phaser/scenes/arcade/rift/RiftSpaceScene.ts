@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 
-import { createArcadeGameOverText, createArcadeTextures } from '../../../arcade/visuals';
+import { createArcadeGameOverText } from '../../../arcade/visuals';
 import { AsteroidBodies } from '../../../asteroids/bodies';
 import { getGameAudio } from '../../../audio/AudioManager';
 import type { SceneAudioDirector } from '../../../audio/SceneAudioDirector';
@@ -36,7 +36,6 @@ import { ProjectileBodies } from '../../../projectiles/bodies';
 import { getSandboxPerfToggles } from '../../../runtime/startup';
 import { EntityBodies } from '../../../entities/bodies';
 import { createMonolith } from '../../../entities/logic';
-import { createEntityTextures } from '../../../entities/textures';
 import type { GameEntity } from '../../../entities/types';
 import { DimensionBackground } from '../../../world/DimensionBackground';
 import { SpaceRenderEffects } from '../../../world/SpaceRenderEffects';
@@ -75,8 +74,6 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
   create(): void {
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'rift-space');
     this.worldSize = { width: this.scale.width, height: this.scale.height };
-    createArcadeTextures(this);
-    createEntityTextures(this);
     this.runtime = new SpaceWorldRuntime('rift', {
       asteroidBodies: new AsteroidBodies(this),
       contacts: new MatterContacts(this),

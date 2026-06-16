@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import type { GeneratedTextureGroup } from '../core/generatedTextureRegistry';
 import type { EntityKind } from './config';
 import type { GameEntity } from './types';
 import {
@@ -16,6 +17,12 @@ export const ENTITY_TEXTURE_KEYS: Record<EntityKind, string> = {
 export function createEntityTextures(scene: Phaser.Scene): void {
   createMonolithCubeTexture(scene);
 }
+
+export const ENTITY_GENERATED_TEXTURE_GROUP = {
+  ensure: createEntityTextures,
+  key: 'entities',
+  label: 'Entity sprites',
+} satisfies GeneratedTextureGroup;
 
 export function getEntityVisualTextureKey(entity: GameEntity, timeMs: number): string {
   if (entity.kind === 'monolith') {

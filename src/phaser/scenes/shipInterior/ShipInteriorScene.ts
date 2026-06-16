@@ -7,7 +7,6 @@ import { ActionReader, type ActionState } from '../../input/actions';
 import { PlayerBody } from '../../player/body';
 import { PLAYER_DEFINITIONS } from '../../player/definition';
 import { PlayerState } from '../../player/state';
-import { createPlayerTexture } from '../../player/textures';
 import { normalize } from '../../world/geometry';
 import { BaseGameScene } from '../BaseGameScene';
 import { buildShipInteriorCollision, renderShipInteriorLayers } from './interiorLevelView';
@@ -34,7 +33,6 @@ export class PhaserShipInteriorScene extends BaseGameScene {
     this.audioDirector.enter();
     this.events.once('shutdown', () => this.audioDirector.exit());
     this.actions = new ActionReader(this);
-    createPlayerTexture(this);
     this.statusText = this.add
       .text(this.scale.width * 0.5, this.scale.height * 0.5, 'Loading ship interior...', {
         color: '#e2e8f0',

@@ -1,13 +1,6 @@
 import Phaser from 'phaser';
 
-import { createAsteroidTextures } from '../asteroids/textures';
 import type { WorldSize } from '../core/types';
-import { createPlayerTexture } from '../player/textures';
-
-export function createArcadeTextures(scene: Phaser.Scene): void {
-  createPlayerTexture(scene);
-  createAsteroidTextures(scene);
-}
 
 export function updateCameraShake(
   camera: Phaser.Cameras.Scene2D.Camera,

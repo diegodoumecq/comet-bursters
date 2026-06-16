@@ -1,6 +1,6 @@
 import { AsteroidBodies } from '../../asteroids/bodies';
 import { ASTEROIDS, createAsteroid } from '../../asteroids/logic';
-import { ASTEROID_TEXTURES, createAsteroidTextures } from '../../asteroids/textures';
+import { ASTEROID_TEXTURES } from '../../asteroids/textures';
 import type { AsteroidEntity, AsteroidTier } from '../../asteroids/types';
 import { getGameAudio } from '../../audio/AudioManager';
 import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
@@ -21,7 +21,6 @@ import { PLAYER_DEFINITIONS } from '../../player/definition';
 import { updatePlayerMotion } from '../../player/motion';
 import { ShipState } from '../../player/shipState';
 import { PlayerState } from '../../player/state';
-import { createPlayerTexture } from '../../player/textures';
 import {
   BLACK_HOLE_GROWTH_DURATION_MS,
   BLACK_HOLE_MATURE_AFTER_MS,
@@ -34,7 +33,6 @@ import { enableCanvasOverscan, getActiveCanvasOverscan } from '../../runtime/can
 import { EntityBodies } from '../../entities/bodies';
 import { createMonolith } from '../../entities/logic';
 import { ENTITIES } from '../../entities/config';
-import { createEntityTextures } from '../../entities/textures';
 import type { GameEntity } from '../../entities/types';
 import { normalize } from '../../world/geometry';
 import { BaseGameScene } from '../BaseGameScene';
@@ -136,7 +134,6 @@ export class PhaserDemoScene extends BaseGameScene {
     this.planetViews = new PlanetViews(this);
     this.fuelExtractorViews = new FuelExtractorViews(this);
     this.createGrid();
-    this.createTextures();
     this.createPlanets();
     this.createAsteroids();
     this.createBlackHoles();
@@ -201,12 +198,6 @@ export class PhaserDemoScene extends BaseGameScene {
     graphics.lineStyle(1, 0x1f2a44, 1);
     for (let x = 0; x <= WORLD.width; x += 120) graphics.lineBetween(x, 0, x, WORLD.height);
     for (let y = 0; y <= WORLD.height; y += 120) graphics.lineBetween(0, y, WORLD.width, y);
-  }
-
-  private createTextures(): void {
-    createPlayerTexture(this);
-    createAsteroidTextures(this);
-    createEntityTextures(this);
   }
 
   private createPlanets(): void {

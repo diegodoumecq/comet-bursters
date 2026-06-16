@@ -1,6 +1,12 @@
 import Phaser from 'phaser';
 
 import {
+  addGeneratedAtlasTexture,
+  readGeneratedAtlasTexture,
+  writeGeneratedAtlasTexture,
+} from '../core/generatedAssetCache';
+import type { GeneratedTextureGroup } from '../core/generatedTextureRegistry';
+import {
   createShaderCanvases,
   hexToVec3Uniform,
   setFloatUniform,
@@ -45,6 +51,13 @@ type AsteroidAtlasLayout = {
   startFrame: number;
   textureKey: string;
   width: number;
+};
+
+type AsteroidAtlasRender = {
+  atlasJson: {
+    frames: Record<string, AtlasFrameData>;
+  };
+  canvas: HTMLCanvasElement;
 };
 
 type AtlasFrameData = {
@@ -330,6 +343,23 @@ export function createAsteroidTextures(scene: Phaser.Scene): void {
   }
 }
 
+export async function ensureAsteroidTextures(scene: Phaser.Scene): Promise<void> {
+  for (const tier of Object.keys(ASTEROIDS) as AsteroidTier[]) {
+    const frameCount = TIER_ROTATION_FRAME_COUNTS[tier];
+    await Promise.all(
+      SURFACE_RECIPES.map((recipe, variantIndex) =>
+        ensureAsteroidTextureAtlas(scene, tier, recipe, variantIndex, frameCount),
+      ),
+    );
+  }
+}
+
+export const ASTEROID_GENERATED_TEXTURE_GROUP = {
+  ensure: ensureAsteroidTextures,
+  key: 'asteroids',
+  label: 'Asteroid atlases',
+} satisfies GeneratedTextureGroup;
+
 export function getAsteroidTextureFrameRef(
   tier: AsteroidTier,
   visualVariant: number,
@@ -426,8 +456,46 @@ function createAsteroidTextureAtlas(
   if (!outputs) throw new Error('Unable to create asteroid shader textures');
 
   for (const layout of layouts) {
-    if (!scene.textures.exists(layout.textureKey))
-      createAsteroidAtlasPage(scene, tier, recipe.key, layout, textureSize, outputs);
+    if (!scene.textures.exists(layout.textureKey)) {
+      const render = renderAsteroidAtlasPage(tier, recipe.key, layout, textureSize, outputs);
+      addAsteroidAtlasPage(scene, layout.textureKey, render);
+      void cacheAsteroidAtlasPage(layout, render);
+    }
+  }
+}
+
+async function ensureAsteroidTextureAtlas(
+  scene: Phaser.Scene,
+  tier: AsteroidTier,
+  recipe: SurfaceRecipe,
+  variantIndex: number,
+  frameCount: number,
+): Promise<void> {
+  const textureSize = getAsteroidTextureSize(tier);
+  const layouts = createAtlasLayouts(tier, recipe.key, frameCount, textureSize);
+  if (layouts.every((layout) => scene.textures.exists(layout.textureKey))) return;
+
+  await Promise.all(
+    layouts.map((layout) => ensureCachedAsteroidAtlasPage(scene, layout, textureSize)),
+  );
+
+  const missingLayouts = layouts.filter((layout) => !scene.textures.exists(layout.textureKey));
+  if (missingLayouts.length === 0) return;
+
+  const inputs = createAsteroidShaderTextureInputs(
+    tier,
+    recipe,
+    variantIndex,
+    frameCount,
+    textureSize,
+  );
+  const outputs = createShaderCanvases(fragmentShader, inputs);
+  if (!outputs) throw new Error('Unable to create asteroid shader textures');
+
+  for (const layout of missingLayouts) {
+    const render = renderAsteroidAtlasPage(tier, recipe.key, layout, textureSize, outputs);
+    addAsteroidAtlasPage(scene, layout.textureKey, render);
+    await cacheAsteroidAtlasPage(layout, render);
   }
 }
 
@@ -455,14 +523,13 @@ function createAsteroidShaderTextureInputs(
   return inputs;
 }
 
-function createAsteroidAtlasPage(
-  scene: Phaser.Scene,
+function renderAsteroidAtlasPage(
   tier: AsteroidTier,
   variant: AsteroidSurfaceVariant,
   layout: AsteroidAtlasLayout,
   textureSize: number,
   outputs: readonly ShaderCanvasOutput[],
-): void {
+): AsteroidAtlasRender {
   const atlasCanvas = document.createElement('canvas');
   atlasCanvas.width = layout.width;
   atlasCanvas.height = layout.height;
@@ -485,12 +552,69 @@ function createAsteroidAtlasPage(
     );
   }
 
+  return { atlasJson: { frames }, canvas: atlasCanvas };
+}
+
+function addAsteroidAtlasPage(
+  scene: Phaser.Scene,
+  textureKey: string,
+  render: AsteroidAtlasRender,
+): void {
   const atlas = scene.textures.addAtlasJSONHash(
-    layout.textureKey,
-    atlasCanvas as unknown as HTMLImageElement,
-    { frames },
+    textureKey,
+    render.canvas as unknown as HTMLImageElement,
+    render.atlasJson,
   );
-  if (!atlas) throw new Error(`Unable to create asteroid atlas ${layout.textureKey}`);
+  if (!atlas) throw new Error(`Unable to create asteroid atlas ${textureKey}`);
+}
+
+async function ensureCachedAsteroidAtlasPage(
+  scene: Phaser.Scene,
+  layout: AsteroidAtlasLayout,
+  textureSize: number,
+): Promise<void> {
+  if (scene.textures.exists(layout.textureKey)) return;
+
+  const cached = await readGeneratedAtlasTexture(
+    layout.textureKey,
+    createAsteroidAtlasCacheVersion(layout, textureSize),
+  );
+  if (cached && !scene.textures.exists(layout.textureKey)) {
+    await addGeneratedAtlasTexture(scene, layout.textureKey, cached);
+  }
+}
+
+async function cacheAsteroidAtlasPage(
+  layout: AsteroidAtlasLayout,
+  render: AsteroidAtlasRender,
+): Promise<void> {
+  const blob = await new Promise<Blob | null>((resolve) => {
+    render.canvas.toBlob((nextBlob) => resolve(nextBlob), 'image/png');
+  });
+  if (!blob) return;
+  await writeGeneratedAtlasTexture(
+    layout.textureKey,
+    createAsteroidAtlasCacheVersion(layout, render.canvas.width / layout.columns),
+    {
+      atlasJson: render.atlasJson,
+      blob,
+    },
+  );
+}
+
+function createAsteroidAtlasCacheVersion(
+  layout: AsteroidAtlasLayout,
+  textureSize: number,
+): string {
+  return [
+    'asteroid-atlas-v1',
+    layout.startFrame,
+    layout.frameCount,
+    layout.columns,
+    layout.width,
+    layout.height,
+    textureSize,
+  ].join(':');
 }
 
 function createAtlasFrameData(x: number, y: number, textureSize: number): AtlasFrameData {

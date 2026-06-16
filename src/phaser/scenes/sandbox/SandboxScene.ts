@@ -3,7 +3,6 @@ import Phaser from 'phaser';
 import { AsteroidBodies } from '../../asteroids/bodies';
 import { ASTEROIDS } from '../../asteroids/logic';
 import { updateAsteroidSplitCollisions } from '../../asteroids/splitCollisions';
-import { createAsteroidTextures } from '../../asteroids/textures';
 import type { AsteroidEntity } from '../../asteroids/types';
 import { getGameAudio } from '../../audio/AudioManager';
 import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
@@ -38,7 +37,6 @@ import {
   getBlackHoleEntityCollisionBlockers,
   resolveProjectileGameEntityContactCombat,
 } from '../../entities/combat';
-import { createEntityTextures } from '../../entities/textures';
 import type { GameEntity } from '../../entities/types';
 import { spawnAsteroidFuelDrops, spawnFuelBlobs, spawnShipFuelDrops } from '../../fuel/blobLogic';
 import { FuelBodies } from '../../fuel/bodies';
@@ -62,7 +60,6 @@ import { PLAYER_ACCELERATION, PLAYER_COLLISION_RADIUS } from '../../player/confi
 import { PLAYER_DEFINITIONS } from '../../player/definition';
 import { updatePlayerMotion } from '../../player/motion';
 import { PlayerState } from '../../player/state';
-import { createPlayerTexture } from '../../player/textures';
 import { updateBlackHoles } from '../../projectiles/blackHoles';
 import { ProjectileBodies } from '../../projectiles/bodies';
 import { BLACK_HOLE_SOURCE_OVERSCAN } from '../../projectiles/definition';
@@ -169,15 +166,6 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'sandbox');
     this.audioDirector.enter();
     this.actions = new ActionReader(this);
-    withPerformanceMeasure('sandbox.startup.textures.player', perfMarkers, () => {
-      createPlayerTexture(this);
-    });
-    withPerformanceMeasure('sandbox.startup.textures.asteroids', perfMarkers, () => {
-      createAsteroidTextures(this);
-    });
-    withPerformanceMeasure('sandbox.startup.textures.entities', perfMarkers, () => {
-      createEntityTextures(this);
-    });
     this.asteroidBodies = new AsteroidBodies(this);
     this.entityBodies = new EntityBodies(this);
     this.projectileBodies = new ProjectileBodies(this);

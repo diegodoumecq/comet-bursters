@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import { initializeGameAudio } from '../../audio/AudioManager';
 import { preloadAudioAssets } from '../../audio/audioLoader';
+import { ensureBootGeneratedTextures } from './generatedTextures';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -12,8 +13,9 @@ export class BootScene extends Phaser.Scene {
     preloadAudioAssets(this);
   }
 
-  create(): void {
+  async create(): Promise<void> {
     initializeGameAudio(this);
+    await ensureBootGeneratedTextures(this);
     this.scene.start('scene-menu');
   }
 }

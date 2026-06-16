@@ -1,5 +1,11 @@
 import type Phaser from 'phaser';
 
+import {
+  createGeneratedCanvasTexture,
+  ensureGeneratedCanvasTexture,
+  type GeneratedCanvasTextureRecipe,
+} from '../core/generatedAssetCache';
+import type { GeneratedTextureGroup } from '../core/generatedTextureRegistry';
 import type { WeaponKind } from '../weapons/types';
 import { TURRET_SPRITE_DRAWERS, type TurretSpriteMetrics } from './turret';
 
@@ -38,28 +44,22 @@ export const PLAYER_TURRET_SPRITE_SPECS: Record<WeaponKind, PlayerTurretSpriteSp
 };
 
 export function createPlayerTexture(scene: Phaser.Scene): void {
-  if (!scene.textures.exists(PLAYER_TEXTURE_KEY)) {
-    const canvas = document.createElement('canvas');
-    canvas.width = PLAYER_VISUAL_SIZE * 2;
-    canvas.height = PLAYER_VISUAL_SIZE * 2;
-    const ctx = canvas.getContext('2d')!;
-    ctx.translate(PLAYER_VISUAL_SIZE, PLAYER_VISUAL_SIZE);
-    drawHull(ctx, PLAYER_VISUAL_SIZE * 0.5);
-    scene.textures.addCanvas(PLAYER_TEXTURE_KEY, canvas);
-  }
-  for (const weapon of Object.keys(PLAYER_TURRET_TEXTURE_KEYS) as WeaponKind[]) {
-    const textureKey = PLAYER_TURRET_TEXTURE_KEYS[weapon];
-    if (!scene.textures.exists(textureKey)) {
-      const canvas = document.createElement('canvas');
-      canvas.width = PLAYER_TURRET_TEXTURE_SIZE;
-      canvas.height = PLAYER_TURRET_TEXTURE_SIZE;
-      const ctx = canvas.getContext('2d')!;
-      ctx.translate(PLAYER_VISUAL_SIZE, PLAYER_VISUAL_SIZE);
-      drawTurret(ctx, weapon);
-      scene.textures.addCanvas(textureKey, canvas);
-    }
+  for (const recipe of createPlayerTextureRecipes()) {
+    createGeneratedCanvasTexture(scene, recipe);
   }
 }
+
+export async function ensurePlayerTextures(scene: Phaser.Scene): Promise<void> {
+  await Promise.all(
+    createPlayerTextureRecipes().map((recipe) => ensureGeneratedCanvasTexture(scene, recipe)),
+  );
+}
+
+export const PLAYER_GENERATED_TEXTURE_GROUP = {
+  ensure: ensurePlayerTextures,
+  key: 'player',
+  label: 'Player sprites',
+} satisfies GeneratedTextureGroup;
 
 export function getPlayerTurretTextureKey(weapon: WeaponKind): string {
   return PLAYER_TURRET_TEXTURE_KEYS[weapon];
@@ -71,6 +71,37 @@ function createTurretSpriteSpec(weapon: WeaponKind): PlayerTurretSpriteSpec {
     orientationRadians: PLAYER_TURRET_SPRITE_ORIENTATION_RADIANS,
     textureKey: PLAYER_TURRET_TEXTURE_KEYS[weapon],
     textureSize: PLAYER_TURRET_TEXTURE_SIZE,
+  };
+}
+
+function createPlayerTextureRecipes(): GeneratedCanvasTextureRecipe[] {
+  return [
+    {
+      draw: (ctx) => {
+        ctx.translate(PLAYER_VISUAL_SIZE, PLAYER_VISUAL_SIZE);
+        drawHull(ctx, PLAYER_VISUAL_SIZE * 0.5);
+      },
+      height: PLAYER_VISUAL_SIZE * 2,
+      key: PLAYER_TEXTURE_KEY,
+      version: 'player-hull-v1',
+      width: PLAYER_VISUAL_SIZE * 2,
+    },
+    ...(Object.keys(PLAYER_TURRET_TEXTURE_KEYS) as WeaponKind[]).map((weapon) =>
+      createPlayerTurretTextureRecipe(weapon),
+    ),
+  ];
+}
+
+function createPlayerTurretTextureRecipe(weapon: WeaponKind): GeneratedCanvasTextureRecipe {
+  return {
+    draw: (ctx) => {
+      ctx.translate(PLAYER_VISUAL_SIZE, PLAYER_VISUAL_SIZE);
+      drawTurret(ctx, weapon);
+    },
+    height: PLAYER_TURRET_TEXTURE_SIZE,
+    key: PLAYER_TURRET_TEXTURE_KEYS[weapon],
+    version: `player-turret-${weapon}-v1`,
+    width: PLAYER_TURRET_TEXTURE_SIZE,
   };
 }
 

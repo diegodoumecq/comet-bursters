@@ -1,0 +1,42 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  ensureGeneratedTextureGroups,
+  type GeneratedTextureGroup,
+} from './generatedTextureRegistry';
+
+describe('generated texture registry', () => {
+  it('ensures groups in registry order and reports progress', async () => {
+    const calls: string[] = [];
+    const groups: GeneratedTextureGroup[] = [
+      {
+        ensure: () => {
+          calls.push('first');
+        },
+        key: 'first',
+        label: 'First',
+      },
+      {
+        ensure: async () => {
+          calls.push('second');
+        },
+        key: 'second',
+        label: 'Second',
+      },
+    ];
+
+    await ensureGeneratedTextureGroups({} as Phaser.Scene, groups, {
+      onGroupComplete: ({ group }) => calls.push(`complete:${group.key}`),
+      onGroupStart: ({ group }) => calls.push(`start:${group.key}`),
+    });
+
+    expect(calls).toEqual([
+      'start:first',
+      'first',
+      'complete:first',
+      'start:second',
+      'second',
+      'complete:second',
+    ]);
+  });
+});
