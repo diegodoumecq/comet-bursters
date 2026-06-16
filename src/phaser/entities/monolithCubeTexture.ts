@@ -1,6 +1,10 @@
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 import * as THREE from 'three';
 
+import {
+  ensureGeneratedImageTexture,
+  type GeneratedAssetCacheEntry,
+} from '../core/generatedAssetCache';
 import { ENTITIES } from './config';
 
 const MONOLITH_TEXTURE_SCALE = 2;
@@ -8,12 +12,39 @@ export const MONOLITH_CUBE_FRAME_COUNT = 24;
 const MONOLITH_TILT_X = -0.46;
 const MONOLITH_TILT_Z = 0.18;
 const MONOLITH_CUBE_HALF_SIZE = 0.75;
+const MONOLITH_CUBE_ART_REVISION = 'monolith-cube-v1';
 
 export const MONOLITH_CUBE_TEXTURE_KEY = 'entity-monolith';
 export const MONOLITH_CUBE_ANIMATION_FRAME_MS = 72;
 
-export function createMonolithCubeTexture(scene: Phaser.Scene): void {
-  if (!hasMonolithCubeTextures(scene)) bakeMonolithCubeTextures(scene);
+export async function ensureMonolithCubeTextures(scene: Phaser.Scene): Promise<void> {
+  if (hasMonolithCubeTextures(scene)) return;
+
+  const size = ENTITIES.monolith.size;
+  const renderState: { renderer: MonolithCubeTextureRenderer | null } = { renderer: null };
+  try {
+    await Promise.all(
+      getMonolithCubeFrameIndices().map((frameIndex) =>
+        ensureGeneratedImageTexture(scene, {
+          key: getMonolithCubeTextureKey(frameIndex),
+          renderCanvas: () => {
+            renderState.renderer ??= new MonolithCubeTextureRenderer(size);
+            return renderState.renderer.renderCanvas(frameIndex / MONOLITH_CUBE_FRAME_COUNT);
+          },
+          version: createMonolithFrameCacheVersion(),
+        }),
+      ),
+    );
+  } finally {
+    renderState.renderer?.dispose();
+  }
+}
+
+export function getMonolithCubeTextureCacheEntries(): GeneratedAssetCacheEntry[] {
+  return getMonolithCubeFrameIndices().map((frameIndex) => ({
+    textureKey: getMonolithCubeTextureKey(frameIndex),
+    version: createMonolithFrameCacheVersion(),
+  }));
 }
 
 export function getMonolithCubeTextureKey(frameIndex: number): string {
@@ -37,22 +68,22 @@ function hasMonolithCubeTextures(scene: Phaser.Scene): boolean {
   return true;
 }
 
-function bakeMonolithCubeTextures(scene: Phaser.Scene): void {
-  const size = ENTITIES.monolith.size;
-  const renderer = new MonolithCubeTextureRenderer(size);
-  try {
-    for (let frameIndex = 0; frameIndex < MONOLITH_CUBE_FRAME_COUNT; frameIndex += 1) {
-      const key = getMonolithCubeTextureKey(frameIndex);
-      if (scene.textures.exists(key)) {
-        scene.textures.remove(key);
-      }
-      const texture = scene.textures.createCanvas(key, size, size);
-      if (!texture) throw new Error(`Unable to create canvas texture ${key}`);
-      renderer.render(texture, frameIndex / MONOLITH_CUBE_FRAME_COUNT);
-    }
-  } finally {
-    renderer.dispose();
-  }
+function getMonolithCubeFrameIndices(): number[] {
+  return Array.from({ length: MONOLITH_CUBE_FRAME_COUNT }, (_, frameIndex) => frameIndex);
+}
+
+function createMonolithFrameCacheVersion(): string {
+  return [
+    'monolith-cube',
+    MONOLITH_CUBE_ART_REVISION,
+    ENTITIES.monolith.size,
+    MONOLITH_CUBE_FRAME_COUNT,
+    MONOLITH_CUBE_ANIMATION_FRAME_MS,
+    MONOLITH_TEXTURE_SCALE,
+    MONOLITH_TILT_X,
+    MONOLITH_TILT_Z,
+    MONOLITH_CUBE_HALF_SIZE,
+  ].join(':');
 }
 
 class MonolithCubeTextureRenderer {
@@ -98,16 +129,20 @@ class MonolithCubeTextureRenderer {
     this.scene.add(fillLight);
   }
 
-  render(texture: Phaser.Textures.CanvasTexture, progress: number): void {
+  renderCanvas(progress: number): HTMLCanvasElement {
     this.cube.rotation.x = MONOLITH_TILT_X;
     this.cube.rotation.y = progress * Math.PI * 2;
     this.cube.rotation.z = MONOLITH_TILT_Z;
     this.renderer.render(this.scene, this.camera);
 
-    const { context } = texture;
+    const canvas = document.createElement('canvas');
+    canvas.width = this.size;
+    canvas.height = this.size;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Unable to create monolith cube frame canvas');
     context.clearRect(0, 0, this.size, this.size);
     context.drawImage(this.canvas, 0, 0, this.size, this.size);
-    texture.refresh();
+    return canvas;
   }
 
   dispose(): void {

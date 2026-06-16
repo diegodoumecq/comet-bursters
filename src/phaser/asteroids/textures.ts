@@ -1,5 +1,11 @@
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 
+import {
+  ensureGeneratedAtlasTexture,
+  type GeneratedAssetCacheEntry,
+  type GeneratedAtlasTextureRender,
+} from '../core/generatedAssetCache';
+import type { GeneratedTextureGroup } from '../core/generatedTextureRegistry';
 import {
   createShaderCanvases,
   hexToVec3Uniform,
@@ -122,6 +128,7 @@ const SURFACE_STYLE_INDEX: Record<SurfaceStyle, number> = {
 
 const ASTEROID_TEXTURE_PADDING = 4;
 const ASTEROID_ATLAS_MAX_SIZE = 2048;
+const ASTEROID_ATLAS_CACHE_PREFIX = 'asteroid-atlas';
 const DEFAULT_ACCENT_COLOR = '#ffffff';
 const FRAME_BLEND_START = 0.25;
 const FRAME_BLEND_END = 0.75;
@@ -321,14 +328,24 @@ void main() {
 }
 `;
 
-export function createAsteroidTextures(scene: Phaser.Scene): void {
+async function ensureAsteroidTextures(scene: Phaser.Scene): Promise<void> {
   for (const tier of Object.keys(ASTEROIDS) as AsteroidTier[]) {
     const frameCount = TIER_ROTATION_FRAME_COUNTS[tier];
-    SURFACE_RECIPES.forEach((recipe, variantIndex) => {
-      createAsteroidTextureAtlas(scene, tier, recipe, variantIndex, frameCount);
-    });
+    await Promise.all(
+      SURFACE_RECIPES.map((recipe, variantIndex) =>
+        ensureAsteroidTextureAtlas(scene, tier, recipe, variantIndex, frameCount),
+      ),
+    );
   }
 }
+
+export const ASTEROID_GENERATED_TEXTURE_GROUP = {
+  cacheEntries: getAsteroidTextureCacheEntries(),
+  ensure: ensureAsteroidTextures,
+  key: 'asteroids',
+  label: 'Asteroid atlases',
+  textureKeys: getAsteroidTextureKeys(),
+} satisfies GeneratedTextureGroup;
 
 export function getAsteroidTextureFrameRef(
   tier: AsteroidTier,
@@ -404,31 +421,60 @@ function createTextureKeys(tier: AsteroidTier): readonly string[] {
   return ASTEROID_SURFACE_VARIANTS.map((variant) => createAtlasTextureKey(tier, variant, 0));
 }
 
-function createAsteroidTextureAtlas(
+function getAsteroidTextureKeys(): string[] {
+  return getAsteroidTextureCacheEntries().map((entry) => entry.textureKey);
+}
+
+function getAsteroidTextureCacheEntries(): GeneratedAssetCacheEntry[] {
+  return (Object.keys(ASTEROIDS) as AsteroidTier[]).flatMap((tier) => {
+    const frameCount = TIER_ROTATION_FRAME_COUNTS[tier];
+    const textureSize = getAsteroidTextureSize(tier);
+    return SURFACE_RECIPES.flatMap((recipe) =>
+      createAtlasLayouts(tier, recipe.key, frameCount, textureSize).map((layout) => ({
+        textureKey: layout.textureKey,
+        version: createAsteroidAtlasCacheVersion(tier, recipe, layout, textureSize),
+      })),
+    );
+  });
+}
+
+async function ensureAsteroidTextureAtlas(
   scene: Phaser.Scene,
   tier: AsteroidTier,
   recipe: SurfaceRecipe,
   variantIndex: number,
   frameCount: number,
-): void {
+): Promise<void> {
   const textureSize = getAsteroidTextureSize(tier);
   const layouts = createAtlasLayouts(tier, recipe.key, frameCount, textureSize);
   if (layouts.every((layout) => scene.textures.exists(layout.textureKey))) return;
 
-  const inputs = createAsteroidShaderTextureInputs(
-    tier,
-    recipe,
-    variantIndex,
-    frameCount,
-    textureSize,
-  );
-  const outputs = createShaderCanvases(fragmentShader, inputs);
-  if (!outputs) throw new Error('Unable to create asteroid shader textures');
+  let outputs: readonly ShaderCanvasOutput[] | null = null;
+  const getOutputs = (): readonly ShaderCanvasOutput[] => {
+    if (!outputs) {
+      const inputs = createAsteroidShaderTextureInputs(
+        tier,
+        recipe,
+        variantIndex,
+        frameCount,
+        textureSize,
+      );
+      outputs = createShaderCanvases(fragmentShader, inputs);
+      if (!outputs) throw new Error('Unable to create asteroid shader textures');
+    }
+    return outputs;
+  };
 
-  for (const layout of layouts) {
-    if (!scene.textures.exists(layout.textureKey))
-      createAsteroidAtlasPage(scene, tier, recipe.key, layout, textureSize, outputs);
-  }
+  await Promise.all(
+    layouts.map((layout) =>
+      ensureGeneratedAtlasTexture(scene, {
+        key: layout.textureKey,
+        renderAtlas: () =>
+          renderAsteroidAtlasPage(tier, recipe.key, layout, textureSize, getOutputs()),
+        version: createAsteroidAtlasCacheVersion(tier, recipe, layout, textureSize),
+      }),
+    ),
+  );
 }
 
 function createAsteroidShaderTextureInputs(
@@ -455,14 +501,13 @@ function createAsteroidShaderTextureInputs(
   return inputs;
 }
 
-function createAsteroidAtlasPage(
-  scene: Phaser.Scene,
+function renderAsteroidAtlasPage(
   tier: AsteroidTier,
   variant: AsteroidSurfaceVariant,
   layout: AsteroidAtlasLayout,
   textureSize: number,
   outputs: readonly ShaderCanvasOutput[],
-): void {
+): GeneratedAtlasTextureRender {
   const atlasCanvas = document.createElement('canvas');
   atlasCanvas.width = layout.width;
   atlasCanvas.height = layout.height;
@@ -485,12 +530,62 @@ function createAsteroidAtlasPage(
     );
   }
 
-  const atlas = scene.textures.addAtlasJSONHash(
-    layout.textureKey,
-    atlasCanvas as unknown as HTMLImageElement,
-    { frames },
+  return { atlasJson: { frames }, canvas: atlasCanvas };
+}
+
+function createAsteroidAtlasCacheVersion(
+  tier: AsteroidTier,
+  recipe: SurfaceRecipe,
+  layout: AsteroidAtlasLayout,
+  textureSize: number,
+): string {
+  return [
+    ASTEROID_ATLAS_CACHE_PREFIX,
+    createAsteroidGeneratorSignature(tier, recipe),
+    layout.startFrame,
+    layout.frameCount,
+    layout.columns,
+    layout.width,
+    layout.height,
+    textureSize,
+  ].join(':');
+}
+
+function createAsteroidGeneratorSignature(tier: AsteroidTier, recipe: SurfaceRecipe): string {
+  return stableHash(
+    [
+      fragmentShader,
+      TIER_BASE_COLORS[tier],
+      getTierDetailScale(tier),
+      shaderSeed(`${tier}:${recipe.key}`),
+      seededAngle(`${tier}:${recipe.key}:rotation`),
+      stableSurfaceRecipeSignature(recipe),
+    ].join('|'),
   );
-  if (!atlas) throw new Error(`Unable to create asteroid atlas ${layout.textureKey}`);
+}
+
+function stableSurfaceRecipeSignature(recipe: SurfaceRecipe): string {
+  return [
+    recipe.key,
+    recipe.style,
+    recipe.tint,
+    recipe.tintAmount,
+    recipe.accent ?? DEFAULT_ACCENT_COLOR,
+    recipe.accentAmount,
+    recipe.bandCount,
+    recipe.craters,
+    recipe.facets,
+    recipe.shape,
+  ].join(':');
+}
+
+function stableHash(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 function createAtlasFrameData(x: number, y: number, textureSize: number): AtlasFrameData {

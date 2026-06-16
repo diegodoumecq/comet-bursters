@@ -19,7 +19,7 @@ test.describe('Focused render technique performance', () => {
     test(`profiles ${technique}`, async ({ page }, testInfo) => {
       const diagnostics = captureConsoleDiagnostics(page);
 
-      await openDemoGame(page, 1200, { markers: true });
+      await openDemoGame(page, 1200, { demoTechnique: technique, markers: true });
       const summary = await focusDemoTechnique(page, technique);
       const report = await recordScenarioSample(page, {
         consoleMessages: diagnostics.messages,

@@ -1,6 +1,5 @@
 import Phaser from 'phaser';
 
-import { createArcadeTextures } from '../../arcade/visuals';
 import { AsteroidBodies } from '../../asteroids/bodies';
 import { ASTEROIDS } from '../../asteroids/logic';
 import { updateAsteroidSplitCollisions } from '../../asteroids/splitCollisions';
@@ -35,6 +34,7 @@ import {
 } from '../../combat/portalBridge';
 import { circlesOverlap } from '../../core/collision';
 import { applyMatterBodySpec } from '../../core/matterBodySpec';
+import { preloadTask } from '../../core/preloadTask';
 import { getTimeScale } from '../../core/time';
 import type { Vector, WorldSize } from '../../core/types';
 import type { DimensionCoordinator } from '../../dimensions/DimensionCoordinator';
@@ -50,7 +50,6 @@ import {
   getBlackHoleEntityCollisionBlockers,
   resolveProjectileGameEntityContactCombat,
 } from '../../entities/combat';
-import { createEntityTextures } from '../../entities/textures';
 import { isFuelBlobCollectable, spawnFuelBlobs, spawnShipFuelDrops } from '../../fuel/blobLogic';
 import { FuelBodies } from '../../fuel/bodies';
 import { FUEL_BLOB_AMOUNT, FUEL_BLOB_RADIUS } from '../../fuel/definition';
@@ -91,6 +90,7 @@ import { normalize, wrappedDelta } from '../../world/geometry';
 import { applyWorldGravity } from '../../world/gravity';
 import { SpaceWorldRuntime } from '../../world/SpaceWorldRuntime';
 import { BaseGameScene } from '../BaseGameScene';
+import { ensureGeneratedTextureScope } from '../generatedTextureScopes';
 import { ArcadeRenderEffects } from './ArcadeRenderEffects';
 import { ArcadeRenderer } from './ArcadeRenderer';
 import { ArcadeRunState } from './arcadeRunState';
@@ -133,6 +133,12 @@ export class PhaserArcadeScene extends BaseGameScene {
     super('arcade');
   }
 
+  preload(): void {
+    preloadTask(this, 'arcade-generated-texture-scope', () =>
+      ensureGeneratedTextureScope(this, 'arcade'),
+    );
+  }
+
   create(): void {
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'arcade');
     this.audioDirector.enter();
@@ -142,8 +148,6 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.riftDirector = new PortalDirector(startingIntensity);
     this.worldSize = { width: this.scale.width, height: this.scale.height };
     this.actions = new ActionReader(this);
-    createArcadeTextures(this);
-    createEntityTextures(this);
     this.playerBody = new PlayerBody(
       this,
       { x: this.worldSize.width / 2, y: this.worldSize.height / 2 },
@@ -182,7 +186,7 @@ export class PhaserArcadeScene extends BaseGameScene {
       this.weaponPolicy,
     );
     this.dimensionDebug = new DimensionDebugOverlay(this);
-    this.startRiftSpaceScene();
+    void this.startRiftSpaceScene();
     this.renderEffects = new ArcadeRenderEffects(
       this.game.canvas,
       this.game.canvas.parentElement,
@@ -235,11 +239,7 @@ export class PhaserArcadeScene extends BaseGameScene {
     });
   }
 
-  private updatePlayerActions(
-    action: ActionState,
-    deltaSeconds: number,
-    time: number,
-  ): void {
+  private updatePlayerActions(action: ActionState, deltaSeconds: number, time: number): void {
     const playerInRift = this.session.player.membership.space === 'rift';
     const timeDilation = action.timeDilation;
     this.session.player.updateAim(normalize(action.aim));
@@ -586,13 +586,14 @@ export class PhaserArcadeScene extends BaseGameScene {
     }
   }
 
-  private startRiftSpaceScene(): void {
+  private async startRiftSpaceScene(): Promise<void> {
     const riftScene = this.scene.get('rift-space') as unknown as RiftSpaceSceneBridge;
     if (this.scene.isActive('rift-space')) {
       this.bindRiftSpaceScene(riftScene);
       return;
     }
     riftScene.events.once(Phaser.Scenes.Events.CREATE, () => this.bindRiftSpaceScene(riftScene));
+    await ensureGeneratedTextureScope(this, 'rift-space');
     this.scene.launch('rift-space');
   }
 
@@ -756,10 +757,7 @@ export class PhaserArcadeScene extends BaseGameScene {
           .get(projectile)
           .setVelocity(projectile.velocity.x, projectile.velocity.y),
       onEntityVelocityChanged: (entity) =>
-        runtime
-          .getEntityBodies()
-          .get(entity)
-          .setVelocity(entity.velocity.x, entity.velocity.y),
+        runtime.getEntityBodies().get(entity).setVelocity(entity.velocity.x, entity.velocity.y),
       particles: runtime.world.particles,
       player: {
         active:

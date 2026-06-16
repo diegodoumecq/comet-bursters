@@ -228,6 +228,13 @@ type NebulaRegionRenderInput = {
   world: WorldSize;
 };
 
+type NebulaRegionPrepareInput = {
+  center: Vector;
+  regions: NebulaRegion[];
+  screen: WorldSize;
+  world: WorldSize;
+};
+
 export class NebulaRegionRenderer {
   private readonly copiedPointsCache = new Map<string, Vector[]>();
   private readonly chunkCache = new Map<string, CachedChunk>();
@@ -255,6 +262,24 @@ export class NebulaRegionRenderer {
       getRegionBounds: (region) => this.getRegionBounds(region),
     });
     this.renderCachedCopies(copies, input.world);
+  }
+
+  prepareTextures(input: NebulaRegionPrepareInput): void {
+    this.ensureShaderCached();
+    const viewport = {
+      height: input.screen.height,
+      width: input.screen.width,
+      x: input.center.x - input.screen.width * 0.5,
+      y: input.center.y - input.screen.height * 0.5,
+    };
+    const copies = getVisibleRegionCopies(input.regions, input.world, viewport, {
+      getCopiedPoints: (region, offset) => this.getCopiedPoints(region, offset),
+      getPointData: (region, offset) => this.getPointData(region, offset),
+      getRegionBounds: (region) => this.getRegionBounds(region),
+    });
+    for (const copy of copies) {
+      if (!this.scene.textures.exists(copy.cacheKey)) this.bakeChunkTexture(copy, input.world);
+    }
   }
 
   destroy(): void {
@@ -316,7 +341,9 @@ export class NebulaRegionRenderer {
     const cachedChunk = this.chunkCache.get(copy.cacheKey);
     if (cachedChunk) return cachedChunk;
 
-    const textureKey = this.bakeChunkTexture(copy, world);
+    const textureKey = this.scene.textures.exists(copy.cacheKey)
+      ? copy.cacheKey
+      : this.bakeChunkTexture(copy, world);
     const image = this.scene.add
       .image(copy.bounds.x, copy.bounds.y, textureKey)
       .setOrigin(0, 0)

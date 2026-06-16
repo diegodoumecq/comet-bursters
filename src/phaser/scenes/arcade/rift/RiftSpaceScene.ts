@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 
-import { createArcadeGameOverText, createArcadeTextures } from '../../../arcade/visuals';
+import { createArcadeGameOverText } from '../../../arcade/visuals';
 import { AsteroidBodies } from '../../../asteroids/bodies';
 import { getGameAudio } from '../../../audio/AudioManager';
 import type { SceneAudioDirector } from '../../../audio/SceneAudioDirector';
@@ -11,6 +11,9 @@ import { DimensionDebugOverlay } from '../../../dimensions/DimensionDebugOverlay
 import type { RiftSpaceSceneBridge } from '../../../dimensions/RiftSpaceSceneBridge';
 import { getDimensionCoordinator } from '../../../dimensions/runtime';
 import type { PortalEntity } from '../../../dimensions/types';
+import { EntityBodies } from '../../../entities/bodies';
+import { createMonolith } from '../../../entities/logic';
+import type { GameEntity } from '../../../entities/types';
 import { FuelBodies } from '../../../fuel/bodies';
 import type { ActionState } from '../../../input/actions';
 import { ParticleViews } from '../../../particles/views';
@@ -34,10 +37,6 @@ import { PortalSceneCapture } from '../../../portals/PortalSceneCapture';
 import { PortalWindowRenderer } from '../../../portals/PortalWindowRenderer';
 import { ProjectileBodies } from '../../../projectiles/bodies';
 import { getSandboxPerfToggles } from '../../../runtime/startup';
-import { EntityBodies } from '../../../entities/bodies';
-import { createMonolith } from '../../../entities/logic';
-import { createEntityTextures } from '../../../entities/textures';
-import type { GameEntity } from '../../../entities/types';
 import { DimensionBackground } from '../../../world/DimensionBackground';
 import { SpaceRenderEffects } from '../../../world/SpaceRenderEffects';
 import { SpaceWorldRuntime } from '../../../world/SpaceWorldRuntime';
@@ -75,8 +74,6 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
   create(): void {
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'rift-space');
     this.worldSize = { width: this.scale.width, height: this.scale.height };
-    createArcadeTextures(this);
-    createEntityTextures(this);
     this.runtime = new SpaceWorldRuntime('rift', {
       asteroidBodies: new AsteroidBodies(this),
       contacts: new MatterContacts(this),

@@ -1,12 +1,17 @@
 import { AsteroidBodies } from '../../asteroids/bodies';
 import { ASTEROIDS, createAsteroid } from '../../asteroids/logic';
-import { ASTEROID_TEXTURES, createAsteroidTextures } from '../../asteroids/textures';
+import { ASTEROID_TEXTURES } from '../../asteroids/textures';
 import type { AsteroidEntity, AsteroidTier } from '../../asteroids/types';
 import { getGameAudio } from '../../audio/AudioManager';
 import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
 import { applyMatterBodySpec } from '../../core/matterBodySpec';
+import { preloadTask } from '../../core/preloadTask';
 import type { WorldSize } from '../../core/types';
 import type { PortalEntity } from '../../dimensions/types';
+import { EntityBodies } from '../../entities/bodies';
+import { ENTITIES } from '../../entities/config';
+import { createMonolith } from '../../entities/logic';
+import type { GameEntity } from '../../entities/types';
 import { MAX_FUEL } from '../../fuel/rules';
 import { ActionReader, type ActionState } from '../../input/actions';
 import {
@@ -21,7 +26,6 @@ import { PLAYER_DEFINITIONS } from '../../player/definition';
 import { updatePlayerMotion } from '../../player/motion';
 import { ShipState } from '../../player/shipState';
 import { PlayerState } from '../../player/state';
-import { createPlayerTexture } from '../../player/textures';
 import {
   BLACK_HOLE_GROWTH_DURATION_MS,
   BLACK_HOLE_MATURE_AFTER_MS,
@@ -31,13 +35,10 @@ import {
 } from '../../projectiles/definition';
 import type { ProjectileEntity } from '../../projectiles/types';
 import { enableCanvasOverscan, getActiveCanvasOverscan } from '../../runtime/canvasOverscan';
-import { EntityBodies } from '../../entities/bodies';
-import { createMonolith } from '../../entities/logic';
-import { ENTITIES } from '../../entities/config';
-import { createEntityTextures } from '../../entities/textures';
-import type { GameEntity } from '../../entities/types';
 import { normalize } from '../../world/geometry';
 import { BaseGameScene } from '../BaseGameScene';
+import { ensureGeneratedTextureScope } from '../generatedTextureScopes';
+import { isFocusedDemoTechniqueActive } from './demoPerfTechnique';
 import { DemoRenderer } from './DemoRenderer';
 
 const WORLD: WorldSize = { width: 5000, height: 5000 };
@@ -103,6 +104,12 @@ export class PhaserDemoScene extends BaseGameScene {
     super('demo');
   }
 
+  preload(): void {
+    preloadTask(this, 'demo-generated-texture-scope', () =>
+      ensureGeneratedTextureScope(this, 'demo'),
+    );
+  }
+
   create(): void {
     this.disposeCanvasOverscan = enableCanvasOverscan(this.game, BLACK_HOLE_SOURCE_OVERSCAN);
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'demo');
@@ -136,12 +143,13 @@ export class PhaserDemoScene extends BaseGameScene {
     this.planetViews = new PlanetViews(this);
     this.fuelExtractorViews = new FuelExtractorViews(this);
     this.createGrid();
-    this.createTextures();
     this.createPlanets();
     this.createAsteroids();
-    this.createBlackHoles();
-    this.createEntities();
-    this.createPortals();
+    if (!isFocusedDemoTechniqueActive()) {
+      this.createBlackHoles();
+      this.createEntities();
+      this.createPortals();
+    }
     this.playerBody = new PlayerBody(this, { x: 620, y: 760 }, this.playerState);
     applyMatterBodySpec(this.playerBody.body, PLAYER_DEFINITIONS.demo.body);
     this.sceneRenderer = new DemoRenderer(
@@ -203,12 +211,6 @@ export class PhaserDemoScene extends BaseGameScene {
     for (let y = 0; y <= WORLD.height; y += 120) graphics.lineBetween(0, y, WORLD.width, y);
   }
 
-  private createTextures(): void {
-    createPlayerTexture(this);
-    createAsteroidTextures(this);
-    createEntityTextures(this);
-  }
-
   private createPlanets(): void {
     let nextLeft = DEMO_PLANET_ROW_START.x;
     let nextTop = DEMO_PLANET_ROW_START.y;
@@ -227,13 +229,15 @@ export class PhaserDemoScene extends BaseGameScene {
     });
     for (const planet of this.planets) {
       this.planetViews.add(planet);
-      this.add
-        .text(planet.position.x, planet.position.y + planet.radius * 1.1, planet.kind, {
-          color: '#ffffff',
-          fontFamily: 'monospace',
-          fontSize: '16px',
-        })
-        .setOrigin(0.5);
+      if (!isFocusedDemoTechniqueActive()) {
+        this.add
+          .text(planet.position.x, planet.position.y + planet.radius * 1.1, planet.kind, {
+            color: '#ffffff',
+            fontFamily: 'monospace',
+            fontSize: '16px',
+          })
+          .setOrigin(0.5);
+      }
     }
   }
 
@@ -252,13 +256,15 @@ export class PhaserDemoScene extends BaseGameScene {
       asteroid.rotation = DEMO_SHOWCASE_ROTATION;
       asteroid.angularVelocity = getDemoAsteroidAngularVelocity(tier, visualVariant);
       this.asteroidBodies.add(asteroid).setStatic(true);
-      this.add
-        .text(x, y + ASTEROIDS[tier].radius + 18, `${tier} / variant ${visualVariant}`, {
-          color: '#ffffff',
-          fontFamily: 'monospace',
-          fontSize: '16px',
-        })
-        .setOrigin(0.5);
+      if (!isFocusedDemoTechniqueActive()) {
+        this.add
+          .text(x, y + ASTEROIDS[tier].radius + 18, `${tier} / variant ${visualVariant}`, {
+            color: '#ffffff',
+            fontFamily: 'monospace',
+            fontSize: '16px',
+          })
+          .setOrigin(0.5);
+      }
       return asteroid;
     });
   }

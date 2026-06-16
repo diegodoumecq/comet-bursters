@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
 
 import type { WorldSize } from '../../core/types';
-import { createSandboxNebulaTexture, SANDBOX_NEBULA_TEXTURE_SIZE } from './sandboxNebulaTexture';
+import { SANDBOX_NEBULA_TEXTURE_SIZE } from './sandboxNebulaTexture';
 
 const NEBULA_DEPTH = -120;
-const TEXTURE_KEY_PREFIX = 'sandbox-nebula-background';
+export const SANDBOX_NEBULA_BACKGROUND_TEXTURE_KEY = 'sandbox-nebula-background-texture-v1';
 const BASE_WRAP_CYCLES = 32;
 
 type NebulaLayerConfig = {
@@ -49,14 +49,18 @@ const LAYERS: NebulaLayerConfig[] = [
 
 export class SandboxNebulaBackground {
   private readonly layers: Phaser.GameObjects.TileSprite[];
-  private readonly textureKey = `${TEXTURE_KEY_PREFIX}-${Phaser.Math.RND.uuid()}`;
   private visible = false;
 
   constructor(private readonly scene: Phaser.Scene) {
-    createSandboxNebulaTexture(scene, this.textureKey);
     this.layers = LAYERS.map((layer, index) =>
       scene.add
-        .tileSprite(0, 0, scene.scale.width, scene.scale.height, this.textureKey)
+        .tileSprite(
+          0,
+          0,
+          scene.scale.width,
+          scene.scale.height,
+          SANDBOX_NEBULA_BACKGROUND_TEXTURE_KEY,
+        )
         .setName(`sandbox-nebula-background-layer-${index}`)
         .setOrigin(0)
         .setScrollFactor(0)
@@ -88,7 +92,8 @@ export class SandboxNebulaBackground {
 
   destroy(): void {
     for (const layer of this.layers) layer.destroy();
-    if (this.scene.textures.exists(this.textureKey)) this.scene.textures.remove(this.textureKey);
+    if (this.scene.textures.exists(SANDBOX_NEBULA_BACKGROUND_TEXTURE_KEY))
+      this.scene.textures.remove(SANDBOX_NEBULA_BACKGROUND_TEXTURE_KEY);
   }
 
   private setVisible(visible: boolean): void {

@@ -5,6 +5,8 @@ import type { AsteroidEntity } from '../../asteroids/types';
 import { withPerformanceMeasure } from '../../core/performance';
 import type { MatterImage, WorldSize } from '../../core/types';
 import type { PortalEntity } from '../../dimensions/types';
+import type { EntityBodies } from '../../entities/bodies';
+import type { GameEntity } from '../../entities/types';
 import { Minimap } from '../../minimap/Minimap';
 import type { PlanetEntity } from '../../planets/types';
 import { renderPlayerFuel } from '../../player/rendering';
@@ -22,33 +24,32 @@ import {
 } from '../../projectiles/blackHoleShader';
 import type { ProjectileEntity } from '../../projectiles/types';
 import { getSandboxPerfToggles } from '../../runtime/startup';
-import type { EntityBodies } from '../../entities/bodies';
-import type { GameEntity } from '../../entities/types';
 import {
   createBoundedScreenProjector,
   getCameraCaptureFrame,
   type ScreenCaptureFrame,
 } from '../../world/screenProjection';
+import { isFocusedDemoTechniqueActive } from './demoPerfTechnique';
 
 const DEMO_PORTAL_CAPTURE_INTERVAL_MS = 250;
 const DEMO_PORTAL_CAPTURE_PADDING = 96;
 
 export class DemoRenderer {
-  private readonly blackHoleCaptureCanvas = document.createElement('canvas');
   private readonly blackHoleCaptureSamples: BlackHoleScreenSample[] = [];
-  private readonly blackHoleShader: BlackHoleShaderRenderer;
   private readonly playerFuelBase: Phaser.GameObjects.Graphics;
   private readonly playerFuelFill: Phaser.GameObjects.Graphics;
   private readonly playerFuelMask: Phaser.GameObjects.Graphics;
-  private readonly collisionMasks: Phaser.GameObjects.Graphics;
-  private readonly portalCapture: PortalSceneCapture;
-  private readonly portalRenderer: PortalWindowRenderer;
   private readonly perfToggles = getSandboxPerfToggles();
+  private blackHoleCaptureCanvas: HTMLCanvasElement | null = null;
   private blackHoleCaptureVisible = false;
+  private blackHoleShader: BlackHoleShaderRenderer | null = null;
+  private collisionMasks: Phaser.GameObjects.Graphics | null = null;
   private minimap: Minimap | null = null;
+  private portalCapture: PortalSceneCapture | null = null;
   private portalCapturedAt = Number.NEGATIVE_INFINITY;
   private portalCaptureFrame: ScreenCaptureFrame | null = null;
   private portalDestinationTextureKey: string | null = null;
+  private portalRenderer: PortalWindowRenderer | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -61,19 +62,6 @@ export class DemoRenderer {
     this.playerFuelFill = scene.add.graphics().setDepth(2);
     this.playerFuelMask = scene.make.graphics({ x: 0, y: 0 }, false);
     this.playerFuelFill.setMask(this.playerFuelMask.createGeometryMask());
-    this.collisionMasks = scene.add.graphics().setDepth(20);
-    this.blackHoleShader = new BlackHoleShaderRenderer(scene.game.canvas);
-    this.portalCapture = new PortalSceneCapture(
-      scene,
-      world,
-      undefined,
-      () => this.getPortalCaptureOverlayCanvases(),
-      {
-        getCaptureFrame: () => this.getCaptureFrame(),
-      },
-    );
-    this.portalRenderer = new PortalWindowRenderer(scene, this.getScreenSize());
-    this.portalRenderer.setDestinationTextureKeyProvider(() => this.portalDestinationTextureKey);
   }
 
   render(input: {
@@ -95,26 +83,28 @@ export class DemoRenderer {
       input.now,
       true,
     );
-    withPerformanceMeasure('demo.render.collisionMasks', this.perfToggles.markers, () => {
-      this.renderCollisionMasks(input);
-    });
-    withPerformanceMeasure('demo.render.blackHoles.total', this.perfToggles.markers, () => {
-      this.renderBlackHoles(input.blackHoles);
-    });
-    this.renderPortals(input.portals, input.blackHoles, input.now);
-    withPerformanceMeasure('demo.render.minimap', this.perfToggles.markers, () => {
-      this.getMinimap().render({
-        asteroids: input.asteroids,
-        camera: this.scene.cameras.main,
-        planets: input.planets,
-        player: input.player.position,
-        playerRotation: input.player.rotation,
-        playerVelocity: input.player.velocity,
-        entities: input.entities,
-        viewportMode: 'bounded',
-        world: this.world,
+    if (!isFocusedDemoTechniqueActive()) {
+      withPerformanceMeasure('demo.render.collisionMasks', this.perfToggles.markers, () => {
+        this.renderCollisionMasks(input);
       });
-    });
+      withPerformanceMeasure('demo.render.blackHoles.total', this.perfToggles.markers, () => {
+        this.renderBlackHoles(input.blackHoles);
+      });
+      this.renderPortals(input.portals, input.blackHoles, input.now);
+      withPerformanceMeasure('demo.render.minimap', this.perfToggles.markers, () => {
+        this.getMinimap().render({
+          asteroids: input.asteroids,
+          camera: this.scene.cameras.main,
+          planets: input.planets,
+          player: input.player.position,
+          playerRotation: input.player.rotation,
+          playerVelocity: input.player.velocity,
+          entities: input.entities,
+          viewportMode: 'bounded',
+          world: this.world,
+        });
+      });
+    }
   }
 
   private getMinimap(): Minimap {
@@ -123,11 +113,16 @@ export class DemoRenderer {
   }
 
   destroy(): void {
-    this.blackHoleShader.dispose();
-    this.portalRenderer.destroy();
-    this.portalCapture.destroy();
+    this.blackHoleShader?.dispose();
+    this.portalRenderer?.destroy();
+    this.portalCapture?.destroy();
     this.minimap?.destroy();
+    this.collisionMasks?.destroy();
     this.minimap = null;
+    this.blackHoleShader = null;
+    this.collisionMasks = null;
+    this.portalCapture = null;
+    this.portalRenderer = null;
   }
 
   private renderCollisionMasks(input: {
@@ -135,8 +130,9 @@ export class DemoRenderer {
     planets: PlanetEntity[];
     entities: GameEntity[];
   }): void {
-    this.collisionMasks.clear();
-    this.collisionMasks.lineStyle(2, 0xffffff, 0.9);
+    const collisionMasks = this.getCollisionMasks();
+    collisionMasks.clear();
+    collisionMasks.lineStyle(2, 0xffffff, 0.9);
     this.strokeMatterBody(this.player as MatterImage);
     for (const asteroid of input.asteroids) {
       this.strokeMatterBody(this.asteroidBodies.get(asteroid));
@@ -145,20 +141,21 @@ export class DemoRenderer {
       this.strokeMatterBody(this.entityBodies.get(entity));
     }
     for (const planet of input.planets) {
-      this.collisionMasks.strokeCircle(planet.position.x, planet.position.y, planet.radius);
+      collisionMasks.strokeCircle(planet.position.x, planet.position.y, planet.radius);
     }
   }
 
   private strokeMatterBody(target: MatterImage): void {
     const vertices = target.body.vertices;
     if (!vertices || vertices.length < 2) return;
-    this.collisionMasks.beginPath();
-    this.collisionMasks.moveTo(vertices[0].x, vertices[0].y);
+    const collisionMasks = this.getCollisionMasks();
+    collisionMasks.beginPath();
+    collisionMasks.moveTo(vertices[0].x, vertices[0].y);
     for (let index = 1; index < vertices.length; index += 1) {
-      this.collisionMasks.lineTo(vertices[index].x, vertices[index].y);
+      collisionMasks.lineTo(vertices[index].x, vertices[index].y);
     }
-    this.collisionMasks.closePath();
-    this.collisionMasks.strokePath();
+    collisionMasks.closePath();
+    collisionMasks.strokePath();
   }
 
   private renderBlackHoles(blackHoles: ProjectileEntity[]): void {
@@ -176,7 +173,7 @@ export class DemoRenderer {
       sample.radius *= zoom;
     }
     withPerformanceMeasure('demo.render.blackHoles.shader', this.perfToggles.markers, () => {
-      this.blackHoleShader.render(screenSamples);
+      this.getBlackHoleShader().render(screenSamples);
     });
   }
 
@@ -186,12 +183,13 @@ export class DemoRenderer {
     now: number,
   ): void {
     const visibleFrame = this.getCaptureFrame();
-    this.portalRenderer.resize(visibleFrame);
-    this.portalRenderer.setPortals(portals);
+    const portalRenderer = this.getPortalRenderer();
+    portalRenderer.resize(visibleFrame);
+    portalRenderer.setPortals(portals);
     this.updatePortalCapture(portals, blackHoles, now, visibleFrame);
-    this.portalRenderer.setCaptureFrame(this.portalCaptureFrame ?? visibleFrame);
+    portalRenderer.setCaptureFrame(this.portalCaptureFrame ?? visibleFrame);
     withPerformanceMeasure('demo.render.portals.window', this.perfToggles.markers, () => {
-      this.portalRenderer.render(now);
+      portalRenderer.render(now);
     });
   }
 
@@ -223,7 +221,7 @@ export class DemoRenderer {
         this.perfToggles.markers,
         () => {
           this.preparePortalCaptureOverlay(blackHoles, captureFrame);
-          return this.portalCapture.capture(captureFrame);
+          return this.getPortalCapture().capture(captureFrame);
         },
       );
       this.portalCapturedAt = now;
@@ -232,7 +230,8 @@ export class DemoRenderer {
   }
 
   private getPortalCaptureOverlayCanvases(): HTMLCanvasElement[] {
-    return this.blackHoleCaptureVisible ? [this.blackHoleCaptureCanvas] : [];
+    if (!this.blackHoleCaptureVisible || !this.blackHoleCaptureCanvas) return [];
+    return [this.blackHoleCaptureCanvas];
   }
 
   private preparePortalCaptureOverlay(
@@ -255,7 +254,7 @@ export class DemoRenderer {
     withPerformanceMeasure('demo.render.blackHoles.capture', this.perfToggles.markers, () => {
       this.blackHoleCaptureVisible = renderBlackHoleCaptureCanvas({
         blackHoles: this.blackHoleCaptureSamples,
-        canvas: this.blackHoleCaptureCanvas,
+        canvas: this.getBlackHoleCaptureCanvas(),
         height: captureFrame.size.height,
         width: captureFrame.size.width,
       });
@@ -275,6 +274,42 @@ export class DemoRenderer {
       height: this.scene.scale.height,
       width: this.scene.scale.width,
     };
+  }
+
+  private getBlackHoleCaptureCanvas(): HTMLCanvasElement {
+    this.blackHoleCaptureCanvas ??= document.createElement('canvas');
+    return this.blackHoleCaptureCanvas;
+  }
+
+  private getBlackHoleShader(): BlackHoleShaderRenderer {
+    this.blackHoleShader ??= new BlackHoleShaderRenderer(this.scene.game.canvas);
+    return this.blackHoleShader;
+  }
+
+  private getCollisionMasks(): Phaser.GameObjects.Graphics {
+    this.collisionMasks ??= this.scene.add.graphics().setDepth(20);
+    return this.collisionMasks;
+  }
+
+  private getPortalCapture(): PortalSceneCapture {
+    this.portalCapture ??= new PortalSceneCapture(
+      this.scene,
+      this.world,
+      undefined,
+      () => this.getPortalCaptureOverlayCanvases(),
+      {
+        getCaptureFrame: () => this.getCaptureFrame(),
+      },
+    );
+    return this.portalCapture;
+  }
+
+  private getPortalRenderer(): PortalWindowRenderer {
+    if (!this.portalRenderer) {
+      this.portalRenderer = new PortalWindowRenderer(this.scene, this.getScreenSize());
+      this.portalRenderer.setDestinationTextureKeyProvider(() => this.portalDestinationTextureKey);
+    }
+    return this.portalRenderer;
   }
 }
 

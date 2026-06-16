@@ -3,7 +3,6 @@ import Phaser from 'phaser';
 import { AsteroidBodies } from '../../asteroids/bodies';
 import { ASTEROIDS } from '../../asteroids/logic';
 import { updateAsteroidSplitCollisions } from '../../asteroids/splitCollisions';
-import { createAsteroidTextures } from '../../asteroids/textures';
 import type { AsteroidEntity } from '../../asteroids/types';
 import { getGameAudio } from '../../audio/AudioManager';
 import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
@@ -31,6 +30,7 @@ import { updateFuelBlobCollection } from '../../combat/fuelCollection';
 import { MatterContacts, type PlayerAsteroidContact } from '../../combat/matterContacts';
 import { applyMatterBodySpec } from '../../core/matterBodySpec';
 import { startPerformanceFrame, withPerformanceMeasure } from '../../core/performance';
+import { preloadTask } from '../../core/preloadTask';
 import { getTimeScale } from '../../core/time';
 import type { Vector, WorldSize } from '../../core/types';
 import { EntityBodies } from '../../entities/bodies';
@@ -38,7 +38,6 @@ import {
   getBlackHoleEntityCollisionBlockers,
   resolveProjectileGameEntityContactCombat,
 } from '../../entities/combat';
-import { createEntityTextures } from '../../entities/textures';
 import type { GameEntity } from '../../entities/types';
 import { spawnAsteroidFuelDrops, spawnFuelBlobs, spawnShipFuelDrops } from '../../fuel/blobLogic';
 import { FuelBodies } from '../../fuel/bodies';
@@ -55,14 +54,15 @@ import {
   updateFuelExtractionPlanets,
   type FuelExtractionPlanetEntity,
 } from '../../planets/fuelExtraction';
+import { ensureFuelExtractorTextures } from '../../planets/fuelExtractorViews';
 import { getParticlesCollidingWithPlanets } from '../../planets/gravity';
+import { getPlanetDisplaySize, getPlanetTextureKeys } from '../../planets/textures';
 import { PlanetViews } from '../../planets/views';
 import { PlayerBody } from '../../player/body';
 import { PLAYER_ACCELERATION, PLAYER_COLLISION_RADIUS } from '../../player/config';
 import { PLAYER_DEFINITIONS } from '../../player/definition';
 import { updatePlayerMotion } from '../../player/motion';
 import { PlayerState } from '../../player/state';
-import { createPlayerTexture } from '../../player/textures';
 import { updateBlackHoles } from '../../projectiles/blackHoles';
 import { ProjectileBodies } from '../../projectiles/bodies';
 import { BLACK_HOLE_SOURCE_OVERSCAN } from '../../projectiles/definition';
@@ -77,15 +77,19 @@ import { normalize, wrappedDelta } from '../../world/geometry';
 import { applyWorldGravity } from '../../world/gravity';
 import { GameWorldRuntime } from '../../world/runtime';
 import { BaseGameScene } from '../BaseGameScene';
+import { ensureGeneratedTextureScope } from '../generatedTextureScopes';
 import { SandboxDiscovery } from './discovery';
 import {
   Mothership,
   MOTHERSHIP_DOOR_SLIDE_DISTANCE,
   preloadMothershipTextures,
 } from './Mothership';
+import { NebulaRegionRenderer } from './NebulaRegionRenderer';
+import { prepareSandboxBackgroundTextures } from './SandboxBackground';
 import { SandboxRenderEffects } from './SandboxRenderEffects';
 import { SandboxRenderer } from './SandboxRenderer';
 import { createSandboxStartup } from './sandboxSpawns';
+import type { SandboxStartup } from './sandboxSpawns';
 import { SANDBOX_WORLD_CONFIG } from './sandboxWorldConfig';
 import { getWrappedDistance } from './screenWrapping';
 import {
@@ -151,6 +155,7 @@ export class PhaserSandboxScene extends BaseGameScene {
   private lastThrusterAt = 0;
   private lastMaxSpeedTrailAt = 0;
   private disposeCanvasOverscan: (() => void) | null = null;
+  private preloadedStartup: SandboxStartup | null = null;
 
   constructor() {
     super('sandbox');
@@ -158,6 +163,16 @@ export class PhaserSandboxScene extends BaseGameScene {
 
   preload(): void {
     preloadMothershipTextures(this);
+    preloadTask(this, 'sandbox-generated-texture-scope', () =>
+      ensureGeneratedTextureScope(this, 'sandbox'),
+    );
+    preloadTask(this, 'sandbox-generated-textures', () => {
+      const perfMarkers = this.perfToggles.markers;
+      this.preloadedStartup = withPerformanceMeasure('sandbox.prepare.world', perfMarkers, () =>
+        createSandboxStartup(WORLD, INITIAL_ASTEROIDS),
+      );
+      prepareSandboxGeneratedTextures(this, this.preloadedStartup);
+    });
   }
 
   create(): void {
@@ -169,15 +184,6 @@ export class PhaserSandboxScene extends BaseGameScene {
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'sandbox');
     this.audioDirector.enter();
     this.actions = new ActionReader(this);
-    withPerformanceMeasure('sandbox.startup.textures.player', perfMarkers, () => {
-      createPlayerTexture(this);
-    });
-    withPerformanceMeasure('sandbox.startup.textures.asteroids', perfMarkers, () => {
-      createAsteroidTextures(this);
-    });
-    withPerformanceMeasure('sandbox.startup.textures.entities', perfMarkers, () => {
-      createEntityTextures(this);
-    });
     this.asteroidBodies = new AsteroidBodies(this);
     this.entityBodies = new EntityBodies(this);
     this.projectileBodies = new ProjectileBodies(this);
@@ -193,9 +199,12 @@ export class PhaserSandboxScene extends BaseGameScene {
       this.contacts,
       this.entityBodies,
     );
-    const startup = withPerformanceMeasure('sandbox.startup.world', perfMarkers, () =>
-      createSandboxStartup(WORLD, INITIAL_ASTEROIDS),
+    const startup = withPerformanceMeasure(
+      'sandbox.startup.world',
+      perfMarkers,
+      () => this.preloadedStartup ?? createSandboxStartup(WORLD, INITIAL_ASTEROIDS),
     );
+    this.preloadedStartup = null;
     this.planets = startup.planets;
     const spawnPoint = startup.spawnPoint;
     this.mothership = new Mothership(this, spawnPoint);
@@ -1029,6 +1038,65 @@ function getWrappedDistanceSquared(from: Vector, to: Vector, world: WorldSize): 
   if (y > world.height * 0.5) y -= world.height;
   if (y < -world.height * 0.5) y += world.height;
   return x * x + y * y;
+}
+
+function prepareSandboxGeneratedTextures(scene: Phaser.Scene, startup: SandboxStartup): void {
+  const perfToggles = getSandboxPerfToggles();
+  const perfMarkers = perfToggles.markers;
+  const screen = getSandboxRenderScreen(scene);
+
+  withPerformanceMeasure('sandbox.prepare.planetTextures', perfMarkers, () => {
+    prepareSandboxPlanetTextures(scene, startup.planets, startup.spawnPoint);
+  });
+
+  withPerformanceMeasure('sandbox.prepare.viewTextures', perfMarkers, () => {
+    prepareSandboxBackgroundTextures(scene, screen, {
+      nebulaBackground: perfToggles.nebulaBackground,
+      starfield: perfToggles.starfield,
+    });
+    ensureFuelExtractorTextures(scene);
+  });
+
+  if (perfToggles.nebulaRegions) {
+    withPerformanceMeasure('sandbox.prepare.nebulaRegionTextures', perfMarkers, () => {
+      prepareSandboxNebulaRegionTextures(scene, startup, screen);
+    });
+  }
+}
+
+function prepareSandboxPlanetTextures(
+  scene: Phaser.Scene,
+  planets: FuelExtractionPlanetEntity[],
+  center: Vector,
+): void {
+  for (const planet of planets) {
+    const planetRadius = getPlanetDisplaySize(planet) * 0.5;
+    const distance = PLANET_VIEW_PRELOAD_RADIUS + planetRadius;
+    if (getWrappedDistanceSquared(planet.position, center, WORLD) <= distance * distance) {
+      getPlanetTextureKeys(scene, planet);
+    }
+  }
+}
+
+function prepareSandboxNebulaRegionTextures(
+  scene: Phaser.Scene,
+  startup: SandboxStartup,
+  screen: WorldSize,
+): void {
+  const renderer = new NebulaRegionRenderer(scene);
+  renderer.prepareTextures({
+    center: startup.spawnPoint,
+    regions: startup.nebulaRegions,
+    screen,
+    world: WORLD,
+  });
+}
+
+function getSandboxRenderScreen(scene: Phaser.Scene): WorldSize {
+  return {
+    height: scene.scale.height + BLACK_HOLE_SOURCE_OVERSCAN * 2,
+    width: scene.scale.width + BLACK_HOLE_SOURCE_OVERSCAN * 2,
+  };
 }
 
 function wrapSandboxPosition(position: Vector): Vector {
