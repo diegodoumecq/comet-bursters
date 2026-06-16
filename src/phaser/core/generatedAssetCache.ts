@@ -36,9 +36,9 @@ export async function ensureGeneratedCanvasTexture(
 ): Promise<void> {
   if (scene.textures.exists(recipe.key)) return;
 
-  const cachedBlob = await readGeneratedAsset(recipe.key, recipe.version);
+  const cachedBlob = await readGeneratedImageTexture(recipe.key, recipe.version);
   if (cachedBlob && !scene.textures.exists(recipe.key)) {
-    const loaded = await addBlobTexture(scene, recipe.key, cachedBlob);
+    const loaded = await addGeneratedImageTexture(scene, recipe.key, cachedBlob);
     if (loaded) return;
   }
 
@@ -47,7 +47,31 @@ export async function ensureGeneratedCanvasTexture(
   const canvas = renderCanvasRecipe(recipe);
   scene.textures.addCanvas(recipe.key, canvas);
   const blob = await canvasToPngBlob(canvas);
-  if (blob) await writeGeneratedAsset(recipe.key, recipe.version, blob);
+  if (blob) await writeGeneratedImageTexture(recipe.key, recipe.version, blob);
+}
+
+export async function readGeneratedImageTexture(
+  textureKey: string,
+  version: string,
+): Promise<Blob | null> {
+  const record = await readGeneratedAssetRecord(textureKey, version);
+  return record?.kind === 'image' ? record.blob : null;
+}
+
+export async function writeGeneratedImageTexture(
+  textureKey: string,
+  version: string,
+  blob: Blob,
+): Promise<void> {
+  await writeGeneratedAssetRecord(textureKey, version, { blob, kind: 'image' });
+}
+
+export async function addGeneratedImageTexture(
+  scene: Phaser.Scene,
+  textureKey: string,
+  blob: Blob,
+): Promise<boolean> {
+  return addBlobTexture(scene, textureKey, blob);
 }
 
 export async function readGeneratedAtlasTexture(
@@ -93,7 +117,7 @@ export function createGeneratedCanvasTexture(
   const canvas = renderCanvasRecipe(recipe);
   scene.textures.addCanvas(recipe.key, canvas);
   void canvasToPngBlob(canvas).then((blob) => {
-    if (blob) void writeGeneratedImageAsset(recipe.key, recipe.version, blob);
+    if (blob) void writeGeneratedImageTexture(recipe.key, recipe.version, blob);
   });
 }
 
@@ -145,11 +169,6 @@ function loadBlobImage(blob: Blob): Promise<HTMLImageElement> {
   });
 }
 
-async function readGeneratedAsset(textureKey: string, version: string): Promise<Blob | null> {
-  const record = await readGeneratedAssetRecord(textureKey, version);
-  return record?.kind === 'image' ? record.blob : null;
-}
-
 async function readGeneratedAssetRecord(
   textureKey: string,
   version: string,
@@ -177,22 +196,6 @@ async function readGeneratedAssetRecord(
       resolve(null);
     }
   });
-}
-
-async function writeGeneratedAsset(
-  textureKey: string,
-  version: string,
-  blob: Blob,
-): Promise<void> {
-  await writeGeneratedImageAsset(textureKey, version, blob);
-}
-
-async function writeGeneratedImageAsset(
-  textureKey: string,
-  version: string,
-  blob: Blob,
-): Promise<void> {
-  await writeGeneratedAssetRecord(textureKey, version, { blob, kind: 'image' });
 }
 
 async function writeGeneratedAssetRecord(

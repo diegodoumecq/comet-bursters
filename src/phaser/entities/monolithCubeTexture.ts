@@ -1,6 +1,11 @@
 import Phaser from 'phaser';
 import * as THREE from 'three';
 
+import {
+  addGeneratedImageTexture,
+  readGeneratedImageTexture,
+  writeGeneratedImageTexture,
+} from '../core/generatedAssetCache';
 import { ENTITIES } from './config';
 
 const MONOLITH_TEXTURE_SCALE = 2;
@@ -8,12 +13,38 @@ export const MONOLITH_CUBE_FRAME_COUNT = 24;
 const MONOLITH_TILT_X = -0.46;
 const MONOLITH_TILT_Z = 0.18;
 const MONOLITH_CUBE_HALF_SIZE = 0.75;
+const MONOLITH_CUBE_CACHE_VERSION = 'monolith-cube-v1';
 
 export const MONOLITH_CUBE_TEXTURE_KEY = 'entity-monolith';
 export const MONOLITH_CUBE_ANIMATION_FRAME_MS = 72;
 
 export function createMonolithCubeTexture(scene: Phaser.Scene): void {
   if (!hasMonolithCubeTextures(scene)) bakeMonolithCubeTextures(scene);
+}
+
+export async function ensureMonolithCubeTextures(scene: Phaser.Scene): Promise<void> {
+  if (hasMonolithCubeTextures(scene)) return;
+
+  await Promise.all(getMonolithCubeFrameIndices().map((frameIndex) => loadCachedFrame(scene, frameIndex)));
+
+  const missingFrameIndices = getMonolithCubeFrameIndices().filter(
+    (frameIndex) => !scene.textures.exists(getMonolithCubeTextureKey(frameIndex)),
+  );
+  if (missingFrameIndices.length === 0) return;
+
+  const size = ENTITIES.monolith.size;
+  const renderer = new MonolithCubeTextureRenderer(size);
+  try {
+    for (const frameIndex of missingFrameIndices) {
+      const textureKey = getMonolithCubeTextureKey(frameIndex);
+      const canvas = renderer.renderCanvas(frameIndex / MONOLITH_CUBE_FRAME_COUNT);
+      scene.textures.addCanvas(textureKey, canvas);
+      const blob = await canvasToPngBlob(canvas);
+      if (blob) await writeGeneratedImageTexture(textureKey, createMonolithFrameCacheVersion(), blob);
+    }
+  } finally {
+    renderer.dispose();
+  }
 }
 
 export function getMonolithCubeTextureKey(frameIndex: number): string {
@@ -53,6 +84,35 @@ function bakeMonolithCubeTextures(scene: Phaser.Scene): void {
   } finally {
     renderer.dispose();
   }
+}
+
+async function loadCachedFrame(scene: Phaser.Scene, frameIndex: number): Promise<void> {
+  const textureKey = getMonolithCubeTextureKey(frameIndex);
+  if (scene.textures.exists(textureKey)) return;
+
+  const cachedBlob = await readGeneratedImageTexture(textureKey, createMonolithFrameCacheVersion());
+  if (cachedBlob && !scene.textures.exists(textureKey)) {
+    await addGeneratedImageTexture(scene, textureKey, cachedBlob);
+  }
+}
+
+function getMonolithCubeFrameIndices(): number[] {
+  return Array.from({ length: MONOLITH_CUBE_FRAME_COUNT }, (_, frameIndex) => frameIndex);
+}
+
+function createMonolithFrameCacheVersion(): string {
+  return [
+    MONOLITH_CUBE_CACHE_VERSION,
+    ENTITIES.monolith.size,
+    MONOLITH_CUBE_FRAME_COUNT,
+    MONOLITH_TEXTURE_SCALE,
+  ].join(':');
+}
+
+function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), 'image/png');
+  });
 }
 
 class MonolithCubeTextureRenderer {
@@ -99,15 +159,27 @@ class MonolithCubeTextureRenderer {
   }
 
   render(texture: Phaser.Textures.CanvasTexture, progress: number): void {
+    const canvas = this.renderCanvas(progress);
+    const { context } = texture;
+    context.clearRect(0, 0, this.size, this.size);
+    context.drawImage(canvas, 0, 0, this.size, this.size);
+    texture.refresh();
+  }
+
+  renderCanvas(progress: number): HTMLCanvasElement {
     this.cube.rotation.x = MONOLITH_TILT_X;
     this.cube.rotation.y = progress * Math.PI * 2;
     this.cube.rotation.z = MONOLITH_TILT_Z;
     this.renderer.render(this.scene, this.camera);
 
-    const { context } = texture;
+    const canvas = document.createElement('canvas');
+    canvas.width = this.size;
+    canvas.height = this.size;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Unable to create monolith cube frame canvas');
     context.clearRect(0, 0, this.size, this.size);
     context.drawImage(this.canvas, 0, 0, this.size, this.size);
-    texture.refresh();
+    return canvas;
   }
 
   dispose(): void {

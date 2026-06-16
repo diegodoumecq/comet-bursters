@@ -26,8 +26,12 @@ describe('generated texture registry', () => {
     ];
 
     await ensureGeneratedTextureGroups({} as Phaser.Scene, groups, {
-      onGroupComplete: ({ group }) => calls.push(`complete:${group.key}`),
-      onGroupStart: ({ group }) => calls.push(`start:${group.key}`),
+      onGroupComplete: async ({ group }) => {
+        calls.push(`complete:${group.key}`);
+      },
+      onGroupStart: async ({ group }) => {
+        calls.push(`start:${group.key}`);
+      },
     });
 
     expect(calls).toEqual([

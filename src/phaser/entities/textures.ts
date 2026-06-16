@@ -5,6 +5,7 @@ import type { EntityKind } from './config';
 import type { GameEntity } from './types';
 import {
   createMonolithCubeTexture,
+  ensureMonolithCubeTextures,
   getMonolithCubeAnimationFrame,
   getMonolithCubeTextureKey,
   MONOLITH_CUBE_TEXTURE_KEY,
@@ -18,8 +19,12 @@ export function createEntityTextures(scene: Phaser.Scene): void {
   createMonolithCubeTexture(scene);
 }
 
+export async function ensureEntityTextures(scene: Phaser.Scene): Promise<void> {
+  await ensureMonolithCubeTextures(scene);
+}
+
 export const ENTITY_GENERATED_TEXTURE_GROUP = {
-  ensure: createEntityTextures,
+  ensure: ensureEntityTextures,
   key: 'entities',
   label: 'Entity sprites',
 } satisfies GeneratedTextureGroup;

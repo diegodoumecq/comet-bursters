@@ -13,8 +13,8 @@ export type GeneratedTextureGroupProgress = {
 };
 
 export type EnsureGeneratedTextureGroupsOptions = {
-  onGroupComplete?: (progress: GeneratedTextureGroupProgress) => void;
-  onGroupStart?: (progress: GeneratedTextureGroupProgress) => void;
+  onGroupComplete?: (progress: GeneratedTextureGroupProgress) => Promise<void> | void;
+  onGroupStart?: (progress: GeneratedTextureGroupProgress) => Promise<void> | void;
 };
 
 export async function ensureGeneratedTextureGroups(
@@ -25,8 +25,8 @@ export async function ensureGeneratedTextureGroups(
   for (let index = 0; index < groups.length; index += 1) {
     const group = groups[index];
     const progress = { group, index, total: groups.length };
-    options.onGroupStart?.(progress);
+    await options.onGroupStart?.(progress);
     await group.ensure(scene);
-    options.onGroupComplete?.(progress);
+    await options.onGroupComplete?.(progress);
   }
 }

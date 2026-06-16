@@ -65,12 +65,26 @@ vi.mock('three', () => {
   };
 });
 
-import { createMonolithCubeTexture, MONOLITH_CUBE_FRAME_COUNT } from './monolithCubeTexture';
+import {
+  createMonolithCubeTexture,
+  ensureMonolithCubeTextures,
+  MONOLITH_CUBE_FRAME_COUNT,
+} from './monolithCubeTexture';
 
 describe('createMonolithCubeTexture', () => {
   beforeAll(() => {
     vi.stubGlobal('document', {
-      createElement: vi.fn(() => ({ height: 0, width: 0 })),
+      createElement: vi.fn(() => ({
+        getContext: vi.fn(() => ({
+          clearRect: vi.fn(),
+          drawImage: vi.fn(),
+        })),
+        height: 0,
+        toBlob: vi.fn((callback: (blob: Blob | null) => void) =>
+          callback(new Blob(['monolith-frame'], { type: 'image/png' })),
+        ),
+        width: 0,
+      })),
     });
   });
 
@@ -105,9 +119,24 @@ describe('createMonolithCubeTexture', () => {
     expect(textures.remove).toHaveBeenCalledWith('entity-monolith');
     expect(textures.exists('entity-monolith-12')).toBe(true);
   });
+
+  it('ensures only missing frames through the async generated cache path', async () => {
+    const textures = createTextureManager();
+    const scene = createScene(textures);
+
+    createMonolithCubeTexture(scene);
+    textures.remove('entity-monolith-12');
+    await ensureMonolithCubeTextures(scene);
+
+    expect(textures.addCanvas).toHaveBeenCalledTimes(1);
+    expect(textures.addCanvas).toHaveBeenCalledWith('entity-monolith-12', expect.anything());
+    expect(textures.createCanvas).toHaveBeenCalledTimes(MONOLITH_CUBE_FRAME_COUNT);
+    expect(textures.exists('entity-monolith-12')).toBe(true);
+  });
 });
 
 type TextureManagerMock = Phaser.Textures.TextureManager & {
+  addCanvas: ReturnType<typeof vi.fn>;
   createCanvas: ReturnType<typeof vi.fn>;
   remove: ReturnType<typeof vi.fn>;
 };
@@ -119,6 +148,10 @@ type SceneMock = Phaser.Scene & {
 function createTextureManager(): TextureManagerMock {
   const keys = new Set<string>();
   const textures = {
+    addCanvas: vi.fn((key: string) => {
+      keys.add(key);
+      return {};
+    }),
     createCanvas: vi.fn((key: string) => {
       keys.add(key);
       return {
