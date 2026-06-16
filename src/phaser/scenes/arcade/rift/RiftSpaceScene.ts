@@ -40,7 +40,6 @@ import { getSandboxPerfToggles } from '../../../runtime/startup';
 import { DimensionBackground } from '../../../world/DimensionBackground';
 import { SpaceRenderEffects } from '../../../world/SpaceRenderEffects';
 import { SpaceWorldRuntime } from '../../../world/SpaceWorldRuntime';
-import { registerGeneratedTextureScope } from '../../generatedTextureScopes';
 
 const RIFT_MONOLITH_ID = 700_001;
 
@@ -73,7 +72,6 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
   }
 
   create(): void {
-    registerGeneratedTextureScope(this, 'rift-space');
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'rift-space');
     this.worldSize = { width: this.scale.width, height: this.scale.height };
     this.runtime = new SpaceWorldRuntime('rift', {

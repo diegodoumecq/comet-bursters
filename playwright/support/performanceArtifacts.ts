@@ -305,9 +305,11 @@ async function writeLatestArtifactPointer(
   await writeJson(latestPath, {
     artifactPath: report.artifactPath,
     comparison: report.comparison,
+    counts: report.counts,
     durationMs: report.durationMs,
     metrics: report.metrics,
     metadata,
+    samples: report.samples,
   });
 }
 

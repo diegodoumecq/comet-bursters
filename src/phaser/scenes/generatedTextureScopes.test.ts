@@ -57,71 +57,62 @@ describe('generated texture scopes', () => {
     ).toBe(true);
   });
 
-  it('unloads demand textures after the final owning scene shuts down', async () => {
-    vi.useFakeTimers();
+  it('prepares a scope and reports loaded runtime texture counts', async () => {
     const {
+      ensureGeneratedTextureScope,
       getGeneratedTextureGroupsForScope,
       getGeneratedTextureRuntimeStats,
-      registerGeneratedTextureScope,
     } = await import('./generatedTextureScopes');
-    const { collectGeneratedTextureKeys } = await import('../core/generatedTextureRegistry');
-    const demandTextureKeys = collectGeneratedTextureKeys(
-      getGeneratedTextureGroupsForScope('demo'),
-    );
+    const groups = getGeneratedTextureGroupsForScope('demo');
+    const demandTextureKeys = groups.flatMap((group) => [...group.textureKeys]);
+    const calls: string[] = [];
     const scene = createScene(demandTextureKeys);
 
-    registerGeneratedTextureScope(scene, 'demo');
-    expect(
-      getGeneratedTextureRuntimeStats(scene).groups.filter((group) => group.refCount === 1).length,
-    ).toBe(2);
+    await ensureGeneratedTextureScope(scene, 'demo', {
+      onGroupComplete: ({ group }) => {
+        calls.push(`complete:${group.key}`);
+      },
+      onGroupStart: ({ group }) => {
+        calls.push(`start:${group.key}`);
+      },
+    });
 
-    scene.emitShutdown();
-    expect(scene.removedTextureKeys).toEqual([]);
-    await vi.runOnlyPendingTimersAsync();
-
-    expect(scene.removedTextureKeys.sort()).toEqual([...demandTextureKeys].sort());
+    expect(calls).toEqual([
+      'start:asteroids',
+      'complete:asteroids',
+      'start:entities',
+      'complete:entities',
+    ]);
+    expect(getGeneratedTextureRuntimeStats(scene).groups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          groupKey: 'asteroids',
+          loadedTextures: groups[0].textureKeys.length,
+          textureCount: groups[0].textureKeys.length,
+        }),
+        expect.objectContaining({
+          groupKey: 'entities',
+          loadedTextures: groups[1].textureKeys.length,
+          textureCount: groups[1].textureKeys.length,
+        }),
+      ]),
+    );
   });
 
-  it('cancels a pending unload when the scene restarts and registers the same scope again', async () => {
-    vi.useFakeTimers();
+  it('prepares only asteroid textures for sandbox', async () => {
     const {
+      ensureGeneratedTextureScope,
       getGeneratedTextureGroupsForScope,
       getGeneratedTextureRuntimeStats,
-      registerGeneratedTextureScope,
     } = await import('./generatedTextureScopes');
-    const { collectGeneratedTextureKeys } = await import('../core/generatedTextureRegistry');
-    const demandTextureKeys = collectGeneratedTextureKeys(
-      getGeneratedTextureGroupsForScope('demo'),
-    );
-    const scene = createScene(demandTextureKeys);
-
-    registerGeneratedTextureScope(scene, 'demo');
-    scene.emitShutdown();
-    registerGeneratedTextureScope(scene, 'demo');
-    await vi.runOnlyPendingTimersAsync();
-
-    expect(scene.removedTextureKeys).toEqual([]);
-    expect(
-      getGeneratedTextureRuntimeStats(scene).groups.filter((group) => group.refCount === 1).length,
-    ).toBe(2);
-  });
-
-  it('registers and unloads only asteroid textures for sandbox', async () => {
-    vi.useFakeTimers();
-    const {
-      getGeneratedTextureGroupsForScope,
-      getGeneratedTextureRuntimeStats,
-      registerGeneratedTextureScope,
-    } = await import('./generatedTextureScopes');
-    const { collectGeneratedTextureKeys } = await import('../core/generatedTextureRegistry');
-    const sandboxTextureKeys = collectGeneratedTextureKeys(
-      getGeneratedTextureGroupsForScope('sandbox'),
-    );
+    const groups = getGeneratedTextureGroupsForScope('sandbox');
+    const sandboxTextureKeys = groups.flatMap((group) => [...group.textureKeys]);
     const scene = createScene(sandboxTextureKeys);
 
-    registerGeneratedTextureScope(scene, 'sandbox');
+    await ensureGeneratedTextureScope(scene, 'sandbox');
+
     expect(
-      getGeneratedTextureRuntimeStats(scene).groups.filter((group) => group.refCount === 1),
+      getGeneratedTextureRuntimeStats(scene).groups.filter((group) => group.loadedTextures > 0),
     ).toEqual([
       expect.objectContaining({
         groupKey: 'asteroids',
@@ -129,40 +120,19 @@ describe('generated texture scopes', () => {
         textureCount: sandboxTextureKeys.length,
       }),
     ]);
-
-    scene.emitShutdown();
-    await vi.runOnlyPendingTimersAsync();
-
-    expect(scene.removedTextureKeys.sort()).toEqual([...sandboxTextureKeys].sort());
-    expect(
-      scene.removedTextureKeys.some((textureKey) => textureKey.startsWith('entity-monolith')),
-    ).toBe(false);
   });
 });
 
 type SceneStub = Phaser.Scene & {
-  emitShutdown: () => void;
-  removedTextureKeys: string[];
+  readonly existingTextureKeys: Set<string>;
 };
 
 function createScene(existingTextureKeys: readonly string[]): SceneStub {
-  let shutdownHandler: (() => void) | null = null;
   const keys = new Set(existingTextureKeys);
-  const removedTextureKeys: string[] = [];
   return {
-    emitShutdown: () => shutdownHandler?.(),
-    events: {
-      once: (_event: string, handler: () => void) => {
-        shutdownHandler = handler;
-      },
-    },
-    removedTextureKeys,
+    existingTextureKeys: keys,
     textures: {
       exists: (textureKey: string) => keys.has(textureKey),
-      remove: (textureKey: string) => {
-        keys.delete(textureKey);
-        removedTextureKeys.push(textureKey);
-      },
     },
   } as unknown as SceneStub;
 }

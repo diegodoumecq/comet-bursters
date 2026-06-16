@@ -1,7 +1,6 @@
 import type Phaser from 'phaser';
 
 import {
-  createGeneratedCanvasTexture,
   ensureGeneratedCanvasTexture,
   type GeneratedAssetCacheEntry,
   type GeneratedCanvasTextureRecipe,
@@ -26,6 +25,8 @@ export const PLAYER_TURRET_TEXTURE_KEYS: Record<WeaponKind, string> = {
   tractor: 'phaser-player-turret-tractor',
 };
 
+const PLAYER_TEXTURE_ART_REVISION = 'ship-hull-and-turrets-v1';
+
 export type PlayerTurretSpriteSpec = {
   /** Forward +X visual tip shared by every turret sprite. */
   length: number;
@@ -44,12 +45,6 @@ export const PLAYER_TURRET_SPRITE_SPECS: Record<WeaponKind, PlayerTurretSpriteSp
   tractor: createTurretSpriteSpec('tractor'),
 };
 
-export function createPlayerTexture(scene: Phaser.Scene): void {
-  for (const recipe of createPlayerTextureRecipes()) {
-    createGeneratedCanvasTexture(scene, recipe);
-  }
-}
-
 export async function ensurePlayerTextures(scene: Phaser.Scene): Promise<void> {
   await Promise.all(
     createPlayerTextureRecipes().map((recipe) => ensureGeneratedCanvasTexture(scene, recipe)),
@@ -57,11 +52,11 @@ export async function ensurePlayerTextures(scene: Phaser.Scene): Promise<void> {
 }
 
 export const PLAYER_GENERATED_TEXTURE_GROUP = {
-  cacheEntries: getPlayerTextureCacheEntries,
+  cacheEntries: getPlayerTextureCacheEntries(),
   ensure: ensurePlayerTextures,
   key: 'player',
   label: 'Player sprites',
-  textureKeys: getPlayerTextureKeys,
+  textureKeys: getPlayerTextureKeys(),
 } satisfies GeneratedTextureGroup;
 
 export function getPlayerTurretTextureKey(weapon: WeaponKind): string {
@@ -86,7 +81,7 @@ function createPlayerTextureRecipes(): GeneratedCanvasTextureRecipe[] {
       },
       height: PLAYER_VISUAL_SIZE * 2,
       key: PLAYER_TEXTURE_KEY,
-      version: 'player-hull-v1',
+      version: createPlayerTextureCacheVersion('hull'),
       width: PLAYER_VISUAL_SIZE * 2,
     },
     ...(Object.keys(PLAYER_TURRET_TEXTURE_KEYS) as WeaponKind[]).map((weapon) =>
@@ -114,9 +109,21 @@ function createPlayerTurretTextureRecipe(weapon: WeaponKind): GeneratedCanvasTex
     },
     height: PLAYER_TURRET_TEXTURE_SIZE,
     key: PLAYER_TURRET_TEXTURE_KEYS[weapon],
-    version: `player-turret-${weapon}-v1`,
+    version: createPlayerTextureCacheVersion(`turret-${weapon}`),
     width: PLAYER_TURRET_TEXTURE_SIZE,
   };
+}
+
+function createPlayerTextureCacheVersion(spriteKey: string): string {
+  return [
+    'player-texture',
+    PLAYER_TEXTURE_ART_REVISION,
+    PLAYER_VISUAL_SIZE,
+    PLAYER_TURRET_TEXTURE_SIZE,
+    PLAYER_TURRET_MUZZLE_OFFSET,
+    PLAYER_TURRET_SPRITE_ORIENTATION_RADIANS,
+    spriteKey,
+  ].join(':');
 }
 
 export function drawFuelContour(

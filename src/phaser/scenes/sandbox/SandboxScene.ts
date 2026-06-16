@@ -74,7 +74,6 @@ import { normalize, wrappedDelta } from '../../world/geometry';
 import { applyWorldGravity } from '../../world/gravity';
 import { GameWorldRuntime } from '../../world/runtime';
 import { BaseGameScene } from '../BaseGameScene';
-import { registerGeneratedTextureScope } from '../generatedTextureScopes';
 import { SandboxDiscovery } from './discovery';
 import {
   Mothership,
@@ -159,7 +158,6 @@ export class PhaserSandboxScene extends BaseGameScene {
   }
 
   create(): void {
-    registerGeneratedTextureScope(this, 'sandbox');
     // Apply this to scenes with moving cameras so screen-space distortions can sample
     // real offscreen pixels from the enlarged source canvas.
     this.disposeCanvasOverscan = enableCanvasOverscan(this.game, BLACK_HOLE_SOURCE_OVERSCAN);

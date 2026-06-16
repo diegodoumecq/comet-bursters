@@ -1,11 +1,11 @@
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 import * as THREE from 'three';
 
 import {
   addGeneratedImageTexture,
-  type GeneratedAssetCacheEntry,
   readGeneratedImageTexture,
   writeGeneratedImageTexture,
+  type GeneratedAssetCacheEntry,
 } from '../core/generatedAssetCache';
 import { ENTITIES } from './config';
 
@@ -14,19 +14,17 @@ export const MONOLITH_CUBE_FRAME_COUNT = 24;
 const MONOLITH_TILT_X = -0.46;
 const MONOLITH_TILT_Z = 0.18;
 const MONOLITH_CUBE_HALF_SIZE = 0.75;
-const MONOLITH_CUBE_CACHE_VERSION = 'monolith-cube-v1';
+const MONOLITH_CUBE_ART_REVISION = 'monolith-cube-v1';
 
 export const MONOLITH_CUBE_TEXTURE_KEY = 'entity-monolith';
 export const MONOLITH_CUBE_ANIMATION_FRAME_MS = 72;
 
-export function createMonolithCubeTexture(scene: Phaser.Scene): void {
-  if (!hasMonolithCubeTextures(scene)) bakeMonolithCubeTextures(scene);
-}
-
 export async function ensureMonolithCubeTextures(scene: Phaser.Scene): Promise<void> {
   if (hasMonolithCubeTextures(scene)) return;
 
-  await Promise.all(getMonolithCubeFrameIndices().map((frameIndex) => loadCachedFrame(scene, frameIndex)));
+  await Promise.all(
+    getMonolithCubeFrameIndices().map((frameIndex) => loadCachedFrame(scene, frameIndex)),
+  );
 
   const missingFrameIndices = getMonolithCubeFrameIndices().filter(
     (frameIndex) => !scene.textures.exists(getMonolithCubeTextureKey(frameIndex)),
@@ -41,7 +39,9 @@ export async function ensureMonolithCubeTextures(scene: Phaser.Scene): Promise<v
       const canvas = renderer.renderCanvas(frameIndex / MONOLITH_CUBE_FRAME_COUNT);
       scene.textures.addCanvas(textureKey, canvas);
       const blob = await canvasToPngBlob(canvas);
-      if (blob) await writeGeneratedImageTexture(textureKey, createMonolithFrameCacheVersion(), blob);
+      if (blob) {
+        await writeGeneratedImageTexture(textureKey, createMonolithFrameCacheVersion(), blob);
+      }
     }
   } finally {
     renderer.dispose();
@@ -76,24 +76,6 @@ function hasMonolithCubeTextures(scene: Phaser.Scene): boolean {
   return true;
 }
 
-function bakeMonolithCubeTextures(scene: Phaser.Scene): void {
-  const size = ENTITIES.monolith.size;
-  const renderer = new MonolithCubeTextureRenderer(size);
-  try {
-    for (let frameIndex = 0; frameIndex < MONOLITH_CUBE_FRAME_COUNT; frameIndex += 1) {
-      const key = getMonolithCubeTextureKey(frameIndex);
-      if (scene.textures.exists(key)) {
-        scene.textures.remove(key);
-      }
-      const texture = scene.textures.createCanvas(key, size, size);
-      if (!texture) throw new Error(`Unable to create canvas texture ${key}`);
-      renderer.render(texture, frameIndex / MONOLITH_CUBE_FRAME_COUNT);
-    }
-  } finally {
-    renderer.dispose();
-  }
-}
-
 async function loadCachedFrame(scene: Phaser.Scene, frameIndex: number): Promise<void> {
   const textureKey = getMonolithCubeTextureKey(frameIndex);
   if (scene.textures.exists(textureKey)) return;
@@ -110,10 +92,15 @@ function getMonolithCubeFrameIndices(): number[] {
 
 function createMonolithFrameCacheVersion(): string {
   return [
-    MONOLITH_CUBE_CACHE_VERSION,
+    'monolith-cube',
+    MONOLITH_CUBE_ART_REVISION,
     ENTITIES.monolith.size,
     MONOLITH_CUBE_FRAME_COUNT,
+    MONOLITH_CUBE_ANIMATION_FRAME_MS,
     MONOLITH_TEXTURE_SCALE,
+    MONOLITH_TILT_X,
+    MONOLITH_TILT_Z,
+    MONOLITH_CUBE_HALF_SIZE,
   ].join(':');
 }
 
@@ -164,14 +151,6 @@ class MonolithCubeTextureRenderer {
     const fillLight = new THREE.DirectionalLight(0x8fe9ff, 0.35);
     fillLight.position.set(2, -2, 1);
     this.scene.add(fillLight);
-  }
-
-  render(texture: Phaser.Textures.CanvasTexture, progress: number): void {
-    const canvas = this.renderCanvas(progress);
-    const { context } = texture;
-    context.clearRect(0, 0, this.size, this.size);
-    context.drawImage(canvas, 0, 0, this.size, this.size);
-    texture.refresh();
   }
 
   renderCanvas(progress: number): HTMLCanvasElement {

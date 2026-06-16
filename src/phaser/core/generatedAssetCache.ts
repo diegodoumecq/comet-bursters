@@ -216,19 +216,6 @@ export async function clearGeneratedAssetCache(): Promise<void> {
   });
 }
 
-export function createGeneratedCanvasTexture(
-  scene: Phaser.Scene,
-  recipe: GeneratedCanvasTextureRecipe,
-): void {
-  if (scene.textures.exists(recipe.key)) return;
-
-  const canvas = renderCanvasRecipe(recipe);
-  scene.textures.addCanvas(recipe.key, canvas);
-  void canvasToPngBlob(canvas).then((blob) => {
-    if (blob) void writeGeneratedImageTexture(recipe.key, recipe.version, blob);
-  });
-}
-
 function renderCanvasRecipe(recipe: GeneratedCanvasTextureRecipe): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = recipe.width;

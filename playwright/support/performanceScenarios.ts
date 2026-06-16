@@ -42,6 +42,8 @@ export type SceneTelemetry = {
   }>;
   textures: {
     asteroidAtlases: number;
+    categories: Record<string, string[]>;
+    keys: string[];
     planetTextures: number;
     total: number;
   };
@@ -155,6 +157,7 @@ export async function recordScenarioSample(
   await page.waitForTimeout(durationMs);
   const frameStats = await collectFrameStats(page);
   const markers = normalizeMarkerSnapshot(await collectPerfSnapshot(page));
+  const sampleEndTextures = await collectTextureTelemetry(page);
   const viewport = page.viewportSize();
   return writePerformanceArtifact({
     consoleMessages: options.consoleMessages,
@@ -165,7 +168,9 @@ export async function recordScenarioSample(
     markers,
     metrics: options.metrics,
     notes: options.notes,
-    samples: options.samples,
+    samples: createScenarioSamples(options.samples, {
+      textures: sampleEndTextures,
+    }),
     scene: options.scene,
     scenario: options.scenario,
     suite: options.suite,
@@ -179,6 +184,23 @@ export async function recordScenarioSample(
       width: viewport?.width ?? null,
     },
   } satisfies PerformanceArtifactInput);
+}
+
+export async function collectTextureTelemetry(page: Page): Promise<SceneTelemetry['textures']> {
+  const keys = await page.evaluate(() => {
+    type TextureManagerLike = {
+      list?: Record<string, unknown>;
+    };
+    type GameWindow = typeof window & {
+      __cometBurstersGame?: {
+        textures?: TextureManagerLike;
+      };
+    };
+
+    const game = (window as GameWindow).__cometBurstersGame;
+    return Object.keys(game?.textures?.list ?? {});
+  });
+  return collectTextureTelemetryFromKeys(keys);
 }
 
 export async function collectSceneTelemetry(page: Page): Promise<SceneTelemetry> {
@@ -210,7 +232,6 @@ export async function collectSceneTelemetry(page: Page): Promise<SceneTelemetry>
 
     const game = (window as GameWindow).__cometBurstersGame;
     const scenes = game?.scene?.getScenes?.(true) ?? [];
-    const textureKeys = Object.keys(game?.textures?.list ?? {});
     return {
       activeScenes: scenes.map((scene) => scene.scene.key),
       canvases: [...document.querySelectorAll('canvas')].map((canvas) => ({
@@ -230,21 +251,57 @@ export async function collectSceneTelemetry(page: Page): Promise<SceneTelemetry>
             width: readFiniteRuntimeNumber(child.width),
           })),
       ),
-      textures: {
-        asteroidAtlases: textureKeys.filter((key) => key.startsWith('phaser-asteroid-')).length,
-        planetTextures: textureKeys.filter((key) => key.startsWith('phaser-planet-')).length,
-        total: textureKeys.length,
-      },
+      textureKeys: Object.keys(game?.textures?.list ?? {}),
     };
 
     function readFiniteRuntimeNumber(value: unknown): number {
       return typeof value === 'number' && Number.isFinite(value) ? value : 0;
     }
   });
+  const { textureKeys, ...sceneRuntime } = runtime;
   return {
-    ...runtime,
+    ...sceneRuntime,
     graphics,
+    textures: collectTextureTelemetryFromKeys(textureKeys),
   };
+}
+
+function collectTextureTelemetryFromKeys(keys: string[]): SceneTelemetry['textures'] {
+  const sortedKeys = [...keys].sort();
+  const categories: Record<string, string[]> = {};
+  for (const key of sortedKeys) {
+    const category = categorizeTextureKey(key);
+    categories[category] ??= [];
+    categories[category].push(key);
+  }
+  return {
+    asteroidAtlases: categories.asteroid?.length ?? 0,
+    categories,
+    keys: sortedKeys,
+    planetTextures: categories.planet?.length ?? 0,
+    total: sortedKeys.length,
+  };
+}
+
+function categorizeTextureKey(key: string): string {
+  if (key === '__DEFAULT' || key === '__MISSING' || key === '__NORMAL' || key === '__WHITE') {
+    return 'phaser-default';
+  }
+  if (/^[0-9a-f-]{36}$/.test(key)) return 'uuid';
+  if (key.startsWith('entity-monolith')) return 'monolith';
+  if (key.startsWith('phaser-asteroid-')) return 'asteroid';
+  if (key.startsWith('phaser-planet-')) return 'planet';
+  if (key.startsWith('phaser-player') || key === 'phaser-ship') return 'player';
+  if (key.startsWith('phaser-starfield-')) return 'starfield';
+  if (key.startsWith('phaser-weapon-icon-')) return 'weapon-icon';
+  if (key.startsWith('portal-scene-capture')) return 'portal-capture';
+  if (key.startsWith('sandbox-mothership')) return 'mothership';
+  if (key.startsWith('sandbox-grid')) return 'sandbox-grid';
+  if (key.startsWith('sandbox-nebula-background')) return 'sandbox-nebula-background';
+  if (key.startsWith('sandbox-nebula-chunk')) return 'sandbox-nebula-chunk';
+  if (key.startsWith('planet-fuel-extractor')) return 'fuel-extractor';
+  if (key.startsWith('phaser-thruster')) return 'particle';
+  return 'other';
 }
 
 export async function collectSandboxFeatureSummary(page: Page): Promise<SandboxFeatureSummary> {
@@ -489,10 +546,36 @@ export function sceneTelemetryCounts(telemetry: SceneTelemetry): Record<string, 
     largestRenderTexturePixels: maxPixels(telemetry.renderTextures),
     planetTextures: telemetry.textures.planetTextures,
     renderTextures: telemetry.renderTextures.length,
+    ...Object.fromEntries(
+      Object.entries(telemetry.textures.categories).map(([category, keys]) => [
+        `texture.${category}`,
+        keys.length,
+      ]),
+    ),
     totalCanvasPixels: sumPixels(telemetry.canvases),
     totalRenderTexturePixels: sumPixels(telemetry.renderTextures),
     visibleCanvases: telemetry.canvases.filter((canvas) => canvas.visible).length,
   };
+}
+
+function createScenarioSamples(
+  samples: unknown,
+  sampleEnd: { textures: SceneTelemetry['textures'] },
+): unknown {
+  if (isRecord(samples)) {
+    return {
+      ...samples,
+      afterFrameSample: sampleEnd,
+    };
+  }
+  return {
+    afterFrameSample: sampleEnd,
+    beforeFrameSample: samples ?? null,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function sumPixels(surfaces: Array<{ height: number; width: number }>): number {

@@ -36,7 +36,6 @@ import type { ProjectileEntity } from '../../projectiles/types';
 import { enableCanvasOverscan, getActiveCanvasOverscan } from '../../runtime/canvasOverscan';
 import { normalize } from '../../world/geometry';
 import { BaseGameScene } from '../BaseGameScene';
-import { registerGeneratedTextureScope } from '../generatedTextureScopes';
 import { isFocusedDemoTechniqueActive } from './demoPerfTechnique';
 import { DemoRenderer } from './DemoRenderer';
 
@@ -104,7 +103,6 @@ export class PhaserDemoScene extends BaseGameScene {
   }
 
   create(): void {
-    registerGeneratedTextureScope(this, 'demo');
     this.disposeCanvasOverscan = enableCanvasOverscan(this.game, BLACK_HOLE_SOURCE_OVERSCAN);
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'demo');
     this.audioDirector.enter();

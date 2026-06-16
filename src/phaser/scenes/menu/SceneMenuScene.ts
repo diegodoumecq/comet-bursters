@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import { getGameAudio } from '../../audio/AudioManager';
 import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
 import {
-  ensureGeneratedTexturesForScope,
+  ensureGeneratedTextureScope,
   type SceneGeneratedTextureScope,
 } from '../generatedTextureScopes';
 
@@ -82,7 +82,7 @@ export class SceneMenuScene extends Phaser.Scene {
     this.statusLabel.setText(`Preparing ${item.label}`);
     this.audioDirector.emit({ type: 'uiSelect' });
     try {
-      await ensureGeneratedTexturesForScope(this, item.key, {
+      await ensureGeneratedTextureScope(this, item.key, {
         onGroupComplete: ({ group, index, total }) => {
           this.statusLabel.setText(`Ready ${group.label} (${index + 1} / ${total})`);
         },

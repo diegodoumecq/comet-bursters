@@ -1,9 +1,8 @@
-import Phaser from 'phaser';
+import type Phaser from 'phaser';
 
 import type { GeneratedTextureGroup } from '../core/generatedTextureRegistry';
 import type { EntityKind } from './config';
 import {
-  createMonolithCubeTexture,
   ensureMonolithCubeTextures,
   getMonolithCubeAnimationFrame,
   getMonolithCubeTextureCacheEntries,
@@ -16,20 +15,16 @@ export const ENTITY_TEXTURE_KEYS: Record<EntityKind, string> = {
   monolith: MONOLITH_CUBE_TEXTURE_KEY,
 };
 
-export function createEntityTextures(scene: Phaser.Scene): void {
-  createMonolithCubeTexture(scene);
-}
-
 export async function ensureEntityTextures(scene: Phaser.Scene): Promise<void> {
   await ensureMonolithCubeTextures(scene);
 }
 
 export const ENTITY_GENERATED_TEXTURE_GROUP = {
-  cacheEntries: getMonolithCubeTextureCacheEntries,
+  cacheEntries: getMonolithCubeTextureCacheEntries(),
   ensure: ensureEntityTextures,
   key: 'entities',
   label: 'Entity sprites',
-  textureKeys: getEntityTextureKeys,
+  textureKeys: getEntityTextureKeys(),
 } satisfies GeneratedTextureGroup;
 
 export function getEntityVisualTextureKey(entity: GameEntity, timeMs: number): string {

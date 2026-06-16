@@ -1,6 +1,8 @@
 import type Phaser from 'phaser';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { ensureMonolithCubeTextures, MONOLITH_CUBE_FRAME_COUNT } from './monolithCubeTexture';
+
 vi.mock('three', () => {
   class MockObject3D {
     readonly children: MockObject3D[] = [];
@@ -65,14 +67,9 @@ vi.mock('three', () => {
   };
 });
 
-import {
-  createMonolithCubeTexture,
-  ensureMonolithCubeTextures,
-  MONOLITH_CUBE_FRAME_COUNT,
-} from './monolithCubeTexture';
-
-describe('createMonolithCubeTexture', () => {
+describe('ensureMonolithCubeTextures', () => {
   beforeAll(() => {
+    vi.stubGlobal('indexedDB', undefined);
     vi.stubGlobal('document', {
       createElement: vi.fn(() => ({
         getContext: vi.fn(() => ({
@@ -92,52 +89,37 @@ describe('createMonolithCubeTexture', () => {
     vi.unstubAllGlobals();
   });
 
-  it('bakes shared monolith frames once per texture manager', () => {
+  it('bakes shared monolith frames once per texture manager', async () => {
     const textures = createTextureManager();
     const firstScene = createScene(textures);
     const secondScene = createScene(textures);
 
-    createMonolithCubeTexture(firstScene);
-    createMonolithCubeTexture(secondScene);
+    await ensureMonolithCubeTextures(firstScene);
+    await ensureMonolithCubeTextures(secondScene);
     firstScene.emitShutdown();
     secondScene.emitShutdown();
 
-    expect(textures.createCanvas).toHaveBeenCalledTimes(MONOLITH_CUBE_FRAME_COUNT);
+    expect(textures.addCanvas).toHaveBeenCalledTimes(MONOLITH_CUBE_FRAME_COUNT);
     expect(textures.remove).not.toHaveBeenCalled();
     expect(textures.exists('entity-monolith')).toBe(true);
   });
 
-  it('rebuilds the shared frame set when it is incomplete', () => {
+  it('ensures only missing frames when the frame set is incomplete', async () => {
     const textures = createTextureManager();
     const scene = createScene(textures);
 
-    createMonolithCubeTexture(scene);
-    textures.remove('entity-monolith-12');
-    createMonolithCubeTexture(scene);
-
-    expect(textures.createCanvas).toHaveBeenCalledTimes(MONOLITH_CUBE_FRAME_COUNT * 2);
-    expect(textures.remove).toHaveBeenCalledWith('entity-monolith');
-    expect(textures.exists('entity-monolith-12')).toBe(true);
-  });
-
-  it('ensures only missing frames through the async generated cache path', async () => {
-    const textures = createTextureManager();
-    const scene = createScene(textures);
-
-    createMonolithCubeTexture(scene);
+    await ensureMonolithCubeTextures(scene);
     textures.remove('entity-monolith-12');
     await ensureMonolithCubeTextures(scene);
 
-    expect(textures.addCanvas).toHaveBeenCalledTimes(1);
-    expect(textures.addCanvas).toHaveBeenCalledWith('entity-monolith-12', expect.anything());
-    expect(textures.createCanvas).toHaveBeenCalledTimes(MONOLITH_CUBE_FRAME_COUNT);
+    expect(textures.addCanvas).toHaveBeenCalledTimes(MONOLITH_CUBE_FRAME_COUNT + 1);
+    expect(textures.addCanvas).toHaveBeenLastCalledWith('entity-monolith-12', expect.anything());
     expect(textures.exists('entity-monolith-12')).toBe(true);
   });
 });
 
 type TextureManagerMock = Phaser.Textures.TextureManager & {
   addCanvas: ReturnType<typeof vi.fn>;
-  createCanvas: ReturnType<typeof vi.fn>;
   remove: ReturnType<typeof vi.fn>;
 };
 
@@ -151,16 +133,6 @@ function createTextureManager(): TextureManagerMock {
     addCanvas: vi.fn((key: string) => {
       keys.add(key);
       return {};
-    }),
-    createCanvas: vi.fn((key: string) => {
-      keys.add(key);
-      return {
-        context: {
-          clearRect: vi.fn(),
-          drawImage: vi.fn(),
-        },
-        refresh: vi.fn(),
-      };
     }),
     exists: (key: string) => keys.has(key),
     remove: vi.fn((key: string) => {

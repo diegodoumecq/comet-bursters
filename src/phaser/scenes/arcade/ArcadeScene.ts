@@ -89,7 +89,7 @@ import { normalize, wrappedDelta } from '../../world/geometry';
 import { applyWorldGravity } from '../../world/gravity';
 import { SpaceWorldRuntime } from '../../world/SpaceWorldRuntime';
 import { BaseGameScene } from '../BaseGameScene';
-import { registerGeneratedTextureScope } from '../generatedTextureScopes';
+import { ensureGeneratedTextureScope } from '../generatedTextureScopes';
 import { ArcadeRenderEffects } from './ArcadeRenderEffects';
 import { ArcadeRenderer } from './ArcadeRenderer';
 import { ArcadeRunState } from './arcadeRunState';
@@ -133,7 +133,6 @@ export class PhaserArcadeScene extends BaseGameScene {
   }
 
   create(): void {
-    registerGeneratedTextureScope(this, 'arcade');
     this.audioDirector = getGameAudio(this).createSceneDirector(this, 'arcade');
     this.audioDirector.enter();
     this.resetRunFields();
@@ -180,7 +179,7 @@ export class PhaserArcadeScene extends BaseGameScene {
       this.weaponPolicy,
     );
     this.dimensionDebug = new DimensionDebugOverlay(this);
-    this.startRiftSpaceScene();
+    void this.startRiftSpaceScene();
     this.renderEffects = new ArcadeRenderEffects(
       this.game.canvas,
       this.game.canvas.parentElement,
@@ -580,13 +579,14 @@ export class PhaserArcadeScene extends BaseGameScene {
     }
   }
 
-  private startRiftSpaceScene(): void {
+  private async startRiftSpaceScene(): Promise<void> {
     const riftScene = this.scene.get('rift-space') as unknown as RiftSpaceSceneBridge;
     if (this.scene.isActive('rift-space')) {
       this.bindRiftSpaceScene(riftScene);
       return;
     }
     riftScene.events.once(Phaser.Scenes.Events.CREATE, () => this.bindRiftSpaceScene(riftScene));
+    await ensureGeneratedTextureScope(this, 'rift-space');
     this.scene.launch('rift-space');
   }
 
