@@ -2,10 +2,7 @@ import Phaser from 'phaser';
 
 import { getGameAudio } from '../../audio/AudioManager';
 import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
-import {
-  ensureGeneratedTextureScope,
-  type SceneGeneratedTextureScope,
-} from '../generatedTextureScopes';
+import type { SceneGeneratedTextureScope } from '../generatedTextureScopes';
 
 const MENU_ITEMS = [
   { key: 'demo', label: 'Demo Scene' },
@@ -81,21 +78,6 @@ export class SceneMenuScene extends Phaser.Scene {
     this.buttons.forEach((button) => button.disableInteractive());
     this.statusLabel.setText(`Preparing ${item.label}`);
     this.audioDirector.emit({ type: 'uiSelect' });
-    try {
-      await ensureGeneratedTextureScope(this, item.key, {
-        onGroupComplete: ({ group, index, total }) => {
-          this.statusLabel.setText(`Ready ${group.label} (${index + 1} / ${total})`);
-        },
-        onGroupStart: ({ group, index, total }) => {
-          this.statusLabel.setText(`Creating ${group.label} (${index + 1} / ${total})`);
-        },
-      });
-      this.scene.start(item.key);
-    } catch (error) {
-      console.error('[generated-assets] Unable to prepare scene textures', error);
-      this.statusLabel.setText('Unable to prepare generated textures');
-      this.buttons.forEach((button) => button.setInteractive({ useHandCursor: true }));
-      this.loadingScene = false;
-    }
+    this.scene.start(item.key);
   }
 }

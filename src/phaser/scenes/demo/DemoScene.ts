@@ -5,6 +5,7 @@ import type { AsteroidEntity, AsteroidTier } from '../../asteroids/types';
 import { getGameAudio } from '../../audio/AudioManager';
 import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
 import { applyMatterBodySpec } from '../../core/matterBodySpec';
+import { preloadTask } from '../../core/preloadTask';
 import type { WorldSize } from '../../core/types';
 import type { PortalEntity } from '../../dimensions/types';
 import { EntityBodies } from '../../entities/bodies';
@@ -36,6 +37,7 @@ import type { ProjectileEntity } from '../../projectiles/types';
 import { enableCanvasOverscan, getActiveCanvasOverscan } from '../../runtime/canvasOverscan';
 import { normalize } from '../../world/geometry';
 import { BaseGameScene } from '../BaseGameScene';
+import { ensureGeneratedTextureScope } from '../generatedTextureScopes';
 import { isFocusedDemoTechniqueActive } from './demoPerfTechnique';
 import { DemoRenderer } from './DemoRenderer';
 
@@ -100,6 +102,12 @@ export class PhaserDemoScene extends BaseGameScene {
 
   constructor() {
     super('demo');
+  }
+
+  preload(): void {
+    preloadTask(this, 'demo-generated-texture-scope', () =>
+      ensureGeneratedTextureScope(this, 'demo'),
+    );
   }
 
   create(): void {

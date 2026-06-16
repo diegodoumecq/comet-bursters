@@ -72,7 +72,7 @@ export class FuelExtractorViews {
   }
 }
 
-function ensureFuelExtractorTextures(scene: Phaser.Scene): void {
+export function ensureFuelExtractorTextures(scene: Phaser.Scene): void {
   if (!scene.textures.exists(EXTRACTOR_BODY_TEXTURE)) {
     scene.textures.addCanvas(EXTRACTOR_BODY_TEXTURE, createFuelExtractorBodyCanvas());
   }

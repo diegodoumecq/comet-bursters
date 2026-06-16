@@ -28,7 +28,7 @@ const LAYERS = [
 const TINTS = [0xd8e8ff, 0xffffff, 0xfff1d1, 0xc8ddff] as const;
 
 export class Starfield {
-  private readonly texturePrefix = `phaser-starfield-${Phaser.Math.RND.uuid()}`;
+  private readonly texturePrefix: string;
   private layers: StarLayer[] = [];
 
   constructor(
@@ -37,6 +37,7 @@ export class Starfield {
     private readonly depthShift = 0,
     private readonly seedOffset = 0,
   ) {
+    this.texturePrefix = createStarfieldTexturePrefix(screen, depthShift, seedOffset);
     this.createLayers();
   }
 
@@ -93,18 +94,68 @@ export class Starfield {
 
   private createLayerTexture(config: (typeof LAYERS)[number], layerIndex: number): string {
     const textureKey = this.getTextureKey(layerIndex);
-    if (this.scene.textures.exists(textureKey)) return textureKey;
+    ensureStarfieldLayerTexture(
+      this.scene,
+      textureKey,
+      this.screen,
+      config,
+      layerIndex,
+      this.seedOffset,
+    );
+    return textureKey;
+  }
 
+  private destroyLayers(): void {
+    for (const layer of this.layers) {
+      layer.sprite.destroy();
+      this.scene.textures.remove(layer.textureKey);
+    }
+    this.layers = [];
+  }
+
+  private getTextureKey(layerIndex: number): string {
+    return `${this.texturePrefix}-${layerIndex}`;
+  }
+}
+
+export function prepareStarfieldTextures(
+  scene: Phaser.Scene,
+  screen: WorldSize,
+  depthShift = 0,
+  seedOffset = 0,
+): void {
+  const texturePrefix = createStarfieldTexturePrefix(screen, depthShift, seedOffset);
+  for (let layerIndex = 0; layerIndex < LAYERS.length; layerIndex += 1) {
+    ensureStarfieldLayerTexture(
+      scene,
+      `${texturePrefix}-${layerIndex}`,
+      screen,
+      LAYERS[layerIndex],
+      layerIndex,
+      seedOffset,
+    );
+  }
+}
+
+function ensureStarfieldLayerTexture(
+  scene: Phaser.Scene,
+  textureKey: string,
+  screen: WorldSize,
+  config: (typeof LAYERS)[number],
+  layerIndex: number,
+  seedOffset: number,
+): void {
+  if (!scene.textures.exists(textureKey)) {
     withPerformanceMeasure(
       `texture.starfield.${layerIndex}`,
       getSandboxPerfToggles().markers,
       () => {
         const canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.ceil(this.screen.width));
-        canvas.height = Math.max(1, Math.ceil(this.screen.height));
+        canvas.width = Math.max(1, Math.ceil(screen.width));
+        canvas.height = Math.max(1, Math.ceil(screen.height));
         const context = canvas.getContext('2d');
         if (context) {
-          for (const star of createStars(this.screen, config, layerIndex, this.seedOffset)) {
+          for (const star of createStars(screen, config, layerIndex, seedOffset)) {
             context.globalAlpha = star.alpha;
             context.fillStyle = toCanvasColor(star.tint);
             context.beginPath();
@@ -125,23 +176,24 @@ export class Starfield {
           }
           context.globalAlpha = 1;
         }
-        this.scene.textures.addCanvas(textureKey, canvas);
+        scene.textures.addCanvas(textureKey, canvas);
       },
     );
-    return textureKey;
   }
+}
 
-  private destroyLayers(): void {
-    for (const layer of this.layers) {
-      layer.sprite.destroy();
-      this.scene.textures.remove(layer.textureKey);
-    }
-    this.layers = [];
-  }
-
-  private getTextureKey(layerIndex: number): string {
-    return `${this.texturePrefix}-${layerIndex}`;
-  }
+function createStarfieldTexturePrefix(
+  screen: WorldSize,
+  depthShift: number,
+  seedOffset: number,
+): string {
+  return [
+    'phaser-starfield',
+    Math.max(1, Math.ceil(screen.width)),
+    Math.max(1, Math.ceil(screen.height)),
+    depthShift,
+    seedOffset,
+  ].join('-');
 }
 
 function createStars(

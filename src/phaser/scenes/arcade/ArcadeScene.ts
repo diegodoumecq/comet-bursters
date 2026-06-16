@@ -34,6 +34,7 @@ import {
 } from '../../combat/portalBridge';
 import { circlesOverlap } from '../../core/collision';
 import { applyMatterBodySpec } from '../../core/matterBodySpec';
+import { preloadTask } from '../../core/preloadTask';
 import { getTimeScale } from '../../core/time';
 import type { Vector, WorldSize } from '../../core/types';
 import type { DimensionCoordinator } from '../../dimensions/DimensionCoordinator';
@@ -130,6 +131,12 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   constructor() {
     super('arcade');
+  }
+
+  preload(): void {
+    preloadTask(this, 'arcade-generated-texture-scope', () =>
+      ensureGeneratedTextureScope(this, 'arcade'),
+    );
   }
 
   create(): void {
