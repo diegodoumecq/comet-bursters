@@ -14,7 +14,7 @@ import { TURRET_SPRITE_DRAWERS, type TurretSpriteMetrics } from './turret';
 export const PLAYER_TEXTURE_KEY = 'phaser-ship';
 export const PLAYER_TURRET_TEXTURE_KEY = 'phaser-player-turret';
 export const PLAYER_VISUAL_SIZE = 60;
-export const PLAYER_HULL_TEXTURE_SIZE = PLAYER_VISUAL_SIZE * 2;
+export const PLAYER_HULL_TEXTURE_SIZE = 240;
 export const PLAYER_HULL_ROTATION_FRAME_COUNT = 48;
 export const PLAYER_TURRET_TEXTURE_SIZE = PLAYER_VISUAL_SIZE * 2;
 export const PLAYER_TURRET_MUZZLE_OFFSET = PLAYER_VISUAL_SIZE * 0.5 * 0.68;
@@ -30,11 +30,20 @@ export const PLAYER_TURRET_TEXTURE_KEYS: Record<WeaponKind, string> = {
   tractor: 'phaser-player-turret-tractor',
 };
 
-const PLAYER_TEXTURE_ART_REVISION = 'bird-ship-heightmap-atlas-v2';
+const PLAYER_TEXTURE_ART_REVISION = 'bird-ship-heightmap-atlas-v7';
 const FULL_ROTATION = Math.PI * 2;
 const PLAYER_HULL_ATLAS_MAX_SIZE = 2048;
 const PLAYER_HULL_LIGHT_DIRECTION = normalizePoint({ x: -0.58, y: -0.82 });
-const HEIGHT_SAMPLE_STEP = 1 / PLAYER_HULL_TEXTURE_SIZE;
+export const PLAYER_HULL_DISPLAY_SCALE = 0.5;
+const PLAYER_HULL_HEIGHTMAP_SCALE = 60;
+const HEIGHT_SAMPLE_STEP = 1 / 120;
+const SHIP_HEIGHT_NORMAL_STRENGTH = 0.46;
+const SHIP_LIGHT_ELEVATION = 0.42;
+const SHIP_AMBIENT_SHADE = 0.18;
+const SHIP_DIRECTIONAL_SHADE = 0.72;
+const SHIP_HEIGHT_FILL_SHADE = 0.08;
+const SHIP_EDGE_SHADOW_SHADE = 0.24;
+const SHIP_PANEL_SHADOW_SHADE = 0.16;
 const SHIP_SHADE_BANDS = 4;
 const FRAME_BLEND_START = 0.25;
 const FRAME_BLEND_END = 0.75;
@@ -85,7 +94,7 @@ type Point = {
   y: number;
 };
 
-type ShipMaterial = 'beacon' | 'canopy' | 'engine' | 'hull' | 'shadow' | 'wing';
+type ShipMaterial = 'beacon' | 'canopy' | 'engine' | 'hull' | 'shadow' | 'turretBase' | 'wing';
 
 export type PlayerHullHeightSample = {
   alpha: number;
@@ -441,6 +450,18 @@ export function samplePlayerHullHeightMap(point: Point): PlayerHullHeightSample 
     material = 'canopy';
   }
 
+  const turretBasePlate = ellipseDome(point, { x: 0.03, y: 0 }, 0.28, 0.2);
+  if (turretBasePlate > 0) {
+    height = Math.max(height, 0.62 + turretBasePlate * 0.08);
+    material = 'turretBase';
+  }
+
+  const turretBaseCore = ellipseDome(point, { x: 0.03, y: 0 }, 0.16, 0.12);
+  if (turretBaseCore > 0) {
+    height = Math.max(height, 0.72 + turretBaseCore * 0.18);
+    material = 'turretBase';
+  }
+
   const beaconDome = ellipseDome(point, { x: 0.74, y: 0 }, 0.07, 0.055);
   if (beaconDome > 0) {
     height = Math.max(height, 0.76 + beaconDome * 0.16);
@@ -466,11 +487,18 @@ function shadePlayerHullSample(
   light: Point,
 ): { b: number; g: number; r: number } {
   const normal = sampleHeightNormal(point);
-  const facingLight = Math.max(0, normal.x * light.x + normal.y * light.y + normal.z * 0.78);
+  const facingLight = Math.max(
+    0,
+    normal.x * light.x + normal.y * light.y + normal.z * SHIP_LIGHT_ELEVATION,
+  );
   const edgeShadow = 1 - smoothstep(0.018, 0.12, sample.edgeDistance);
   const panelShadow = getPanelLineAmount(point, sample.material);
   const shade = quantizeShade(
-    0.24 + facingLight * 0.58 + sample.height * 0.16 - edgeShadow * 0.28 - panelShadow * 0.18,
+    SHIP_AMBIENT_SHADE +
+      facingLight * SHIP_DIRECTIONAL_SHADE +
+      sample.height * SHIP_HEIGHT_FILL_SHADE -
+      edgeShadow * SHIP_EDGE_SHADOW_SHADE -
+      panelShadow * SHIP_PANEL_SHADOW_SHADE,
   );
   const palette = getShipMaterialPalette(sample.material);
   let color = mixColor(palette.shadow, palette.mid, smoothstep(0.08, 0.62, shade));
@@ -486,10 +514,10 @@ function sampleHeightNormal(point: Point): { x: number; y: number; z: number } {
   const right = samplePlayerHullHeightMap({ x: point.x + HEIGHT_SAMPLE_STEP, y: point.y }).height;
   const up = samplePlayerHullHeightMap({ x: point.x, y: point.y - HEIGHT_SAMPLE_STEP }).height;
   const down = samplePlayerHullHeightMap({ x: point.x, y: point.y + HEIGHT_SAMPLE_STEP }).height;
-  const strength = 5.4;
+  const heightSampleDiameter = HEIGHT_SAMPLE_STEP * 2;
   const normal = {
-    x: (left - right) * strength,
-    y: (up - down) * strength,
+    x: ((left - right) / heightSampleDiameter) * SHIP_HEIGHT_NORMAL_STRENGTH,
+    y: ((up - down) / heightSampleDiameter) * SHIP_HEIGHT_NORMAL_STRENGTH,
     z: 1,
   };
   const length = Math.hypot(normal.x, normal.y, normal.z);
@@ -563,6 +591,13 @@ function getShipMaterialPalette(material: ShipMaterial): {
       mid: { r: 28, g: 36, b: 53 },
       shadow: { r: 9, g: 13, b: 22 },
       spark: { r: 90, g: 111, b: 138 },
+    };
+  if (material === 'turretBase')
+    return {
+      light: { r: 238, g: 245, b: 255 },
+      mid: { r: 130, g: 151, b: 179 },
+      shadow: { r: 28, g: 37, b: 55 },
+      spark: { r: 255, g: 255, b: 255 },
     };
   if (material === 'wing')
     return {
@@ -650,8 +685,8 @@ function getPlayerHullFrameAngle(frameIndex: number): number {
 
 function texturePixelToShipPoint(x: number, y: number): Point {
   return {
-    x: (x + 0.5 - PLAYER_HULL_TEXTURE_SIZE * 0.5) / (PLAYER_VISUAL_SIZE * 0.5),
-    y: (y + 0.5 - PLAYER_HULL_TEXTURE_SIZE * 0.5) / (PLAYER_VISUAL_SIZE * 0.5),
+    x: (x + 0.5 - PLAYER_HULL_TEXTURE_SIZE * 0.5) / PLAYER_HULL_HEIGHTMAP_SCALE,
+    y: (y + 0.5 - PLAYER_HULL_TEXTURE_SIZE * 0.5) / PLAYER_HULL_HEIGHTMAP_SCALE,
   };
 }
 

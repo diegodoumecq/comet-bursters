@@ -8,6 +8,7 @@ import {
   getPlayerHullTextureBlend,
   getPlayerTurretTextureKey,
   PLAYER_HULL_DEFAULT_FRAME_KEY,
+  PLAYER_HULL_DISPLAY_SCALE,
   PLAYER_TEXTURE_KEY,
   PLAYER_VISUAL_SIZE,
 } from './textures';
@@ -97,7 +98,7 @@ function applyHullFrame(
   if (image.texture.key !== frame.textureKey || image.frame.name !== frame.frameKey)
     image.setTexture(frame.textureKey, frame.frameKey);
   image.setPosition(player.x, player.y);
-  image.setScale(player.scale ?? 1);
+  image.setScale((player.scale ?? 1) * PLAYER_HULL_DISPLAY_SCALE);
   image.setRotation(Phaser.Math.Angle.Wrap(player.rotation - frame.frameAngle));
   image.setAlpha(alpha);
 }

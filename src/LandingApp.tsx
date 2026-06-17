@@ -162,6 +162,13 @@ export function LandingApp() {
             Open Sprite Editor
           </a>
 
+          <a
+            href="/ship-heightmap-editor.html"
+            className="inline-flex min-h-11 items-center rounded-lg border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-cyan-400/60 hover:bg-slate-800 focus-visible:border-cyan-300 focus-visible:outline-none"
+          >
+            Open Ship Heightmap Editor
+          </a>
+
           <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-1">
             <CollapsibleSection
               title="Game setup"

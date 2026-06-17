@@ -50,12 +50,15 @@ describe('player textures', () => {
   });
 
   it('defines a bird-like ship heightmap with wings, canopy, and empty exterior', () => {
-    const canopy = samplePlayerHullHeightMap({ x: 0.18, y: 0 });
+    const canopy = samplePlayerHullHeightMap({ x: 0.36, y: 0 });
+    const turretBase = samplePlayerHullHeightMap({ x: 0.03, y: 0 });
     const topWing = samplePlayerHullHeightMap({ x: -0.44, y: -0.29 });
     const bottomWing = samplePlayerHullHeightMap({ x: -0.44, y: 0.29 });
     const outside = samplePlayerHullHeightMap({ x: 0.08, y: -0.86 });
 
     expect(canopy.material).toBe('canopy');
+    expect(turretBase.material).toBe('turretBase');
+    expect(turretBase.height).toBeGreaterThan(canopy.height);
     expect(canopy.height).toBeGreaterThan(topWing.height);
     expect(topWing.alpha).toBeGreaterThan(0);
     expect(bottomWing.alpha).toBeGreaterThan(0);
