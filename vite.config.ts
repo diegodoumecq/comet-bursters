@@ -211,6 +211,64 @@ function createEditorSavePlugin(): Plugin {
           );
         }
       });
+      server.middlewares.use('/__editor/save-ship-heightmap', async (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Method not allowed' }));
+          return;
+        }
+
+        try {
+          const chunks: Uint8Array[] = [];
+          for await (const chunk of req) {
+            chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+          }
+
+          const rawBody = Buffer.concat(chunks).toString('utf8');
+          const payload = JSON.parse(rawBody) as {
+            config?: unknown;
+            fileName?: string;
+          };
+
+          if (!payload.fileName || typeof payload.fileName !== 'string') {
+            throw new Error('Missing fileName');
+          }
+          if (
+            !payload.fileName.endsWith('.json') ||
+            path.basename(payload.fileName) !== payload.fileName
+          ) {
+            throw new Error('Invalid ship heightmap file name');
+          }
+          if (!payload.config || typeof payload.config !== 'object') {
+            throw new Error('Missing ship heightmap config payload');
+          }
+
+          const playerAssetsDir = path.resolve(server.config.root, 'src/assets/player');
+          const targetFilePath = path.resolve(playerAssetsDir, payload.fileName);
+          if (!targetFilePath.startsWith(playerAssetsDir + path.sep)) {
+            throw new Error('Resolved path is outside player assets directory');
+          }
+
+          await fs.writeFile(
+            targetFilePath,
+            `${JSON.stringify(payload.config, null, 2)}\n`,
+            'utf8',
+          );
+
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ fileName: payload.fileName, ok: true }));
+        } catch (error) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(
+            JSON.stringify({
+              error: error instanceof Error ? error.message : 'Failed to save ship heightmap',
+            }),
+          );
+        }
+      });
     },
   };
 }
@@ -235,6 +293,7 @@ export default defineConfig({
         main: path.resolve(__dirname, 'index.html'),
         editor: path.resolve(__dirname, 'editor.html'),
         phaserGame: path.resolve(__dirname, 'phaser-game.html'),
+        shipHeightmapEditor: path.resolve(__dirname, 'ship-heightmap-editor.html'),
         spritesheetEditor: path.resolve(__dirname, 'spritesheet-editor.html'),
         spriteEditor: path.resolve(__dirname, 'sprite-editor.html'),
       },

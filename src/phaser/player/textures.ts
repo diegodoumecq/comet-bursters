@@ -9,6 +9,12 @@ import {
 } from '../core/generatedAssetCache';
 import type { GeneratedTextureGroup } from '../core/generatedTextureRegistry';
 import type { WeaponKind } from '../weapons/types';
+import {
+  getPlayerShipHeightmapConfigVersion,
+  PLAYER_SHIP_HEIGHTMAP_CONFIG,
+  type PlayerShipHeightmapConfig,
+} from './shipHeightmapConfig';
+import type { PlayerShipMaterial } from './shipHeightmapMaterials';
 import { TURRET_SPRITE_DRAWERS, type TurretSpriteMetrics } from './turret';
 
 export const PLAYER_TEXTURE_KEY = 'phaser-ship';
@@ -30,12 +36,12 @@ export const PLAYER_TURRET_TEXTURE_KEYS: Record<WeaponKind, string> = {
   tractor: 'phaser-player-turret-tractor',
 };
 
-const PLAYER_TEXTURE_ART_REVISION = 'bird-ship-heightmap-atlas-v7';
+const PLAYER_TEXTURE_ART_REVISION = 'bird-ship-heightmap-atlas-v9';
 const FULL_ROTATION = Math.PI * 2;
 const PLAYER_HULL_ATLAS_MAX_SIZE = 2048;
 const PLAYER_HULL_LIGHT_DIRECTION = normalizePoint({ x: -0.58, y: -0.82 });
-export const PLAYER_HULL_DISPLAY_SCALE = 0.5;
-const PLAYER_HULL_HEIGHTMAP_SCALE = 60;
+export const PLAYER_HULL_DISPLAY_SCALE = 0.3125;
+const PLAYER_HULL_HEIGHTMAP_SCALE = 96;
 const HEIGHT_SAMPLE_STEP = 1 / 120;
 const SHIP_HEIGHT_NORMAL_STRENGTH = 0.46;
 const SHIP_LIGHT_ELEVATION = 0.42;
@@ -94,13 +100,11 @@ type Point = {
   y: number;
 };
 
-type ShipMaterial = 'beacon' | 'canopy' | 'engine' | 'hull' | 'shadow' | 'turretBase' | 'wing';
-
 export type PlayerHullHeightSample = {
   alpha: number;
   edgeDistance: number;
   height: number;
-  material: ShipMaterial;
+  material: PlayerShipMaterial;
 };
 
 export type PlayerTurretSpriteSpec = {
@@ -306,6 +310,7 @@ function createPlayerTextureCacheVersion(spriteKey: string): string {
     PLAYER_VISUAL_SIZE,
     PLAYER_HULL_TEXTURE_SIZE,
     PLAYER_HULL_ROTATION_FRAME_COUNT,
+    getPlayerShipHeightmapConfigVersion(PLAYER_SHIP_HEIGHTMAP_CONFIG),
     PLAYER_TURRET_TEXTURE_SIZE,
     PLAYER_TURRET_MUZZLE_OFFSET,
     PLAYER_TURRET_SPRITE_ORIENTATION_RADIANS,
@@ -396,7 +401,10 @@ const BOTTOM_TAIL_PANEL: readonly Point[] = TOP_TAIL_PANEL.map((point) => ({
   y: -point.y,
 }));
 
-export function samplePlayerHullHeightMap(point: Point): PlayerHullHeightSample {
+export function samplePlayerHullHeightMap(
+  point: Point,
+  config: PlayerShipHeightmapConfig = PLAYER_SHIP_HEIGHTMAP_CONFIG,
+): PlayerHullHeightSample {
   const inside = pointInPolygon(point, PLAYER_HULL_OUTLINE);
   if (!inside)
     return {
@@ -407,14 +415,24 @@ export function samplePlayerHullHeightMap(point: Point): PlayerHullHeightSample 
     };
 
   const edgeDistance = distanceToPolyline(point, PLAYER_HULL_OUTLINE, true);
-  const alpha = smoothstep(0, 0.035, edgeDistance);
-  const bodyDome = ellipseDome(point, { x: 0.11, y: 0 }, 0.88, 0.24);
-  const noseDome = ellipseDome(point, { x: 0.58, y: 0 }, 0.4, 0.13);
+  const alpha = smoothstep(0, config.edge.alphaFade, edgeDistance);
+  const bodyDome = ellipseDome(
+    point,
+    config.body.center,
+    config.body.radiusX,
+    config.body.radiusY,
+  );
+  const noseDome = ellipseDome(
+    point,
+    config.nose.center,
+    config.nose.radiusX,
+    config.nose.radiusY,
+  );
   const topWing = pointInPolygon(point, TOP_WING_PANEL);
   const bottomWing = pointInPolygon(point, BOTTOM_WING_PANEL);
   const tail = pointInPolygon(point, TOP_TAIL_PANEL) || pointInPolygon(point, BOTTOM_TAIL_PANEL);
-  let height = 0.18 + smoothstep(0, 0.2, edgeDistance) * 0.08;
-  let material: ShipMaterial = 'wing';
+  let height = config.edge.baseHeight + smoothstep(0, config.edge.edgeFade, edgeDistance) * config.edge.edgeLift;
+  let material: PlayerShipMaterial = 'wing';
 
   if (topWing || bottomWing) {
     const wingSign = point.y < 0 ? -1 : 1;
@@ -426,50 +444,85 @@ export function samplePlayerHullHeightMap(point: Point): PlayerHullHeightSample 
         y: 0.3 * wingSign,
       },
     );
-    height = Math.max(height, 0.2 + smoothstep(0.3, 0.04, ridgeDistance) * 0.26);
+    height = Math.max(
+      height,
+      config.wing.baseHeight +
+        smoothstep(
+          config.wing.ridgeOuterDistance,
+          config.wing.ridgeInnerDistance,
+          ridgeDistance,
+        ) *
+          config.wing.ridgeLift,
+    );
   }
 
   if (bodyDome > 0) {
-    height = Math.max(height, 0.32 + bodyDome * 0.54);
+    height = Math.max(height, config.body.baseHeight + bodyDome * config.body.height);
     material = 'hull';
   }
 
   if (noseDome > 0) {
-    height = Math.max(height, 0.38 + noseDome * 0.5);
+    height = Math.max(height, config.nose.baseHeight + noseDome * config.nose.height);
     material = 'hull';
   }
 
   if (tail) {
-    height = Math.max(height, 0.32);
+    height = Math.max(height, config.tail.height);
     material = 'engine';
   }
 
-  const canopyDome = ellipseDome(point, { x: 0.18, y: 0 }, 0.3, 0.16);
-  if (canopyDome > 0 && point.x < 0.42 && point.x > -0.18) {
-    height = Math.max(height, 0.54 + canopyDome * 0.34);
+  const canopyDome = ellipseDome(
+    point,
+    config.canopy.center,
+    config.canopy.radiusX,
+    config.canopy.radiusY,
+  );
+  if (canopyDome > 0 && point.x < config.canopy.maxX && point.x > config.canopy.minX) {
+    height = Math.max(height, config.canopy.baseHeight + canopyDome * config.canopy.height);
     material = 'canopy';
   }
 
-  const turretBasePlate = ellipseDome(point, { x: 0.03, y: 0 }, 0.28, 0.2);
+  const turretBasePlate = ellipseDome(
+    point,
+    config.turretBase.center,
+    config.turretBase.plate.radiusX,
+    config.turretBase.plate.radiusY,
+  );
   if (turretBasePlate > 0) {
-    height = Math.max(height, 0.62 + turretBasePlate * 0.08);
+    height = Math.max(
+      height,
+      config.turretBase.plate.baseHeight + turretBasePlate * config.turretBase.plate.height,
+    );
     material = 'turretBase';
   }
 
-  const turretBaseCore = ellipseDome(point, { x: 0.03, y: 0 }, 0.16, 0.12);
+  const turretBaseCore = ellipseDome(
+    point,
+    config.turretBase.center,
+    config.turretBase.core.radiusX,
+    config.turretBase.core.radiusY,
+  );
   if (turretBaseCore > 0) {
-    height = Math.max(height, 0.72 + turretBaseCore * 0.18);
+    height = Math.max(
+      height,
+      config.turretBase.core.baseHeight + turretBaseCore * config.turretBase.core.height,
+    );
     material = 'turretBase';
   }
 
-  const beaconDome = ellipseDome(point, { x: 0.74, y: 0 }, 0.07, 0.055);
+  const beaconDome = ellipseDome(
+    point,
+    config.beacon.center,
+    config.beacon.radiusX,
+    config.beacon.radiusY,
+  );
   if (beaconDome > 0) {
-    height = Math.max(height, 0.76 + beaconDome * 0.16);
+    height = Math.max(height, config.beacon.baseHeight + beaconDome * config.beacon.height);
     material = 'beacon';
   }
 
-  if (isDarkVent(point)) {
-    height = Math.min(height, 0.2);
+  if (isDarkVent(point, config)) {
+    height = Math.min(height, config.vent.height);
     material = 'shadow';
   }
 
@@ -481,15 +534,17 @@ export function samplePlayerHullHeightMap(point: Point): PlayerHullHeightSample 
   };
 }
 
-function shadePlayerHullSample(
+export function shadePlayerHullSample(
   point: Point,
   sample: PlayerHullHeightSample,
   light: Point,
+  config: PlayerShipHeightmapConfig = PLAYER_SHIP_HEIGHTMAP_CONFIG,
+  lightElevation = SHIP_LIGHT_ELEVATION,
 ): { b: number; g: number; r: number } {
-  const normal = sampleHeightNormal(point);
+  const normal = samplePlayerHullHeightNormal(point, config);
   const facingLight = Math.max(
     0,
-    normal.x * light.x + normal.y * light.y + normal.z * SHIP_LIGHT_ELEVATION,
+    normal.x * light.x + normal.y * light.y + normal.z * lightElevation,
   );
   const edgeShadow = 1 - smoothstep(0.018, 0.12, sample.edgeDistance);
   const panelShadow = getPanelLineAmount(point, sample.material);
@@ -509,11 +564,26 @@ function shadePlayerHullSample(
   return mixColor(color, palette.spark, specular * 0.38);
 }
 
-function sampleHeightNormal(point: Point): { x: number; y: number; z: number } {
-  const left = samplePlayerHullHeightMap({ x: point.x - HEIGHT_SAMPLE_STEP, y: point.y }).height;
-  const right = samplePlayerHullHeightMap({ x: point.x + HEIGHT_SAMPLE_STEP, y: point.y }).height;
-  const up = samplePlayerHullHeightMap({ x: point.x, y: point.y - HEIGHT_SAMPLE_STEP }).height;
-  const down = samplePlayerHullHeightMap({ x: point.x, y: point.y + HEIGHT_SAMPLE_STEP }).height;
+export function samplePlayerHullHeightNormal(
+  point: Point,
+  config: PlayerShipHeightmapConfig = PLAYER_SHIP_HEIGHTMAP_CONFIG,
+): { x: number; y: number; z: number } {
+  const left = samplePlayerHullHeightMap(
+    { x: point.x - HEIGHT_SAMPLE_STEP, y: point.y },
+    config,
+  ).height;
+  const right = samplePlayerHullHeightMap(
+    { x: point.x + HEIGHT_SAMPLE_STEP, y: point.y },
+    config,
+  ).height;
+  const up = samplePlayerHullHeightMap(
+    { x: point.x, y: point.y - HEIGHT_SAMPLE_STEP },
+    config,
+  ).height;
+  const down = samplePlayerHullHeightMap(
+    { x: point.x, y: point.y + HEIGHT_SAMPLE_STEP },
+    config,
+  ).height;
   const heightSampleDiameter = HEIGHT_SAMPLE_STEP * 2;
   const normal = {
     x: ((left - right) / heightSampleDiameter) * SHIP_HEIGHT_NORMAL_STRENGTH,
@@ -524,7 +594,7 @@ function sampleHeightNormal(point: Point): { x: number; y: number; z: number } {
   return { x: normal.x / length, y: normal.y / length, z: normal.z / length };
 }
 
-function getPanelLineAmount(point: Point, material: ShipMaterial): number {
+function getPanelLineAmount(point: Point, material: PlayerShipMaterial): number {
   const centerSeam =
     point.x > -0.62 && point.x < 0.78 ? 1 - smoothstep(0.006, 0.024, Math.abs(point.y)) : 0;
   const topFeather = 1 - smoothstep(0.01, 0.038, distanceToPolyline(point, TOP_WING_PANEL, false));
@@ -554,11 +624,15 @@ function getCanopyRimAmount(point: Point): number {
   return 1 - smoothstep(0.08, 0.18, Math.abs(dx * dx + dy * dy - 1));
 }
 
-function isDarkVent(point: Point): boolean {
-  return point.x > -0.7 && point.x < -0.42 && Math.abs(point.y) < 0.14;
+function isDarkVent(point: Point, config: PlayerShipHeightmapConfig): boolean {
+  return (
+    point.x > config.vent.minX &&
+    point.x < config.vent.maxX &&
+    Math.abs(point.y) < config.vent.halfHeight
+  );
 }
 
-function getShipMaterialPalette(material: ShipMaterial): {
+function getShipMaterialPalette(material: PlayerShipMaterial): {
   light: { b: number; g: number; r: number };
   mid: { b: number; g: number; r: number };
   shadow: { b: number; g: number; r: number };
@@ -683,7 +757,7 @@ function getPlayerHullFrameAngle(frameIndex: number): number {
   return (frameIndex / PLAYER_HULL_ROTATION_FRAME_COUNT) * FULL_ROTATION;
 }
 
-function texturePixelToShipPoint(x: number, y: number): Point {
+export function texturePixelToShipPoint(x: number, y: number): Point {
   return {
     x: (x + 0.5 - PLAYER_HULL_TEXTURE_SIZE * 0.5) / PLAYER_HULL_HEIGHTMAP_SCALE,
     y: (y + 0.5 - PLAYER_HULL_TEXTURE_SIZE * 0.5) / PLAYER_HULL_HEIGHTMAP_SCALE,
@@ -752,7 +826,7 @@ function mixColor(
   };
 }
 
-function rotatePoint(point: Point, angle: number): Point {
+export function rotatePoint(point: Point, angle: number): Point {
   const sin = Math.sin(angle);
   const cos = Math.cos(angle);
   return {

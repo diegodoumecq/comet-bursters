@@ -1,0 +1,84 @@
+{
+  "formatVersion": 1,
+  "edge": {
+    "alphaFade": 0.035,
+    "baseHeight": 0.18,
+    "edgeFade": 0.2,
+    "edgeLift": 0.08
+  },
+  "body": {
+    "center": {
+      "x": 0.11,
+      "y": 0
+    },
+    "radiusX": 0.88,
+    "radiusY": 0.24,
+    "baseHeight": 0.32,
+    "height": 0.54
+  },
+  "nose": {
+    "center": {
+      "x": 0.58,
+      "y": 0
+    },
+    "radiusX": 0.4,
+    "radiusY": 0.13,
+    "baseHeight": 0.38,
+    "height": 0.5
+  },
+  "wing": {
+    "baseHeight": 0.2,
+    "ridgeLift": 0.26,
+    "ridgeOuterDistance": 0.3,
+    "ridgeInnerDistance": 0.04
+  },
+  "tail": {
+    "height": 0.32
+  },
+  "canopy": {
+    "center": {
+      "x": 0.18,
+      "y": 0
+    },
+    "radiusX": 0.3,
+    "radiusY": 0.16,
+    "baseHeight": 0.54,
+    "height": 0.34,
+    "minX": -0.18,
+    "maxX": 0.42
+  },
+  "turretBase": {
+    "center": {
+      "x": 0.03,
+      "y": 0
+    },
+    "plate": {
+      "radiusX": 0.28,
+      "radiusY": 0.2,
+      "baseHeight": 0.62,
+      "height": 0.08
+    },
+    "core": {
+      "radiusX": 0.16,
+      "radiusY": 0.12,
+      "baseHeight": 0.72,
+      "height": 0.18
+    }
+  },
+  "beacon": {
+    "center": {
+      "x": 0.74,
+      "y": 0
+    },
+    "radiusX": 0.07,
+    "radiusY": 0.055,
+    "baseHeight": 0.76,
+    "height": 0.16
+  },
+  "vent": {
+    "minX": -0.7,
+    "maxX": -0.42,
+    "halfHeight": 0.14,
+    "height": 0.2
+  }
+}

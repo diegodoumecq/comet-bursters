@@ -1,78 +1,33 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   PLAYER_HULL_TEXTURE_SIZE,
+  rotatePoint,
   samplePlayerHullHeightMap,
+  samplePlayerHullHeightNormal,
+  shadePlayerHullSample,
+  texturePixelToShipPoint,
   type PlayerHullHeightSample,
 } from '../phaser/player/textures';
+import {
+  clonePlayerShipHeightmapConfig,
+  PLAYER_SHIP_HEIGHTMAP_CONFIG,
+  PLAYER_SHIP_HEIGHTMAP_FILE_NAME,
+  type PlayerShipHeightmapConfig,
+} from '../phaser/player/shipHeightmapConfig';
+import {
+  PLAYER_SHIP_HEIGHTMAP_CONTROL_SECTIONS,
+  type PlayerShipHeightmapControl,
+} from '../phaser/player/shipHeightmapControls';
+import { PLAYER_SHIP_MATERIAL_DEBUG_COLORS } from '../phaser/player/shipHeightmapMaterials';
+import { HeightmapControlSection } from './sections/HeightmapControlSection';
+import { OutputSection } from './sections/OutputSection';
+import { PreviewSection } from './sections/PreviewSection';
+import { SampleSection } from './sections/SampleSection';
+import { ViewSection } from './sections/ViewSection';
+import type { HoverSample, Point, RenderMode } from './types';
 
-type Point = {
-  x: number;
-  y: number;
-};
-
-type HoverSample = {
-  canvas: Point;
-  point: Point;
-  sample: PlayerHullHeightSample;
-};
-
-type RenderMode = 'alpha' | 'height' | 'lit' | 'material' | 'normal';
-
-const HEIGHTMAP_SCALE = 60;
-const NORMAL_SAMPLE_STEP = 1 / 120;
-const NORMAL_STRENGTH = 0.46;
-const DEFAULT_ZOOM = 3;
-const MIN_ZOOM = 1;
-const MAX_ZOOM = 8;
-
-const MATERIAL_COLORS: Record<PlayerHullHeightSample['material'], [number, number, number]> = {
-  beacon: [252, 244, 178],
-  canopy: [86, 198, 232],
-  engine: [237, 129, 63],
-  hull: [177, 190, 211],
-  shadow: [35, 44, 63],
-  turretBase: [150, 172, 202],
-  wing: [138, 151, 170],
-};
-
-const RENDER_MODES: Array<{ key: RenderMode; label: string }> = [
-  { key: 'height', label: 'Height' },
-  { key: 'material', label: 'Material' },
-  { key: 'normal', label: 'Normals' },
-  { key: 'lit', label: 'Lit' },
-  { key: 'alpha', label: 'Alpha' },
-];
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
-function mix(from: number, to: number, amount: number): number {
-  return Math.round(from + (to - from) * clamp(amount, 0, 1));
-}
-
-function texturePixelToShipPoint(x: number, y: number, textureSize: number): Point {
-  return {
-    x: (x + 0.5 - textureSize * 0.5) / HEIGHTMAP_SCALE,
-    y: (y + 0.5 - textureSize * 0.5) / HEIGHTMAP_SCALE,
-  };
-}
-
-function sampleNormal(point: Point): { x: number; y: number; z: number } {
-  const left = samplePlayerHullHeightMap({ x: point.x - NORMAL_SAMPLE_STEP, y: point.y }).height;
-  const right = samplePlayerHullHeightMap({ x: point.x + NORMAL_SAMPLE_STEP, y: point.y }).height;
-  const up = samplePlayerHullHeightMap({ x: point.x, y: point.y - NORMAL_SAMPLE_STEP }).height;
-  const down = samplePlayerHullHeightMap({ x: point.x, y: point.y + NORMAL_SAMPLE_STEP }).height;
-  const sampleDiameter = NORMAL_SAMPLE_STEP * 2;
-  const normal = {
-    x: ((left - right) / sampleDiameter) * NORMAL_STRENGTH,
-    y: ((up - down) / sampleDiameter) * NORMAL_STRENGTH,
-    z: 1,
-  };
-  const length = Math.hypot(normal.x, normal.y, normal.z);
-  return { x: normal.x / length, y: normal.y / length, z: normal.z / length };
-}
+const PREVIEW_TEXTURE_DISPLAY_SIZE = 720;
 
 function getLightVector(angleDegrees: number, elevation: number): Point & { z: number } {
   const angle = (angleDegrees / 180) * Math.PI;
@@ -84,24 +39,11 @@ function getLightVector(angleDegrees: number, elevation: number): Point & { z: n
   };
 }
 
-function shadeLitSample(
-  point: Point,
-  sample: PlayerHullHeightSample,
-  angleDegrees: number,
-  elevation: number,
-): [number, number, number] {
-  const normal = sampleNormal(point);
-  const light = getLightVector(angleDegrees, elevation);
-  const facing = Math.max(0, normal.x * light.x + normal.y * light.y + normal.z * light.z);
-  const material = MATERIAL_COLORS[sample.material];
-  const shade = clamp(0.16 + facing * 0.76 + sample.height * 0.08, 0, 1);
-  return [mix(12, material[0], shade), mix(15, material[1], shade), mix(24, material[2], shade)];
-}
-
 function getPixelColor(
   mode: RenderMode,
   point: Point,
   sample: PlayerHullHeightSample,
+  config: PlayerShipHeightmapConfig,
   lightAngle: number,
   lightElevation: number,
 ): [number, number, number, number] {
@@ -113,12 +55,12 @@ function getPixelColor(
   }
 
   if (mode === 'material') {
-    const color = MATERIAL_COLORS[sample.material];
+    const color = PLAYER_SHIP_MATERIAL_DEBUG_COLORS[sample.material];
     return [color[0], color[1], color[2], Math.round(sample.alpha * 255)];
   }
 
   if (mode === 'normal') {
-    const normal = sampleNormal(point);
+    const normal = samplePlayerHullHeightNormal(point, config);
     return [
       Math.round((normal.x * 0.5 + 0.5) * 255),
       Math.round((normal.y * 0.5 + 0.5) * 255),
@@ -128,8 +70,9 @@ function getPixelColor(
   }
 
   if (mode === 'lit') {
-    const color = shadeLitSample(point, sample, lightAngle, lightElevation);
-    return [color[0], color[1], color[2], Math.round(sample.alpha * 255)];
+    const light = getLightVector(lightAngle, lightElevation);
+    const color = shadePlayerHullSample(point, sample, light, config, light.z);
+    return [color.r, color.g, color.b, Math.round(sample.alpha * 255)];
   }
 
   const height = Math.round(sample.height * 255);
@@ -139,7 +82,9 @@ function getPixelColor(
 function drawHeightmap(
   canvas: HTMLCanvasElement,
   mode: RenderMode,
+  config: PlayerShipHeightmapConfig,
   textureSize: number,
+  shipRotation: number,
   lightAngle: number,
   lightElevation: number,
 ): void {
@@ -149,11 +94,13 @@ function drawHeightmap(
   if (!context) return;
 
   const imageData = context.createImageData(textureSize, textureSize);
+  const shipRotationRadians = (-shipRotation / 180) * Math.PI;
+  const modelLightAngle = lightAngle - shipRotation;
   for (let y = 0; y < textureSize; y += 1) {
     for (let x = 0; x < textureSize; x += 1) {
-      const point = texturePixelToShipPoint(x, y, textureSize);
-      const sample = samplePlayerHullHeightMap(point);
-      const color = getPixelColor(mode, point, sample, lightAngle, lightElevation);
+      const point = rotatePoint(texturePixelToShipPoint(x, y), shipRotationRadians);
+      const sample = samplePlayerHullHeightMap(point, config);
+      const color = getPixelColor(mode, point, sample, config, modelLightAngle, lightElevation);
       const index = (y * textureSize + x) * 4;
       imageData.data[index] = color[0];
       imageData.data[index + 1] = color[1];
@@ -164,59 +111,111 @@ function drawHeightmap(
   context.putImageData(imageData, 0, 0);
 }
 
-function formatNumber(value: number): string {
-  return value.toFixed(3);
+function setConfigNumber(target: Record<string, unknown>, path: readonly string[], value: number): void {
+  const [key, ...remainingPath] = path;
+  if (!key) return;
+  if (remainingPath.length === 0) {
+    target[key] = value;
+    return;
+  }
+
+  const nextTarget = target[key];
+  if (!nextTarget || typeof nextTarget !== 'object' || Array.isArray(nextTarget)) return;
+  setConfigNumber(nextTarget as Record<string, unknown>, remainingPath, value);
 }
 
 export function ShipHeightmapEditorApp() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const viewportRef = useRef<HTMLDivElement | null>(null);
   const [mode, setMode] = useState<RenderMode>('height');
-  const [textureSize, setTextureSize] = useState(PLAYER_HULL_TEXTURE_SIZE);
-  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
+  const [heightmapConfig, setHeightmapConfig] = useState(() =>
+    clonePlayerShipHeightmapConfig(PLAYER_SHIP_HEIGHTMAP_CONFIG),
+  );
+  const [shipRotation, setShipRotation] = useState(0);
   const [lightAngle, setLightAngle] = useState(-135);
   const [lightElevation, setLightElevation] = useState(0.42);
   const [hoverSample, setHoverSample] = useState<HoverSample | null>(null);
-
-  const canvasStyle = useMemo(
-    () => ({
-      height: `${textureSize * zoom}px`,
-      imageRendering: 'pixelated' as const,
-      width: `${textureSize * zoom}px`,
-    }),
-    [textureSize, zoom],
-  );
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    drawHeightmap(canvas, mode, textureSize, lightAngle, lightElevation);
-  }, [lightAngle, lightElevation, mode, textureSize]);
-
-  function centerCanvas(): void {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-    viewport.scrollTo({
-      left: Math.max(0, (textureSize * zoom - viewport.clientWidth) / 2),
-      top: Math.max(0, (textureSize * zoom - viewport.clientHeight) / 2),
-    });
-  }
+    drawHeightmap(
+      canvas,
+      mode,
+      heightmapConfig,
+      PLAYER_HULL_TEXTURE_SIZE,
+      shipRotation,
+      lightAngle,
+      lightElevation,
+    );
+  }, [heightmapConfig, lightAngle, lightElevation, mode, shipRotation]);
 
   function updateHover(event: React.PointerEvent<HTMLCanvasElement>): void {
     const rect = event.currentTarget.getBoundingClientRect();
-    const x = Math.floor(((event.clientX - rect.left) / rect.width) * textureSize);
-    const y = Math.floor(((event.clientY - rect.top) / rect.height) * textureSize);
-    if (x < 0 || y < 0 || x >= textureSize || y >= textureSize) {
+    const x = Math.floor(((event.clientX - rect.left) / rect.width) * PLAYER_HULL_TEXTURE_SIZE);
+    const y = Math.floor(((event.clientY - rect.top) / rect.height) * PLAYER_HULL_TEXTURE_SIZE);
+    if (x < 0 || y < 0 || x >= PLAYER_HULL_TEXTURE_SIZE || y >= PLAYER_HULL_TEXTURE_SIZE) {
       setHoverSample(null);
       return;
     }
 
-    const point = texturePixelToShipPoint(x, y, textureSize);
+    const point = rotatePoint(
+      texturePixelToShipPoint(x, y),
+      (-shipRotation / 180) * Math.PI,
+    );
     setHoverSample({
       canvas: { x, y },
       point,
-      sample: samplePlayerHullHeightMap(point),
+      sample: samplePlayerHullHeightMap(point, heightmapConfig),
     });
+  }
+
+  function updateHeightmapControl(control: PlayerShipHeightmapControl, value: number): void {
+    setHeightmapConfig((current) => {
+      const nextConfig = clonePlayerShipHeightmapConfig(current);
+      setConfigNumber(nextConfig as unknown as Record<string, unknown>, control.path, value);
+      return nextConfig;
+    });
+    setSaveMessage(null);
+  }
+
+  function updateLightAngle(value: number): void {
+    setLightAngle(value);
+    setMode('lit');
+  }
+
+  function updateLightElevation(value: number): void {
+    setLightElevation(value);
+    setMode('lit');
+  }
+
+  async function saveHeightmapConfig(): Promise<void> {
+    setIsSaving(true);
+    setSaveMessage(null);
+    try {
+      const response = await fetch('/__editor/save-ship-heightmap', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          config: heightmapConfig,
+          fileName: PLAYER_SHIP_HEIGHTMAP_FILE_NAME,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorPayload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(errorPayload?.error ?? 'Failed to save ship heightmap');
+      }
+
+      setSaveMessage(`Saved ${PLAYER_SHIP_HEIGHTMAP_FILE_NAME}.`);
+    } catch (error) {
+      setSaveMessage(error instanceof Error ? error.message : 'Failed to save ship heightmap.');
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -236,126 +235,29 @@ export function ShipHeightmapEditorApp() {
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
-          <section className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-            <h2 className="text-sm font-semibold text-slate-100">View</h2>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {RENDER_MODES.map((entry) => (
-                <button
-                  key={entry.key}
-                  type="button"
-                  onClick={() => setMode(entry.key)}
-                  className={`min-h-10 rounded-lg border px-3 text-sm font-medium transition ${
-                    mode === entry.key
-                      ? 'border-cyan-300 bg-cyan-400/15 text-cyan-100'
-                      : 'border-slate-700 bg-slate-950/70 text-slate-300 hover:border-slate-500'
-                  }`}
-                >
-                  {entry.label}
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-            <h2 className="text-sm font-semibold text-slate-100">Texture</h2>
-            <label className="mt-3 block text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
-              Pixels
-              <input
-                className="mt-2 block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-cyan-300"
-                min={120}
-                max={480}
-                step={24}
-                type="number"
-                value={textureSize}
-                onChange={(event) => setTextureSize(clamp(Number(event.target.value), 120, 480))}
-              />
-            </label>
-            <label className="mt-4 block text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
-              Zoom
-              <input
-                className="mt-2 w-full accent-cyan-300"
-                min={MIN_ZOOM}
-                max={MAX_ZOOM}
-                step={0.5}
-                type="range"
-                value={zoom}
-                onChange={(event) => setZoom(Number(event.target.value))}
-              />
-            </label>
-            <button
-              type="button"
-              onClick={centerCanvas}
-              className="mt-4 min-h-10 w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 text-sm font-medium text-slate-200 transition hover:border-slate-500"
-            >
-              Center
-            </button>
-          </section>
-
-          <section className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-            <h2 className="text-sm font-semibold text-slate-100">Light Preview</h2>
-            <label className="mt-3 block text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
-              Angle
-              <input
-                className="mt-2 w-full accent-cyan-300"
-                min={-180}
-                max={180}
-                step={1}
-                type="range"
-                value={lightAngle}
-                onChange={(event) => setLightAngle(Number(event.target.value))}
-              />
-            </label>
-            <label className="mt-4 block text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
-              Elevation
-              <input
-                className="mt-2 w-full accent-cyan-300"
-                min={0}
-                max={1}
-                step={0.01}
-                type="range"
-                value={lightElevation}
-                onChange={(event) => setLightElevation(Number(event.target.value))}
-              />
-            </label>
-            <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
-              <dt className="text-slate-500">Angle</dt>
-              <dd className="text-right text-slate-200">{Math.round(lightAngle)} deg</dd>
-              <dt className="text-slate-500">Elevation</dt>
-              <dd className="text-right text-slate-200">{formatNumber(lightElevation)}</dd>
-            </dl>
-          </section>
-
-          <section className="rounded-lg border border-slate-800 bg-slate-900/60 p-4">
-            <h2 className="text-sm font-semibold text-slate-100">Sample</h2>
-            {hoverSample ? (
-              <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-                <dt className="text-slate-500">Pixel</dt>
-                <dd className="text-right text-slate-200">
-                  {hoverSample.canvas.x}, {hoverSample.canvas.y}
-                </dd>
-                <dt className="text-slate-500">Point</dt>
-                <dd className="text-right text-slate-200">
-                  {formatNumber(hoverSample.point.x)}, {formatNumber(hoverSample.point.y)}
-                </dd>
-                <dt className="text-slate-500">Height</dt>
-                <dd className="text-right text-slate-200">
-                  {formatNumber(hoverSample.sample.height)}
-                </dd>
-                <dt className="text-slate-500">Alpha</dt>
-                <dd className="text-right text-slate-200">
-                  {formatNumber(hoverSample.sample.alpha)}
-                </dd>
-                <dt className="text-slate-500">Edge</dt>
-                <dd className="text-right text-slate-200">
-                  {formatNumber(hoverSample.sample.edgeDistance)}
-                </dd>
-                <dt className="text-slate-500">Material</dt>
-                <dd className="text-right text-slate-200">{hoverSample.sample.material}</dd>
-              </dl>
-            ) : (
-              <div className="mt-3 text-sm text-slate-500">No pixel selected</div>
-            )}
-          </section>
+          <ViewSection mode={mode} onModeChange={setMode} />
+          <PreviewSection
+            lightAngle={lightAngle}
+            lightElevation={lightElevation}
+            onLightAngleChange={updateLightAngle}
+            onLightElevationChange={updateLightElevation}
+            onShipRotationChange={setShipRotation}
+            shipRotation={shipRotation}
+          />
+          {PLAYER_SHIP_HEIGHTMAP_CONTROL_SECTIONS.map((section) => (
+            <HeightmapControlSection
+              key={section.title}
+              config={heightmapConfig}
+              onControlChange={updateHeightmapControl}
+              section={section}
+            />
+          ))}
+          <OutputSection
+            isSaving={isSaving}
+            onSave={() => void saveHeightmapConfig()}
+            saveMessage={saveMessage}
+          />
+          <SampleSection hoverSample={hoverSample} />
         </div>
       </aside>
 
@@ -367,21 +269,22 @@ export function ShipHeightmapEditorApp() {
                 Ship Geometry
               </div>
               <div className="mt-1 text-sm text-slate-300">
-                {textureSize} x {textureSize} px
+                {PLAYER_HULL_TEXTURE_SIZE} x {PLAYER_HULL_TEXTURE_SIZE} px
               </div>
             </div>
             <div className="text-sm text-slate-500">{mode}</div>
           </div>
 
-          <div
-            ref={viewportRef}
-            className="min-h-0 flex-1 overflow-auto rounded-lg border border-slate-800 bg-slate-950"
-          >
+          <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-slate-800 bg-slate-950">
             <div className="flex min-h-full min-w-full items-center justify-center p-10">
               <canvas
                 ref={canvasRef}
-                className="border border-slate-700 bg-slate-950 shadow-xl shadow-black/30"
-                style={canvasStyle}
+                className="shrink-0 border border-slate-700 bg-slate-950 shadow-xl shadow-black/30"
+                style={{
+                  height: `${PREVIEW_TEXTURE_DISPLAY_SIZE}px`,
+                  imageRendering: 'pixelated',
+                  width: `${PREVIEW_TEXTURE_DISPLAY_SIZE}px`,
+                }}
                 onPointerLeave={() => setHoverSample(null)}
                 onPointerMove={updateHover}
               />
