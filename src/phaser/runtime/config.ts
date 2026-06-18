@@ -4,6 +4,7 @@ import { PhaserArcadeScene } from '../scenes/arcade/ArcadeScene';
 import { PhaserRiftSpaceScene } from '../scenes/arcade/rift/RiftSpaceScene';
 import { BootScene } from '../scenes/boot/BootScene';
 import { PhaserDemoScene } from '../scenes/demo/DemoScene';
+import { PhaserProceduralGalaxyScene } from '../scenes/galaxy/ProceduralGalaxyScene';
 import { PhaserSpiralGalaxyScene } from '../scenes/galaxy/SpiralGalaxyScene';
 import { SceneMenuScene } from '../scenes/menu/SceneMenuScene';
 import { PhaserSandboxScene } from '../scenes/sandbox/SandboxScene';
@@ -39,6 +40,7 @@ export function createPhaserConfig(parent: string): Phaser.Types.Core.GameConfig
       BootScene,
       SceneMenuScene,
       PhaserDemoScene,
+      PhaserProceduralGalaxyScene,
       PhaserSpiralGalaxyScene,
       PhaserArcadeScene,
       PhaserRiftSpaceScene,

@@ -5,9 +5,7 @@ import { createSpiralGalaxyShaderTexture, SPIRAL_GALAXY_TEXTURE_KEY } from './sp
 const MAX_GALAXY_TEXTURE_SIZE = 2048;
 const MIN_GALAXY_TEXTURE_SIZE = 768;
 const GALAXY_TEXTURE_SIZE_STEP = 128;
-const GALAXY_COVER_OVERSCAN = 1.08;
-const GALAXY_ROTATION_SPEED = 0.000006;
-const GALAXY_DRIFT_RADIUS = 10;
+const GALAXY_DRIFT_RADIUS = 4;
 
 export class PhaserSpiralGalaxyScene extends Phaser.Scene {
   private galaxyImage: Phaser.GameObjects.Image | null = null;
@@ -30,7 +28,6 @@ export class PhaserSpiralGalaxyScene extends Phaser.Scene {
   update(time: number): void {
     if (!this.galaxyImage) return;
 
-    this.galaxyImage.setRotation(time * GALAXY_ROTATION_SPEED);
     this.galaxyImage.setPosition(
       this.scale.width * 0.5 + Math.cos(time * 0.00004) * GALAXY_DRIFT_RADIUS,
       this.scale.height * 0.5 + Math.sin(time * 0.000031) * GALAXY_DRIFT_RADIUS,
@@ -55,7 +52,12 @@ export class PhaserSpiralGalaxyScene extends Phaser.Scene {
     if (this.textures.exists(SPIRAL_GALAXY_TEXTURE_KEY))
       this.textures.remove(SPIRAL_GALAXY_TEXTURE_KEY);
 
-    if (createSpiralGalaxyShaderTexture(this, SPIRAL_GALAXY_TEXTURE_KEY, nextTextureSize)) {
+    if (
+      createSpiralGalaxyShaderTexture(this, SPIRAL_GALAXY_TEXTURE_KEY, nextTextureSize, {
+        height: this.scale.height,
+        width: this.scale.width,
+      })
+    ) {
       this.textureSize = nextTextureSize;
       this.galaxyImage = this.add.image(0, 0, SPIRAL_GALAXY_TEXTURE_KEY).setDepth(0);
       this.layoutGalaxyImage(this.galaxyImage, nextTextureSize);
@@ -66,14 +68,11 @@ export class PhaserSpiralGalaxyScene extends Phaser.Scene {
     this.createFallbackGalaxy();
   }
 
-  private layoutGalaxyImage(image: Phaser.GameObjects.Image, textureSize: number): void {
-    const coverScale =
-      Math.max(this.scale.width / textureSize, this.scale.height / textureSize) *
-      GALAXY_COVER_OVERSCAN;
+  private layoutGalaxyImage(image: Phaser.GameObjects.Image, _textureSize: number): void {
     image
       .setOrigin(0.5)
       .setPosition(this.scale.width * 0.5, this.scale.height * 0.5)
-      .setScale(coverScale);
+      .setDisplaySize(this.scale.width, this.scale.height);
   }
 
   private createFallbackGalaxy(): void {

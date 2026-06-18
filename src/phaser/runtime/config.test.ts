@@ -20,6 +20,9 @@ describe('phaser runtime config', () => {
     vi.doMock('phaser', () => ({
       default: {
         AUTO: 'AUTO',
+        Loader: {
+          File: class File {},
+        },
         Scene: class Scene {},
         Scale: {
           CENTER_BOTH: 'CENTER_BOTH',

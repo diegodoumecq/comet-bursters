@@ -5,6 +5,7 @@ import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
 
 const MENU_ITEMS = [
   { key: 'demo', label: 'Demo Scene' },
+  { key: 'math-galaxy', label: 'Math Galaxy' },
   { key: 'spiral-galaxy', label: 'Spiral Galaxy' },
   { key: 'arcade', label: 'Arcade Scene' },
   { key: 'sandbox', label: 'Sandbox Scene' },
