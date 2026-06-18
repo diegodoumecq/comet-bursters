@@ -2,14 +2,14 @@ import Phaser from 'phaser';
 
 import { getGameAudio } from '../../audio/AudioManager';
 import type { SceneAudioDirector } from '../../audio/SceneAudioDirector';
-import type { SceneGeneratedTextureScope } from '../generatedTextureScopes';
 
 const MENU_ITEMS = [
   { key: 'demo', label: 'Demo Scene' },
+  { key: 'spiral-galaxy', label: 'Spiral Galaxy' },
   { key: 'arcade', label: 'Arcade Scene' },
   { key: 'sandbox', label: 'Sandbox Scene' },
   { key: 'ship-interior', label: 'Ship Interior' },
-] as const satisfies readonly { key: SceneGeneratedTextureScope; label: string }[];
+] as const satisfies readonly { key: string; label: string }[];
 
 type MenuItem = (typeof MENU_ITEMS)[number];
 

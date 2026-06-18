@@ -18,8 +18,9 @@ import {
   createFuelExtractionPlanet,
   type FuelExtractionPlanetEntity,
 } from '../../planets/fuelExtraction';
-import { FuelExtractorViews } from '../../planets/fuelExtractorViews';
+import { ensureFuelExtractorTextures, FuelExtractorViews } from '../../planets/fuelExtractorViews';
 import { createPlanet, PLANET_SPECS } from '../../planets/logic';
+import { getPlanetTextureKeys } from '../../planets/textures';
 import { PlanetViews } from '../../planets/views';
 import { PlayerBody } from '../../player/body';
 import { PLAYER_DEFINITIONS } from '../../player/definition';
@@ -52,6 +53,8 @@ const DEMO_PLANET_ROTATION_SPEED = 0.00008;
 const DEMO_BLACK_HOLE_AGE_MS = BLACK_HOLE_MATURE_AFTER_MS + BLACK_HOLE_GROWTH_DURATION_MS;
 const DEMO_BLACK_HOLE_LIFETIME_MS = Number.MAX_SAFE_INTEGER;
 const DEMO_WORLD_BOUND_THICKNESS = 64;
+const DEMO_PRELOAD_BAR_WIDTH = 360;
+const DEMO_PRELOAD_BAR_HEIGHT = 8;
 
 const DEMO_ASTEROID_TIER_ROTATION_SCALE: Record<AsteroidTier, number> = {
   big: 0.68,
@@ -97,6 +100,8 @@ export class PhaserDemoScene extends BaseGameScene {
   private fuelExtractorViews!: FuelExtractorViews;
   private audioDirector!: SceneAudioDirector;
   private disposeCanvasOverscan: (() => void) | null = null;
+  private preloadStatusLabel: Phaser.GameObjects.Text | null = null;
+  private preloadedPlanets: FuelExtractionPlanetEntity[] | null = null;
   private readonly playerState = new PlayerState();
   private readonly ship = new ShipState();
 
@@ -105,9 +110,28 @@ export class PhaserDemoScene extends BaseGameScene {
   }
 
   preload(): void {
+    this.createPreloadView();
     preloadTask(this, 'demo-generated-texture-scope', () =>
-      ensureGeneratedTextureScope(this, 'demo'),
+      ensureGeneratedTextureScope(this, 'demo', {
+        onGroupComplete: async ({ group }) => {
+          this.updatePreloadStatus(`Generated ${group.label}`);
+          await waitForBrowserPaint();
+        },
+        onGroupStart: async ({ group, index, total }) => {
+          this.updatePreloadStatus(
+            `Generating ${group.label} (${index + 1} / ${total}, ${group.textureKeys.length} textures)`,
+          );
+          await waitForBrowserPaint();
+        },
+      }),
     );
+    preloadTask(this, 'demo-showcase-textures', async () => {
+      await waitForBrowserPaint();
+      this.preloadedPlanets = createDemoPlanets();
+      await prepareDemoGeneratedTextures(this, this.preloadedPlanets, (status) =>
+        this.updatePreloadStatus(status),
+      );
+    });
   }
 
   create(): void {
@@ -212,21 +236,8 @@ export class PhaserDemoScene extends BaseGameScene {
   }
 
   private createPlanets(): void {
-    let nextLeft = DEMO_PLANET_ROW_START.x;
-    let nextTop = DEMO_PLANET_ROW_START.y;
-    this.planets = Object.values(PLANET_SPECS).map((spec, index) => {
-      const rawX = nextLeft + spec.radius * 1.5;
-      if (rawX + spec.radius > WORLD.width) {
-        nextLeft = DEMO_PLANET_ROW_START.x;
-        nextTop += DEMO_PLANET_ROW_START.y;
-      }
-      const x = nextLeft + spec.radius * 1.5;
-      nextLeft = x + spec.radius + DEMO_PLANET_GAP;
-      const planet = createPlanet(x, nextTop, spec);
-      planet.rotation = DEMO_SHOWCASE_ROTATION;
-      planet.rotationSpeed = DEMO_PLANET_ROTATION_SPEED;
-      return createFuelExtractionPlanet(planet, createDemoFuelExtractorRandom(index));
-    });
+    this.planets = this.preloadedPlanets ?? createDemoPlanets();
+    this.preloadedPlanets = null;
     for (const planet of this.planets) {
       this.planetViews.add(planet);
       if (!isFocusedDemoTechniqueActive()) {
@@ -325,6 +336,63 @@ export class PhaserDemoScene extends BaseGameScene {
     }
   }
 
+  private createPreloadView(): void {
+    const centerX = this.scale.width * 0.5;
+    const centerY = this.scale.height * 0.5;
+    const barX = centerX - DEMO_PRELOAD_BAR_WIDTH * 0.5;
+    const barY = centerY + 32;
+    const container = this.add.container(0, 0).setDepth(10_000).setScrollFactor(0);
+    const fill = this.add
+      .rectangle(barX, barY, 0, DEMO_PRELOAD_BAR_HEIGHT, 0x67e8f9)
+      .setOrigin(0, 0.5);
+    const progressLabel = this.add
+      .text(centerX, centerY + 62, '0%', {
+        color: '#94a3b8',
+        fontFamily: 'monospace',
+        fontSize: '14px',
+      })
+      .setOrigin(0.5);
+    this.preloadStatusLabel = this.add
+      .text(centerX, centerY - 8, 'Queueing generated texture work', {
+        color: '#bae6fd',
+        fontFamily: 'monospace',
+        fontSize: '17px',
+      })
+      .setOrigin(0.5);
+
+    container.add([
+      this.add
+        .text(centerX, centerY - 52, 'Preparing demo scene', {
+          color: '#f8fafc',
+          fontFamily: 'monospace',
+          fontSize: '26px',
+        })
+        .setOrigin(0.5),
+      this.preloadStatusLabel,
+      this.add
+        .rectangle(barX, barY, DEMO_PRELOAD_BAR_WIDTH, DEMO_PRELOAD_BAR_HEIGHT, 0x162033)
+        .setOrigin(0, 0.5),
+      fill,
+      progressLabel,
+    ]);
+
+    const updateProgress = (progress: number) => {
+      fill.setSize(DEMO_PRELOAD_BAR_WIDTH * progress, DEMO_PRELOAD_BAR_HEIGHT);
+      progressLabel.setText(`${Math.round(progress * 100)}%`);
+    };
+
+    this.load.on('progress', updateProgress);
+    this.load.once('complete', () => {
+      this.load.off('progress', updateProgress);
+      container.destroy(true);
+      this.preloadStatusLabel = null;
+    });
+  }
+
+  private updatePreloadStatus(status: string): void {
+    this.preloadStatusLabel?.setText(status);
+  }
+
   private updateEntities(): void {
     for (const entity of this.entities) {
       this.entityBodies.sync(entity);
@@ -390,6 +458,52 @@ function createPermanentDemoPortal(input: {
   };
 }
 
+function createDemoPlanets(): FuelExtractionPlanetEntity[] {
+  let nextLeft = DEMO_PLANET_ROW_START.x;
+  let nextTop = DEMO_PLANET_ROW_START.y;
+  return Object.values(PLANET_SPECS).map((spec, index) => {
+    const rawX = nextLeft + spec.radius * 1.5;
+    if (rawX + spec.radius > WORLD.width) {
+      nextLeft = DEMO_PLANET_ROW_START.x;
+      nextTop += DEMO_PLANET_ROW_START.y;
+    }
+    const x = nextLeft + spec.radius * 1.5;
+    nextLeft = x + spec.radius + DEMO_PLANET_GAP;
+    const planet = createPlanet(x, nextTop, spec);
+    planet.rotation = DEMO_SHOWCASE_ROTATION;
+    planet.rotationSpeed = DEMO_PLANET_ROTATION_SPEED;
+    return createFuelExtractionPlanet(planet, createDemoFuelExtractorRandom(index));
+  });
+}
+
+async function prepareDemoGeneratedTextures(
+  scene: Phaser.Scene,
+  planets: FuelExtractionPlanetEntity[],
+  onStatus: (status: string) => void,
+): Promise<void> {
+  await prepareDemoPlanetTextures(scene, planets, onStatus);
+  onStatus('Generating fuel extractor building texture');
+  await waitForBrowserPaint();
+  ensureFuelExtractorTextures(scene);
+  onStatus('Generated demo showcase textures');
+  await waitForBrowserPaint();
+}
+
+async function prepareDemoPlanetTextures(
+  scene: Phaser.Scene,
+  planets: FuelExtractionPlanetEntity[],
+  onStatus: (status: string) => void,
+): Promise<void> {
+  for (let index = 0; index < planets.length; index += 1) {
+    const planet = planets[index];
+    onStatus(
+      `Generating ${planet.kind} planet surface + lighting (${index + 1} / ${planets.length})`,
+    );
+    await waitForBrowserPaint();
+    getPlanetTextureKeys(scene, planet);
+  }
+}
+
 function getDemoAsteroidAngularVelocity(tier: AsteroidTier, visualVariant: number): number {
   const direction = visualVariant % 2 === 0 ? 1 : -1;
   return DEMO_ASTEROID_ROTATION_SPEED * DEMO_ASTEROID_TIER_ROTATION_SCALE[tier] * direction;
@@ -422,4 +536,10 @@ function getVisibleDemoWorldBounds(
     x: inset,
     y: inset,
   };
+}
+
+function waitForBrowserPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
 }

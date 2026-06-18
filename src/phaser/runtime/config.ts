@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 
 import { PhaserArcadeScene } from '../scenes/arcade/ArcadeScene';
+import { PhaserRiftSpaceScene } from '../scenes/arcade/rift/RiftSpaceScene';
 import { BootScene } from '../scenes/boot/BootScene';
 import { PhaserDemoScene } from '../scenes/demo/DemoScene';
-import { PhaserRiftSpaceScene } from '../scenes/arcade/rift/RiftSpaceScene';
-import { PhaserSandboxScene } from '../scenes/sandbox/SandboxScene';
+import { PhaserSpiralGalaxyScene } from '../scenes/galaxy/SpiralGalaxyScene';
 import { SceneMenuScene } from '../scenes/menu/SceneMenuScene';
+import { PhaserSandboxScene } from '../scenes/sandbox/SandboxScene';
 import { PhaserShipInteriorScene } from '../scenes/shipInterior/ShipInteriorScene';
 
 export function createPhaserConfig(parent: string): Phaser.Types.Core.GameConfig {
@@ -38,6 +39,7 @@ export function createPhaserConfig(parent: string): Phaser.Types.Core.GameConfig
       BootScene,
       SceneMenuScene,
       PhaserDemoScene,
+      PhaserSpiralGalaxyScene,
       PhaserArcadeScene,
       PhaserRiftSpaceScene,
       PhaserSandboxScene,
