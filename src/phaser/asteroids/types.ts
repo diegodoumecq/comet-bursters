@@ -12,6 +12,7 @@ export type AsteroidEntity = {
   position: Vector;
   rotation: number;
   splitGroupId?: number;
+  spawnScale?: number;
   tier: AsteroidTier;
   velocity: Vector;
   visualVariant: number;

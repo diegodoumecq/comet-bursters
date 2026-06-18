@@ -2,17 +2,25 @@ import Phaser from 'phaser';
 
 import { createArcadeGameOverText } from '../../../arcade/visuals';
 import { AsteroidBodies } from '../../../asteroids/bodies';
+import { ASTEROIDS } from '../../../asteroids/config';
+import type { AsteroidEntity } from '../../../asteroids/types';
 import { getGameAudio } from '../../../audio/AudioManager';
 import type { SceneAudioDirector } from '../../../audio/SceneAudioDirector';
 import { MatterContacts } from '../../../combat/matterContacts';
 import { applyMatterBodySpec } from '../../../core/matterBodySpec';
 import type { Vector, WorldSize } from '../../../core/types';
 import { DimensionDebugOverlay } from '../../../dimensions/DimensionDebugOverlay';
+import { normalizeVector } from '../../../dimensions/portalGeometry';
 import type { RiftSpaceSceneBridge } from '../../../dimensions/RiftSpaceSceneBridge';
 import { getDimensionCoordinator } from '../../../dimensions/runtime';
-import type { PortalEntity } from '../../../dimensions/types';
+import type { PortalEntity, PortalViewPolicy } from '../../../dimensions/types';
 import { EntityBodies } from '../../../entities/bodies';
 import { createMonolith } from '../../../entities/logic';
+import {
+  createMonolithAsteroidId,
+  MonolithRiftDirector,
+  type MonolithRiftAttack,
+} from '../../../entities/monolithRiftDirector';
 import type { GameEntity } from '../../../entities/types';
 import { FuelBodies } from '../../../fuel/bodies';
 import type { ActionState } from '../../../input/actions';
@@ -44,6 +52,18 @@ import { SpaceRenderEffects } from '../../../world/SpaceRenderEffects';
 import { SpaceWorldRuntime } from '../../../world/SpaceWorldRuntime';
 
 const RIFT_MONOLITH_ID = 700_001;
+const PORTAL_SEED_DEPTH = -1.75;
+const MONOLITH_BASE_SPEED = 2.15;
+const MONOLITH_TARGET_SPEED = 4.2;
+const MONOLITH_STEER_FORCE_SCALE = 0.00008;
+const MONOLITH_MAX_STEER_FORCE = 0.0085;
+
+type GrowingAsteroid = {
+  asteroid: AsteroidEntity;
+  durationMs: number;
+  initialScale: number;
+  startedAt: number;
+};
 
 export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceSceneBridge {
   private background!: DimensionBackground;
@@ -68,6 +88,8 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
   private timeScale = 1;
   private worldSize!: WorldSize;
   private riftMonolith: GameEntity | null = null;
+  private monolithDirector = new MonolithRiftDirector();
+  private readonly growingAsteroids: GrowingAsteroid[] = [];
   private readonly perfToggles = getSandboxPerfToggles();
 
   constructor() {
@@ -136,6 +158,7 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
 
   update(time: number, delta: number): void {
     this.ensureRiftMonolith();
+    this.updateGrowingAsteroids(time);
     this.runtime.updateSceneEntities({
       deltaMs: delta * this.timeScale,
       deltaSeconds: (delta / 1000) * this.timeScale,
@@ -253,6 +276,41 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
     this.matter.world.engine.timing.timeScale = timeScale;
   }
 
+  setMonolithRiftIntensity(initialIntensity: number): void {
+    this.monolithDirector = new MonolithRiftDirector(initialIntensity);
+  }
+
+  updateMonolithRift(input: {
+    activePortal: PortalEntity | null;
+    forcePortal?: boolean;
+    forcedViewPolicy?: PortalViewPolicy;
+    now: number;
+    playerPosition: Vector;
+    portalId: number;
+    world: WorldSize;
+  }): { burstCount: number; portal: PortalEntity } | null {
+    this.ensureRiftMonolith();
+    const monolith = this.getRiftMonolith();
+    const result = this.monolithDirector.update({
+      activePortal: input.activePortal,
+      forcePortal: input.forcePortal,
+      forcedViewPolicy: input.forcedViewPolicy,
+      monolith,
+      now: input.now,
+      playerPosition: input.playerPosition,
+      portalId: input.portalId,
+      world: input.world,
+    });
+    this.applyMonolithMovement(monolith, result.movementTarget, input.now);
+    this.launchDueMonolithAsteroids(input.activePortal, input.now);
+    if (!result.attack) return null;
+    this.createPortalSeedBallVisuals(result.attack, monolith.position, input.now);
+    return {
+      burstCount: result.attack.burstCount,
+      portal: result.attack.portal,
+    };
+  }
+
   renderGameOver(input: { visible: boolean; world: WorldSize }): void {
     if (input.visible && !this.gameOverText) {
       this.gameOverText = createArcadeGameOverText(this, input.world);
@@ -297,6 +355,119 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
 
   private getRiftMonolithPosition(): Vector {
     return { x: this.worldSize.width * 0.5, y: this.worldSize.height * 0.5 };
+  }
+
+  private applyMonolithMovement(monolith: GameEntity, target: Vector, now: number): void {
+    const body = this.runtime.getEntityBodies().get(monolith);
+    const delta = {
+      x: target.x - monolith.position.x,
+      y: target.y - monolith.position.y,
+    };
+    const distance = Math.hypot(delta.x, delta.y);
+    const direction =
+      distance > 0.001 ? { x: delta.x / distance, y: delta.y / distance } : { x: 0, y: 0 };
+    const tangent = { x: -direction.y, y: direction.x };
+    const speed = Phaser.Math.Clamp(distance * 0.014, MONOLITH_BASE_SPEED, MONOLITH_TARGET_SPEED);
+    const wobble = Math.sin(now * 0.0031 + monolith.id * 0.17) * 1.35;
+    const velocity = {
+      x: direction.x * speed + tangent.x * wobble,
+      y: direction.y * speed + tangent.y * wobble,
+    };
+    const steering = {
+      x: velocity.x - body.body.velocity.x,
+      y: velocity.y - body.body.velocity.y,
+    };
+    const force = limitVector(
+      {
+        x: steering.x * body.body.mass * MONOLITH_STEER_FORCE_SCALE,
+        y: steering.y * body.body.mass * MONOLITH_STEER_FORCE_SCALE,
+      },
+      MONOLITH_MAX_STEER_FORCE,
+    );
+    body.applyForce(new Phaser.Math.Vector2(force.x, force.y));
+  }
+
+  private createPortalSeedBallVisuals(
+    attack: MonolithRiftAttack,
+    monolithPosition: Vector,
+    now: number,
+  ): void {
+    for (const seed of attack.seedBalls) {
+      const direction = normalizeVector({
+        x: seed.target.x - monolithPosition.x,
+        y: seed.target.y - monolithPosition.y,
+      });
+      const start = {
+        x: monolithPosition.x + direction.x * 48,
+        y: monolithPosition.y + direction.y * 48,
+      };
+      const ball = this.add
+        .circle(start.x, start.y, seed.radius, 0x01030a, 0.94)
+        .setDepth(PORTAL_SEED_DEPTH);
+      ball.setStrokeStyle(Math.max(1, seed.radius * 0.18), 0x38bdf8, 0.42);
+      const duration = Math.max(140, seed.arrivalAt - now);
+      this.tweens.add({
+        alpha: 0.08,
+        duration,
+        ease: 'Cubic.easeOut',
+        onComplete: () => ball.destroy(),
+        scale: 0.36,
+        targets: ball,
+        x: seed.target.x,
+        y: seed.target.y,
+      });
+    }
+  }
+
+  private launchDueMonolithAsteroids(activePortal: PortalEntity | null, now: number): void {
+    const monolith = this.getRiftMonolith();
+    const launches = this.monolithDirector.consumeDueAsteroidLaunches({
+      monolithPosition: monolith.position,
+      now,
+      portal: activePortal,
+    });
+    if (launches.length === 0) return;
+    const asteroids = launches.map(({ launch, position, velocity }) => {
+      const asteroid: AsteroidEntity = {
+        angularVelocity: launch.angularVelocity,
+        hits: ASTEROIDS[launch.tier].hits,
+        id: createMonolithAsteroidId(),
+        membership: { space: 'rift' },
+        position,
+        rotation: launch.rotation,
+        spawnScale: this.monolithDirector.getLaunchInitialScale(),
+        tier: launch.tier,
+        velocity,
+        visualVariant: launch.visualVariant,
+      };
+      this.growingAsteroids.push({
+        asteroid,
+        durationMs: launch.scaleDurationMs,
+        initialScale: asteroid.spawnScale ?? 1,
+        startedAt: now,
+      });
+      return asteroid;
+    });
+    this.runtime.addAsteroids(asteroids);
+  }
+
+  private updateGrowingAsteroids(now: number): void {
+    const activeGrowth: GrowingAsteroid[] = [];
+    for (const growing of this.growingAsteroids) {
+      const asteroidStillExists = this.runtime.world.asteroids.includes(growing.asteroid);
+      if (asteroidStillExists) {
+        const progress = Phaser.Math.Clamp((now - growing.startedAt) / growing.durationMs, 0, 1);
+        if (progress >= 1) {
+          delete growing.asteroid.spawnScale;
+        } else {
+          const eased = Phaser.Math.Easing.Cubic.Out(progress);
+          growing.asteroid.spawnScale = Phaser.Math.Linear(growing.initialScale, 1, eased);
+          activeGrowth.push(growing);
+        }
+      }
+    }
+    this.growingAsteroids.length = 0;
+    this.growingAsteroids.push(...activeGrowth);
   }
 
   private handleResize(gameSize: Phaser.Structs.Size): void {
@@ -372,4 +543,11 @@ export class PhaserRiftSpaceScene extends Phaser.Scene implements RiftSpaceScene
     this.playerArcadeSilhouette.fillStyle(0xf97316, 0.28);
     this.playerArcadeSilhouette.fillCircle(0, 0, size * 0.17);
   }
+}
+
+function limitVector(vector: Vector, maxLength: number): Vector {
+  const length = Math.hypot(vector.x, vector.y);
+  if (length <= maxLength || length === 0) return vector;
+  const scale = maxLength / length;
+  return { x: vector.x * scale, y: vector.y * scale };
 }

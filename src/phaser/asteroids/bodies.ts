@@ -36,6 +36,7 @@ type Snapshot = {
 export class AsteroidBodies {
   private readonly attached = new Set<number>();
   private readonly bodies = new Map<number, MatterImage>();
+  private readonly bodyScales = new WeakMap<MatterImage, number>();
   private readonly visuals = new Map<number, AsteroidVisual>();
   private readonly toroidalCopies = new Map<number, ToroidalCopy[]>();
   private readonly snapshots = new Map<number, Snapshot>();
@@ -233,7 +234,7 @@ export class AsteroidBodies {
     const copies = this.ensureToroidalCopies(asteroid);
     const activeOffsets = getToroidalOffsets(
       asteroid.position,
-      ASTEROIDS[asteroid.tier].radius,
+      ASTEROIDS[asteroid.tier].radius * getAsteroidSpawnScale(asteroid),
       world,
     );
     const velocity = asteroid.velocity;
@@ -317,8 +318,10 @@ export class AsteroidBodies {
       texture.frameKey,
     ) as MatterImage;
     const displaySize = getAsteroidTextureDisplaySize(asteroid.tier);
-    body.setDisplaySize(displaySize, displaySize);
-    body.setCircle(config.body.collisionRadius);
+    const spawnScale = getAsteroidSpawnScale(asteroid);
+    body.setDisplaySize(displaySize * spawnScale, displaySize * spawnScale);
+    body.setCircle(config.body.collisionRadius * spawnScale);
+    this.bodyScales.set(body, spawnScale);
     applyMatterBodySpec(body, config.body);
     body.body.collisionFilter.category = ASTEROID_COLLISION_CATEGORY;
     body.setVelocity(asteroid.velocity.x, asteroid.velocity.y);
@@ -348,9 +351,10 @@ export class AsteroidBodies {
     );
     const visual = { current, next };
     const displaySize = getAsteroidTextureDisplaySize(asteroid.tier);
-    current.setDisplaySize(displaySize, displaySize);
+    const spawnScale = getAsteroidSpawnScale(asteroid);
+    current.setDisplaySize(displaySize * spawnScale, displaySize * spawnScale);
     current.setName(`asteroid-visual-${asteroid.id}`);
-    next.setDisplaySize(displaySize, displaySize);
+    next.setDisplaySize(displaySize * spawnScale, displaySize * spawnScale);
     next.setName(`asteroid-visual-${asteroid.id}-blend`);
     this.applyVisualFrame(visual, asteroid, asteroid.rotation);
     return visual;
@@ -399,6 +403,7 @@ export class AsteroidBodies {
   ): void {
     body.setPosition(position.x, position.y);
     body.setRotation(rotation);
+    this.applyBodyScale(body, asteroid);
     body.setVelocity(velocity.x, velocity.y);
     body.setAngularVelocity(angularVelocity);
     body.setVisible(false);
@@ -426,8 +431,9 @@ export class AsteroidBodies {
     )
       visual.next.setTexture(textureBlend.next.textureKey, textureBlend.next.frameKey);
     const displaySize = getAsteroidTextureDisplaySize(asteroid.tier);
-    visual.current.setDisplaySize(displaySize, displaySize);
-    visual.next.setDisplaySize(displaySize, displaySize);
+    const spawnScale = getAsteroidSpawnScale(asteroid);
+    visual.current.setDisplaySize(displaySize * spawnScale, displaySize * spawnScale);
+    visual.next.setDisplaySize(displaySize * spawnScale, displaySize * spawnScale);
     visual.current.setRotation(Phaser.Math.Angle.Wrap(textureBlend.current.frameAngle - rotation));
     visual.next.setRotation(Phaser.Math.Angle.Wrap(textureBlend.next.frameAngle - rotation));
     visual.current.setAlpha(1);
@@ -445,6 +451,17 @@ export class AsteroidBodies {
     visual.next.setVisible(visible && visual.next.alpha > 0.001);
   }
 
+  private applyBodyScale(body: MatterImage, asteroid: AsteroidEntity): void {
+    const spawnScale = getAsteroidSpawnScale(asteroid);
+    const currentScale = this.bodyScales.get(body);
+    if (currentScale === spawnScale) return;
+    const config = ASTEROID_DEFINITIONS[asteroid.tier];
+    body.setCircle(config.body.collisionRadius * spawnScale);
+    applyMatterBodySpec(body, config.body);
+    body.body.collisionFilter.category = ASTEROID_COLLISION_CATEGORY;
+    this.bodyScales.set(body, spawnScale);
+  }
+
   private getBodyRotation(body: MatterImage): number {
     return body.body.angle;
   }
@@ -452,4 +469,8 @@ export class AsteroidBodies {
 
 function getWorldOffset(direction: Vector, world: WorldSize): Vector {
   return { x: direction.x * world.width, y: direction.y * world.height };
+}
+
+function getAsteroidSpawnScale(asteroid: AsteroidEntity): number {
+  return Phaser.Math.Clamp(asteroid.spawnScale ?? 1, 0.08, 1);
 }

@@ -1,4 +1,4 @@
-import type { Vector, WorldSize } from '../core/types';
+import type { Vector } from '../core/types';
 
 export type SpaceId = 'arcade' | 'rift';
 
@@ -64,27 +64,7 @@ export type TransferableEntitySnapshot = {
   previousPosition: Vector;
 };
 
-export type PortalSpawnPlan = {
-  asteroidCount: number;
-  asteroidSpeed: number;
-  spawnDistance: number;
-  spreadRadius: number;
-};
-
-export type PortalPlacementInput = {
-  now: number;
-  playerPosition: Vector;
-  portalId: number;
-  world: WorldSize;
-};
-
-export type PortalDirectorPlan = {
-  portal: PortalEntity;
-  spawn: PortalSpawnPlan;
-};
-
 export type DimensionCommand =
-  | { plan: PortalDirectorPlan; portal: PortalEntity; type: 'spawnPortal' }
   | { portalId: number; type: 'closePortal' }
   | {
       entity: TransferableEntitySnapshot;

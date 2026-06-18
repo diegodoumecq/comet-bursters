@@ -112,6 +112,7 @@ export class PlayerBody {
     const friction = target.body.friction;
     const frictionAir = target.body.frictionAir;
     const frictionStatic = target.body.frictionStatic;
+    const fixedRotation = target.body.inverseInertia === 0;
     const isSensor = target.body.isSensor;
     const isStatic = target.body.isStatic;
     const mass = target.body.mass;
@@ -120,6 +121,7 @@ export class PlayerBody {
     target.setStatic(isStatic);
     target.setFriction(friction, frictionAir, frictionStatic);
     target.setMass(mass);
+    if (fixedRotation) target.setFixedRotation();
     target.body.collisionFilter.category = filter.category;
     target.body.collisionFilter.mask = filter.mask;
     target.body.collisionFilter.group = filter.group;

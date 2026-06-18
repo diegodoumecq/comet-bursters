@@ -6,6 +6,7 @@ export const PLAYER_DEFINITIONS = {
   arcade: {
     body: {
       bounce: 0.8,
+      fixedRotation: true,
       frictionAir: 0,
       mass: PLAYER_MASS,
     } satisfies MatterBodySpec,

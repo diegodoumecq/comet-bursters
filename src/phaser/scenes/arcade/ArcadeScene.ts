@@ -40,8 +40,6 @@ import { getTimeScale } from '../../core/time';
 import type { Vector, WorldSize } from '../../core/types';
 import type { DimensionCoordinator } from '../../dimensions/DimensionCoordinator';
 import { DimensionDebugOverlay } from '../../dimensions/DimensionDebugOverlay';
-import { createPortalAsteroidSpawn } from '../../dimensions/PortalAsteroidSpawner';
-import { PortalDirector } from '../../dimensions/PortalDirector';
 import { portalApertureContainsCenter } from '../../dimensions/portalGeometry';
 import type { RiftSpaceSceneBridge } from '../../dimensions/RiftSpaceSceneBridge';
 import { resetDimensionCoordinator } from '../../dimensions/runtime';
@@ -119,11 +117,11 @@ export class PhaserArcadeScene extends BaseGameScene {
   private dimensionDebug!: DimensionDebugOverlay;
   private audioDirector!: SceneAudioDirector;
   private dimensionCoordinator!: DimensionCoordinator;
-  private riftDirector!: PortalDirector;
   private gameOverAt = 0;
   private lastThrusterAt = 0;
   private nextPortalId = 1;
   private riftSpaceScene: RiftSpaceSceneBridge | null = null;
+  private pendingForcedRiftViewPolicy: PortalViewPolicy | null = null;
   private readonly riftDebug = getArcadeRiftDebugEnabled();
   private readonly riftDebugScenario = getArcadeRiftDebugScenario();
   private readonly dimensionDebugEnabled = getArcadeDimensionDebugEnabled();
@@ -146,7 +144,6 @@ export class PhaserArcadeScene extends BaseGameScene {
     this.resetRunFields();
     const startingIntensity = getStartingWave();
     this.session = new ArcadeRunState(startingIntensity);
-    this.riftDirector = new PortalDirector(startingIntensity);
     this.worldSize = { width: this.scale.width, height: this.scale.height };
     this.actions = new ActionReader(this);
     this.playerBody = new PlayerBody(
@@ -488,20 +485,6 @@ export class PhaserArcadeScene extends BaseGameScene {
     return this.session.player.position;
   }
 
-  private openRiftBurst(now: number, viewPolicy?: PortalViewPolicy): void {
-    const plan = this.riftDirector.createPortalPlan({
-      now,
-      playerPosition: this.session.player.position,
-      portalId: this.nextPortalId,
-      viewPolicy,
-      world: this.worldSize,
-    });
-    this.nextPortalId += 1;
-    this.session.burstCount = this.riftDirector.burstCount;
-    this.dimensionCoordinator.openPortal(plan);
-    this.audioDirector.emit({ position: plan.portal.position, type: 'portalOpened' });
-  }
-
   private updateDebugRiftInput(action: ActionState): void {
     if (!this.riftDebug) return;
 
@@ -515,10 +498,10 @@ export class PhaserArcadeScene extends BaseGameScene {
       this.openDebugCrossingRift(this.time.now, this.riftDebugScenario);
     }
     if (this.riftWorldIsReady() && action.debugRiftWindowJustPressed) {
-      this.openRiftBurst(this.time.now, 'window');
+      this.pendingForcedRiftViewPolicy = 'window';
     }
     if (this.riftWorldIsReady() && action.debugRiftCameraJustPressed) {
-      this.openRiftBurst(this.time.now, 'cameraTransfer');
+      this.pendingForcedRiftViewPolicy = 'cameraTransfer';
     }
   }
 
@@ -539,15 +522,7 @@ export class PhaserArcadeScene extends BaseGameScene {
       visualRadiusY: 135,
     };
     this.nextPortalId += 1;
-    this.dimensionCoordinator.openPortal({
-      portal,
-      spawn: {
-        asteroidCount: 0,
-        asteroidSpeed: 0,
-        spawnDistance: 0,
-        spreadRadius: 0,
-      },
-    });
+    this.dimensionCoordinator.openPortal(portal);
 
     if (scenario === 'asteroidCrossing') {
       this.runtime.addAsteroids([
@@ -600,6 +575,7 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private bindRiftSpaceScene(riftScene: RiftSpaceSceneBridge): void {
     this.riftSpaceScene = riftScene;
+    riftScene.setMonolithRiftIntensity(this.session.burstCount + 1);
     riftScene.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
       this.handleRiftSpaceShutdown(riftScene),
     );
@@ -637,14 +613,7 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private applyDimensionCommands(commands: DimensionCommand[]): void {
     for (const command of commands) {
-      if (command.type === 'spawnPortal') {
-        this.dimensionCoordinator.requireWorld('rift').addAsteroids(
-          createPortalAsteroidSpawn({
-            burstIndex: this.riftDirector.burstCount,
-            plan: command.plan,
-          }),
-        );
-      } else if (command.type === 'startCameraTransition') {
+      if (command.type === 'startCameraTransition') {
         this.startDimensionTransitionEffect(command.to);
       }
     }
@@ -1368,14 +1337,23 @@ export class PhaserArcadeScene extends BaseGameScene {
 
   private updateRiftDirector(now: number): void {
     if (!this.riftWorldIsReady()) return;
-    if (
-      this.riftDirector.shouldOpenPortal({
-        activePortal: this.dimensionCoordinator.getActivePortal() !== null,
-        now,
-      })
-    ) {
-      this.openRiftBurst(now);
-    }
+    if (!this.riftSpaceScene) return;
+    const forcedViewPolicy = this.pendingForcedRiftViewPolicy ?? undefined;
+    this.pendingForcedRiftViewPolicy = null;
+    const result = this.riftSpaceScene.updateMonolithRift({
+      activePortal: this.dimensionCoordinator.getActivePortal(),
+      forcePortal: this.playerIsAlive() && this.session.world.asteroids.length === 0,
+      forcedViewPolicy,
+      now,
+      playerPosition: this.session.player.position,
+      portalId: this.nextPortalId,
+      world: this.worldSize,
+    });
+    if (!result) return;
+    this.nextPortalId += 1;
+    this.session.burstCount = result.burstCount;
+    this.dimensionCoordinator.openPortal(result.portal);
+    this.audioDirector.emit({ position: result.portal.position, type: 'portalOpened' });
   }
 
   private riftWorldIsReady(): boolean {

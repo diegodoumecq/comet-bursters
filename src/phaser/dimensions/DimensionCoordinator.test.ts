@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { SpaceWorldRuntime } from '../world/SpaceWorldRuntime';
 import { DimensionCoordinator } from './DimensionCoordinator';
-import type { PortalDirectorPlan, PortalEntity, SpaceId } from './types';
+import type { PortalEntity, SpaceId } from './types';
 
 const TRANSFER_TEST_WORLD = { width: 800, height: 600 };
 
@@ -214,28 +214,20 @@ function createWorld(
   return world;
 }
 
-function createPlan(input: Partial<PortalEntity>): PortalDirectorPlan {
+function createPlan(input: Partial<PortalEntity>): PortalEntity {
   return {
-    portal: {
-      activeDurationMs: 800,
-      aperture: { radiusX: 80, radiusY: 40 },
-      closeStartedAt: 1000,
-      closingDurationMs: 400,
-      id: 1,
-      lifecycle: input.lifecycle ?? 'closingVisual',
-      normal: { x: 1, y: 0 },
-      openedAt: input.openedAt ?? -200,
-      openingDurationMs: 200,
-      position: { x: 100, y: 100 },
-      viewPolicy: input.viewPolicy ?? 'window',
-      visualRadiusX: 100,
-      visualRadiusY: 50,
-    },
-    spawn: {
-      asteroidCount: 0,
-      asteroidSpeed: 0,
-      spawnDistance: 0,
-      spreadRadius: 0,
-    },
+    activeDurationMs: 800,
+    aperture: { radiusX: 80, radiusY: 40 },
+    closeStartedAt: 1000,
+    closingDurationMs: 400,
+    id: 1,
+    lifecycle: input.lifecycle ?? 'closingVisual',
+    normal: { x: 1, y: 0 },
+    openedAt: input.openedAt ?? -200,
+    openingDurationMs: 200,
+    position: { x: 100, y: 100 },
+    viewPolicy: input.viewPolicy ?? 'window',
+    visualRadiusX: 100,
+    visualRadiusY: 50,
   };
 }
